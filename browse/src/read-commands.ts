@@ -7,6 +7,7 @@
 
 import type { BrowserManager } from './browser-manager';
 import { consoleBuffer, networkBuffer } from './buffers';
+import { validateInputPath } from './path-validation';
 import * as fs from 'fs';
 
 export async function handleReadCommand(
@@ -98,8 +99,9 @@ export async function handleReadCommand(
     case 'eval': {
       const filePath = args[0];
       if (!filePath) throw new Error('Usage: browse eval <js-file>');
-      if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
-      const code = fs.readFileSync(filePath, 'utf-8');
+      const safePath = validateInputPath(filePath);
+      if (!fs.existsSync(safePath)) throw new Error(`File not found: ${safePath}`);
+      const code = fs.readFileSync(safePath, 'utf-8');
       const result = await page.evaluate(code);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }

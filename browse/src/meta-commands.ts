@@ -4,6 +4,7 @@
 
 import type { BrowserManager } from './browser-manager';
 import { handleSnapshot } from './snapshot';
+import { validateOutputPath } from './path-validation';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 
@@ -72,14 +73,14 @@ export async function handleMetaCommand(
     // ─── Visual ────────────────────────────────────────
     case 'screenshot': {
       const page = bm.getPage();
-      const screenshotPath = args[0] || '/tmp/browse-screenshot.png';
+      const screenshotPath = validateOutputPath(args[0] || '/tmp/browse-screenshot.png');
       await page.screenshot({ path: screenshotPath, fullPage: true });
       return `Screenshot saved: ${screenshotPath}`;
     }
 
     case 'pdf': {
       const page = bm.getPage();
-      const pdfPath = args[0] || '/tmp/browse-page.pdf';
+      const pdfPath = validateOutputPath(args[0] || '/tmp/browse-page.pdf');
       await page.pdf({ path: pdfPath, format: 'A4' });
       return `PDF saved: ${pdfPath}`;
     }
@@ -87,6 +88,7 @@ export async function handleMetaCommand(
     case 'responsive': {
       const page = bm.getPage();
       const prefix = args[0] || '/tmp/browse-responsive';
+      validateOutputPath(prefix);
       const viewports = [
         { name: 'mobile', width: 375, height: 812 },
         { name: 'tablet', width: 768, height: 1024 },
