@@ -2,7 +2,7 @@
 
 **gstack turns Claude Code from one generic assistant into a team of specialists you can summon on demand.**
 
-Six opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, code review, one-command shipping, browser automation, and engineering retrospectives — all as slash commands.
+Seven opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, code review, test-driven bug fixing, one-command shipping, browser automation, and engineering retrospectives — all as slash commands.
 
 ### Without gstack
 
@@ -20,6 +20,7 @@ Six opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/
 | `/plan-ceo-review` | Founder / CEO | Rethink the problem. Find the 10-star product hiding inside the request. |
 | `/plan-eng-review` | Eng manager / tech lead | Lock in architecture, data flow, diagrams, edge cases, and tests. |
 | `/review` | Paranoid staff engineer | Find the bugs that pass CI but blow up in production. Not a style nitpick pass. |
+| `/bugfix` | Disciplined debugger | Reproduce the bug, prove the root cause, fix it with a failing test that goes RED then GREEN. Never guess. |
 | `/ship` | Release engineer | Sync main, run tests, push, open PR. For a ready branch, not for deciding what to build. |
 | `/browse` | QA engineer | Give the agent eyes. It logs in, clicks through your app, takes screenshots, catches breakage. Full QA pass in 60 seconds. |
 | `/retro` | Engineering manager | Analyze commit history, work patterns, and shipping velocity for the week. |
@@ -82,11 +83,11 @@ This is not a prompt pack for beginners. It is an operating system for people wh
 
 Open Claude Code and paste this. Claude will do the rest.
 
-> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /bugfix, /ship, /browse, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /bugfix, /ship, /browse, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. The binary and node\_modules are gitignored — teammates just need to run `cd .claude/skills/gstack && ./setup` once to build (or `/browse` handles it automatically on first use).
 
@@ -261,6 +262,39 @@ I want the model imagining the production incident before it happens.
 
 ---
 
+## `/bugfix`
+
+This is my **disciplined debugger mode**.
+
+When something breaks, the model's instinct is to guess at the cause and start patching. Half the time the guess is wrong. Now you have two bugs instead of one.
+
+`/bugfix` enforces a strict workflow: **Reproduce → Prove → Fix → Verify → Improve.**
+
+The model cannot skip steps. It cannot fix a bug it has not reproduced. It cannot implement a fix without first proving its hypothesis about the root cause. And after the fix, it must answer the most important question: **why did the existing tests miss this?**
+
+That is the part most developers skip. That is the part that matters most.
+
+### Example
+
+Take the same listing app. `/review` flagged a race condition: two tabs can overwrite cover-photo selection.
+
+Without `/bugfix`, the model might add a lock and move on. Maybe it works. Maybe it does not. No proof either way.
+
+With `/bugfix`:
+
+1. Run existing tests — they all pass. No concurrency test exists for cover-photo selection.
+2. Write a test that simulates two concurrent updates to the same listing's cover photo — it fails. Race confirmed.
+3. Fix: atomic `WHERE old_photo = ? UPDATE SET new_photo` instead of read-then-write.
+4. Verify: concurrency test passes. All existing tests still pass.
+5. Improve: no test existed for any concurrent state mutation on listings. Add concurrency tests for title editing and price updates too.
+
+The output is a RED → GREEN proof that the fix works, a root cause analysis, and the test gap that let it through.
+
+I do not want the model guessing and patching.
+I want it proving and preventing.
+
+---
+
 ## `/ship`
 
 This is my **release machine mode**.
@@ -392,7 +426,7 @@ Run `cd ~/.claude/skills/gstack && ./setup` (or `cd .claude/skills/gstack && ./s
 Run `cd ~/.claude/skills/gstack && bun install && bun run build`. This compiles the browser binary. Requires Bun v1.0+.
 
 **Project copy is stale?**
-Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+Re-copy from global: `for s in browse bugfix plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 **`bun` not installed?**
 Install it: `curl -fsSL https://bun.sh/install | bash`
@@ -401,7 +435,7 @@ Install it: `curl -fsSL https://bun.sh/install | bash`
 
 Paste this into Claude Code:
 
-> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse bugfix plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 The `setup` script rebuilds the browser binary and re-symlinks skills. It takes a few seconds.
 
@@ -409,7 +443,7 @@ The `setup` script rebuilds the browser binary and re-symlinks skills. It takes 
 
 Paste this into Claude Code:
 
-> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
+> Uninstall gstack: remove the skill symlinks by running `for s in browse bugfix plan-ceo-review plan-eng-review review ship retro; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse bugfix plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
 
 ## Development
 
