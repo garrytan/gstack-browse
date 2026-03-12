@@ -2,18 +2,17 @@
 
 ## 0.0.2 — 2026-03-12
 
-### Changed
-
-- Reworked `/browse` daemon lifecycle so `stop` and `restart` complete cleanly, serialize startup, and persist user-agent changes across restarts.
-- Switched snapshot refs from global live locators to tab-local frozen element handles so refs fail stale instead of drifting across tabs or SPA rerenders.
-- Updated network capture to track requests by Playwright request identity and report response size/timing without loading response bodies into memory.
-
-### Fixed
-
-- `browse cookie` now supports an explicit origin before first navigation and returns clear guidance on `about:blank`.
-- `browse fill` and `browse select` now accept explicit empty-string values.
-- Snapshot parsing now preserves accessible names containing escaped quotes.
-- Added regression coverage for lifecycle, ref safety, cookie semantics, empty values, quoted names, and same-URL network attribution.
+- Fix project-local `/browse` installs — compiled binary now resolves `server.ts` from its own directory instead of assuming a global install exists
+- `setup` rebuilds stale binaries (not just missing ones) and exits non-zero if the build fails
+- Fix `chain` command swallowing real errors from write commands (e.g. navigation timeout reported as "Unknown meta command")
+- Fix unbounded restart loop in CLI when server crashes repeatedly on the same command
+- Cap console/network buffers at 50k entries (ring buffer) instead of growing without bound
+- Fix disk flush stopping silently after buffer hits the 50k cap
+- Fix `ln -snf` in setup to avoid creating nested symlinks on upgrade
+- Use `git fetch && git reset --hard` instead of `git pull` for upgrades (handles force-pushes)
+- Simplify install: global-first with optional project copy (replaces submodule approach)
+- Restructured README: hero, before/after, demo transcript, troubleshooting section
+- Six skills (added `/retro`)
 
 ## 0.0.1 — 2026-03-11
 

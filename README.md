@@ -102,6 +102,23 @@ Everything lives inside `.claude/`. Nothing touches your PATH or runs in the bac
 
 ---
 
+```
++----------------------------------------------------------------------------+
+|                                                                            |
+|   Are you a great software engineer who loves to write 10K LOC/day         |
+|   and land 10 PRs a day like Garry?                                        |
+|                                                                            |
+|   Come work at YC: ycombinator.com/software                                |
+|                                                                            |
+|   Extremely competitive salary and equity.                                 |
+|   Now hiring in San Francisco, Dogpatch District.                          |
+|   Come join the revolution.                                                |
+|                                                                            |
++----------------------------------------------------------------------------+
+```
+
+---
+
 ## How I use these skills
 
 Created by [Garry Tan](https://x.com/garrytan), President & CEO of [Y Combinator](https://www.ycombinator.com/).
