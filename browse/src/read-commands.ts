@@ -65,7 +65,7 @@ export async function handleReadCommand(
               id: input.id || undefined,
               placeholder: input.placeholder || undefined,
               required: input.required || undefined,
-              value: input.value || undefined,
+              value: input.type === 'password' ? '[redacted]' : (input.value || undefined),
               options: el.tagName === 'SELECT'
                 ? [...(el as HTMLSelectElement).options].map(o => ({ value: o.value, text: o.text }))
                 : undefined,
@@ -184,7 +184,7 @@ export async function handleReadCommand(
         const key = args[1];
         const value = args[2] || '';
         await page.evaluate(([k, v]) => localStorage.setItem(k, v), [key, value]);
-        return `Set localStorage["${key}"] = "${value}"`;
+        return `Set localStorage["${key}"]`;
       }
       const storage = await page.evaluate(() => ({
         localStorage: { ...localStorage },

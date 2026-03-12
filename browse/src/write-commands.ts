@@ -94,7 +94,7 @@ export async function handleWriteCommand(
       const text = args.join(' ');
       if (!text) throw new Error('Usage: browse type <text>');
       await page.keyboard.type(text);
-      return `Typed "${text}"`;
+      return `Typed ${text.length} characters`;
     }
 
     case 'press': {
@@ -153,7 +153,7 @@ export async function handleWriteCommand(
         domain: url.hostname,
         path: '/',
       }]);
-      return `Cookie set: ${name}=${value}`;
+      return `Cookie set: ${name}=****`;
     }
 
     case 'header': {
@@ -163,7 +163,9 @@ export async function handleWriteCommand(
       const name = headerStr.slice(0, sep).trim();
       const value = headerStr.slice(sep + 1).trim();
       await bm.setExtraHeader(name, value);
-      return `Header set: ${name}: ${value}`;
+      const sensitiveHeaders = ['authorization', 'cookie', 'set-cookie', 'x-api-key', 'x-auth-token'];
+      const redactedValue = sensitiveHeaders.includes(name.toLowerCase()) ? '****' : value;
+      return `Header set: ${name}: ${redactedValue}`;
     }
 
     case 'useragent': {
