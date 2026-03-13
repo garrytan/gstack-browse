@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.0.3 — 2026-03-12
+
+- Add `/cfo` skill — session cost banner + 30-day AI spend dashboard. Reads token usage directly from `~/.claude/projects/` transcripts. Breaks spend down by day, project/branch, detects repeated prompts, and gives personalized cost-saving tips. Includes `ai_spend.py`, a standalone Python dashboard that also supports team/org views and manual logging of Cursor, Lovable, ChatGPT, and other AI tool spend.
+
 ## 0.0.2 — 2026-03-12
 
 - Fix project-local `/browse` installs — compiled binary now resolves `server.ts` from its own directory instead of assuming a global install exists

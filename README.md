@@ -23,6 +23,7 @@ Six opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/
 | `/ship` | Release engineer | Sync main, run tests, push, open PR. For a ready branch, not for deciding what to build. |
 | `/browse` | QA engineer | Give the agent eyes. It logs in, clicks through your app, takes screenshots, catches breakage. Full QA pass in 60 seconds. |
 | `/retro` | Engineering manager | Analyze commit history, work patterns, and shipping velocity for the week. |
+| `/cfo` | CFO | Show current session cost and elapsed time, then run the full AI spend dashboard for the project. |
 
 ## Demo: one feature, five modes
 
@@ -82,11 +83,11 @@ This is not a prompt pack for beginners. It is an operating system for people wh
 
 Open Claude Code and paste this. Claude will do the rest.
 
-> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro, /cfo. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro, /cfo, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. The binary and node\_modules are gitignored — teammates just need to run `cd .claude/skills/gstack && ./setup` once to build (or `/browse` handles it automatically on first use).
 
@@ -383,6 +384,66 @@ It saves a JSON snapshot to `.context/retros/` so the next run can show trends. 
 
 ---
 
+## `/cfo`
+
+This is my **CFO mode**.
+
+I want to know what I'm spending before I forget to check. `/cfo` tells me what the current session cost, how long I've been in it, and what the total spend on the project looks like over the last 30 days.
+
+It reads Claude Code's session transcripts directly — no API keys, no third-party tracking. Just token counts from `~/.claude/projects/` turned into dollars.
+
+```
+You:   /cfo
+
+Claude:
+╔══════════════════════════════════════════════════╗
+║  This session                                    ║
+╠══════════════════════════════════════════════════╣
+║  $4.81 · 6h 30m · +122 −14                      ║
+╚══════════════════════════════════════════════════╝
+
+  AI Spend Dashboard  ·  @you  ·  my-project  ·  last 30 days
+
+  Daily Spend
+  ────────────────────────────────────────────────────────────
+  Mar 12  ██████████████████████  $36.23  ✓ 36% of budget
+
+  Spend per Feature / Branch
+  ────────────────────────────────────────────────────────────
+  my-project  /  main           ████████████████████  $36.23
+
+  Prompt Repetition  (potential waste)
+  ────────────────────────────────────────────────────────────
+  Estimated waste from repetition: $1.29
+
+  Cost-Saving Strategies
+  ────────────────────────────────────────────────────────────
+  1.  Excellent cache hit rate (93%). Keep sessions open rather than starting fresh.
+  2.  Average session cost is $18. Scope one feature per session.
+  ...
+```
+
+The dashboard breaks spend down by day, by project/branch, detects repeated prompts that are wasting money, and gives personalized cost-saving tips based on your actual usage patterns.
+
+You can also log spend from other AI tools (Cursor, Lovable, ChatGPT, etc.) and see a unified view:
+
+```bash
+python3 ~/.claude/skills/cfo/ai_spend.py --add
+# Tool name: Cursor
+# Cost in USD: 5.00
+# Date: today
+```
+
+And if your team shares a directory, you can see aggregated spend across everyone:
+
+```bash
+python3 ~/.claude/skills/cfo/ai_spend.py --setup   # configure team_dir
+python3 ~/.claude/skills/cfo/ai_spend.py --export  # share your data
+python3 ~/.claude/skills/cfo/ai_spend.py --team    # see the full team
+```
+
+---
+
 ## Troubleshooting
 
 **Skill not showing up in Claude Code?**
@@ -392,7 +453,7 @@ Run `cd ~/.claude/skills/gstack && ./setup` (or `cd .claude/skills/gstack && ./s
 Run `cd ~/.claude/skills/gstack && bun install && bun run build`. This compiles the browser binary. Requires Bun v1.0+.
 
 **Project copy is stale?**
-Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro cfo; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 **`bun` not installed?**
 Install it: `curl -fsSL https://bun.sh/install | bash`
@@ -401,7 +462,7 @@ Install it: `curl -fsSL https://bun.sh/install | bash`
 
 Paste this into Claude Code:
 
-> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro cfo; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 The `setup` script rebuilds the browser binary and re-symlinks skills. It takes a few seconds.
 
@@ -409,7 +470,7 @@ The `setup` script rebuilds the browser binary and re-symlinks skills. It takes 
 
 Paste this into Claude Code:
 
-> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
+> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro cfo; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro cfo; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
 
 ## Development
 

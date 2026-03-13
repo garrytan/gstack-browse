@@ -21,6 +21,7 @@ gstack/
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill
 ├── plan-eng-review/ # /plan-eng-review skill
+├── cfo/             # /cfo skill — session cost + project spend dashboard
 ├── retro/           # Retrospective skill
 ├── setup            # One-time setup: build binary + symlink skills
 ├── SKILL.md         # Browse skill (Claude discovers this)
