@@ -1,11 +1,11 @@
 /**
  * Snapshot command — accessibility tree with ref-based element selection
  *
- * Architecture (Locator map — no DOM mutation):
+ * Architecture (frozen handle map — no DOM mutation):
  *   1. page.locator(scope).ariaSnapshot() → YAML-like accessibility tree
  *   2. Parse tree, assign refs @e1, @e2, ...
  *   3. Build Playwright Locator for each ref (getByRole + nth)
- *   4. Store Map<string, Locator> on BrowserManager
+ *   4. Resolve each locator to an ElementHandle and store it per tab
  *   5. Return compact text output with refs prepended
  *
  * Extended features:
@@ -14,12 +14,13 @@
  *   --output / -o:     Output path for annotated screenshot
  *   -C / --cursor-interactive: Scan for cursor:pointer/onclick/tabindex elements
  *
- * Later: "click @e3" → look up Locator → locator.click()
+ * Later: "click @e3" → look up frozen handle → handle.click()
  */
 
-import type { Page, Locator } from 'playwright';
+import type { ElementHandle, Locator } from 'playwright';
 import type { BrowserManager } from './browser-manager';
 import * as Diff from 'diff';
+import * as path from 'path';
 
 // Roles considered "interactive" for the -i flag
 const INTERACTIVE_ROLES = new Set([
@@ -44,9 +45,13 @@ interface ParsedNode {
   indent: number;
   role: string;
   name: string | null;
-  props: string;      // e.g., "[level=1]"
-  children: string;   // inline text content after ":"
+  props: string;
+  children: string;
   rawLine: string;
+}
+
+function unescapeQuotedText(value: string): string {
+  return value.replace(/\\\\/g, '\\').replace(/\\"/g, '"');
 }
 
 /**
@@ -110,16 +115,14 @@ export function parseSnapshotArgs(args: string[]): SnapshotOptions {
  *   - combobox "Role":
  */
 function parseLine(line: string): ParsedNode | null {
-  // Match: (indent)(- )(role)( "name")?( [props])?(: inline)?
-  const match = line.match(/^(\s*)-\s+(\w+)(?:\s+"([^"]*)")?(?:\s+(\[.*?\]))?\s*(?::\s*(.*))?$/);
+  const match = line.match(/^(\s*)-\s+(\w+)(?:\s+"((?:[^"\\]|\\.)*)")?(?:\s+(\[.*?\]))?\s*(?::\s*(.*))?$/);
   if (!match) {
-    // Skip metadata lines like "- /url: /a"
     return null;
   }
   return {
     indent: match[1].length,
     role: match[2],
-    name: match[3] ?? null,
+    name: match[3] ? unescapeQuotedText(match[3]) : null,
     props: match[4] || '',
     children: match[5]?.trim() || '',
     rawLine: line,
@@ -136,7 +139,6 @@ export async function handleSnapshot(
   const opts = parseSnapshotArgs(args);
   const page = bm.getPage();
 
-  // Get accessibility tree via ariaSnapshot
   let rootLocator: Locator;
   if (opts.selector) {
     rootLocator = page.locator(opts.selector);
@@ -152,17 +154,14 @@ export async function handleSnapshot(
     return '(no accessible elements found)';
   }
 
-  // Parse the ariaSnapshot output
   const lines = ariaText.split('\n');
-  const refMap = new Map<string, Locator>();
+  const refMap = new Map<string, ElementHandle<Node>>();
   const output: string[] = [];
   let refCounter = 1;
 
-  // Track role+name occurrences for nth() disambiguation
   const roleNameCounts = new Map<string, number>();
   const roleNameSeen = new Map<string, number>();
 
-  // First pass: count role+name pairs for disambiguation
   for (const line of lines) {
     const node = parseLine(line);
     if (!node) continue;
@@ -170,7 +169,11 @@ export async function handleSnapshot(
     roleNameCounts.set(key, (roleNameCounts.get(key) || 0) + 1);
   }
 
-  // Second pass: assign refs and build locators
+  function markRoleNameSeen(node: ParsedNode) {
+    const key = `${node.role}:${node.name || ''}`;
+    roleNameSeen.set(key, (roleNameSeen.get(key) || 0) + 1);
+  }
+
   for (const line of lines) {
     const node = parseLine(line);
     if (!node) continue;
@@ -178,25 +181,22 @@ export async function handleSnapshot(
     const depth = Math.floor(node.indent / 2);
     const isInteractive = INTERACTIVE_ROLES.has(node.role);
 
-    // Depth filter
-    if (opts.depth !== undefined && depth > opts.depth) continue;
-
-    // Interactive filter: skip non-interactive but still count for locator indices
-    if (opts.interactive && !isInteractive) {
-      // Still track for nth() counts
-      const key = `${node.role}:${node.name || ''}`;
-      roleNameSeen.set(key, (roleNameSeen.get(key) || 0) + 1);
+    if (opts.depth !== undefined && depth > opts.depth) {
+      markRoleNameSeen(node);
       continue;
     }
 
-    // Compact filter: skip elements with no name and no inline content that aren't interactive
-    if (opts.compact && !isInteractive && !node.name && !node.children) continue;
+    if (opts.interactive && !isInteractive) {
+      markRoleNameSeen(node);
+      continue;
+    }
 
-    // Assign ref
-    const ref = `e${refCounter++}`;
+    if (opts.compact && !isInteractive && !node.name && !node.children) {
+      markRoleNameSeen(node);
+      continue;
+    }
+
     const indent = '  '.repeat(depth);
-
-    // Build Playwright locator
     const key = `${node.role}:${node.name || ''}`;
     const seenIndex = roleNameSeen.get(key) || 0;
     roleNameSeen.set(key, seenIndex + 1);
@@ -213,23 +213,30 @@ export async function handleSnapshot(
       });
     }
 
-    // Disambiguate with nth() if multiple elements share role+name
     if (totalCount > 1) {
       locator = locator.nth(seenIndex);
     }
 
-    refMap.set(ref, locator);
+    let handle: ElementHandle<Node> | null = null;
+    try {
+      const count = await locator.count();
+      if (count !== 1) continue;
+      handle = await locator.elementHandle({ timeout: 100 });
+    } catch {
+      continue;
+    }
+    if (!handle) continue;
 
-    // Format output line
+    const ref = `e${refCounter++}`;
+    refMap.set(ref, handle);
+
     let outputLine = `${indent}@${ref} [${node.role}]`;
     if (node.name) outputLine += ` "${node.name}"`;
     if (node.props) outputLine += ` ${node.props}`;
     if (node.children) outputLine += `: ${node.children}`;
-
     output.push(outputLine);
   }
 
-  // ─── Cursor-interactive scan (-C) ─────────────────────────
   if (opts.cursorInteractive) {
     try {
       const cursorElements = await page.evaluate(() => {
@@ -241,9 +248,7 @@ export async function handleSnapshot(
         const allElements = document.querySelectorAll('*');
 
         for (const el of allElements) {
-          // Skip standard interactive elements (already in ARIA tree)
           if (STANDARD_INTERACTIVE.has(el.tagName)) continue;
-          // Skip hidden elements
           if (!(el as HTMLElement).offsetParent && el.tagName !== 'BODY') continue;
 
           const style = getComputedStyle(el);
@@ -253,10 +258,8 @@ export async function handleSnapshot(
           const hasRole = el.hasAttribute('role');
 
           if (!hasCursorPointer && !hasOnclick && !hasTabindex) continue;
-          // Skip if it has an ARIA role (likely already captured)
           if (hasRole) continue;
 
-          // Build deterministic nth-child CSS path
           const parts: string[] = [];
           let current: Element | null = el;
           while (current && current !== document.documentElement) {
@@ -285,10 +288,18 @@ export async function handleSnapshot(
         output.push('── cursor-interactive (not in ARIA tree) ──');
         let cRefCounter = 1;
         for (const elem of cursorElements) {
-          const ref = `c${cRefCounter++}`;
-          const locator = page.locator(elem.selector);
-          refMap.set(ref, locator);
-          output.push(`@${ref} [${elem.reason}] "${elem.text}"`);
+          try {
+            const locator = page.locator(elem.selector);
+            const count = await locator.count();
+            if (count !== 1) continue;
+            const handle = await locator.elementHandle({ timeout: 100 });
+            if (!handle) continue;
+            const ref = `c${cRefCounter++}`;
+            refMap.set(ref, handle);
+            output.push(`@${ref} [${elem.reason}] "${elem.text}"`);
+          } catch {
+            continue;
+          }
         }
       }
     } catch {
@@ -297,7 +308,6 @@ export async function handleSnapshot(
     }
   }
 
-  // Store ref map on BrowserManager
   bm.setRefMap(refMap);
 
   if (output.length === 0) {
@@ -306,31 +316,28 @@ export async function handleSnapshot(
 
   const snapshotText = output.join('\n');
 
-  // ─── Annotated screenshot (-a) ────────────────────────────
   if (opts.annotate) {
     const screenshotPath = opts.outputPath || '/tmp/browse-annotated.png';
-    // Validate output path (consistent with screenshot/pdf/responsive)
-    const resolvedPath = require('path').resolve(screenshotPath);
+    const resolvedPath = path.resolve(screenshotPath);
     const safeDirs = ['/tmp', process.cwd()];
-    if (!safeDirs.some((dir: string) => resolvedPath === dir || resolvedPath.startsWith(dir + '/'))) {
+    if (!safeDirs.some((dir) => resolvedPath === dir || resolvedPath.startsWith(dir + '/'))) {
       throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
     }
     try {
-      // Inject overlay divs at each ref's bounding box
       const boxes: Array<{ ref: string; box: { x: number; y: number; width: number; height: number } }> = [];
-      for (const [ref, locator] of refMap) {
+      for (const [ref, handle] of refMap) {
         try {
-          const box = await locator.boundingBox({ timeout: 1000 });
+          const box = await handle.boundingBox();
           if (box) {
             boxes.push({ ref: `@${ref}`, box });
           }
         } catch {
-          // Element may be offscreen or hidden — skip
+          continue;
         }
       }
 
-      await page.evaluate((boxes) => {
-        for (const { ref, box } of boxes) {
+      await page.evaluate((boxesToDraw) => {
+        for (const { ref, box } of boxesToDraw) {
           const overlay = document.createElement('div');
           overlay.className = '__browse_annotation__';
           overlay.style.cssText = `
@@ -350,29 +357,26 @@ export async function handleSnapshot(
 
       await page.screenshot({ path: screenshotPath, fullPage: true });
 
-      // Always remove overlays
       await page.evaluate(() => {
-        document.querySelectorAll('.__browse_annotation__').forEach(el => el.remove());
+        document.querySelectorAll('.__browse_annotation__').forEach((el) => el.remove());
       });
 
       output.push('');
       output.push(`[annotated screenshot: ${screenshotPath}]`);
     } catch {
-      // Remove overlays even on screenshot failure
       try {
         await page.evaluate(() => {
-          document.querySelectorAll('.__browse_annotation__').forEach(el => el.remove());
+          document.querySelectorAll('.__browse_annotation__').forEach((el) => el.remove());
         });
       } catch {}
     }
   }
 
-  // ─── Diff mode (-D) ───────────────────────────────────────
   if (opts.diff) {
     const lastSnapshot = bm.getLastSnapshot();
     if (!lastSnapshot) {
       bm.setLastSnapshot(snapshotText);
-      return snapshotText + '\n\n(no previous snapshot to diff against — this snapshot stored as baseline)';
+      return `${snapshotText}\n\n(no previous snapshot to diff against — this snapshot stored as baseline)`;
     }
 
     const changes = Diff.diffLines(lastSnapshot, snapshotText);
@@ -380,7 +384,7 @@ export async function handleSnapshot(
 
     for (const part of changes) {
       const prefix = part.added ? '+' : part.removed ? '-' : ' ';
-      const diffLines = part.value.split('\n').filter(l => l.length > 0);
+      const diffLines = part.value.split('\n').filter((line) => line.length > 0);
       for (const line of diffLines) {
         diffOutput.push(`${prefix} ${line}`);
       }
@@ -390,8 +394,6 @@ export async function handleSnapshot(
     return diffOutput.join('\n');
   }
 
-  // Store for future diffs
   bm.setLastSnapshot(snapshotText);
-
   return output.join('\n');
 }

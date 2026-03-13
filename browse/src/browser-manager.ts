@@ -15,8 +15,26 @@
  *   restores state. Falls back to clean slate on any failure.
  */
 
-import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
-import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type ElementHandle,
+  type Page,
+  type Request,
+} from 'playwright';
+import {
+  addConsoleEntry,
+  addDialogEntry,
+  addNetworkEntry,
+  type DialogEntry,
+  type NetworkEntry,
+} from './buffers';
+import * as fs from 'fs';
+
+interface BrowserSettings {
+  userAgent?: string | null;
+}
 
 export class BrowserManager {
   private browser: Browser | null = null;
@@ -26,12 +44,15 @@ export class BrowserManager {
   private nextTabId: number = 1;
   private extraHeaders: Record<string, string> = {};
   private customUserAgent: string | null = null;
+  private readonly settingsFile: string | null;
 
   /** Server port — set after server starts, used by cookie-import-browser command */
   public serverPort: number = 0;
 
-  // ─── Ref Map (snapshot → @e1, @e2, @c1, @c2, ...) ────────
-  private refMap: Map<string, Locator> = new Map();
+  // ─── Ref Map (tab → snapshot refs → frozen element handles) ─────────────
+  private refMaps: Map<number, Map<string, ElementHandle<Node>>> = new Map();
+  // Request identity is stable even when multiple requests share the same URL.
+  private requestEntries: WeakMap<Request, NetworkEntry> = new WeakMap();
 
   // ─── Snapshot Diffing ─────────────────────────────────────
   // NOT cleared on navigation — it's a text baseline for diffing
@@ -41,7 +62,12 @@ export class BrowserManager {
   private dialogAutoAccept: boolean = true;
   private dialogPromptText: string | null = null;
 
+  constructor(settingsFile?: string | null) {
+    this.settingsFile = settingsFile ?? process.env.BROWSE_SETTINGS_FILE ?? null;
+  }
+
   async launch() {
+    this.loadSettings();
     this.browser = await chromium.launch({ headless: true });
 
     // Chromium crash → exit with clear message
@@ -51,7 +77,7 @@ export class BrowserManager {
       process.exit(1);
     });
 
-    const contextOptions: any = {
+    const contextOptions: Record<string, unknown> = {
       viewport: { width: 1280, height: 720 },
     };
     if (this.customUserAgent) {
@@ -68,12 +94,17 @@ export class BrowserManager {
   }
 
   async close() {
+    this.clearAllRefs();
     if (this.browser) {
       // Remove disconnect handler to avoid exit during intentional close
       this.browser.removeAllListeners('disconnected');
       await this.browser.close();
       this.browser = null;
     }
+    this.context = null;
+    this.pages.clear();
+    this.activeTabId = 0;
+    this.nextTabId = 1;
   }
 
   /** Health check — verifies Chromium is connected AND responsive */
@@ -102,7 +133,7 @@ export class BrowserManager {
     this.activeTabId = id;
 
     // Wire up console/network/dialog capture
-    this.wirePageEvents(page);
+    this.wirePageEvents(id, page);
 
     if (url) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -116,6 +147,7 @@ export class BrowserManager {
     const page = this.pages.get(tabId);
     if (!page) throw new Error(`Tab ${tabId} not found`);
 
+    this.clearRefs(tabId);
     await page.close();
     this.pages.delete(tabId);
 
@@ -169,34 +201,59 @@ export class BrowserManager {
   }
 
   // ─── Ref Map ──────────────────────────────────────────────
-  setRefMap(refs: Map<string, Locator>) {
-    this.refMap = refs;
+  setRefMap(refs: Map<string, ElementHandle<Node>>, tabId: number = this.activeTabId) {
+    this.clearRefs(tabId);
+    if (refs.size > 0) {
+      this.refMaps.set(tabId, refs);
+    }
   }
 
-  clearRefs() {
-    this.refMap.clear();
+  clearRefs(tabId: number = this.activeTabId) {
+    const refs = this.refMaps.get(tabId);
+    if (!refs) return;
+    for (const handle of refs.values()) {
+      void handle.dispose().catch(() => {});
+    }
+    this.refMaps.delete(tabId);
   }
 
   /**
    * Resolve a selector that may be a @ref (e.g., "@e3", "@c1") or a CSS selector.
-   * Returns { locator } for refs or { selector } for CSS selectors.
+   * Returns { handle } for refs or { selector } for CSS selectors.
    */
-  resolveRef(selector: string): { locator: Locator } | { selector: string } {
+  resolveRef(selector: string): { handle: ElementHandle<Node> } | { selector: string } {
     if (selector.startsWith('@e') || selector.startsWith('@c')) {
-      const ref = selector.slice(1); // "e3" or "c1"
-      const locator = this.refMap.get(ref);
-      if (!locator) {
+      const ref = selector.slice(1);
+      const refMap = this.refMaps.get(this.activeTabId);
+      const handle = refMap?.get(ref);
+      if (!handle) {
         throw new Error(
           `Ref ${selector} not found. Page may have changed — run 'snapshot' to get fresh refs.`
         );
       }
-      return { locator };
+      return { handle };
     }
     return { selector };
   }
 
-  getRefCount(): number {
-    return this.refMap.size;
+  getRefCount(tabId: number = this.activeTabId): number {
+    return this.refMaps.get(tabId)?.size ?? 0;
+  }
+
+  rethrowIfStaleRef(selector: string, err: unknown): never {
+    const message = err instanceof Error ? err.message : String(err);
+    const isStale =
+      message.includes('Element is not attached to the DOM') ||
+      message.includes('Execution context was destroyed') ||
+      message.includes('JSHandle is disposed') ||
+      message.includes('Target page, context or browser has been closed');
+
+    if ((selector.startsWith('@e') || selector.startsWith('@c')) && isStale) {
+      // Normalize detached-handle errors back to the same stale-ref guidance.
+      this.removeRef(selector);
+      throw new Error(`Ref ${selector} not found. Page may have changed — run 'snapshot' to get fresh refs.`);
+    }
+    throw err;
   }
 
   // ─── Snapshot Diffing ─────────────────────────────────────
@@ -241,6 +298,7 @@ export class BrowserManager {
   // ─── User Agent ────────────────────────────────────────────
   setUserAgent(ua: string) {
     this.customUserAgent = ua;
+    this.persistSettings();
   }
 
   getUserAgent(): string | null {
@@ -278,6 +336,8 @@ export class BrowserManager {
         });
       }
 
+      this.clearAllRefs();
+
       // 2. Close old pages and context
       for (const page of this.pages.values()) {
         await page.close().catch(() => {});
@@ -286,7 +346,7 @@ export class BrowserManager {
       await this.context.close().catch(() => {});
 
       // 3. Create new context with updated settings
-      const contextOptions: any = {
+      const contextOptions: Record<string, unknown> = {
         viewport: { width: 1280, height: 720 },
       };
       if (this.customUserAgent) {
@@ -309,7 +369,7 @@ export class BrowserManager {
         const page = await this.context.newPage();
         const id = this.nextTabId++;
         this.pages.set(id, page);
-        this.wirePageEvents(page);
+        this.wirePageEvents(id, page);
 
         if (saved.url) {
           await page.goto(saved.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
@@ -343,25 +403,26 @@ export class BrowserManager {
         this.activeTabId = activeId ?? [...this.pages.keys()][0];
       }
 
-      // Clear refs — pages are new, locators are stale
-      this.clearRefs();
-
-      return null; // success
+      return null;
     } catch (err: any) {
       // Fallback: create a clean context + blank tab
       try {
+        this.clearAllRefs();
         this.pages.clear();
         if (this.context) await this.context.close().catch(() => {});
 
-        const contextOptions: any = {
+        const contextOptions: Record<string, unknown> = {
           viewport: { width: 1280, height: 720 },
         };
         if (this.customUserAgent) {
           contextOptions.userAgent = this.customUserAgent;
         }
-        this.context = await this.browser!.newContext(contextOptions);
+        this.context = await this.browser.newContext(contextOptions);
+        if (Object.keys(this.extraHeaders).length > 0) {
+          await this.context.setExtraHTTPHeaders(this.extraHeaders);
+        }
+        this.activeTabId = 0;
         await this.newTab();
-        this.clearRefs();
       } catch {
         // If even the fallback fails, we're in trouble — but browser is still alive
       }
@@ -370,13 +431,18 @@ export class BrowserManager {
   }
 
   // ─── Console/Network/Dialog/Ref Wiring ────────────────────
-  private wirePageEvents(page: Page) {
-    // Clear ref map on navigation — refs point to stale elements after page change
-    // (lastSnapshot is NOT cleared — it's a text baseline for diffing)
+  private wirePageEvents(tabId: number, page: Page) {
+    // Clear this tab's ref map on navigation — refs point to stale elements
+    // after page change. lastSnapshot is not cleared because it is a text
+    // baseline for diffing, not a live DOM pointer.
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {
-        this.clearRefs();
+        this.clearRefs(tabId);
       }
+    });
+
+    page.on('close', () => {
+      this.clearRefs(tabId);
     });
 
     // ─── Dialog auto-handling (prevents browser lockup) ─────
@@ -411,43 +477,86 @@ export class BrowserManager {
     });
 
     page.on('request', (req) => {
-      addNetworkEntry({
+      const entry: NetworkEntry = {
         timestamp: Date.now(),
         method: req.method(),
         url: req.url(),
-      });
+      };
+      addNetworkEntry(entry);
+      this.requestEntries.set(req, entry);
     });
 
     page.on('response', (res) => {
-      // Find matching request entry and update it (backward scan)
-      const url = res.url();
-      const status = res.status();
-      for (let i = networkBuffer.length - 1; i >= 0; i--) {
-        const entry = networkBuffer.get(i);
-        if (entry && entry.url === url && !entry.status) {
-          networkBuffer.set(i, { ...entry, status, duration: Date.now() - entry.timestamp });
-          break;
-        }
+      const entry = this.requestEntries.get(res.request());
+      if (entry) {
+        entry.status = res.status();
       }
     });
 
-    // Capture response sizes via response finished
     page.on('requestfinished', async (req) => {
+      const entry = this.requestEntries.get(req);
+      if (!entry) return;
+
       try {
-        const res = await req.response();
-        if (res) {
-          const url = req.url();
-          const body = await res.body().catch(() => null);
-          const size = body ? body.length : 0;
-          for (let i = networkBuffer.length - 1; i >= 0; i--) {
-            const entry = networkBuffer.get(i);
-            if (entry && entry.url === url && !entry.size) {
-              networkBuffer.set(i, { ...entry, size });
-              break;
-            }
-          }
+        const timing = req.timing();
+        if (timing.responseEnd >= 0) {
+          entry.duration = Math.round(timing.responseEnd);
         }
-      } catch {}
+        const sizes = await req.sizes().catch(() => null);
+        if (sizes) {
+          entry.size = sizes.responseBodySize;
+        }
+      } catch {
+      } finally {
+        this.requestEntries.delete(req);
+      }
     });
+
+    page.on('requestfailed', (req) => {
+      const entry = this.requestEntries.get(req);
+      if (entry) {
+        const timing = req.timing();
+        if (timing.responseEnd >= 0) {
+          entry.duration = Math.round(timing.responseEnd);
+        }
+      }
+      this.requestEntries.delete(req);
+    });
+  }
+
+  private clearAllRefs() {
+    for (const tabId of [...this.refMaps.keys()]) {
+      this.clearRefs(tabId);
+    }
+  }
+
+  private removeRef(selector: string, tabId: number = this.activeTabId) {
+    if (!selector.startsWith('@')) return;
+    const ref = selector.slice(1);
+    const refs = this.refMaps.get(tabId);
+    const handle = refs?.get(ref);
+    if (!refs || !handle) return;
+    void handle.dispose().catch(() => {});
+    refs.delete(ref);
+    if (refs.size === 0) {
+      this.refMaps.delete(tabId);
+    }
+  }
+
+  private loadSettings() {
+    if (!this.settingsFile) return;
+    try {
+      const settings = JSON.parse(fs.readFileSync(this.settingsFile, 'utf-8')) as BrowserSettings;
+      this.customUserAgent = settings.userAgent ?? null;
+    } catch {}
+  }
+
+  private persistSettings() {
+    if (!this.settingsFile) return;
+    fs.writeFileSync(
+      this.settingsFile,
+      JSON.stringify({ userAgent: this.customUserAgent } satisfies BrowserSettings, null, 2),
+      { mode: 0o600 }
+    );
   }
 }

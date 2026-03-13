@@ -25,7 +25,9 @@ const BROWSE_PORT = process.env.CONDUCTOR_PORT
   : parseInt(process.env.BROWSE_PORT || '0', 10); // 0 = auto-scan
 const INSTANCE_SUFFIX = BROWSE_PORT ? `-${BROWSE_PORT}` : '';
 const STATE_FILE = process.env.BROWSE_STATE_FILE || `/tmp/browse-server${INSTANCE_SUFFIX}.json`;
+const SETTINGS_FILE = process.env.BROWSE_SETTINGS_FILE || `${STATE_FILE}.settings.json`;
 const IDLE_TIMEOUT_MS = parseInt(process.env.BROWSE_IDLE_TIMEOUT || '1800000', 10); // 30 min
+const SHUTDOWN_GRACE_MS = 1000;
 
 function validateAuth(req: Request): boolean {
   const header = req.headers.get('authorization');
@@ -129,7 +131,7 @@ export const META_COMMANDS = new Set([
 ]);
 
 // ─── Server ────────────────────────────────────────────────────
-const browserManager = new BrowserManager();
+const browserManager = new BrowserManager(SETTINGS_FILE);
 let isShuttingDown = false;
 
 // Find port: deterministic from CONDUCTOR_PORT, or scan range
@@ -232,9 +234,18 @@ async function shutdown() {
   clearInterval(idleCheckInterval);
   await flushBuffers(); // Final flush (async now)
 
-  await browserManager.close();
+  try {
+    // Graceful close is best-effort here. If Chromium hangs, still exit so
+    // stop/restart cannot wedge forever.
+    await Promise.race([
+      browserManager.close(),
+      Bun.sleep(SHUTDOWN_GRACE_MS),
+    ]);
+  } catch {}
 
-  // Clean up state file
+  // Keep the state file until exit. Other CLI processes treat it as proof that
+  // this PID still owns the port, so deleting it early can trigger a bogus
+  // replacement start while the old daemon is still shutting down.
   try { fs.unlinkSync(STATE_FILE); } catch {}
 
   process.exit(0);

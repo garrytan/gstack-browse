@@ -18,6 +18,22 @@ let bm: BrowserManager;
 let baseUrl: string;
 const shutdown = async () => {};
 
+function extractRef(snapshot: string, predicate: (line: string) => boolean): string {
+  const line = snapshot.split('\n').find(predicate);
+  expect(line).toBeDefined();
+  const refMatch = line!.match(/@(e\d+)/);
+  expect(refMatch).toBeDefined();
+  return `@${refMatch![1]}`;
+}
+
+function extractRefNumbers(snapshot: string): number[] {
+  return snapshot
+    .split('\n')
+    .map((line) => line.match(/@e(\d+)/))
+    .filter((match): match is RegExpMatchArray => Boolean(match))
+    .map((match) => Number(match[1]));
+}
+
 beforeAll(async () => {
   testServer = startTestServer(0);
   baseUrl = testServer.url;
@@ -98,6 +114,23 @@ describe('Snapshot', () => {
     expect(snap1).toContain('@e1');
     expect(snap2).toContain('@e1');
   });
+
+  test('snapshot preserves accessible names with escaped quotes', async () => {
+    const page = bm.getPage();
+    await page.setContent(`<!doctype html><body><button aria-label='Say &quot;Hello&quot;'>X</button></body>`);
+    const result = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    expect(result).toContain('[button]');
+    expect(result).toContain('Say "Hello"');
+  });
+
+  test('snapshot emits contiguous refs when skipped nodes are not materialized', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
+    const result = await handleMetaCommand('snapshot', [], bm, shutdown);
+    const refs = extractRefNumbers(result);
+
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs).toEqual(Array.from({ length: refs.length }, (_, index) => index + 1));
+  });
 });
 
 // ─── Ref-Based Interaction ──────────────────────────────────────
@@ -176,6 +209,74 @@ describe('Ref resolution', () => {
 // ─── Ref Invalidation ───────────────────────────────────────────
 
 describe('Ref invalidation', () => {
+  test('ref from tab 1 cannot be used from blank tab 2', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[link]') && line.includes('"Page 1"'));
+
+    await handleMetaCommand('newtab', [], bm, shutdown);
+
+    await expect(handleWriteCommand('click', [ref], bm)).rejects.toThrow('snapshot');
+
+    const tabs = await bm.getTabListWithTitles();
+    const tabOne = tabs.find((tab) => tab.id === 1);
+    const tabTwo = tabs.find((tab) => tab.active);
+    expect(tabOne?.url).toContain('/basic.html');
+    expect(tabTwo?.url).toBe('about:blank');
+  });
+
+  test('tab 1 refs still work after tab 2 navigates when switched back', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[link]') && line.includes('"Page 1"'));
+
+    const newTabResult = await handleMetaCommand('newtab', [baseUrl + '/forms.html'], bm, shutdown);
+    const tabIdMatch = newTabResult.match(/Opened tab (\d+)/);
+    expect(tabIdMatch).toBeDefined();
+
+    await handleMetaCommand('tab', ['1'], bm, shutdown);
+
+    const result = await handleWriteCommand('click', [ref], bm);
+    expect(result).toContain('Clicked');
+    expect(bm.getCurrentUrl()).toContain('/page1');
+  });
+
+  test('reordering same-name elements does not retarget an existing ref', async () => {
+    const page = bm.getPage();
+    await page.setContent(`<!doctype html><body>
+      <button id="a" onclick="window.clicked='a'">Delete</button>
+      <button id="b" onclick="window.clicked='b'">Delete</button>
+    </body>`);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[button]') && line.includes('"Delete"'));
+
+    await page.evaluate(() => {
+      const btn = document.createElement('button');
+      btn.id = 'new';
+      btn.textContent = 'Delete';
+      btn.onclick = () => { (window as any).clicked = 'new'; };
+      document.body.prepend(btn);
+    });
+
+    await handleWriteCommand('click', [ref], bm);
+    const clicked = await handleReadCommand('js', ['window.clicked'], bm);
+    expect(clicked).toBe('a');
+  });
+
+  test('removing a referenced element returns a stale ref error', async () => {
+    const page = bm.getPage();
+    await page.setContent(`<!doctype html><body>
+      <button id="a" onclick="window.clicked='a'">Delete</button>
+      <button id="b" onclick="window.clicked='b'">Delete</button>
+    </body>`);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[button]') && line.includes('"Delete"'));
+
+    await page.evaluate(() => document.getElementById('a')?.remove());
+
+    await expect(handleWriteCommand('click', [ref], bm)).rejects.toThrow('snapshot');
+  });
+
   test('stale ref after goto returns clear error', async () => {
     await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
     await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
@@ -198,6 +299,35 @@ describe('Ref invalidation', () => {
     // Navigate
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     expect(bm.getRefCount()).toBe(0);
+  });
+
+  test('depth filter still freezes the correct nth same-name element', async () => {
+    const page = bm.getPage();
+    await page.setContent(`<!doctype html><body>
+      <ul><li><button id="nested" onclick="window.clicked='nested'">Save</button></li></ul>
+      <button id="outer" onclick="window.clicked='outer'">Save</button>
+    </body>`);
+
+    const snap = await handleMetaCommand('snapshot', ['-i', '-d', '1'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[button]') && line.includes('"Save"'));
+
+    await handleWriteCommand('click', [ref], bm);
+    const clicked = await handleReadCommand('js', ['window.clicked'], bm);
+    expect(clicked).toBe('outer');
+  });
+
+  test('compact filter still freezes the correct nth unnamed element', async () => {
+    const page = bm.getPage();
+    await page.setContent(`<!doctype html><body>
+      <p id="empty"></p>
+      <p id="filled">Hello</p>
+    </body>`);
+
+    const snap = await handleMetaCommand('snapshot', ['-c'], bm, shutdown);
+    const ref = extractRef(snap, (line) => line.includes('[paragraph]') && line.includes('Hello'));
+
+    const html = await handleReadCommand('html', [ref], bm);
+    expect(html).toBe('Hello');
   });
 });
 

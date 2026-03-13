@@ -62,8 +62,12 @@ export async function handleReadCommand(
       const selector = args[0];
       if (selector) {
         const resolved = bm.resolveRef(selector);
-        if ('locator' in resolved) {
-          return await resolved.locator.innerHTML({ timeout: 5000 });
+        if ('handle' in resolved) {
+          try {
+            return await resolved.handle.innerHTML();
+          } catch (err) {
+            bm.rethrowIfStaleRef(selector, err);
+          }
         }
         return await page.innerHTML(resolved.selector);
       }
@@ -136,12 +140,16 @@ export async function handleReadCommand(
       const [selector, property] = args;
       if (!selector || !property) throw new Error('Usage: browse css <selector> <property>');
       const resolved = bm.resolveRef(selector);
-      if ('locator' in resolved) {
-        const value = await resolved.locator.evaluate(
-          (el, prop) => getComputedStyle(el).getPropertyValue(prop),
-          property
-        );
-        return value;
+      if ('handle' in resolved) {
+        try {
+          const value = await resolved.handle.evaluate(
+            (el, prop) => getComputedStyle(el as Element).getPropertyValue(prop),
+            property
+          );
+          return value;
+        } catch (err) {
+          bm.rethrowIfStaleRef(selector, err);
+        }
       }
       const value = await page.evaluate(
         ([sel, prop]) => {
@@ -158,15 +166,19 @@ export async function handleReadCommand(
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse attrs <selector>');
       const resolved = bm.resolveRef(selector);
-      if ('locator' in resolved) {
-        const attrs = await resolved.locator.evaluate((el) => {
-          const result: Record<string, string> = {};
-          for (const attr of el.attributes) {
-            result[attr.name] = attr.value;
-          }
-          return result;
-        });
-        return JSON.stringify(attrs, null, 2);
+      if ('handle' in resolved) {
+        try {
+          const attrs = await resolved.handle.evaluate((el) => {
+            const result: Record<string, string> = {};
+            for (const attr of (el as Element).attributes) {
+              result[attr.name] = attr.value;
+            }
+            return result;
+          });
+          return JSON.stringify(attrs, null, 2);
+        } catch (err) {
+          bm.rethrowIfStaleRef(selector, err);
+        }
       }
       const attrs = await page.evaluate((sel) => {
         const el = document.querySelector(sel);
@@ -222,12 +234,47 @@ export async function handleReadCommand(
       if (!property || !selector) throw new Error('Usage: browse is <property> <selector>\nProperties: visible, hidden, enabled, disabled, checked, editable, focused');
 
       const resolved = bm.resolveRef(selector);
-      let locator;
-      if ('locator' in resolved) {
-        locator = resolved.locator;
-      } else {
-        locator = page.locator(resolved.selector);
+      if ('handle' in resolved) {
+        try {
+          const state = await resolved.handle.evaluate((el, prop) => {
+            const node = el as HTMLElement & {
+              disabled?: boolean;
+              checked?: boolean;
+              readOnly?: boolean;
+              isContentEditable?: boolean;
+            };
+            const style = window.getComputedStyle(node);
+            const visible =
+              style.visibility !== 'hidden' &&
+              style.display !== 'none' &&
+              (node.getClientRects().length > 0 || style.position === 'fixed');
+
+            switch (prop) {
+              case 'visible':
+                return visible;
+              case 'hidden':
+                return !visible;
+              case 'enabled':
+                return !node.disabled;
+              case 'disabled':
+                return Boolean(node.disabled);
+              case 'checked':
+                return Boolean(node.checked);
+              case 'editable':
+                return !node.disabled && !node.readOnly && (node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName));
+              case 'focused':
+                return node === document.activeElement;
+              default:
+                throw new Error(`Unknown property: ${prop}. Use: visible, hidden, enabled, disabled, checked, editable, focused`);
+            }
+          }, property);
+          return String(state);
+        } catch (err) {
+          bm.rethrowIfStaleRef(selector, err);
+        }
       }
+
+      const locator = page.locator(resolved.selector);
 
       switch (property) {
         case 'visible':  return String(await locator.isVisible());
