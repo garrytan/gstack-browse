@@ -8,6 +8,10 @@
  */
 
 import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
+import { spawn, execSync, execFileSync, type ChildProcess } from 'child_process';
+import { existsSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { addConsoleEntry, addNetworkEntry, networkBuffer, type LogEntry, type NetworkEntry } from './buffers';
 
 export class BrowserManager {
@@ -18,35 +22,130 @@ export class BrowserManager {
   private nextTabId: number = 1;
   private extraHeaders: Record<string, string> = {};
   private customUserAgent: string | null = null;
+  private connectedExternally: boolean = false;
+  private managedProcess: ChildProcess | null = null;
 
   // ─── Ref Map (snapshot → @e1, @e2, ...) ────────────────────
   private refMap: Map<string, Locator> = new Map();
 
   async launch() {
-    this.browser = await chromium.launch({ headless: true });
+    const backend = process.env.BROWSE_BACKEND;
+    let cdpEndpoint = process.env.BROWSE_CDP_ENDPOINT;
 
-    // Chromium crash → exit with clear message
+    if (backend === 'lightpanda') {
+      cdpEndpoint = await this.startLightpanda();
+    }
+
+    if (cdpEndpoint) {
+      this.browser = await chromium.connectOverCDP(cdpEndpoint);
+      this.connectedExternally = true;
+      console.log(`[browse] Connected to external CDP browser at ${cdpEndpoint}`);
+    } else {
+      this.browser = await chromium.launch({ headless: true });
+    }
+
     this.browser.on('disconnected', () => {
-      console.error('[browse] FATAL: Chromium process crashed or was killed. Server exiting.');
-      console.error('[browse] Console/network logs flushed to /tmp/browse-*.log');
+      console.error('[browse] FATAL: Browser disconnected. Server exiting.');
       process.exit(1);
     });
 
-    this.context = await this.browser.newContext({
-      viewport: { width: 1280, height: 720 },
-    });
+    // CDP connections may already have a context
+    const existingContexts = this.browser.contexts();
+    if (existingContexts.length > 0) {
+      this.context = existingContexts[0];
+    } else {
+      this.context = await this.browser.newContext({
+        viewport: { width: 1280, height: 720 },
+      });
+    }
 
-    // Create first tab
     await this.newTab();
   }
 
   async close() {
     if (this.browser) {
-      // Remove disconnect handler to avoid exit during intentional close
       this.browser.removeAllListeners('disconnected');
+      if (this.connectedExternally) {
+        console.log('[browse] Disconnecting from external CDP browser');
+      }
       await this.browser.close();
       this.browser = null;
     }
+    if (this.managedProcess) {
+      this.managedProcess.kill();
+      this.managedProcess = null;
+    }
+  }
+
+  private ensureLightpanda(bin: string): string {
+    // Explicit path provided — trust it
+    if (process.env.BROWSE_LIGHTPANDA_PATH) return bin;
+
+    // Already in PATH?
+    try {
+      execFileSync(bin, ['--version'], { stdio: 'ignore' });
+      return bin;
+    } catch {}
+
+    // Check default install location (~/.local/bin)
+    const installedBin = join(homedir(), '.local', 'bin', 'lightpanda');
+    if (existsSync(installedBin)) return installedBin;
+
+    // Auto-install via official installer
+    console.log('[browse] Lightpanda not found — installing via pkg.lightpanda.io/install.sh');
+    try {
+      execSync('curl -fsSL https://pkg.lightpanda.io/install.sh | bash', {
+        stdio: 'inherit',
+      });
+    } catch (e) {
+      throw new Error('Lightpanda installation failed. Install manually: curl -fsSL https://pkg.lightpanda.io/install.sh | bash');
+    }
+
+    if (!existsSync(installedBin)) {
+      throw new Error(`Lightpanda installer ran but binary not found at ${installedBin}`);
+    }
+
+    return installedBin;
+  }
+
+  private async startLightpanda(): Promise<string> {
+    const requestedBin = process.env.BROWSE_LIGHTPANDA_PATH || 'lightpanda';
+    const bin = this.ensureLightpanda(requestedBin);
+    const host = '127.0.0.1';
+    const port = process.env.BROWSE_LIGHTPANDA_PORT || '9222';
+    const wsUrl = `ws://${host}:${port}`;
+
+    this.managedProcess = spawn(bin, ['serve', '--host', host, '--port', port], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    this.managedProcess.stderr?.on('data', (data: Buffer) => {
+      console.error(`[lightpanda] ${data.toString().trimEnd()}`);
+    });
+
+    this.managedProcess.on('exit', (code) => {
+      if (this.browser) {
+        console.error(`[browse] Lightpanda exited unexpectedly (code ${code})`);
+      }
+      this.managedProcess = null;
+    });
+
+    // Wait for CDP endpoint to be ready
+    const deadline = Date.now() + 10_000;
+    while (Date.now() < deadline) {
+      try {
+        const res = await fetch(`http://${host}:${port}/json/version`);
+        if (res.ok) {
+          console.log(`[browse] Lightpanda ready at ${wsUrl}`);
+          return wsUrl;
+        }
+      } catch {}
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    this.managedProcess.kill();
+    this.managedProcess = null;
+    throw new Error(`Lightpanda failed to start within 10s — is '${bin}' installed?`);
   }
 
   isHealthy(): boolean {
