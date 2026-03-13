@@ -77,7 +77,7 @@ This is not a prompt pack for beginners. It is an operating system for people wh
 
 ## Install
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
+**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, `jq` (`brew install jq`), Python 3.10+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
 
 ### Step 1: Install on your machine
 
