@@ -99,15 +99,17 @@ This is the setup I use. One person, ten parallel agents, each with the right co
 
 **Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS, Linux (x64 and arm64), and Windows 11.
 
+> **Windows 11 users:** Windows support is available from the [Garry-TI/gstack](https://github.com/Garry-TI/gstack) fork. It has not yet been merged into the original repo. Use the Windows instructions below — they clone from the correct repo.
+
 ### Step 1: Install on your machine
 
-Open Claude Code and paste this. Claude will do the rest.
+Open Claude Code and paste the block for your platform. Claude will do the rest.
 
-**macOS / Linux:**
+**macOS / Linux** — clones from the original repo:
 
 > Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
-**Windows (requires [Garry-TI/gstack](https://github.com/Garry-TI/gstack) fork — Windows support has not yet been merged upstream):**
+**Windows 11** — clones from the [Garry-TI fork](https://github.com/Garry-TI/gstack) which includes Windows support:
 
 > Install gstack: run `git clone https://github.com/Garry-TI/gstack.git "$env:USERPROFILE/.claude/skills/gstack"` then `cd "$env:USERPROFILE/.claude/skills/gstack"` then `powershell -File setup.ps1`. Then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
