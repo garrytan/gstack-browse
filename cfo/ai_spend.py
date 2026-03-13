@@ -27,7 +27,7 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -149,6 +149,7 @@ _SYSTEM_PATTERNS = re.compile(
     r"<command-name>|"                       # slash command wrappers
     r"This session is being continued|"      # session continuation injections
     r"Base directory for this skill:|"       # skill invocation preamble
+    r"\s*\d+→|"                              # Read-tool line-number format (skill content)
     r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}"  # log lines with timestamps
     r")",
     re.IGNORECASE,
@@ -177,6 +178,13 @@ def _is_real_user_message(text: str) -> bool:
         tag = stripped[1: stripped.index(">")]
         if tag.isalpha() or "-" in tag:
             return False
+    # Skip skill/plugin content that starts with a markdown H1 header
+    # (e.g. "# Debug Skill\n\nHelp the user...") — real user messages don't start with #
+    if stripped.startswith("# ") and "\n" in stripped[:80]:
+        return False
+    # Skip anything containing fenced code blocks — skill content, not conversational messages
+    if "```" in text:
+        return False
     return True
 
 
@@ -383,7 +391,7 @@ def build_export_payload(cfg: dict, sessions: list[dict], other: list[dict]) -> 
         "user":         cfg.get("user", ""),
         "team":         cfg.get("team", ""),
         "org":          cfg.get("org", ""),
-        "exported_at":  datetime.utcnow().isoformat() + "Z",
+        "exported_at":  datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "daily_spend":  clean_daily,
         "feature_spend": {k: round(v, 4) for k, v in feature_spend.items()},
     }
