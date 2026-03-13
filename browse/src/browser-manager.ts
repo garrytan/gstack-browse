@@ -18,6 +18,28 @@
 import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 
+/**
+ * Validate URL to prevent SSRF and local file access attacks
+ */
+function validateUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error(`Invalid URL protocol: ${parsed.protocol}. Only http:// and https:// are allowed.`);
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal', 'metadata.google'];
+    if (blockedHosts.includes(hostname) || hostname.endsWith('.local')) {
+      throw new Error(`Access to ${hostname} is not allowed for security reasons.`);
+    }
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(`Invalid URL format. Please provide a valid http:// or https:// URL.`);
+    }
+    throw e;
+  }
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -95,6 +117,10 @@ export class BrowserManager {
   // ─── Tab Management ────────────────────────────────────────
   async newTab(url?: string): Promise<number> {
     if (!this.context) throw new Error('Browser not launched');
+
+    if (url) {
+      validateUrl(url); // Security: prevent SSRF attacks
+    }
 
     const page = await this.context.newPage();
     const id = this.nextTabId++;
