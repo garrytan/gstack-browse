@@ -4,3 +4,5 @@ browse/dist/
 *.log
 bun.lock
 *.bun-build
+PR_ROADMAP.md
+ssd.md
