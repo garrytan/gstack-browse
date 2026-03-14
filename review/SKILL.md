@@ -39,9 +39,34 @@ You are running the `/review` workflow. Analyze the current branch's diff agains
 
 ## Step 2: Read the checklist
 
-Read `.claude/skills/review/checklist.md`.
+You must find and read the appropriate review checklist based on this fallback chain:
 
-**If the file cannot be read, STOP and report the error.** Do not proceed without the checklist.
+1. **Configured path**: Check `.gstack.json` for `"reviewChecklist"`. If present and the file exists, read it.
+2. **Custom project path**: If the file `.claude/skills/review/checklist.md` exists in the local project, read it.
+3. **Bundled default fallback**: If neither exists, read the universal default checklist at `~/.claude/skills/gstack/review/default-checklist.md`.
+
+```bash
+CHECKLIST=""
+if [ -f .gstack.json ]; then
+  CONFIG_CHECKLIST=$(grep '"reviewChecklist"' .gstack.json | cut -d'"' -f4)
+  if [ -n "$CONFIG_CHECKLIST" ] && [ -f "$CONFIG_CHECKLIST" ]; then
+    CHECKLIST="$CONFIG_CHECKLIST"
+  fi
+fi
+
+if [ -z "$CHECKLIST" ] && [ -f ".claude/skills/review/checklist.md" ]; then
+  CHECKLIST=".claude/skills/review/checklist.md"
+fi
+
+if [ -z "$CHECKLIST" ]; then
+  CHECKLIST="~/.claude/skills/gstack/review/default-checklist.md"
+fi
+
+echo "Using review checklist: $CHECKLIST"
+cat $(eval echo "$CHECKLIST")
+```
+
+**If the chosen file cannot be read, STOP and report the error.** Do not proceed without the checklist.
 
 ---
 
