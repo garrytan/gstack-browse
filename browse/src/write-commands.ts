@@ -6,7 +6,7 @@
  */
 
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
+import { findInstalledBrowsers, importCookies, getOpenCommand, getDefaultBrowser } from './cookie-import-browser';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -277,7 +277,7 @@ export async function handleWriteCommand(
       if (domainIdx !== -1 && domainIdx + 1 < args.length) {
         // Direct import mode — no UI
         const domain = args[domainIdx + 1];
-        const browser = browserArg || 'comet';
+        const browser = browserArg || getDefaultBrowser();
         const result = await importCookies(browser, [domain]);
         if (result.cookies.length > 0) {
           await page.context().addCookies(result.cookies);
@@ -293,12 +293,12 @@ export async function handleWriteCommand(
 
       const browsers = findInstalledBrowsers();
       if (browsers.length === 0) {
-        throw new Error('No Chromium browsers found. Supported: Comet, Chrome, Arc, Brave, Edge');
+        throw new Error('No Chromium browsers found. Supported: Chrome, Brave, Edge (and Comet/Arc on macOS)');
       }
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
       try {
-        Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
+        Bun.spawn([getOpenCommand(), pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
       } catch {
         // open may fail silently — URL is in the message below
       }
