@@ -1,34 +1,27 @@
 /**
  * Chromium browser cookie import — read and decrypt cookies from real browsers
  *
- * Supports macOS Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
+ * Cross-platform support for macOS and Linux Chromium-based browsers.
  * Pure logic module — no Playwright dependency, no HTTP concerns.
  *
- * Decryption pipeline (Chromium macOS "v10" format):
+ * Decryption pipeline:
  *
  *   ┌──────────────────────────────────────────────────────────────────┐
- *   │ 1. Keychain: `security find-generic-password -s "<svc>" -w`     │
- *   │    → base64 password string                                     │
+ *   │ macOS:                                                          │
+ *   │   Password: `security find-generic-password -s "<svc>" -w`     │
+ *   │   PBKDF2: iter=1003, salt="saltysalt", len=16, sha1            │
+ *   │   Prefix: "v10" only                                           │
  *   │                                                                  │
- *   │ 2. Key derivation:                                               │
- *   │    PBKDF2(password, salt="saltysalt", iter=1003, len=16, sha1)  │
- *   │    → 16-byte AES key                                            │
+ *   │ Linux:                                                          │
+ *   │   Password (v11): GNOME Keyring via python3 gi.repository       │
+ *   │   Password (v10): hardcoded "peanuts"                           │
+ *   │   PBKDF2: iter=1, salt="saltysalt", len=16, sha1               │
  *   │                                                                  │
- *   │ 3. For each cookie with encrypted_value starting with "v10":    │
- *   │    - Ciphertext = encrypted_value[3:]                           │
- *   │    - IV = 16 bytes of 0x20 (space character)                    │
- *   │    - Plaintext = AES-128-CBC-decrypt(key, iv, ciphertext)       │
- *   │    - Remove PKCS7 padding                                       │
- *   │    - Skip first 32 bytes (HMAC-SHA256 authentication tag)       │
- *   │    - Remaining bytes = cookie value (UTF-8)                     │
- *   │                                                                  │
- *   │ 4. If encrypted_value is empty but `value` field is set,        │
- *   │    use value directly (unencrypted cookie)                      │
- *   │                                                                  │
- *   │ 5. Chromium epoch: microseconds since 1601-01-01                │
- *   │    Unix seconds = (epoch - 11644473600000000) / 1000000         │
- *   │                                                                  │
- *   │ 6. sameSite: 0→"None", 1→"Lax", 2→"Strict", else→"Lax"        │
+ *   │ Common:                                                         │
+ *   │   AES-128-CBC, IV = 16 × 0x20 (space)                          │
+ *   │   Skip first 32 bytes of plaintext (auth tag)                   │
+ *   │   Chromium epoch: µs since 1601-01-01                           │
+ *   │   sameSite: 0→"None", 1→"Lax", 2→"Strict", else→"Lax"        │
  *   └──────────────────────────────────────────────────────────────────┘
  */
 
@@ -38,12 +31,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+// ─── Platform Detection ─────────────────────────────────────────
+
+const IS_MACOS = os.platform() === 'darwin';
+const IS_LINUX = os.platform() === 'linux';
+
 // ─── Types ──────────────────────────────────────────────────────
 
 export interface BrowserInfo {
   name: string;
-  dataDir: string;        // relative to ~/Library/Application Support/
-  keychainService: string;
+  dataDir: string;   // relative to platform config dir
+  secretId: string;  // macOS: Keychain service name, Linux: keyring app name
   aliases: string[];
 }
 
@@ -84,19 +82,53 @@ export class CookieImportError extends Error {
 // ─── Browser Registry ───────────────────────────────────────────
 // Hardcoded — NEVER interpolate user input into shell commands.
 
-const BROWSER_REGISTRY: BrowserInfo[] = [
-  { name: 'Comet',  dataDir: 'Comet/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
-  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
-  { name: 'Arc',    dataDir: 'Arc/User Data/',                keychainService: 'Arc Safe Storage',            aliases: ['arc'] },
-  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'] },
-  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
+const MACOS_BROWSERS: BrowserInfo[] = [
+  { name: 'Comet',  dataDir: 'Comet/',                       secretId: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
+  { name: 'Chrome', dataDir: 'Google/Chrome/',                secretId: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
+  { name: 'Arc',    dataDir: 'Arc/User Data/',                secretId: 'Arc Safe Storage',            aliases: ['arc'] },
+  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  secretId: 'Brave Safe Storage',          aliases: ['brave'] },
+  { name: 'Edge',   dataDir: 'Microsoft Edge/',               secretId: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
 ];
 
-// ─── Key Cache ──────────────────────────────────────────────────
-// Cache derived AES keys per browser. First import per browser does
-// Keychain + PBKDF2. Subsequent imports reuse the cached key.
+const LINUX_BROWSERS: BrowserInfo[] = [
+  { name: 'Chrome',   dataDir: 'google-chrome/',                secretId: 'chrome',   aliases: ['chrome', 'google-chrome'] },
+  { name: 'Chromium', dataDir: 'chromium/',                     secretId: 'chromium', aliases: ['chromium'] },
+  { name: 'Brave',    dataDir: 'BraveSoftware/Brave-Browser/',  secretId: 'brave',    aliases: ['brave'] },
+  { name: 'Edge',     dataDir: 'microsoft-edge/',               secretId: 'edge',     aliases: ['edge'] },
+];
 
-const keyCache = new Map<string, Buffer>();
+const BROWSER_REGISTRY: BrowserInfo[] = IS_MACOS ? MACOS_BROWSERS : LINUX_BROWSERS;
+
+// ─── Platform Helpers ───────────────────────────────────────────
+
+function getConfigBaseDir(): string {
+  if (IS_MACOS) return path.join(os.homedir(), 'Library', 'Application Support');
+  return path.join(os.homedir(), '.config');
+}
+
+/** macOS uses 1003 iterations; Linux uses 1 */
+function getPbkdf2Iterations(): number {
+  return IS_MACOS ? 1003 : 1;
+}
+
+/** Command to open a URL in the user's default browser */
+export function getOpenCommand(): string {
+  return IS_MACOS ? 'open' : 'xdg-open';
+}
+
+/** Sensible default browser name per platform */
+export function getDefaultBrowser(): string {
+  return IS_MACOS ? 'comet' : 'chrome';
+}
+
+// ─── Key Cache ──────────────────────────────────────────────────
+
+interface DerivedKeys {
+  v10: Buffer;         // macOS: Keychain key; Linux: hardcoded "peanuts" key
+  v11: Buffer | null;  // Linux only: keyring key; null on macOS
+}
+
+const keyCache = new Map<string, DerivedKeys>();
 
 // ─── Public API ─────────────────────────────────────────────────
 
@@ -104,9 +136,9 @@ const keyCache = new Map<string, Buffer>();
  * Find which browsers are installed (have a cookie DB on disk).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  const baseDir = getConfigBaseDir();
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
+    const dbPath = path.join(baseDir, b.dataDir, 'Default', 'Cookies');
     try { return fs.existsSync(dbPath); } catch { return false; }
   });
 }
@@ -144,7 +176,7 @@ export async function importCookies(
   if (domains.length === 0) return { cookies: [], count: 0, failed: 0, domainCounts: {} };
 
   const browser = resolveBrowser(browserName);
-  const derivedKey = await getDerivedKey(browser);
+  const keys = await getDerivedKeys(browser);
   const dbPath = getCookieDbPath(browser, profile);
   const db = openDb(dbPath, browser.name);
 
@@ -167,7 +199,7 @@ export async function importCookies(
 
     for (const row of rows) {
       try {
-        const value = decryptCookieValue(row, derivedKey);
+        const value = decryptCookieValue(row, keys);
         const cookie = toPlaywrightCookie(row, value);
         cookies.push(cookie);
         domainCounts[row.host_key] = (domainCounts[row.host_key] || 0) + 1;
@@ -190,7 +222,7 @@ function resolveBrowser(nameOrAlias: string): BrowserInfo {
     b.aliases.includes(needle) || b.name.toLowerCase() === needle
   );
   if (!found) {
-    const supported = BROWSER_REGISTRY.flatMap(b => b.aliases).join(', ');
+    const supported = BROWSER_REGISTRY.map(b => b.name).join(', ');
     throw new CookieImportError(
       `Unknown browser '${nameOrAlias}'. Supported: ${supported}`,
       'unknown_browser',
@@ -210,8 +242,8 @@ function validateProfile(profile: string): void {
 
 function getCookieDbPath(browser: BrowserInfo, profile: string): string {
   validateProfile(profile);
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
-  const dbPath = path.join(appSupport, browser.dataDir, profile, 'Cookies');
+  const baseDir = getConfigBaseDir();
+  const dbPath = path.join(baseDir, browser.dataDir, profile, 'Cookies');
   if (!fs.existsSync(dbPath)) {
     throw new CookieImportError(
       `${browser.name} is not installed (no cookie database at ${dbPath})`,
@@ -271,19 +303,44 @@ function openDbFromCopy(dbPath: string, browserName: string): Database {
   }
 }
 
-// ─── Internal: Keychain Access (async, 10s timeout) ─────────────
+// ─── Internal: Secret Retrieval ─────────────────────────────────
 
-async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
-  const cached = keyCache.get(browser.keychainService);
-  if (cached) return cached;
-
-  const password = await getKeychainPassword(browser.keychainService);
-  const derived = crypto.pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1');
-  keyCache.set(browser.keychainService, derived);
-  return derived;
+function deriveKey(password: string): Buffer {
+  return crypto.pbkdf2Sync(password, 'saltysalt', getPbkdf2Iterations(), 16, 'sha1');
 }
 
-async function getKeychainPassword(service: string): Promise<string> {
+async function getDerivedKeys(browser: BrowserInfo): Promise<DerivedKeys> {
+  const cached = keyCache.get(browser.secretId);
+  if (cached) return cached;
+
+  if (IS_MACOS) {
+    // macOS: single key from Keychain (used for v10 prefix)
+    const password = await getMacOSKeychainPassword(browser.secretId);
+    const keys: DerivedKeys = { v10: deriveKey(password), v11: null };
+    keyCache.set(browser.secretId, keys);
+    return keys;
+  }
+
+  // Linux: v10 from hardcoded password, v11 from GNOME Keyring
+  const v10 = deriveKey('peanuts');
+  let v11: Buffer | null = null;
+  try {
+    const keyringPassword = await getLinuxKeyringPassword(browser.secretId);
+    if (keyringPassword) {
+      v11 = deriveKey(keyringPassword);
+    }
+  } catch {
+    // No keyring available — v11 cookies will fail individually
+  }
+
+  const keys: DerivedKeys = { v10, v11 };
+  keyCache.set(browser.secretId, keys);
+  return keys;
+}
+
+// ─── macOS: Keychain Access ─────────────────────────────────────
+
+async function getMacOSKeychainPassword(service: string): Promise<string> {
   // Use async Bun.spawn with timeout to avoid blocking the event loop.
   // macOS may show an Allow/Deny dialog that blocks until the user responds.
   const proc = Bun.spawn(
@@ -308,7 +365,6 @@ async function getKeychainPassword(service: string): Promise<string> {
     const stderr = await new Response(proc.stderr).text();
 
     if (exitCode !== 0) {
-      // Distinguish denied vs not found vs other
       const errText = stderr.trim().toLowerCase();
       if (errText.includes('user canceled') || errText.includes('denied') || errText.includes('interaction not allowed')) {
         throw new CookieImportError(
@@ -341,6 +397,53 @@ async function getKeychainPassword(service: string): Promise<string> {
   }
 }
 
+// ─── Linux: GNOME Keyring Access ────────────────────────────────
+
+async function getLinuxKeyringPassword(appName: string): Promise<string | null> {
+  // Use python3 + gi (GObject Introspection) to read from GNOME Keyring.
+  // gir1.2-secret-1 is pre-installed on GNOME desktops (provides libsecret bindings).
+  // appName comes from BROWSER_REGISTRY, not user input — safe to interpolate.
+  const script = [
+    'import gi',
+    "gi.require_version('Secret','1')",
+    'from gi.repository import Secret',
+    "s=Secret.Schema.new('chrome_libsecret_os_crypt_password_v2',Secret.SchemaFlags.NONE,{'application':Secret.SchemaAttributeType.STRING})",
+    `p=Secret.password_lookup_sync(s,{'application':'${appName}'},None)`,
+    'print(p or "")',
+  ].join(';');
+
+  const proc = Bun.spawn(
+    ['python3', '-c', script],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => {
+      proc.kill();
+      reject(new CookieImportError(
+        `Timed out reading keyring for "${appName}". Is gnome-keyring-daemon running?`,
+        'keyring_timeout',
+        'retry',
+      ));
+    }, 10_000),
+  );
+
+  try {
+    const exitCode = await Promise.race([proc.exited, timeout]);
+    const stdout = await new Response(proc.stdout).text();
+
+    if (exitCode !== 0) {
+      return null;
+    }
+
+    const password = stdout.trim();
+    return password.length > 0 ? password : null;
+  } catch (err) {
+    if (err instanceof CookieImportError) throw err;
+    return null;
+  }
+}
+
 // ─── Internal: Cookie Decryption ────────────────────────────────
 
 interface RawCookie {
@@ -356,7 +459,7 @@ interface RawCookie {
   samesite: number;
 }
 
-function decryptCookieValue(row: RawCookie, key: Buffer): string {
+function decryptCookieValue(row: RawCookie, keys: DerivedKeys): string {
   // Prefer unencrypted value if present
   if (row.value && row.value.length > 0) return row.value;
 
@@ -364,7 +467,18 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
   if (ev.length === 0) return '';
 
   const prefix = ev.slice(0, 3).toString('utf-8');
-  if (prefix !== 'v10') {
+
+  let key: Buffer;
+  if (prefix === 'v11') {
+    // Linux keyring-encrypted cookie
+    if (!keys.v11) {
+      throw new Error('v11 cookie but no keyring password available');
+    }
+    key = keys.v11;
+  } else if (prefix === 'v10') {
+    // macOS Keychain or Linux hardcoded "peanuts"
+    key = keys.v10;
+  } else {
     throw new Error(`Unknown encryption prefix: ${prefix}`);
   }
 
@@ -373,7 +487,7 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
   const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
   const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
-  // First 32 bytes are HMAC-SHA256 authentication tag; actual value follows
+  // First 32 bytes are an authentication tag; actual value follows
   if (plaintext.length <= 32) return '';
   return plaintext.slice(32).toString('utf-8');
 }
