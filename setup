@@ -57,8 +57,21 @@ if ! ensure_playwright_browser; then
   exit 1
 fi
 
-# 3. Only create skill symlinks if we're inside a .claude/skills directory
+# 3. Create skill symlinks in ~/.claude/skills/
+# Resolve SKILLS_DIR: either we're directly inside .claude/skills/, or a symlink
+# in .claude/skills/ points to us (e.g., dev checkout symlinked in).
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
+if [ "$SKILLS_BASENAME" != "skills" ]; then
+  # Check if ~/.claude/skills/gstack is a symlink pointing to us
+  CANDIDATE="$HOME/.claude/skills"
+  if [ -L "$CANDIDATE/gstack" ]; then
+    LINK_TARGET="$(cd "$CANDIDATE/gstack" 2>/dev/null && pwd -P)"
+    if [ "$LINK_TARGET" = "$GSTACK_DIR" ]; then
+      SKILLS_DIR="$CANDIDATE"
+      SKILLS_BASENAME="skills"
+    fi
+  fi
+fi
 if [ "$SKILLS_BASENAME" = "skills" ]; then
   linked=()
   for skill_dir in "$GSTACK_DIR"/*/; do
