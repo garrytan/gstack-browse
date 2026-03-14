@@ -10,6 +10,31 @@ import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/**
+ * Validate URL to prevent SSRF and local file access attacks
+ * Only allows http:// and https:// protocols, blocks file://, data:, etc.
+ */
+function validateUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error(`Invalid URL protocol: ${parsed.protocol}. Only http:// and https:// are allowed.`);
+    }
+    // Block common localhost variants
+    const hostname = parsed.hostname.toLowerCase();
+    const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', 'metadata.google.internal', 'metadata.google'];
+    if (blockedHosts.includes(hostname) || hostname.endsWith('.local')) {
+      throw new Error(`Access to ${hostname} is not allowed for security reasons.`);
+    }
+  } catch (e) {
+    if (e instanceof TypeError) {
+      // URL parsing failed - likely a local path like /etc/passwd
+      throw new Error(`Invalid URL format. Please provide a valid http:// or https:// URL.`);
+    }
+    throw e;
+  }
+}
+
 export async function handleWriteCommand(
   command: string,
   args: string[],
@@ -21,6 +46,7 @@ export async function handleWriteCommand(
     case 'goto': {
       const url = args[0];
       if (!url) throw new Error('Usage: browse goto <url>');
+      validateUrl(url); // Security: prevent SSRF attacks
       const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const status = response?.status() || 'unknown';
       return `Navigated to ${url} (${status})`;
