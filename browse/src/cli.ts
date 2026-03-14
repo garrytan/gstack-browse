@@ -153,7 +153,7 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
         'Authorization': `Bearer ${state.token}`,
       },
       body,
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(parseInt(process.env.BROWSE_TIMEOUT || '30000', 10)),
     });
 
     if (resp.status === 401) {

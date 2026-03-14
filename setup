@@ -14,7 +14,8 @@ elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -
   NEEDS_BUILD=1
 elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+elif { [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; } || \
+     { [ -f "$GSTACK_DIR/bun.lockb" ] && [ "$GSTACK_DIR/bun.lockb" -nt "$BROWSE_BIN" ]; }; then
   NEEDS_BUILD=1
 fi
 

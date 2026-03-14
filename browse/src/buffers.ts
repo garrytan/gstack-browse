@@ -20,7 +20,7 @@ export interface NetworkEntry {
 
 export const consoleBuffer: LogEntry[] = [];
 export const networkBuffer: NetworkEntry[] = [];
-const HIGH_WATER_MARK = 50_000;
+const HIGH_WATER_MARK = parseInt(process.env.BROWSE_BUFFER_SIZE || '50000', 10);
 
 // Total entries ever added — used by server.ts flush logic as a cursor
 // that keeps advancing even after the ring buffer wraps.
