@@ -1,8 +1,15 @@
+.env
 node_modules/
 browse/dist/
+.gstack/
+.claude/skills/
 /tmp/
 *.log
 bun.lock
 *.bun-build
 PR_ROADMAP.md
 ssd.md
+.env
+.env.local
+.env.*
+!.env.example

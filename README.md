@@ -2,7 +2,7 @@
 
 **gstack turns Claude Code from one generic assistant into a team of specialists you can summon on demand.**
 
-Six opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, code review, one-command shipping, browser automation, and engineering retrospectives — all as slash commands.
+Eight opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, code review, one-command shipping, browser automation, QA testing, and engineering retrospectives — all as slash commands.
 
 ### Without gstack
 
@@ -19,10 +19,12 @@ Six opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/
 |-------|------|--------------|
 | `/plan-ceo-review` | Founder / CEO | Rethink the problem. Find the 10-star product hiding inside the request. |
 | `/plan-eng-review` | Eng manager / tech lead | Lock in architecture, data flow, diagrams, edge cases, and tests. |
-| `/review` | Paranoid staff engineer | Find the bugs that pass CI but blow up in production. Not a style nitpick pass. |
-| `/ship` | Release engineer | Sync main, run tests, push, open PR. For a ready branch, not for deciding what to build. |
+| `/review` | Paranoid staff engineer | Find the bugs that pass CI but blow up in production. Triages Greptile review comments. |
+| `/ship` | Release engineer | Sync main, run tests, resolve Greptile reviews, push, open PR. For a ready branch, not for deciding what to build. |
 | `/browse` | QA engineer | Give the agent eyes. It logs in, clicks through your app, takes screenshots, catches breakage. Full QA pass in 60 seconds. |
-| `/retro` | Engineering manager | Analyze commit history, work patterns, and shipping velocity for the week. |
+| `/qa` | QA lead | Systematic QA testing. On a feature branch, auto-analyzes your diff, identifies affected pages, and tests them. Also: full exploration, quick smoke test, regression mode. |
+| `/setup-browser-cookies` | Session manager | Import cookies from your real browser (Comet, Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages without logging in manually. |
+| `/retro` | Engineering manager | Team-aware retro: your deep-dive + per-person praise and growth opportunities for every contributor. |
 
 ## Demo: one feature, five modes
 
@@ -61,11 +63,20 @@ You:   /ship
 
 Claude: [Syncs main, runs tests, pushes branch, opens PR — 6 tool calls, done]
 
-You:   /browse staging.myapp.com — test the listing flow
+You:   /qa
 
-Claude: [22 tool calls — navigates routes, fills the upload form, verifies
-        enrichment renders, checks console for errors, screenshots each step]
-        All pages load correctly. Listing flow works end to end on staging.
+Claude: Analyzing branch diff... 8 files changed, 3 routes affected.
+        [Tests /listings/new, /listings/:id, /api/listings against localhost:3000]
+        All 3 routes working. Upload + enrichment flow passes end to end.
+
+You:   /setup-browser-cookies staging.myapp.com
+
+Claude: Imported 8 cookies for staging.myapp.com from Chrome.
+
+You:   /qa https://staging.myapp.com --quick
+
+Claude: [Smoke test: homepage + 5 pages, 30 seconds]
+        Health Score: 91/100. No critical issues. 1 medium: mobile nav overlap.
 ```
 
 ## Who this is for
@@ -73,6 +84,16 @@ Claude: [22 tool calls — navigates routes, fills the upload form, verifies
 You already use Claude Code heavily and want consistent, high-rigor workflows instead of one mushy generic mode. You want to tell the model what kind of brain to use right now — founder taste, engineering rigor, paranoid review, or fast execution.
 
 This is not a prompt pack for beginners. It is an operating system for people who ship.
+
+## How to fly: 10 sessions at once
+
+gstack is powerful with one Claude Code session. It is transformative with ten.
+
+[Conductor](https://conductor.build) runs multiple Claude Code sessions in parallel — each in its own isolated workspace. That means you can have one session running `/qa` on staging, another doing `/review` on a PR, a third implementing a feature, and seven more working on other branches. All at the same time.
+
+Each workspace gets its own isolated browser instance automatically — separate Chromium process, cookies, tabs, and logs stored in `.gstack/` inside each project root. No port collisions, no shared state, no configuration needed. `/browse` and `/qa` sessions never interfere with each other, even across ten parallel workspaces.
+
+This is the setup I use. One person, ten parallel agents, each with the right cognitive mode for its task. That is not incremental improvement. That is a different way of building software.
 
 ## Install
 
@@ -82,23 +103,40 @@ This is not a prompt pack for beginners. It is an operating system for people wh
 
 Open Claude Code and paste this. Claude will do the rest.
 
-> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run `cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup` then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /review, /ship, /browse, /qa, /setup-browser-cookies, /retro, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. The binary and node\_modules are gitignored — teammates just need to run `cd .claude/skills/gstack && ./setup` once to build (or `/browse` handles it automatically on first use).
 
 ### What gets installed
 
 - Skill files (Markdown prompts) in `~/.claude/skills/gstack/` (or `.claude/skills/gstack/` for project installs)
-- Symlinks at `~/.claude/skills/browse`, `~/.claude/skills/review`, etc. pointing into the gstack directory
+- Symlinks at `~/.claude/skills/browse`, `~/.claude/skills/qa`, `~/.claude/skills/review`, etc. pointing into the gstack directory
 - Browser binary at `browse/dist/browse` (~58MB, gitignored)
 - `node_modules/` (gitignored)
 - `/retro` saves JSON snapshots to `.context/retros/` in your project for trend tracking
 
 Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
+
+---
+
+```
++----------------------------------------------------------------------------+
+|                                                                            |
+|   Are you a great software engineer who loves to write 10K LOC/day         |
+|   and land 10 PRs a day like Garry?                                        |
+|                                                                            |
+|   Come work at YC: ycombinator.com/software                                |
+|                                                                            |
+|   Extremely competitive salary and equity.                                 |
+|   Now hiring in San Francisco, Dogpatch District.                          |
+|   Come join the revolution.                                                |
+|                                                                            |
++----------------------------------------------------------------------------+
+```
 
 ---
 
@@ -300,6 +338,72 @@ I want the plane landed.
 
 ---
 
+## Greptile integration
+
+[Greptile](https://greptile.com) is a YC company that reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production. It has genuinely saved my ass more than once. I love these guys.
+
+**Setup:** Install Greptile on your GitHub repo at [greptile.com](https://greptile.com) — it takes about 30 seconds. Once it's reviewing your PRs, gstack picks up its comments automatically. No additional configuration.
+
+The problem with any automated reviewer is triage. Greptile is good, but not every comment is a real issue. Some are false positives. Some flag things you already fixed three commits ago. Without a triage layer, the comments pile up and you start ignoring them — which defeats the purpose.
+
+gstack solves this. `/review` and `/ship` are now Greptile-aware. They read Greptile's comments, classify each one, and take action:
+
+- **Valid issues** get added to the critical findings and fixed before shipping
+- **Already-fixed issues** get an auto-reply acknowledging the catch
+- **False positives** get pushed back — you confirm, and a reply goes out explaining why it's wrong
+
+The result is a two-layer review: Greptile catches things asynchronously on the PR, then `/review` and `/ship` triage those findings as part of the normal workflow. Nothing falls through the cracks.
+
+It also learns. Every false positive you confirm gets saved to `~/.gstack/greptile-history.md`. Future runs auto-skip known FP patterns for your codebase. And `/retro` tracks Greptile's batting average over time — so you can see whether the signal-to-noise ratio is improving.
+
+### Example
+
+```
+You:   /ship
+
+Claude: [syncs main, runs tests, pre-landing review...]
+
+        Greptile found 3 comments on this PR:
+
+        [VALID] app/services/payment_service.rb:47 — Race condition:
+        concurrent charges can double-debit. Recommend DB-level advisory
+        lock around the charge block.
+        → https://github.com/you/app/pull/42#discussion_r123
+
+        [ALREADY FIXED] app/models/user.rb:12 — Missing null check
+        on email before downcase.
+        → Already fixed in commit abc1234. Auto-replying.
+
+        [FALSE POSITIVE] lib/auth.rb:88 — "Token comparison should
+        use constant-time comparison." We already use
+        ActiveSupport::SecurityUtils.secure_compare here.
+        → https://github.com/you/app/pull/42#discussion_r125
+
+        Fixing the race condition in payment_service.rb...
+        Applied advisory lock. Committed: fix: address Greptile
+        review — advisory lock on concurrent charges
+
+        The auth token comment is a false positive — we're already
+        using secure_compare.
+
+        Options for the false positive:
+          A) Reply to Greptile explaining (recommended)
+          B) Fix it anyway
+          C) Ignore
+
+You:    A
+
+Claude: Replied to Greptile. Re-running tests after the fix...
+        All tests pass. Continuing to version bump.
+
+        [creates PR with Greptile Review section in body]
+        PR: https://github.com/you/app/pull/42
+```
+
+Three Greptile comments. One real fix. One auto-acknowledged. One false positive pushed back with a reply. Total extra time: about 30 seconds. And the PR body has the full audit trail.
+
+---
+
 ## `/browse`
 
 This is my **QA engineer mode**.
@@ -361,22 +465,124 @@ For the full command reference, technical internals, and architecture details, s
 
 ---
 
+## `/qa`
+
+This is my **QA lead mode**.
+
+`/browse` gives the agent eyes. `/qa` gives it a testing methodology.
+
+The most common use case: you're on a feature branch, you just finished coding, and you want to verify everything works. Just say `/qa` — it reads your git diff, identifies which pages and routes your changes affect, spins up the browser, and tests each one. No URL required. No manual test plan. It figures out what to test from the code you changed.
+
+```
+You:   /qa
+
+Claude: Analyzing branch diff against main...
+        12 files changed: 3 controllers, 2 views, 4 services, 3 tests
+
+        Affected routes: /listings/new, /listings/:id, /api/listings
+        Detected app running on localhost:3000.
+
+        [Tests each affected page — navigates, fills forms, clicks buttons,
+        screenshots, checks console errors]
+
+        QA Report: 3 routes tested, all working.
+        - /listings/new: upload + enrichment flow works end to end
+        - /listings/:id: detail page renders correctly
+        - /api/listings: returns 200 with expected shape
+        No console errors. No regressions on adjacent pages.
+```
+
+Four modes:
+
+- **Diff-aware** (automatic on feature branches) — reads `git diff main`, identifies affected pages, tests them specifically. The fastest path from "I just wrote code" to "it works."
+- **Full** — systematic exploration of the entire app. 5-15 minutes depending on app size. Documents 5-10 well-evidenced issues.
+- **Quick** (`--quick`) — 30-second smoke test. Homepage + top 5 nav targets. Loads? Console errors? Broken links?
+- **Regression** (`--regression baseline.json`) — run full mode, then diff against a previous baseline. Which issues are fixed? Which are new? What's the score delta?
+
+```
+You:   /qa https://staging.myapp.com
+
+Claude: [Explores 12 pages, fills 3 forms, tests 2 flows]
+
+        QA Report: staging.myapp.com — Health Score: 72/100
+
+        Top 3 Issues:
+        1. CRITICAL: Checkout form submits with empty required fields
+        2. HIGH: Mobile nav menu doesn't close after selecting an item
+        3. MEDIUM: Dashboard chart overlaps sidebar below 1024px
+
+        [Full report with screenshots saved to .gstack/qa-reports/]
+```
+
+Reports and screenshots accumulate in `.gstack/qa-reports/` so you can track quality over time and compare runs.
+
+**Testing authenticated pages:** Use `/setup-browser-cookies` first to import your real browser sessions, then `/qa` can test pages behind login.
+
+---
+
+## `/setup-browser-cookies`
+
+This is my **session manager mode**.
+
+Before `/qa` or `/browse` can test authenticated pages, they need cookies. Instead of manually logging in through the headless browser every time, `/setup-browser-cookies` imports your real sessions directly from your daily browser.
+
+It auto-detects installed Chromium browsers (Comet, Chrome, Arc, Brave, Edge), decrypts cookies via the macOS Keychain, and loads them into the Playwright session. An interactive picker UI lets you choose exactly which domains to import — no cookie values are ever displayed.
+
+```
+You:   /setup-browser-cookies
+
+Claude: Cookie picker opened — select the domains you want to import
+        in your browser, then tell me when you're done.
+
+        [You pick github.com, myapp.com in the browser UI]
+
+You:    done
+
+Claude: Imported 2 domains (47 cookies). Session is ready.
+```
+
+Or skip the UI entirely:
+
+```
+You:   /setup-browser-cookies github.com
+
+Claude: Imported 12 cookies for github.com from Comet.
+```
+
+First import per browser triggers a macOS Keychain prompt — click "Allow" or "Always Allow."
+
+---
+
 ## `/retro`
 
 This is my **engineering manager mode**.
 
 At the end of the week I want to know what actually happened. Not vibes — data. `/retro` analyzes commit history, work patterns, and shipping velocity and writes a candid retrospective.
 
-It computes metrics like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
+It is team-aware. It identifies who is running the command, gives you the deepest treatment on your own work, then breaks down every contributor with specific praise and growth opportunities — the kind of feedback you would actually give in a 1:1. It computes metrics like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
 
 ```
 You:   /retro
 
-Claude: Week of Mar 1: 47 commits, 3.2k LOC, 38% tests, 12 PRs, peak: 10pm | Streak: 47d
+Claude: Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs, peak: 10pm | Streak: 47d
 
-        [Full retro with summary table, time patterns, session analysis,
-         commit type breakdown, hotspots, focus score, top 3 wins,
-         3 things to improve, 3 habits for next week]
+        ## Your Week
+        32 commits, +2.4k LOC, 41% tests. Peak hours: 9-11pm.
+        Biggest ship: cookie import system (browser decryption + picker UI).
+        What you did well: shipped a complete feature with encryption, UI, and
+        18 unit tests in one focused push...
+
+        ## Team Breakdown
+
+        ### Alice
+        12 commits focused on app/services/. Every PR under 200 LOC — disciplined.
+        Opportunity: test ratio at 12% — worth investing before payment gets more complex.
+
+        ### Bob
+        3 commits — fixed the N+1 query on dashboard. Small but high-impact.
+        Opportunity: only 1 active day this week — check if blocked on anything.
+
+        [Top 3 team wins, 3 things to improve, 3 habits for next week]
 ```
 
 It saves a JSON snapshot to `.context/retros/` so the next run can show trends. Run `/retro compare` to see this week vs last week side by side.
@@ -392,7 +598,7 @@ Run `cd ~/.claude/skills/gstack && ./setup` (or `cd .claude/skills/gstack && ./s
 Run `cd ~/.claude/skills/gstack && bun install && bun run build`. This compiles the browser binary. Requires Bun v1.0+.
 
 **Project copy is stale?**
-Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+Re-copy from global: `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 **`bun` not installed?**
 Install it: `curl -fsSL https://bun.sh/install | bash`
@@ -401,7 +607,7 @@ Install it: `curl -fsSL https://bun.sh/install | bash`
 
 Paste this into Claude Code:
 
-> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
+> Update gstack: run `cd ~/.claude/skills/gstack && git fetch origin && git reset --hard origin/main && ./setup`. If this project also has gstack at .claude/skills/gstack, update it too: run `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack && cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`
 
 The `setup` script rebuilds the browser binary and re-symlinks skills. It takes a few seconds.
 
@@ -409,7 +615,7 @@ The `setup` script rebuilds the browser binary and re-symlinks skills. It takes 
 
 Paste this into Claude Code:
 
-> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
+> Uninstall gstack: remove the skill symlinks by running `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f ~/.claude/skills/$s; done` then run `rm -rf ~/.claude/skills/gstack` and remove the gstack section from CLAUDE.md. If this project also has gstack at .claude/skills/gstack, remove it by running `for s in browse plan-ceo-review plan-eng-review review ship retro qa setup-browser-cookies; do rm -f .claude/skills/$s; done && rm -rf .claude/skills/gstack` and remove the gstack section from the project CLAUDE.md too.
 
 ## Development
 

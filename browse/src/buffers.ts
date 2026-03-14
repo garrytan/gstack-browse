@@ -113,11 +113,9 @@ export interface DialogEntry {
   action: string;      // 'accepted' | 'dismissed'
   response?: string;   // text provided for prompt
 }
-
 // ─── Buffer Instances ───────────────────────────────────────
 
 const HIGH_WATER_MARK = parseInt(process.env.BROWSE_BUFFER_SIZE || '50000', 10);
-
 export const consoleBuffer = new CircularBuffer<LogEntry>(HIGH_WATER_MARK);
 export const networkBuffer = new CircularBuffer<NetworkEntry>(HIGH_WATER_MARK);
 export const dialogBuffer = new CircularBuffer<DialogEntry>(HIGH_WATER_MARK);

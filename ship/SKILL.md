@@ -13,6 +13,15 @@ allowed-tools:
   - AskUserQuestion
 ---
 
+## Update Check (run first)
+
+```bash
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+
 # Ship: Fully Automated Ship Workflow
 
 You are running the `/ship` workflow. This is a **non-interactive, fully automated** workflow. Do NOT ask for confirmation at any step. The user said `/ship` which means DO IT. Run straight through and output the PR URL at the end.
@@ -23,6 +32,7 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 - Test failures (stop, show failures)
 - Pre-landing review finds CRITICAL issues and user chooses to fix (not acknowledge or skip)
 - MINOR or MAJOR version bump needed (ask — see Step 4)
+- Greptile review comments that need user decision (complex fixes, false positives)
 
 **Never stop for:**
 - Uncommitted changes (always include them)
@@ -171,6 +181,43 @@ Save the review output — it goes into the PR body in Step 8.
 
 ---
 
+## Step 3.75: Address Greptile review comments (if PR exists)
+
+Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, and classify steps.
+
+**If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Continue to Step 4.
+
+**If Greptile comments are found:**
+
+Include a Greptile summary in your output: `+ N Greptile comments (X valid, Y fixed, Z FP)`
+
+For each classified comment:
+
+**VALID & ACTIONABLE:** Use AskUserQuestion with:
+- The comment (file:line or [top-level] + body summary + permalink URL)
+- Your recommended fix
+- Options: A) Fix now (recommended), B) Acknowledge and ship anyway, C) It's a false positive
+- If user chooses A: apply the fix, commit the fixed files (`git add <fixed-files> && git commit -m "fix: address Greptile review — <brief description>"`), reply to the comment (`"Fixed in <commit-sha>."`), and save to `~/.gstack/greptile-history.md` (type: fix).
+- If user chooses C: reply explaining the false positive, save to history (type: fp).
+
+**VALID BUT ALREADY FIXED:** Reply acknowledging the catch — no AskUserQuestion needed:
+- Post reply: `"Good catch — already fixed in <commit-sha>."`
+- Save to `~/.gstack/greptile-history.md` (type: already-fixed)
+
+**FALSE POSITIVE:** Use AskUserQuestion:
+- Show the comment and why you think it's wrong (file:line or [top-level] + body summary + permalink URL)
+- Options:
+  - A) Reply to Greptile explaining the false positive (recommended if clearly wrong)
+  - B) Fix it anyway (if trivial)
+  - C) Ignore silently
+- If user chooses A: post reply using the appropriate API from the triage doc, save to history (type: fp)
+
+**SUPPRESSED:** Skip silently — these are known false positives from previous triage.
+
+**After all comments are resolved:** If any fixes were applied, the tests from Step 3 are now stale. **Re-run tests** (Step 3) before continuing to Step 4. If no fixes were applied, continue to Step 4.
+
+---
+
 ## Step 4: Version bump (auto-decide)
 
 1. Read the current `VERSION` file (4-digit format: `MAJOR.MINOR.PATCH.MICRO`)
@@ -274,6 +321,11 @@ gh pr create --title "<type>: <summary>" --body "$(cat <<'EOF'
 
 ## Eval Results
 <If evals ran: suite names, pass/fail counts, cost dashboard summary. If skipped: "No prompt-related files changed — evals skipped.">
+
+## Greptile Review
+<If Greptile comments were found: bullet list with [FIXED] / [FALSE POSITIVE] / [ALREADY FIXED] tag + one-line summary per comment>
+<If no Greptile comments found: "No Greptile comments.">
+<If no PR existed during Step 3.75: omit this section entirely>
 
 ## Test plan
 - [x] All Rails tests pass (N runs, 0 failures)
