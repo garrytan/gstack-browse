@@ -7,7 +7,7 @@
  * Requires: ANTHROPIC_API_KEY env var
  * Run: ANTHROPIC_API_KEY=sk-... bun test test/skill-llm-eval.test.ts
  *
- * Cost: ~$0.01-0.03 per run (haiku)
+ * Cost: ~$0.05-0.15 per run (sonnet)
  */
 
 import { describe, test, expect } from 'bun:test';
@@ -30,7 +30,7 @@ async function judge(section: string, prompt: string): Promise<JudgeScore> {
   const client = new Anthropic();
 
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+    model: 'claude-sonnet-4-6',
     max_tokens: 1024,
     messages: [{
       role: 'user',
@@ -115,6 +115,19 @@ describeEval('LLM-as-judge quality evals', () => {
     expect(scores.actionability).toBeGreaterThanOrEqual(4);
   }, 30_000);
 
+  test('setup block scores >= 4 on actionability and clarity', async () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const setupStart = content.indexOf('## SETUP');
+    const setupEnd = content.indexOf('## IMPORTANT');
+    const section = content.slice(setupStart, setupEnd);
+
+    const scores = await judge('setup/binary discovery instructions', section);
+    console.log('Setup block scores:', JSON.stringify(scores, null, 2));
+
+    expect(scores.actionability).toBeGreaterThanOrEqual(4);
+    expect(scores.clarity).toBeGreaterThanOrEqual(4);
+  }, 30_000);
+
   test('regression check: compare branch vs baseline quality', async () => {
     // This test compares the generated output against the hand-maintained
     // baseline from main. The generated version should score equal or higher.
@@ -158,7 +171,7 @@ describeEval('LLM-as-judge quality evals', () => {
 
     const client = new Anthropic();
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       messages: [{
         role: 'user',

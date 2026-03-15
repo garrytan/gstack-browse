@@ -23,6 +23,7 @@ const BROWSE_ERROR_PATTERNS = [
   /Exit code 1/,
   /ERROR: browse binary not found/,
   /Server failed to start/,
+  /no such file or directory.*browse/i,
 ];
 
 export async function runSkillTest(options: {

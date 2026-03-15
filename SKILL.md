@@ -10,10 +10,20 @@ description: |
 allowed-tools:
   - Bash
   - Read
+  - AskUserQuestion
 
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
+
+## Update Check (run first)
+
+```bash
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, `touch ~/.gstack/last-update-check` if no). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 # gstack browse: QA Testing & Dogfooding
 
@@ -23,12 +33,12 @@ Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, 
 ## SETUP (run this check BEFORE any browse command)
 
 ```bash
-BROWSE_OUTPUT=$(browse/bin/find-browse 2>/dev/null || ~/.claude/skills/gstack/browse/bin/find-browse 2>/dev/null)
-B=$(echo "$BROWSE_OUTPUT" | head -1)
-META=$(echo "$BROWSE_OUTPUT" | grep "^META:" || true)
-if [ -n "$B" ]; then
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
   echo "READY: $B"
-  [ -n "$META" ] && echo "$META"
 else
   echo "NEEDS_SETUP"
 fi
@@ -38,13 +48,6 @@ If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
-
-If you see `META:UPDATE_AVAILABLE`:
-1. Parse the JSON payload to get `current`, `latest`, and `command`.
-2. Tell the user: "A gstack update is available (current: X, latest: Y). OK to update?"
-3. **STOP and wait for approval.**
-4. Run the command from the META payload.
-5. Re-run the setup check above to get the updated binary path.
 
 ## IMPORTANT
 
@@ -58,8 +61,6 @@ If you see `META:UPDATE_AVAILABLE`:
 ### Test a user flow (login, signup, checkout, etc.)
 
 ```bash
-B=~/.claude/skills/gstack/browse/dist/browse
-
 # 1. Go to the page
 $B goto https://app.example.com/login
 
@@ -242,23 +243,34 @@ $B css ".button" "background-color"
 The snapshot is your primary tool for understanding and interacting with pages.
 
 ```
--i        Interactive elements only (buttons, links, inputs) with @e refs
--c        Compact (no empty structural nodes)
--d <N>    Limit depth
--s <sel>  Scope to CSS selector
--D        Diff against previous snapshot (what changed?)
--a        Annotated screenshot with ref labels
--o <path> Output path for screenshot
--C        Cursor-interactive elements (@c refs — divs with pointer, onclick)
+-i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs
+-c        --compact               Compact (no empty structural nodes)
+-d <N>    --depth                 Limit tree depth (0 = root only, default: unlimited)
+-s <sel>  --selector              Scope to CSS selector
+-D        --diff                  Unified diff against previous snapshot (first call stores baseline)
+-a        --annotate              Annotated screenshot with red overlay boxes and ref labels
+-o <path> --output                Output path for annotated screenshot (default: /tmp/browse-annotated.png)
+-C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick)
 ```
 
-Combine flags: `$B snapshot -i -a -C -o /tmp/annotated.png`
+All flags can be combined freely. `-o` only applies when `-a` is also used.
+Example: `$B snapshot -i -a -C -o /tmp/annotated.png`
 
-After snapshot, use @refs everywhere:
+**Ref numbering:** @e refs are assigned sequentially (@e1, @e2, ...) in tree order.
+@c refs from `-C` are numbered separately (@c1, @c2, ...).
+
+After snapshot, use @refs as selectors in any command:
 ```bash
 $B click @e3       $B fill @e4 "value"     $B hover @e1
 $B html @e2        $B css @e5 "color"      $B attrs @e6
 $B click @c1       # cursor-interactive ref (from -C)
+```
+
+**Output format:** indented accessibility tree with @ref IDs, one element per line.
+```
+  @e1 [heading] "Welcome" [level=1]
+  @e2 [textbox] "Email"
+  @e3 [button] "Submit"
 ```
 
 Refs are invalidated on navigation — run `snapshot` again after `goto`.
@@ -279,7 +291,7 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 |---------|-------------|
 | `accessibility` | Full ARIA tree |
 | `forms` | Form fields as JSON |
-| `html [selector]` | innerHTML |
+| `html [selector]` | innerHTML of selector (throws if not found), or full page HTML if no selector given |
 | `links` | All links as "text → href" |
 | `text` | Cleaned page text |
 
@@ -287,22 +299,22 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 | Command | Description |
 |---------|-------------|
 | `click <sel>` | Click element |
-| `cookie` | Set cookie |
+| `cookie <name>=<value>` | Set cookie on current page domain |
 | `cookie-import <json>` | Import cookies from JSON file |
-| `cookie-import-browser [browser] [--domain d]` | Import cookies from real browser (opens picker UI, or direct with --domain) |
-| `dialog-accept [text]` | Auto-accept next alert/confirm/prompt |
+| `cookie-import-browser [browser] [--domain d]` | Import cookies from Comet, Chrome, Arc, Brave, or Edge (opens picker, or use --domain for direct import) |
+| `dialog-accept [text]` | Auto-accept next alert/confirm/prompt. Optional text is sent as the prompt response |
 | `dialog-dismiss` | Auto-dismiss next dialog |
 | `fill <sel> <val>` | Fill input |
-| `header <name> <value>` | Set custom request header |
+| `header <name>:<value>` | Set custom request header (colon-separated, sensitive values auto-redacted) |
 | `hover <sel>` | Hover element |
-| `press <key>` | Press key (Enter, Tab, Escape, etc.) |
-| `scroll [sel]` | Scroll element into view |
-| `select <sel> <val>` | Select dropdown option |
+| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter |
+| `scroll [sel]` | Scroll element into view, or scroll to page bottom if no selector |
+| `select <sel> <val>` | Select dropdown option by value, label, or visible text |
 | `type <text>` | Type into focused element |
-| `upload <sel> <file...>` | Upload file(s) |
+| `upload <sel> <file> [file2...]` | Upload file(s) |
 | `useragent <string>` | Set user agent |
 | `viewport <WxH>` | Set viewport size |
-| `wait <sel|--networkidle|--load>` | Wait for element/condition |
+| `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (timeout: 15s) |
 
 ### Inspection
 | Command | Description |
@@ -312,30 +324,30 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 | `cookies` | All cookies as JSON |
 | `css <sel> <prop>` | Computed CSS value |
 | `dialog [--clear]` | Dialog messages |
-| `eval <file>` | Run JS file |
+| `eval <file>` | Run JavaScript from file and return result as string (path must be under /tmp or cwd) |
 | `is <prop> <sel>` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
-| `js <expr>` | Run JavaScript |
+| `js <expr>` | Run JavaScript expression and return result as string |
 | `network [--clear]` | Network requests |
 | `perf` | Page load timings |
-| `storage [set k v]` | localStorage + sessionStorage |
+| `storage [set k v]` | Read all localStorage + sessionStorage as JSON, or set <key> <value> to write localStorage |
 
 ### Visual
 | Command | Description |
 |---------|-------------|
 | `diff <url1> <url2>` | Text diff between pages |
 | `pdf [path]` | Save as PDF |
-| `responsive [prefix]` | Mobile/tablet/desktop screenshots |
+| `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
 | `screenshot [path]` | Save screenshot |
 
 ### Snapshot
 | Command | Description |
 |---------|-------------|
-| `snapshot [flags]` | Accessibility tree with @refs |
+| `snapshot [flags]` | Accessibility tree with @e refs for element selection. Flags: -i interactive only, -c compact, -d N depth limit, -s sel scope, -D diff vs previous, -a annotated screenshot, -o path output, -C cursor-interactive @c refs |
 
 ### Meta
 | Command | Description |
 |---------|-------------|
-| `chain` | Multi-command from JSON stdin |
+| `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
 
 ### Tabs
 | Command | Description |

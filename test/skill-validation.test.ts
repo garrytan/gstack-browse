@@ -80,6 +80,59 @@ describe('Command registry consistency', () => {
   });
 });
 
+describe('Usage string consistency', () => {
+  // Normalize a usage string to its structural skeleton for comparison.
+  // Replaces <param-names> with <>, [optional] with [], strips parenthetical hints.
+  // This catches format mismatches (e.g., <name>:<value> vs <name> <value>)
+  // without tripping on abbreviation differences (e.g., <sel> vs <selector>).
+  function skeleton(usage: string): string {
+    return usage
+      .replace(/\(.*?\)/g, '')        // strip parenthetical hints like (e.g., Enter, Tab)
+      .replace(/<[^>]*>/g, '<>')      // normalize <param-name> → <>
+      .replace(/\[[^\]]*\]/g, '[]')   // normalize [optional] → []
+      .replace(/\s+/g, ' ')           // collapse whitespace
+      .trim();
+  }
+
+  // Cross-check Usage: patterns in implementation against COMMAND_DESCRIPTIONS
+  test('implementation Usage: structural format matches COMMAND_DESCRIPTIONS', () => {
+    const implFiles = [
+      path.join(ROOT, 'browse', 'src', 'write-commands.ts'),
+      path.join(ROOT, 'browse', 'src', 'read-commands.ts'),
+      path.join(ROOT, 'browse', 'src', 'meta-commands.ts'),
+    ];
+
+    // Extract "Usage: browse <pattern>" from throw new Error(...) calls
+    const usagePattern = /throw new Error\(['"`]Usage:\s*browse\s+(.+?)['"`]\)/g;
+    const implUsages = new Map<string, string>();
+
+    for (const file of implFiles) {
+      const content = fs.readFileSync(file, 'utf-8');
+      let match;
+      while ((match = usagePattern.exec(content)) !== null) {
+        const usage = match[1].split('\\n')[0].trim();
+        const cmd = usage.split(/\s/)[0];
+        implUsages.set(cmd, usage);
+      }
+    }
+
+    // Compare structural skeletons
+    const mismatches: string[] = [];
+    for (const [cmd, implUsage] of implUsages) {
+      const desc = COMMAND_DESCRIPTIONS[cmd];
+      if (!desc) continue;
+      if (!desc.usage) continue;
+      const descSkel = skeleton(desc.usage);
+      const implSkel = skeleton(implUsage);
+      if (descSkel !== implSkel) {
+        mismatches.push(`${cmd}: docs "${desc.usage}" (${descSkel}) vs impl "${implUsage}" (${implSkel})`);
+      }
+    }
+
+    expect(mismatches).toEqual([]);
+  });
+});
+
 describe('Generated SKILL.md freshness', () => {
   test('no unresolved {{placeholders}} in generated SKILL.md', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');

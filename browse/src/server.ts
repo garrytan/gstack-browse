@@ -18,6 +18,8 @@ import { handleReadCommand } from './read-commands';
 import { handleWriteCommand } from './write-commands';
 import { handleMetaCommand } from './meta-commands';
 import { handleCookiePickerRoute } from './cookie-picker-routes';
+import { COMMAND_DESCRIPTIONS } from './commands';
+import { SNAPSHOT_FLAGS } from './snapshot';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -35,6 +37,47 @@ const IDLE_TIMEOUT_MS = parseInt(process.env.BROWSE_IDLE_TIMEOUT || '1800000', 1
 function validateAuth(req: Request): boolean {
   const header = req.headers.get('authorization');
   return header === `Bearer ${AUTH_TOKEN}`;
+}
+
+// ─── Help text (auto-generated from COMMAND_DESCRIPTIONS) ────────
+function generateHelpText(): string {
+  // Group commands by category
+  const groups = new Map<string, string[]>();
+  for (const [cmd, meta] of Object.entries(COMMAND_DESCRIPTIONS)) {
+    const display = meta.usage || cmd;
+    const list = groups.get(meta.category) || [];
+    list.push(display);
+    groups.set(meta.category, list);
+  }
+
+  const categoryOrder = [
+    'Navigation', 'Reading', 'Interaction', 'Inspection',
+    'Visual', 'Snapshot', 'Meta', 'Tabs', 'Server',
+  ];
+
+  const lines = ['gstack browse — headless browser for AI agents', '', 'Commands:'];
+  for (const cat of categoryOrder) {
+    const cmds = groups.get(cat);
+    if (!cmds) continue;
+    lines.push(`  ${(cat + ':').padEnd(15)}${cmds.join(', ')}`);
+  }
+
+  // Snapshot flags from source of truth
+  lines.push('');
+  lines.push('Snapshot flags:');
+  const flagPairs: string[] = [];
+  for (const flag of SNAPSHOT_FLAGS) {
+    const label = flag.valueHint ? `${flag.short} ${flag.valueHint}` : flag.short;
+    flagPairs.push(`${label}  ${flag.long}`);
+  }
+  // Print two flags per line for compact display
+  for (let i = 0; i < flagPairs.length; i += 2) {
+    const left = flagPairs[i].padEnd(28);
+    const right = flagPairs[i + 1] || '';
+    lines.push(`  ${left}${right}`);
+  }
+
+  return lines.join('\n');
 }
 
 // ─── Buffer (from buffers.ts) ────────────────────────────────────
@@ -191,29 +234,7 @@ async function handleCommand(body: any): Promise<Response> {
     } else if (META_COMMANDS.has(command)) {
       result = await handleMetaCommand(command, args, browserManager, shutdown);
     } else if (command === 'help') {
-      const helpText = [
-        'gstack browse — headless browser for AI agents',
-        '',
-        'Commands:',
-        '  Navigation:    goto <url>, back, forward, reload',
-        '  Interaction:   click <sel>, fill <sel> <text>, select <sel> <val>, hover, type, press, scroll, wait',
-        '  Read:          text [sel], html [sel], links, forms, accessibility, cookies, storage, console, network, perf',
-        '  Evaluate:      js <expr>, eval <expr>, css <sel> <prop>, attrs <sel>, is <sel> <state>',
-        '  Snapshot:      snapshot [-i] [-c] [-d N] [-s sel] [-D] [-a] [-o path] [-C]',
-        '  Screenshot:    screenshot [path], pdf [path], responsive <widths>',
-        '  Tabs:          tabs, tab <id>, newtab [url], closetab [id]',
-        '  State:         cookie <set|get|clear>, cookie-import <json>, cookie-import-browser [browser]',
-        '  Headers:       header <set|clear> [name] [value], useragent [string]',
-        '  Upload:        upload <sel> <file1> [file2...]',
-        '  Dialogs:       dialog, dialog-accept [text], dialog-dismiss',
-        '  Meta:          status, stop, restart, diff, chain, help',
-        '',
-        'Snapshot flags:',
-        '  -i  interactive only    -c  compact (remove empty nodes)',
-        '  -d N  limit depth       -s sel  scope to CSS selector',
-        '  -D  diff vs previous    -a  annotated screenshot with ref labels',
-        '  -o path  output file    -C  cursor-interactive elements',
-      ].join('\n');
+      const helpText = generateHelpText();
       return new Response(helpText, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },

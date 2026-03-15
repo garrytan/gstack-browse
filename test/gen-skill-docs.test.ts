@@ -139,6 +139,14 @@ describe('description quality evals', () => {
     }
   });
 
+  // Guard: descriptions must not contain pipe (breaks markdown table cells)
+  // Usage strings are backtick-wrapped in the table so pipes there are safe.
+  test('no command description contains pipe character', () => {
+    for (const [cmd, meta] of Object.entries(COMMAND_DESCRIPTIONS)) {
+      expect(meta.description).not.toContain('|');
+    }
+  });
+
   // Guard: generated output uses → not ->
   test('generated SKILL.md uses unicode arrows', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');

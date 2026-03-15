@@ -64,18 +64,29 @@ function generateSnapshotFlags(): string {
 
   for (const flag of SNAPSHOT_FLAGS) {
     const label = flag.valueHint ? `${flag.short} ${flag.valueHint}` : flag.short;
-    lines.push(`${label.padEnd(10)}${flag.description}`);
+    lines.push(`${label.padEnd(10)}${flag.long.padEnd(24)}${flag.description}`);
   }
 
   lines.push('```');
   lines.push('');
-  lines.push('Combine flags: `$B snapshot -i -a -C -o /tmp/annotated.png`');
+  lines.push('All flags can be combined freely. `-o` only applies when `-a` is also used.');
+  lines.push('Example: `$B snapshot -i -a -C -o /tmp/annotated.png`');
   lines.push('');
-  lines.push('After snapshot, use @refs everywhere:');
+  lines.push('**Ref numbering:** @e refs are assigned sequentially (@e1, @e2, ...) in tree order.');
+  lines.push('@c refs from `-C` are numbered separately (@c1, @c2, ...).');
+  lines.push('');
+  lines.push('After snapshot, use @refs as selectors in any command:');
   lines.push('```bash');
   lines.push('$B click @e3       $B fill @e4 "value"     $B hover @e1');
   lines.push('$B html @e2        $B css @e5 "color"      $B attrs @e6');
   lines.push('$B click @c1       # cursor-interactive ref (from -C)');
+  lines.push('```');
+  lines.push('');
+  lines.push('**Output format:** indented accessibility tree with @ref IDs, one element per line.');
+  lines.push('```');
+  lines.push('  @e1 [heading] "Welcome" [level=1]');
+  lines.push('  @e2 [textbox] "Email"');
+  lines.push('  @e3 [button] "Submit"');
   lines.push('```');
   lines.push('');
   lines.push('Refs are invalidated on navigation — run `snapshot` again after `goto`.');
@@ -83,9 +94,43 @@ function generateSnapshotFlags(): string {
   return lines.join('\n');
 }
 
+function generateUpdateCheck(): string {
+  return `## Update Check (run first)
+
+\`\`\`bash
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+\`\`\`
+
+If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`~/.claude/skills/gstack/gstack-upgrade/SKILL.md\` and follow the "Inline upgrade flow" (AskUserQuestion → upgrade if yes, \`touch ~/.gstack/last-update-check\` if no). If \`JUST_UPGRADED <from> <to>\`: tell user "Running gstack v{to} (just updated!)" and continue.`;
+}
+
+function generateBrowseSetup(): string {
+  return `## SETUP (run this check BEFORE any browse command)
+
+\`\`\`bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
+  echo "READY: $B"
+else
+  echo "NEEDS_SETUP"
+fi
+\`\`\`
+
+If \`NEEDS_SETUP\`:
+1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: \`cd <SKILL_DIR> && ./setup\`
+3. If \`bun\` is not installed: \`curl -fsSL https://bun.sh/install | bash\``;
+}
+
 const RESOLVERS: Record<string, () => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
+  UPDATE_CHECK: generateUpdateCheck,
+  BROWSE_SETUP: generateBrowseSetup,
 };
 
 // ─── Template Processing ────────────────────────────────────
@@ -130,6 +175,8 @@ function findTemplates(): string[] {
   const candidates = [
     path.join(ROOT, 'SKILL.md.tmpl'),
     path.join(ROOT, 'browse', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'qa', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'setup-browser-cookies', 'SKILL.md.tmpl'),
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) templates.push(p);
