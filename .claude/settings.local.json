@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash setup:*)",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\(\\); await browser.close\\(\\); console.log\\(\"Playwright OK\"\\)' 2>&1 || echo \"NEED_INSTALL\")",
+      "Bash(bunx playwright:*)",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\(\\); await browser.close\\(\\); console.log\\(\"Playwright OK\"\\)')",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\({timeout: 60000}\\); await browser.close\\(\\); console.log\\(\"Playwright OK\"\\)')",
+      "Bash(mkdir -p ~/.claude/skills && ln -s \"C:/Users/manis/Documents/Polarj/WarRoom/gstack\" ~/.claude/skills/gstack)",
+      "Bash(\"C:\\\\Users\\\\manis\\\\AppData\\\\Local\\\\ms-playwright\\\\chromium_headless_shell-1208\\\\chrome-headless-shell-win64\\\\chrome-headless-shell.exe\" --version 2>&1)",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\({headless: false, timeout: 30000}\\); await browser.close\\(\\); console.log\\(\"Playwright OK\"\\)' 2>&1)",
+      "Bash(tasklist | grep -i chrome 2>/dev/null || echo \"no chrome processes\")",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\({channel: \"msedge\", timeout: 15000}\\); await browser.close\\(\\); console.log\\(\"Edge OK\"\\)' 2>&1)",
+      "Bash(node -e \"const { chromium } = require\\('playwright'\\); \\(async \\(\\) => { const b = await chromium.launch\\({timeout: 15000}\\); await b.close\\(\\); console.log\\('Node OK'\\); }\\)\\(\\)\" 2>&1)",
+      "Bash(browse/dist/browse.exe goto:*)",
+      "Bash(grep -r \"browse/dist/browse\" --include=\"*.ts\" --include=\"*.md\" --include=\"*.sh\" --include=\"*.json\" -l . 2>/dev/null | head -20)",
+      "Bash(bun --eval 'import { chromium } from \"playwright\"; const browser = await chromium.launch\\({headless: true, pipe: false, timeout: 15000}\\); await browser.close\\(\\); console.log\\(\"Playwright OK\"\\)' 2>&1)",
+      "Bash(bun --eval '\nimport { chromium } from \"playwright\";\nconst browser = await chromium.launch\\({\n  headless: true,\n  args: [\"--remote-debugging-port=0\"],\n  timeout: 15000\n}\\);\nawait browser.close\\(\\);\nconsole.log\\(\"OK\"\\);\n' 2>&1)",
+      "Bash(npx tsx:*)",
+      "Bash(bun --eval \"\nimport playwright from 'playwright-core';\nconst browser = await playwright.chromium.launch\\({headless: true, cdpPort: 0, timeout: 15000}\\);\nawait browser.close\\(\\);\nconsole.log\\('OK'\\);\n\" 2>&1)",
+      "Bash(bun --eval \"\nimport { firefox } from 'playwright';\nconst browser = await firefox.launch\\({headless: true, timeout: 15000}\\);\nawait browser.close\\(\\);\nconsole.log\\('Firefox OK'\\);\n\" 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun run dev goto https://example.com 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun run dev snapshot 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun build --compile browse/src/cli.ts --outfile browse/dist/browse 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun run dev stop 2>&1; browse/dist/browse.exe goto https://example.com 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun install 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun run dev stop 2>&1; sleep 1; bun run build 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && browse/dist/browse.exe snapshot 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && bun run dev stop 2>&1; bun test browse/test/ test/ --ignore test/skill-e2e.test.ts --ignore test/skill-llm-eval.test.ts 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && gh repo fork --remote=true 2>&1)",
+      "Bash(cd C:/Users/manis/Documents/Polarj/WarRoom/gstack && gh pr create --repo garrytan/gstack --title \"feat: Windows support via Node polyfill layer\" --body \"$\\(cat <<'EOF'\n## Summary\n\ngstack is built for macOS, but Bun on Windows can't launch Playwright browsers — both IPC pipe and WebSocket transports fail. This PR adds automatic Windows detection so everything works out of the box.\n\n- **On Windows**, the CLI spawns the browse server via `Node + tsx` instead of `bun run`, with a polyfill layer for Bun-specific APIs \\(`Bun.serve`, `Bun.write`, `Bun.file`, `Bun.spawn`, etc.\\)\n- **On macOS/Linux**, zero changes — all Windows logic is behind `process.platform === 'win32'` checks\n- **Setup script** now works from any directory \\(auto-symlinks into `~/.claude/skills/`\\), detects Windows, and provides Defender exclusion guidance if Chromium fails to launch\n\n### What's changed\n\n| File | Change |\n|------|--------|\n| `browse/src/bun-polyfill-win.ts` | **New** — Node polyfills for Bun.serve, Bun.write, Bun.file, Bun.sleep, Bun.spawn, Bun.spawnSync |\n| `browse/src/server-node.ts` | **New** — Node entry point: loads polyfills then imports server |\n| `browse/src/cli.ts` | Windows path detection \\(`C:\\\\` prefix\\), spawns server via `npx tsx` on Windows |\n| `browse/src/server.ts` | `import.meta.dir` fallback to `import.meta.dirname` for Node |\n| `browse/src/cookie-import-browser.ts` | Conditional `bun:sqlite` import \\(graceful degradation\\) |\n| `package.json` | Added `tsx` dep, removed `rm -f .*.bun-build` \\(glob fails on Windows\\) |\n| `setup` | Cross-platform: auto-symlinks from any location, Defender guidance, Node check |\n| `WINDOWS.md` | Setup guide + architecture docs for Windows users |\n\n### Limitation\n\n`cookie-import-browser` \\(importing cookies from installed browsers via `bun:sqlite`\\) is unavailable on Windows. `cookie-import <json-file>` works fine.\n\n## Test plan\n\n- [x] `bun run build` succeeds on Windows\n- [x] `bun run dev goto https://example.com` — navigates and returns 200\n- [x] `bun run dev snapshot` — returns accessibility tree\n- [x] Compiled `browse.exe` binary works end-to-end\n- [x] Non-browser tests pass \\(`config`, `cookie-import-browser`, `cookie-picker-routes`, `skill-validation`\\)\n- [ ] Verify no regression on macOS \\(all changes are behind `win32` checks\\)\n\nTested on Windows 11 Pro \\(10.0.26200\\), Bun 1.2.18, Node 22.17.0, Playwright 1.58.2.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\" 2>&1)",
+      "Bash(bun:*)",
+      "Bash(npx playwright:*)",
+      "Bash(cd:*)"
+    ]
+  }
+}
