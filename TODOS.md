@@ -37,14 +37,14 @@
 **Priority:** P3
 **Depends on:** Sessions
 
-### v20 encryption format support
+### v20 App-Bound Encryption support
 
-**What:** AES-256-GCM support for future Chromium cookie DB versions (currently v10).
+**What:** Chrome 127+ v20 cookies use App-Bound Encryption (IElevator COM service). Currently blocked — DPAPI key for v20 is inaccessible to third-party tools.
 
-**Why:** Future Chromium versions may change encryption format. Proactive support prevents breakage.
+**Why:** Most modern Chrome/Edge cookies now use v20 format. v10 AES-256-GCM decryption works (added v0.3.10).
 
-**Effort:** S
-**Priority:** P3
+**Effort:** L
+**Priority:** P2
 
 ### State persistence
 
@@ -138,13 +138,13 @@
 **Effort:** M
 **Priority:** P4
 
-### Linux/Windows cookie decryption
+### Linux cookie decryption
 
-**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.
+**What:** GNOME Keyring / kwallet support for Linux cookie import.
 
-**Why:** Cross-platform cookie import. Currently macOS-only (Keychain).
+**Why:** Cross-platform cookie import. Windows done (v0.3.10), Linux remaining.
 
-**Effort:** L
+**Effort:** M
 **Priority:** P4
 
 ## Ship

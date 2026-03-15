@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.10 — 2026-03-15
+
+### Added
+- **Windows cookie import** — full cookie decryption pipeline for Chrome, Edge, and Brave on Windows using DPAPI + AES-256-GCM via PowerShell. Supports v10 cookies (Chrome < 127); v20 App-Bound cookies fail gracefully with clear messaging.
+- **Platform dispatcher (`cookie-import.ts`)** — routes `findInstalledBrowsers`, `listDomains`, `importCookies` to macOS or Windows module based on `process.platform`.
+- **Shared module (`cookie-import-shared.ts`)** — extracted types, Chromium epoch utils, sameSite mapping, profile validation, and DB copy-when-locked helper shared by both platform modules.
+- **`better-sqlite3` dependency** — prebuilt native SQLite for Node.js/tsx on Windows (bun:sqlite unavailable).
+- **Windows cookie import tests** — 27 new tests covering AES-256-GCM round-trip, fixture DB structure, shared module utils, and corrupt data handling.
+- **Chrome 96+ `Network/Cookies` fallback** — both macOS and Windows now check `Network/Cookies` first, then legacy `Cookies` path.
+- **Cross-platform browser launch** — `cmd /c start` (Windows), `open` (macOS), `xdg-open` (Linux) for cookie picker UI.
+
+### Changed
+- Refactored `cookie-import-browser.ts` to import shared code from `cookie-import-shared.ts`, reducing duplication.
+- `cookie-picker-routes.ts` and `write-commands.ts` now import from platform dispatcher instead of macOS-specific module.
+- `win-server.ts` simplified — removed bun:sqlite error handler (no longer needed with better-sqlite3).
+
+### Fixed
+- `cli.ts`: fixed `IS_WINDOWS` used before declaration (ReferenceError on Windows).
+- Windows: clear error message when browser DB is exclusively locked ("Close all Chrome windows and try again").
+
 ## 0.3.9 — 2026-03-15
 
 ### Added
