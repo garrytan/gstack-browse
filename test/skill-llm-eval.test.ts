@@ -7,16 +7,18 @@
  * Requires: ANTHROPIC_API_KEY env var (or EVALS=1 with key already set)
  * Run: EVALS=1 bun run test:eval
  *
- * Cost: ~$0.05-0.15 per run (sonnet)
+ * Cost: ~$0.05-0.15 per run (sonnet), $0 on cache hit
+ * Cache: SHA-based via eval-cache. Set EVAL_CACHE=0 to force re-run.
+ * Model: Set EVAL_JUDGE_TIER=haiku|sonnet|opus to override (default: sonnet).
  */
 
 import { describe, test, expect, afterAll } from 'bun:test';
-import Anthropic from '@anthropic-ai/sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callJudge, judge } from './helpers/llm-judge';
-import type { JudgeScore } from './helpers/llm-judge';
+import type { JudgeMeta } from './helpers/llm-judge';
 import { EvalCollector } from './helpers/eval-store';
+import { MODEL_PRICING } from '../lib/eval-cost';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 // Run when EVALS=1 is set (requires ANTHROPIC_API_KEY in env)
@@ -26,6 +28,22 @@ const describeEval = evalsEnabled ? describe : describe.skip;
 // Eval result collector
 const evalCollector = evalsEnabled ? new EvalCollector('llm-judge') : null;
 
+/** Compute actual judge cost from meta (0 on cache hit). */
+function judgeCost(meta: JudgeMeta): number {
+  if (meta.cached) return 0;
+  const p = MODEL_PRICING[meta.model] || { input: 3.0, output: 15.0 };
+  return (meta.input_tokens / 1_000_000) * p.input + (meta.output_tokens / 1_000_000) * p.output;
+}
+
+/** Build CostEntry array from judge meta (empty on cache hit). */
+function judgeCosts(meta: JudgeMeta) {
+  if (meta.cached) return [];
+  return [{
+    model: meta.model, calls: 1,
+    input_tokens: meta.input_tokens, output_tokens: meta.output_tokens,
+  }];
+}
+
 describeEval('LLM-as-judge quality evals', () => {
   test('command reference table scores >= 4 on all dimensions', async () => {
     const t0 = Date.now();
@@ -34,8 +52,8 @@ describeEval('LLM-as-judge quality evals', () => {
     const end = content.indexOf('## Tips');
     const section = content.slice(start, end);
 
-    const scores = await judge('command reference table', section);
-    console.log('Command reference scores:', JSON.stringify(scores, null, 2));
+    const { result: scores, meta } = await judge('command reference table', section);
+    console.log('Command reference scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'command reference table',
@@ -43,9 +61,10 @@ describeEval('LLM-as-judge quality evals', () => {
       tier: 'llm-judge',
       passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
@@ -60,8 +79,8 @@ describeEval('LLM-as-judge quality evals', () => {
     const end = content.indexOf('## Command Reference');
     const section = content.slice(start, end);
 
-    const scores = await judge('snapshot flags reference', section);
-    console.log('Snapshot flags scores:', JSON.stringify(scores, null, 2));
+    const { result: scores, meta } = await judge('snapshot flags reference', section);
+    console.log('Snapshot flags scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'snapshot flags reference',
@@ -69,9 +88,10 @@ describeEval('LLM-as-judge quality evals', () => {
       tier: 'llm-judge',
       passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
@@ -85,8 +105,8 @@ describeEval('LLM-as-judge quality evals', () => {
     const start = content.indexOf('## Snapshot Flags');
     const section = content.slice(start);
 
-    const scores = await judge('browse skill reference (flags + commands)', section);
-    console.log('Browse SKILL.md scores:', JSON.stringify(scores, null, 2));
+    const { result: scores, meta } = await judge('browse skill reference (flags + commands)', section);
+    console.log('Browse SKILL.md scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'browse/SKILL.md reference',
@@ -94,9 +114,10 @@ describeEval('LLM-as-judge quality evals', () => {
       tier: 'llm-judge',
       passed: scores.clarity >= 4 && scores.completeness >= 4 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
@@ -111,8 +132,8 @@ describeEval('LLM-as-judge quality evals', () => {
     const setupEnd = content.indexOf('## IMPORTANT');
     const section = content.slice(setupStart, setupEnd);
 
-    const scores = await judge('setup/binary discovery instructions', section);
-    console.log('Setup block scores:', JSON.stringify(scores, null, 2));
+    const { result: scores, meta } = await judge('setup/binary discovery instructions', section);
+    console.log('Setup block scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'setup block',
@@ -120,9 +141,10 @@ describeEval('LLM-as-judge quality evals', () => {
       tier: 'llm-judge',
       passed: scores.actionability >= 3 && scores.clarity >= 3,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     // Setup block is intentionally minimal (binary discovery only).
@@ -171,13 +193,7 @@ describeEval('LLM-as-judge quality evals', () => {
 | \`is <prop> <sel>\` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
 | \`console [--clear\\|--errors]\` | Console messages (--errors filters to error/warning) |`;
 
-    const client = new Anthropic();
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `You are comparing two versions of CLI documentation for an AI coding agent.
+    const { result, meta } = await callJudge<{ winner: string; reasoning: string; a_score: number; b_score: number }>(`You are comparing two versions of CLI documentation for an AI coding agent.
 
 VERSION A (baseline — hand-maintained):
 ${baseline}
@@ -193,15 +209,9 @@ Which version is better for an AI agent trying to use these commands? Consider:
 Respond with ONLY valid JSON:
 {"winner": "A" or "B" or "tie", "reasoning": "brief explanation", "a_score": N, "b_score": N}
 
-Scores are 1-5 overall quality.`,
-      }],
-    });
+Scores are 1-5 overall quality.`);
 
-    const text = response.content[0].type === 'text' ? response.content[0].text : '';
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error(`Judge returned non-JSON: ${text.slice(0, 200)}`);
-    const result = JSON.parse(jsonMatch[0]);
-    console.log('Regression comparison:', JSON.stringify(result, null, 2));
+    console.log('Regression comparison:', JSON.stringify(result, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'regression vs baseline',
@@ -209,9 +219,10 @@ Scores are 1-5 overall quality.`,
       tier: 'llm-judge',
       passed: result.b_score >= result.a_score,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { a_score: result.a_score, b_score: result.b_score },
       judge_reasoning: result.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(result.b_score).toBeGreaterThanOrEqual(result.a_score);
@@ -229,7 +240,7 @@ describeEval('QA skill quality evals', () => {
     const end = qaContent.indexOf('## Health Score Rubric');
     const section = qaContent.slice(start, end);
 
-    const scores = await callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
+    const { result: scores, meta } = await callJudge<{ clarity: number; completeness: number; actionability: number; reasoning: string }>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
 
 The agent reads this document to learn how to systematically QA test a web application. The workflow references
 a headless browser CLI ($B commands) that is documented separately — do NOT penalize for missing CLI definitions.
@@ -246,7 +257,7 @@ Respond with ONLY valid JSON:
 Here is the QA workflow to evaluate:
 
 ${section}`);
-    console.log('QA workflow scores:', JSON.stringify(scores, null, 2));
+    console.log('QA workflow scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'qa/SKILL.md workflow',
@@ -254,9 +265,10 @@ ${section}`);
       tier: 'llm-judge',
       passed: scores.clarity >= 4 && scores.completeness >= 3 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
@@ -271,7 +283,7 @@ ${section}`);
     const start = qaContent.indexOf('## Health Score Rubric');
     const section = qaContent.slice(start);
 
-    const scores = await callJudge<JudgeScore>(`You are evaluating a health score rubric that an AI agent must follow to compute a numeric QA score.
+    const { result: scores, meta } = await callJudge<{ clarity: number; completeness: number; actionability: number; reasoning: string }>(`You are evaluating a health score rubric that an AI agent must follow to compute a numeric QA score.
 
 The agent uses this rubric after QA testing a website. It needs to:
 1. Understand each scoring category and what counts as a deduction
@@ -289,7 +301,7 @@ Respond with ONLY valid JSON:
 Here is the rubric to evaluate:
 
 ${section}`);
-    console.log('QA health rubric scores:', JSON.stringify(scores, null, 2));
+    console.log('QA health rubric scores:', JSON.stringify(scores, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'qa/SKILL.md health rubric',
@@ -297,9 +309,10 @@ ${section}`);
       tier: 'llm-judge',
       passed: scores.clarity >= 4 && scores.completeness >= 3 && scores.actionability >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: scores.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(scores.clarity).toBeGreaterThanOrEqual(4);
@@ -332,7 +345,7 @@ describeEval('Cross-skill consistency evals', () => {
       extractGrepLines(retroContent, 'retro/SKILL.md'),
     ].join('\n\n');
 
-    const result = await callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(`You are evaluating whether multiple skill configuration files implement the same data architecture consistently.
+    const { result, meta } = await callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(`You are evaluating whether multiple skill configuration files implement the same data architecture consistently.
 
 INTENDED ARCHITECTURE:
 - greptile-history has TWO paths: per-project (~/.gstack/projects/{slug}/greptile-history.md) and global (~/.gstack/greptile-history.md)
@@ -355,7 +368,7 @@ Evaluate consistency. Respond with ONLY valid JSON:
 
 score (1-5): 5 = perfectly consistent, 1 = contradictory`);
 
-    console.log('Cross-skill consistency:', JSON.stringify(result, null, 2));
+    console.log('Cross-skill consistency:', JSON.stringify(result, null, 2), meta.cached ? '(cached)' : '');
 
     evalCollector?.addTest({
       name: 'cross-skill greptile consistency',
@@ -363,9 +376,10 @@ score (1-5): 5 = perfectly consistent, 1 = contradictory`);
       tier: 'llm-judge',
       passed: result.consistent && result.score >= 4,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { consistency_score: result.score },
       judge_reasoning: result.reasoning,
+      costs: judgeCosts(meta),
     });
 
     expect(result.consistent).toBe(true);
@@ -392,7 +406,7 @@ describeEval('Baseline score pinning', () => {
     const cmdStart = skillContent.indexOf('## Command Reference');
     const cmdEnd = skillContent.indexOf('## Tips');
     const cmdSection = skillContent.slice(cmdStart, cmdEnd);
-    const cmdScores = await judge('command reference table', cmdSection);
+    const { result: cmdScores, meta } = await judge('command reference table', cmdSection);
 
     for (const dim of ['clarity', 'completeness', 'actionability'] as const) {
       if (cmdScores[dim] < baselines.command_reference[dim]) {
@@ -417,9 +431,10 @@ describeEval('Baseline score pinning', () => {
       tier: 'llm-judge',
       passed,
       duration_ms: Date.now() - t0,
-      cost_usd: 0.02,
+      cost_usd: judgeCost(meta),
       judge_scores: { clarity: cmdScores.clarity, completeness: cmdScores.completeness, actionability: cmdScores.actionability },
       judge_reasoning: passed ? 'All scores at or above baseline' : regressions.join('; '),
+      costs: judgeCosts(meta),
     });
 
     if (!passed) {

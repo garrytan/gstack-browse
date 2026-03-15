@@ -231,7 +231,7 @@
 
 **Why:** Spot quality trends — is the app getting better or worse?
 
-**Context:** QA already writes structured reports. This adds cross-run comparison.
+**Context:** `eval:trend` now tracks test-level pass rates (eval infrastructure). QA-run-level trending (health scores over time across QA report files) is a separate feature that could reuse `computeTrends` pattern from `lib/cli-eval.ts`.
 
 **Effort:** S
 **Priority:** P2
@@ -334,6 +334,8 @@
 **What:** Pin E2E tests to claude-sonnet-4-6 for cost efficiency, add retry:2 for flaky LLM responses.
 
 **Why:** Reduce E2E test cost and flakiness.
+
+**Status:** Model pinning shipped (session-runner.ts passes `--model` from `EVAL_TIER` env). Retry:2 still TODO.
 
 **Effort:** XS
 **Priority:** P2
