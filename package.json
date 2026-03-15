@@ -24,6 +24,7 @@
     "eval:watch": "bun run scripts/eval-watch.ts"
   },
   "dependencies": {
+    "better-sqlite3": "^11.0.0",
     "diff": "^7.0.0",
     "playwright": "^1.58.2",
     "tsx": "^4.21.0"
@@ -42,6 +43,7 @@
     "devtools"
   ],
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0"
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@types/better-sqlite3": "^7.6.0"
   }
 }

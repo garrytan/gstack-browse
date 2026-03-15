@@ -1,5 +1,5 @@
 /**
- * Chromium browser cookie import — read and decrypt cookies from real browsers
+ * Chromium browser cookie import — macOS
  *
  * Supports macOS Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
  * Pure logic module — no Playwright dependency, no HTTP concerns.
@@ -45,47 +45,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 
+import {
+  type BrowserInfoBase,
+  type DomainEntry,
+  type ImportResult,
+  type PlaywrightCookie,
+  type RawCookie,
+  CookieImportError,
+  chromiumNow,
+  toPlaywrightCookie,
+  validateProfile,
+  openDbWithCopy,
+} from './cookie-import-shared';
+
+// Re-export shared types for backwards compatibility
+export { CookieImportError, type DomainEntry, type ImportResult, type PlaywrightCookie };
+
 // ─── Types ──────────────────────────────────────────────────────
 
-export interface BrowserInfo {
-  name: string;
+export interface BrowserInfo extends BrowserInfoBase {
   dataDir: string;        // relative to ~/Library/Application Support/
   keychainService: string;
-  aliases: string[];
-}
-
-export interface DomainEntry {
-  domain: string;
-  count: number;
-}
-
-export interface ImportResult {
-  cookies: PlaywrightCookie[];
-  count: number;
-  failed: number;
-  domainCounts: Record<string, number>;
-}
-
-export interface PlaywrightCookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  expires: number;
-  secure: boolean;
-  httpOnly: boolean;
-  sameSite: 'Strict' | 'Lax' | 'None';
-}
-
-export class CookieImportError extends Error {
-  constructor(
-    message: string,
-    public code: string,
-    public action?: 'retry',
-  ) {
-    super(message);
-    this.name = 'CookieImportError';
-  }
 }
 
 // ─── Browser Registry ───────────────────────────────────────────
@@ -100,32 +80,25 @@ const BROWSER_REGISTRY: BrowserInfo[] = [
 ];
 
 // ─── Key Cache ──────────────────────────────────────────────────
-// Cache derived AES keys per browser. First import per browser does
-// Keychain + PBKDF2. Subsequent imports reuse the cached key.
 
 const keyCache = new Map<string, Buffer>();
 
 // ─── Public API ─────────────────────────────────────────────────
 
-/**
- * Find which browsers are installed (have a cookie DB on disk).
- */
 export function findInstalledBrowsers(): BrowserInfo[] {
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
-    try { return fs.existsSync(dbPath); } catch { return false; }
+    const cookiesPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
+    const networkCookiesPath = path.join(appSupport, b.dataDir, 'Default', 'Network', 'Cookies');
+    try { return fs.existsSync(networkCookiesPath) || fs.existsSync(cookiesPath); } catch { return false; }
   });
 }
 
-/**
- * List unique cookie domains + counts from a browser's DB. No decryption.
- */
 export function listDomains(browserName: string, profile = 'Default'): { domains: DomainEntry[]; browser: string } {
-  if (!Database) throw new CookieImportError('Cookie import from browser databases requires Bun runtime (bun:sqlite). This feature is not available when running under Node.js on Windows.');
+  if (!Database) throw new CookieImportError('Cookie import from browser databases requires Bun runtime (bun:sqlite). This feature is not available when running under Node.js on Windows.', 'unsupported_platform');
   const browser = resolveBrowser(browserName);
   const dbPath = getCookieDbPath(browser, profile);
-  const db = openDb(dbPath, browser.name);
+  const db = openDbWithCopy(dbPath, browser.name, Database);
   try {
     const now = chromiumNow();
     const rows = db.query(
@@ -141,9 +114,6 @@ export function listDomains(browserName: string, profile = 'Default'): { domains
   }
 }
 
-/**
- * Decrypt and return Playwright-compatible cookies for specific domains.
- */
 export async function importCookies(
   browserName: string,
   domains: string[],
@@ -154,11 +124,10 @@ export async function importCookies(
   const browser = resolveBrowser(browserName);
   const derivedKey = await getDerivedKey(browser);
   const dbPath = getCookieDbPath(browser, profile);
-  const db = openDb(dbPath, browser.name);
+  const db = openDbWithCopy(dbPath, browser.name, Database);
 
   try {
     const now = chromiumNow();
-    // Parameterized query — no SQL injection
     const placeholders = domains.map(() => '?').join(',');
     const rows = db.query(
       `SELECT host_key, name, value, encrypted_value, path, expires_utc,
@@ -207,18 +176,12 @@ function resolveBrowser(nameOrAlias: string): BrowserInfo {
   return found;
 }
 
-function validateProfile(profile: string): void {
-  if (/[/\\]|\.\./.test(profile) || /[\x00-\x1f]/.test(profile)) {
-    throw new CookieImportError(
-      `Invalid profile name: '${profile}'`,
-      'bad_request',
-    );
-  }
-}
-
 function getCookieDbPath(browser: BrowserInfo, profile: string): string {
   validateProfile(profile);
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  // Chrome 96+ moved cookies to Network/Cookies
+  const networkPath = path.join(appSupport, browser.dataDir, profile, 'Network', 'Cookies');
+  if (fs.existsSync(networkPath)) return networkPath;
   const dbPath = path.join(appSupport, browser.dataDir, profile, 'Cookies');
   if (!fs.existsSync(dbPath)) {
     throw new CookieImportError(
@@ -227,56 +190,6 @@ function getCookieDbPath(browser: BrowserInfo, profile: string): string {
     );
   }
   return dbPath;
-}
-
-// ─── Internal: SQLite Access ────────────────────────────────────
-
-function openDb(dbPath: string, browserName: string): Database {
-  try {
-    return new Database(dbPath, { readonly: true });
-  } catch (err: any) {
-    if (err.message?.includes('SQLITE_BUSY') || err.message?.includes('database is locked')) {
-      return openDbFromCopy(dbPath, browserName);
-    }
-    if (err.message?.includes('SQLITE_CORRUPT') || err.message?.includes('malformed')) {
-      throw new CookieImportError(
-        `Cookie database for ${browserName} is corrupt`,
-        'db_corrupt',
-      );
-    }
-    throw err;
-  }
-}
-
-function openDbFromCopy(dbPath: string, browserName: string): Database {
-  const tmpPath = `/tmp/browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`;
-  try {
-    fs.copyFileSync(dbPath, tmpPath);
-    // Also copy WAL and SHM if they exist (for consistent reads)
-    const walPath = dbPath + '-wal';
-    const shmPath = dbPath + '-shm';
-    if (fs.existsSync(walPath)) fs.copyFileSync(walPath, tmpPath + '-wal');
-    if (fs.existsSync(shmPath)) fs.copyFileSync(shmPath, tmpPath + '-shm');
-
-    const db = new Database(tmpPath, { readonly: true });
-    // Schedule cleanup after the DB is closed
-    const origClose = db.close.bind(db);
-    db.close = () => {
-      origClose();
-      try { fs.unlinkSync(tmpPath); } catch {}
-      try { fs.unlinkSync(tmpPath + '-wal'); } catch {}
-      try { fs.unlinkSync(tmpPath + '-shm'); } catch {}
-    };
-    return db;
-  } catch {
-    // Clean up on failure
-    try { fs.unlinkSync(tmpPath); } catch {}
-    throw new CookieImportError(
-      `Cookie database is locked (${browserName} may be running). Try closing ${browserName} first.`,
-      'db_locked',
-      'retry',
-    );
-  }
 }
 
 // ─── Internal: Keychain Access (async, 10s timeout) ─────────────
@@ -292,8 +205,6 @@ async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
 }
 
 async function getKeychainPassword(service: string): Promise<string> {
-  // Use async Bun.spawn with timeout to avoid blocking the event loop.
-  // macOS may show an Allow/Deny dialog that blocks until the user responds.
   const proc = Bun.spawn(
     ['security', 'find-generic-password', '-s', service, '-w'],
     { stdout: 'pipe', stderr: 'pipe' },
@@ -316,7 +227,6 @@ async function getKeychainPassword(service: string): Promise<string> {
     const stderr = await new Response(proc.stderr).text();
 
     if (exitCode !== 0) {
-      // Distinguish denied vs not found vs other
       const errText = stderr.trim().toLowerCase();
       if (errText.includes('user canceled') || errText.includes('denied') || errText.includes('interaction not allowed')) {
         throw new CookieImportError(
@@ -351,21 +261,7 @@ async function getKeychainPassword(service: string): Promise<string> {
 
 // ─── Internal: Cookie Decryption ────────────────────────────────
 
-interface RawCookie {
-  host_key: string;
-  name: string;
-  value: string;
-  encrypted_value: Buffer | Uint8Array;
-  path: string;
-  expires_utc: number | bigint;
-  is_secure: number;
-  is_httponly: number;
-  has_expires: number;
-  samesite: number;
-}
-
 function decryptCookieValue(row: RawCookie, key: Buffer): string {
-  // Prefer unencrypted value if present
   if (row.value && row.value.length > 0) return row.value;
 
   const ev = Buffer.from(row.encrypted_value);
@@ -377,49 +273,10 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
   }
 
   const ciphertext = ev.slice(3);
-  const iv = Buffer.alloc(16, 0x20); // 16 space characters
+  const iv = Buffer.alloc(16, 0x20);
   const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
   const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 
-  // First 32 bytes are HMAC-SHA256 authentication tag; actual value follows
   if (plaintext.length <= 32) return '';
   return plaintext.slice(32).toString('utf-8');
-}
-
-function toPlaywrightCookie(row: RawCookie, value: string): PlaywrightCookie {
-  return {
-    name: row.name,
-    value,
-    domain: row.host_key,
-    path: row.path || '/',
-    expires: chromiumEpochToUnix(row.expires_utc, row.has_expires),
-    secure: row.is_secure === 1,
-    httpOnly: row.is_httponly === 1,
-    sameSite: mapSameSite(row.samesite),
-  };
-}
-
-// ─── Internal: Chromium Epoch Conversion ────────────────────────
-
-const CHROMIUM_EPOCH_OFFSET = 11644473600000000n;
-
-function chromiumNow(): bigint {
-  // Current time in Chromium epoch (microseconds since 1601-01-01)
-  return BigInt(Date.now()) * 1000n + CHROMIUM_EPOCH_OFFSET;
-}
-
-function chromiumEpochToUnix(epoch: number | bigint, hasExpires: number): number {
-  if (hasExpires === 0 || epoch === 0 || epoch === 0n) return -1; // session cookie
-  const epochBig = BigInt(epoch);
-  const unixMicro = epochBig - CHROMIUM_EPOCH_OFFSET;
-  return Number(unixMicro / 1000000n);
-}
-
-function mapSameSite(value: number): 'Strict' | 'Lax' | 'None' {
-  switch (value) {
-    case 0: return 'None';
-    case 1: return 'Lax';
-    case 2: return 'Strict';
-    default: return 'Lax';
-  }
 }
