@@ -51,7 +51,7 @@ afterAll(() => {
 describe('Navigation', () => {
   test('goto navigates to URL', async () => {
     const result = await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
-    expect(result).toContain('Navigated to');
+    expect(result).toContain('に移動しました');
     expect(result).toContain('200');
   });
 
@@ -63,17 +63,17 @@ describe('Navigation', () => {
   test('back goes back', async () => {
     await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
     const result = await handleWriteCommand('back', [], bm);
-    expect(result).toContain('Back');
+    expect(result).toContain('戻る');
   });
 
   test('forward goes forward', async () => {
     const result = await handleWriteCommand('forward', [], bm);
-    expect(result).toContain('Forward');
+    expect(result).toContain('進む');
   });
 
   test('reload reloads page', async () => {
     const result = await handleWriteCommand('reload', [], bm);
-    expect(result).toContain('Reloaded');
+    expect(result).toContain('再読み込みしました');
   });
 });
 
@@ -181,23 +181,23 @@ describe('Interaction', () => {
     await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
 
     let result = await handleWriteCommand('fill', ['#email', 'test@example.com'], bm);
-    expect(result).toContain('Filled');
+    expect(result).toContain('入力しました');
 
     result = await handleWriteCommand('fill', ['#password', 'secret123'], bm);
-    expect(result).toContain('Filled');
+    expect(result).toContain('入力しました');
 
     // Verify values were set
     const emailVal = await handleReadCommand('js', ['document.querySelector("#email").value'], bm);
     expect(emailVal).toBe('test@example.com');
 
     result = await handleWriteCommand('click', ['#login-btn'], bm);
-    expect(result).toContain('Clicked');
+    expect(result).toContain('クリックしました');
   });
 
   test('select works on dropdown', async () => {
     await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
     const result = await handleWriteCommand('select', ['#role', 'admin'], bm);
-    expect(result).toContain('Selected');
+    expect(result).toContain('選択しました');
 
     const val = await handleReadCommand('js', ['document.querySelector("#role").value'], bm);
     expect(val).toBe('admin');
@@ -205,23 +205,23 @@ describe('Interaction', () => {
 
   test('hover works', async () => {
     const result = await handleWriteCommand('hover', ['h1'], bm);
-    expect(result).toContain('Hovered');
+    expect(result).toContain('ホバーしました');
   });
 
   test('wait finds existing element', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['#title'], bm);
-    expect(result).toContain('appeared');
+    expect(result).toContain('表示されました');
   });
 
   test('scroll works', async () => {
     const result = await handleWriteCommand('scroll', ['footer'], bm);
-    expect(result).toContain('Scrolled');
+    expect(result).toContain('スクロールしました');
   });
 
   test('viewport changes size', async () => {
     const result = await handleWriteCommand('viewport', ['375x812'], bm);
-    expect(result).toContain('Viewport set');
+    expect(result).toContain('ビューポートを');
 
     const size = await handleReadCommand('js', ['`${window.innerWidth}x${window.innerHeight}`'], bm);
     expect(size).toBe('375x812');
@@ -235,7 +235,7 @@ describe('Interaction', () => {
     await handleWriteCommand('click', ['#name'], bm);
 
     const result = await handleWriteCommand('type', ['John Doe'], bm);
-    expect(result).toContain('Typed');
+    expect(result).toContain('文字入力しました');
 
     const val = await handleReadCommand('js', ['document.querySelector("#name").value'], bm);
     expect(val).toBe('John Doe');
@@ -248,7 +248,7 @@ describe('SPA and buffers', () => {
   test('wait handles delayed rendering', async () => {
     await handleWriteCommand('goto', [baseUrl + '/spa.html'], bm);
     const result = await handleWriteCommand('wait', ['.loaded'], bm);
-    expect(result).toContain('appeared');
+    expect(result).toContain('表示されました');
 
     const text = await handleReadCommand('text', [], bm);
     expect(text).toContain('SPA Content Loaded');
@@ -262,10 +262,10 @@ describe('SPA and buffers', () => {
 
   test('console --clear clears buffer', async () => {
     const result = await handleReadCommand('console', ['--clear'], bm);
-    expect(result).toContain('cleared');
+    expect(result).toContain('クリアしました');
 
     const after = await handleReadCommand('console', [], bm);
-    expect(after).toContain('no console messages');
+    expect(after).toContain('コンソールメッセージはありません');
   });
 
   test('network captures requests', async () => {
@@ -276,7 +276,7 @@ describe('SPA and buffers', () => {
 
   test('network --clear clears buffer', async () => {
     const result = await handleReadCommand('network', ['--clear'], bm);
-    expect(result).toContain('cleared');
+    expect(result).toContain('クリアしました');
   });
 });
 
@@ -318,7 +318,7 @@ describe('Visual', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const screenshotPath = '/tmp/browse-test-screenshot.png';
     const result = await handleMetaCommand('screenshot', [screenshotPath], bm, async () => {});
-    expect(result).toContain('Screenshot saved');
+    expect(result).toContain('スクリーンショットを保存しました');
     expect(fs.existsSync(screenshotPath)).toBe(true);
     const stat = fs.statSync(screenshotPath);
     expect(stat.size).toBeGreaterThan(1000);
@@ -329,7 +329,7 @@ describe('Visual', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const p = '/tmp/browse-test-viewport.png';
     const result = await handleMetaCommand('screenshot', ['--viewport', p], bm, async () => {});
-    expect(result).toContain('Screenshot saved (viewport)');
+    expect(result).toContain('スクリーンショットを保存しました（viewport）');
     expect(fs.existsSync(p)).toBe(true);
     expect(fs.statSync(p).size).toBeGreaterThan(1000);
     fs.unlinkSync(p);
@@ -339,7 +339,7 @@ describe('Visual', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const p = '/tmp/browse-test-element-css.png';
     const result = await handleMetaCommand('screenshot', ['#title', p], bm, async () => {});
-    expect(result).toContain('Screenshot saved (element)');
+    expect(result).toContain('スクリーンショットを保存しました（要素）');
     expect(fs.existsSync(p)).toBe(true);
     expect(fs.statSync(p).size).toBeGreaterThan(100);
     fs.unlinkSync(p);
@@ -350,7 +350,7 @@ describe('Visual', () => {
     await handleMetaCommand('snapshot', [], bm, async () => {});
     const p = '/tmp/browse-test-element-ref.png';
     const result = await handleMetaCommand('screenshot', ['@e1', p], bm, async () => {});
-    expect(result).toContain('Screenshot saved (element)');
+    expect(result).toContain('スクリーンショットを保存しました（要素）');
     expect(fs.existsSync(p)).toBe(true);
     expect(fs.statSync(p).size).toBeGreaterThan(100);
     fs.unlinkSync(p);
@@ -360,7 +360,7 @@ describe('Visual', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const p = '/tmp/browse-test-clip.png';
     const result = await handleMetaCommand('screenshot', ['--clip', '0,0,100,100', p], bm, async () => {});
-    expect(result).toContain('Screenshot saved (clip 0,0,100,100)');
+    expect(result).toContain('スクリーンショットを保存しました（clip 0,0,100,100）');
     expect(fs.existsSync(p)).toBe(true);
     expect(fs.statSync(p).size).toBeGreaterThan(100);
     fs.unlinkSync(p);
@@ -372,7 +372,7 @@ describe('Visual', () => {
       await handleMetaCommand('screenshot', ['--clip', '0,0,100,100', '#title'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Cannot use --clip with a selector/ref');
+      expect(err.message).toContain('--clip と selector/ref は同時に使えません');
     }
   });
 
@@ -382,7 +382,7 @@ describe('Visual', () => {
       await handleMetaCommand('screenshot', ['--viewport', '--clip', '0,0,100,100'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Cannot use --viewport with --clip');
+      expect(err.message).toContain('--viewport と --clip は同時に使えません');
     }
   });
 
@@ -392,7 +392,7 @@ describe('Visual', () => {
       await handleMetaCommand('screenshot', ['--clip', 'abc'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('all must be numbers');
+      expect(err.message).toContain('すべて数値');
     }
   });
 
@@ -402,7 +402,7 @@ describe('Visual', () => {
       await handleMetaCommand('screenshot', ['--bogus', '/tmp/foo.png'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Unknown screenshot flag');
+      expect(err.message).toContain('未知の screenshot フラグです');
     }
   });
 
@@ -412,7 +412,7 @@ describe('Visual', () => {
       await handleMetaCommand('screenshot', ['--viewport', '/etc/evil.png'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
@@ -456,7 +456,7 @@ describe('Tabs', () => {
 
   test('newtab opens new tab', async () => {
     const result = await handleMetaCommand('newtab', [baseUrl + '/forms.html'], bm, async () => {});
-    expect(result).toContain('Opened tab');
+    expect(result).toContain('タブ');
 
     const tabCount = bm.getTabCount();
     expect(tabCount).toBeGreaterThanOrEqual(2);
@@ -464,7 +464,7 @@ describe('Tabs', () => {
 
   test('tab switches to specific tab', async () => {
     const result = await handleMetaCommand('tab', ['1'], bm, async () => {});
-    expect(result).toContain('Switched to tab 1');
+    expect(result).toContain('タブ 1 に切り替えました');
   });
 
   test('closetab closes a tab', async () => {
@@ -473,7 +473,7 @@ describe('Tabs', () => {
     const tabs = await bm.getTabListWithTitles();
     const lastTab = tabs[tabs.length - 1];
     const result = await handleMetaCommand('closetab', [String(lastTab.id)], bm, async () => {});
-    expect(result).toContain('Closed tab');
+    expect(result).toContain('タブを閉じました');
     expect(bm.getTabCount()).toBe(before - 1);
   });
 });
@@ -517,8 +517,8 @@ describe('Chain', () => {
     ]);
     const result = await handleMetaCommand('chain', [commands], bm, async () => {});
     expect(result).toContain('[goto] ERROR:');
-    expect(result).not.toContain('Unknown meta command');
-    expect(result).not.toContain('Unknown read command');
+    expect(result).not.toContain('未知の meta コマンド');
+    expect(result).not.toContain('未知の read コマンド');
   });
 });
 
@@ -527,8 +527,8 @@ describe('Chain', () => {
 describe('Status', () => {
   test('status reports health', async () => {
     const result = await handleMetaCommand('status', [], bm, async () => {});
-    expect(result).toContain('Status: healthy');
-    expect(result).toContain('Tabs:');
+    expect(result).toContain('ステータス: healthy');
+    expect(result).toContain('タブ数:');
   });
 });
 
@@ -575,6 +575,7 @@ describe('CLI lifecycle', () => {
     const bunDir = path.dirname(process.execPath);
     cliEnv.PATH = cliEnv.PATH ? `${bunDir}:${cliEnv.PATH}` : bunDir;
     cliEnv.BROWSE_STATE_FILE = stateFile;
+    cliEnv.PATH = `${path.dirname(process.execPath)}:${cliEnv.PATH ?? ''}`;
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
       const proc = spawn(process.execPath, ['run', cliPath, 'status'], {
         timeout: 15000,
@@ -732,7 +733,7 @@ describe('Dialog handling', () => {
 
   test('dialog-dismiss changes behavior', async () => {
     const setResult = await handleWriteCommand('dialog-dismiss', [], bm);
-    expect(setResult).toContain('dismissed');
+    expect(setResult).toContain('dismiss');
 
     await handleWriteCommand('goto', [baseUrl + '/dialog.html'], bm);
     await handleWriteCommand('click', ['#confirm-btn'], bm);
@@ -760,9 +761,9 @@ describe('Dialog handling', () => {
 
   test('dialog --clear clears buffer', async () => {
     const cleared = await handleReadCommand('dialog', ['--clear'], bm);
-    expect(cleared).toContain('cleared');
+    expect(cleared).toContain('クリアしました');
     const after = await handleReadCommand('dialog', [], bm);
-    expect(after).toContain('no dialogs');
+    expect(after).toContain('ダイアログは記録されていません');
   });
 });
 
@@ -844,7 +845,7 @@ describe('Element state checks', () => {
       await handleReadCommand('is', ['bogus', '#enabled-input'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Unknown property');
+      expect(err.message).toContain('未知の property です');
     }
   });
 
@@ -853,7 +854,7 @@ describe('Element state checks', () => {
       await handleReadCommand('is', ['visible'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -867,7 +868,7 @@ describe('File upload', () => {
     const tempFile = '/tmp/browse-test-upload.txt';
     fs.writeFileSync(tempFile, 'test content');
     const result = await handleWriteCommand('upload', ['#file-input', tempFile], bm);
-    expect(result).toContain('Uploaded');
+    expect(result).toContain('アップロードしました');
     expect(result).toContain('browse-test-upload.txt');
 
     // Verify upload handler fired
@@ -884,7 +885,7 @@ describe('File upload', () => {
     const snap = await handleMetaCommand('snapshot', ['-i'], bm, async () => {});
     // Find the file input ref (it won't appear as "file input" in aria — use CSS selector instead)
     const result = await handleWriteCommand('upload', ['#file-input', tempFile], bm);
-    expect(result).toContain('Uploaded');
+    expect(result).toContain('アップロードしました');
     fs.unlinkSync(tempFile);
   });
 
@@ -894,7 +895,7 @@ describe('File upload', () => {
       await handleWriteCommand('upload', ['#file-input', '/tmp/nonexistent-file-12345.txt'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('File not found');
+      expect(err.message).toContain('ファイルが見つかりません');
     }
   });
 
@@ -903,7 +904,7 @@ describe('File upload', () => {
       await handleWriteCommand('upload', ['#file-input'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -935,7 +936,7 @@ describe('Eval', () => {
       await handleReadCommand('eval', ['/tmp/nonexistent-eval.js'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('File not found');
+      expect(err.message).toContain('ファイルが見つかりません');
     }
   });
 
@@ -944,7 +945,7 @@ describe('Eval', () => {
       await handleReadCommand('eval', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -956,7 +957,7 @@ describe('Press', () => {
     await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
     await handleWriteCommand('click', ['#email'], bm);
     const result = await handleWriteCommand('press', ['Tab'], bm);
-    expect(result).toContain('Pressed Tab');
+    expect(result).toContain('Tab を押しました');
   });
 
   test('press no arg throws', async () => {
@@ -964,7 +965,7 @@ describe('Press', () => {
       await handleWriteCommand('press', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -975,7 +976,7 @@ describe('Cookie command', () => {
   test('cookie sets value', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('cookie', ['testcookie=testvalue'], bm);
-    expect(result).toContain('Cookie set');
+    expect(result).toContain('cookie を設定しました');
 
     const cookies = await handleReadCommand('cookies', [], bm);
     expect(cookies).toContain('testcookie');
@@ -987,7 +988,7 @@ describe('Cookie command', () => {
       await handleWriteCommand('cookie', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -996,7 +997,7 @@ describe('Cookie command', () => {
       await handleWriteCommand('cookie', ['invalid'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -1006,7 +1007,7 @@ describe('Cookie command', () => {
 describe('Header command', () => {
   test('header sets value and is sent', async () => {
     const result = await handleWriteCommand('header', ['X-Test:test-value'], bm);
-    expect(result).toContain('Header set');
+    expect(result).toContain('ヘッダーを設定しました');
 
     await handleWriteCommand('goto', [baseUrl + '/echo'], bm);
     const echoText = await handleReadCommand('text', [], bm);
@@ -1019,7 +1020,7 @@ describe('Header command', () => {
       await handleWriteCommand('header', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1028,7 +1029,7 @@ describe('Header command', () => {
       await handleWriteCommand('header', ['invalid'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -1040,7 +1041,7 @@ describe('PDF', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const pdfPath = '/tmp/browse-test.pdf';
     const result = await handleMetaCommand('pdf', [pdfPath], bm, async () => {});
-    expect(result).toContain('PDF saved');
+    expect(result).toContain('PDFを保存しました');
     expect(fs.existsSync(pdfPath)).toBe(true);
     const stat = fs.statSync(pdfPath);
     expect(stat.size).toBeGreaterThan(100);
@@ -1077,7 +1078,7 @@ describe('Errors', () => {
       await handleWriteCommand('goto', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1086,7 +1087,7 @@ describe('Errors', () => {
       await handleWriteCommand('click', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1095,7 +1096,7 @@ describe('Errors', () => {
       await handleWriteCommand('fill', ['#input'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1104,7 +1105,7 @@ describe('Errors', () => {
       await handleWriteCommand('select', ['#sel'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1113,7 +1114,7 @@ describe('Errors', () => {
       await handleWriteCommand('hover', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1122,7 +1123,7 @@ describe('Errors', () => {
       await handleWriteCommand('type', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1131,7 +1132,7 @@ describe('Errors', () => {
       await handleWriteCommand('wait', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1140,7 +1141,7 @@ describe('Errors', () => {
       await handleWriteCommand('viewport', ['badformat'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1149,7 +1150,7 @@ describe('Errors', () => {
       await handleWriteCommand('useragent', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1159,7 +1160,7 @@ describe('Errors', () => {
       await handleReadCommand('js', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1168,7 +1169,7 @@ describe('Errors', () => {
       await handleReadCommand('css', ['h1'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1177,7 +1178,7 @@ describe('Errors', () => {
       await handleReadCommand('attrs', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1187,7 +1188,7 @@ describe('Errors', () => {
       await handleMetaCommand('tab', ['abc'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1196,7 +1197,7 @@ describe('Errors', () => {
       await handleMetaCommand('diff', [baseUrl + '/basic.html'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1205,7 +1206,7 @@ describe('Errors', () => {
       await handleMetaCommand('chain', ['not json'], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Invalid JSON');
+      expect(err.message).toContain('JSON が不正です');
     }
   });
 
@@ -1214,7 +1215,7 @@ describe('Errors', () => {
       await handleMetaCommand('chain', [], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 
@@ -1223,7 +1224,7 @@ describe('Errors', () => {
       await handleReadCommand('bogus' as any, [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Unknown');
+      expect(err.message).toContain('未知の');
     }
   });
 
@@ -1232,7 +1233,7 @@ describe('Errors', () => {
       await handleWriteCommand('bogus' as any, [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Unknown');
+      expect(err.message).toContain('未知の');
     }
   });
 
@@ -1241,7 +1242,7 @@ describe('Errors', () => {
       await handleMetaCommand('bogus' as any, [], bm, async () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Unknown');
+      expect(err.message).toContain('未知の');
     }
   });
 });
@@ -1318,31 +1319,31 @@ describe('Wait load states', () => {
   test('wait --networkidle succeeds after page load', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['--networkidle'], bm);
-    expect(result).toBe('Network idle');
+    expect(result).toBe('ネットワークが idle 状態になりました');
   });
 
   test('wait --load succeeds', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['--load'], bm);
-    expect(result).toBe('Page loaded');
+    expect(result).toBe('ページ読み込みが完了しました');
   });
 
   test('wait --domcontentloaded succeeds', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['--domcontentloaded'], bm);
-    expect(result).toBe('DOM content loaded');
+    expect(result).toBe('DOM コンテンツの読み込みが完了しました');
   });
 
   test('wait --networkidle with custom timeout', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['--networkidle', '5000'], bm);
-    expect(result).toBe('Network idle');
+    expect(result).toBe('ネットワークが idle 状態になりました');
   });
 
   test('wait with selector still works', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('wait', ['#title'], bm);
-    expect(result).toContain('appeared');
+    expect(result).toContain('表示されました');
   });
 });
 
@@ -1372,7 +1373,7 @@ describe('Console --errors', () => {
     addConsoleEntry({ timestamp: Date.now(), level: 'log', text: 'just a log' });
 
     const result = await handleReadCommand('console', ['--errors'], bm);
-    expect(result).toBe('(no console errors)');
+    expect(result).toBe('（コンソールエラーはありません）');
 
     consoleBuffer.clear();
   });
@@ -1380,7 +1381,7 @@ describe('Console --errors', () => {
   test('console --errors on empty buffer', async () => {
     consoleBuffer.clear();
     const result = await handleReadCommand('console', ['--errors'], bm);
-    expect(result).toBe('(no console errors)');
+    expect(result).toBe('（コンソールエラーはありません）');
   });
 
   test('console without flag still returns all messages', async () => {
@@ -1407,7 +1408,7 @@ describe('Cookie import', () => {
     fs.writeFileSync(tempFile, JSON.stringify(cookies));
 
     const result = await handleWriteCommand('cookie-import', [tempFile], bm);
-    expect(result).toBe('Loaded 2 cookies from /tmp/browse-test-cookies.json');
+    expect(result).toBe('/tmp/browse-test-cookies.json から 2 件の cookie を読み込みました');
 
     // Verify cookies were set
     const cookieList = await handleReadCommand('cookies', [], bm);
@@ -1426,7 +1427,7 @@ describe('Cookie import', () => {
     fs.writeFileSync(tempFile, JSON.stringify(cookies));
 
     const result = await handleWriteCommand('cookie-import', [tempFile], bm);
-    expect(result).toContain('Loaded 1');
+    expect(result).toContain('1 件の cookie を読み込みました');
 
     const cookieList = await handleReadCommand('cookies', [], bm);
     expect(cookieList).toContain('autofill-test');
@@ -1441,7 +1442,7 @@ describe('Cookie import', () => {
     fs.writeFileSync(tempFile, JSON.stringify(cookies));
 
     const result = await handleWriteCommand('cookie-import', [tempFile], bm);
-    expect(result).toContain('Loaded 1');
+    expect(result).toContain('1 件の cookie を読み込みました');
 
     fs.unlinkSync(tempFile);
   });
@@ -1452,7 +1453,7 @@ describe('Cookie import', () => {
     fs.writeFileSync(tempFile, '[]');
 
     const result = await handleWriteCommand('cookie-import', [tempFile], bm);
-    expect(result).toBe('Loaded 0 cookies from /tmp/browse-test-cookies-empty.json');
+    expect(result).toBe('/tmp/browse-test-cookies-empty.json から 0 件の cookie を読み込みました');
 
     fs.unlinkSync(tempFile);
   });
@@ -1462,7 +1463,7 @@ describe('Cookie import', () => {
       await handleWriteCommand('cookie-import', ['/tmp/nonexistent-cookies.json'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('File not found');
+      expect(err.message).toContain('ファイルが見つかりません');
     }
   });
 
@@ -1474,7 +1475,7 @@ describe('Cookie import', () => {
       await handleWriteCommand('cookie-import', [tempFile], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Invalid JSON');
+      expect(err.message).toContain('JSON が不正です');
     }
 
     fs.unlinkSync(tempFile);
@@ -1488,7 +1489,7 @@ describe('Cookie import', () => {
       await handleWriteCommand('cookie-import', [tempFile], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('JSON array');
+      expect(err.message).toContain('JSON 配列');
     }
 
     fs.unlinkSync(tempFile);
@@ -1514,7 +1515,7 @@ describe('Cookie import', () => {
       await handleWriteCommand('cookie-import', [], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Usage');
+      expect(err.message).toContain('使い方');
     }
   });
 });
@@ -1526,7 +1527,7 @@ describe('Sensitive value redaction', () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleWriteCommand('type', ['my-secret-password'], bm);
     expect(result).not.toContain('my-secret-password');
-    expect(result).toContain('18 characters');
+    expect(result).toContain('18 文字入力しました');
   });
 
   test('cookie command redacts value', async () => {
@@ -1589,14 +1590,14 @@ describe('Path traversal prevention', () => {
       await handleMetaCommand('screenshot', ['/etc/evil.png'], bm, () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
   test('screenshot allows /tmp path', async () => {
     await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
     const result = await handleMetaCommand('screenshot', ['/tmp/test-safe.png'], bm, () => {});
-    expect(result).toContain('Screenshot saved');
+    expect(result).toContain('スクリーンショットを保存しました');
     try { fs.unlinkSync('/tmp/test-safe.png'); } catch {}
   });
 
@@ -1606,7 +1607,7 @@ describe('Path traversal prevention', () => {
       await handleMetaCommand('pdf', ['/home/evil.pdf'], bm, () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
@@ -1616,7 +1617,7 @@ describe('Path traversal prevention', () => {
       await handleMetaCommand('responsive', ['/var/evil'], bm, () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
@@ -1625,7 +1626,7 @@ describe('Path traversal prevention', () => {
       await handleReadCommand('eval', ['../../etc/passwd'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path traversal');
+      expect(err.message).toContain('パストラバーサル');
     }
   });
 
@@ -1634,7 +1635,7 @@ describe('Path traversal prevention', () => {
       await handleReadCommand('eval', ['/etc/passwd'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Absolute path must be within');
+      expect(err.message).toContain('絶対パスは次の範囲内である必要があります');
     }
   });
 
@@ -1655,7 +1656,7 @@ describe('Path traversal prevention', () => {
       await handleMetaCommand('screenshot', ['/tmpevil/steal.png'], bm, () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
@@ -1664,7 +1665,7 @@ describe('Path traversal prevention', () => {
       await handleWriteCommand('cookie-import', ['../../etc/shadow'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path traversal');
+      expect(err.message).toContain('パストラバーサル');
     }
   });
 
@@ -1673,7 +1674,7 @@ describe('Path traversal prevention', () => {
       await handleWriteCommand('cookie-import', ['/etc/passwd'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 
@@ -1685,7 +1686,7 @@ describe('Path traversal prevention', () => {
       await handleMetaCommand('snapshot', ['-a', '-o', '/etc/evil.png'], bm, () => {});
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path must be within');
+      expect(err.message).toContain('パスは次の範囲内である必要があります');
     }
   });
 });
@@ -1705,7 +1706,7 @@ describe('Chain with cookie-import', () => {
       ]);
       const result = await handleMetaCommand('chain', [commands], bm, async () => {});
       expect(result).toContain('[cookie-import]');
-      expect(result).toContain('Loaded 1 cookie');
+      expect(result).toContain('1 件の cookie を読み込みました');
     } finally {
       try { fs.unlinkSync(tmpCookies); } catch {}
     }
