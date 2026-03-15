@@ -2,11 +2,11 @@
 name: gstack
 version: 1.1.0
 description: |
-  Fast headless browser for QA testing and site dogfooding. Navigate any URL, interact with
-  elements, verify page state, diff before/after actions, take annotated screenshots, check
-  responsive layouts, test forms and uploads, handle dialogs, and assert element states.
-  ~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
-  user flow, or file a bug with evidence.
+  QA テストとサイト dogfooding 向けの高速 headless browser。任意の URL への移動、
+  要素操作、ページ状態確認、操作前後差分、注釈付きスクリーンショット取得、
+  レスポンシブ確認、フォーム/アップロード検証、ダイアログ処理、
+  要素状態アサーションに対応。1 コマンドあたり約 100ms。機能テスト、
+  デプロイ確認、ユーザーフロー dogfooding、証拠付きバグ報告で使う。
 allowed-tools:
   - Bash
   - Read
@@ -25,10 +25,10 @@ _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/sk
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
-# gstack browse: QA Testing & Dogfooding
+# gstack browse: QA テスト & Dogfooding
 
-Persistent headless Chromium. First call auto-starts (~3s), then ~100-200ms per command.
-Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, sessions).
+永続 headless Chromium。初回呼び出しで自動起動 (~3 秒) し、その後は 1 コマンドあたり約 100-200ms。
+30 分アイドルで自動終了。呼び出し間で状態（cookies、tabs、sessions）を保持する。
 
 ## SETUP (run this check BEFORE any browse command)
 
@@ -49,16 +49,16 @@ If `NEEDS_SETUP`:
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
-## IMPORTANT
+## 重要
 
-- Use the compiled binary via Bash: `$B <command>`
-- NEVER use `mcp__claude-in-chrome__*` tools. They are slow and unreliable.
-- Browser persists between calls — cookies, login sessions, and tabs carry over.
-- Dialogs (alert/confirm/prompt) are auto-accepted by default — no browser lockup.
+- Bash からコンパイル済み binary を使う: `$B <command>`
+- `mcp__claude-in-chrome__*` は絶対に使わない。遅く不安定。
+- Browser は呼び出し間で状態を保持し、cookies / login sessions / tabs が引き継がれる。
+- Dialogs（alert/confirm/prompt）はデフォルトで自動 accept され、ブラウザが固まらない。
 
-## QA Workflows
+## QA ワークフロー
 
-### Test a user flow (login, signup, checkout, etc.)
+### ユーザーフローをテストする（login、signup、checkout など）
 
 ```bash
 # 1. Go to the page
@@ -78,7 +78,7 @@ $B is visible ".dashboard"  # assert the dashboard appeared
 $B screenshot /tmp/after-login.png
 ```
 
-### Verify a deployment / check prod
+### デプロイを検証する / prod を確認する
 
 ```bash
 $B goto https://yourapp.com
@@ -90,7 +90,7 @@ $B is visible ".hero-section"    # key elements present?
 $B screenshot /tmp/prod-check.png
 ```
 
-### Dogfood a feature end-to-end
+### 機能を end-to-end で dogfood する
 
 ```bash
 # Navigate to the feature
@@ -116,7 +116,7 @@ $B is checked "#agree-checkbox"
 $B console
 ```
 
-### Test responsive layouts
+### レスポンシブレイアウトをテストする
 
 ```bash
 # Quick: 3 screenshots at mobile/tablet/desktop
@@ -141,7 +141,7 @@ $B screenshot --clip 0,0,800,600 /tmp/above-fold.png
 $B screenshot --viewport /tmp/viewport.png
 ```
 
-### Test file upload
+### ファイルアップロードをテストする
 
 ```bash
 $B goto https://app.example.com/upload
@@ -151,7 +151,7 @@ $B is visible ".upload-success"
 $B screenshot /tmp/upload-result.png
 ```
 
-### Test forms with validation
+### バリデーション付きフォームをテストする
 
 ```bash
 $B goto https://app.example.com/form
@@ -168,7 +168,7 @@ $B click @e10
 $B snapshot -D                       # diff shows errors gone, success state
 ```
 
-### Test dialogs (delete confirmations, prompts)
+### ダイアログをテストする（削除確認、prompt）
 
 ```bash
 # Set up dialog handling BEFORE triggering
@@ -182,7 +182,7 @@ $B dialog-accept "my answer"  # accept with text
 $B click "#rename-button"     # triggers prompt
 ```
 
-### Test authenticated pages (import real browser cookies)
+### 認証済みページをテストする（実ブラウザ cookies を取り込む）
 
 ```bash
 # Import cookies from your real browser (opens interactive picker)
@@ -197,13 +197,13 @@ $B snapshot -i
 $B screenshot /tmp/github-profile.png
 ```
 
-### Compare two pages / environments
+### 2 つのページ / 環境を比較する
 
 ```bash
 $B diff https://staging.app.com https://prod.app.com
 ```
 
-### Multi-step chain (efficient for long flows)
+### 複数ステップ chain（長いフローを効率化）
 
 ```bash
 echo '[
@@ -217,7 +217,7 @@ echo '[
 ]' | $B chain
 ```
 
-## Quick Assertion Patterns
+## クイックアサーション・パターン
 
 ```bash
 # Element exists and is visible
@@ -254,14 +254,14 @@ $B css ".button" "background-color"
 The snapshot is your primary tool for understanding and interacting with pages.
 
 ```
--i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs
--c        --compact               Compact (no empty structural nodes)
--d <N>    --depth                 Limit tree depth (0 = root only, default: unlimited)
--s <sel>  --selector              Scope to CSS selector
--D        --diff                  Unified diff against previous snapshot (first call stores baseline)
--a        --annotate              Annotated screenshot with red overlay boxes and ref labels
--o <path> --output                Output path for annotated screenshot (default: /tmp/browse-annotated.png)
--C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick)
+-i        --interactive           @e ref 付きの操作可能要素のみ（button/link/input）
+-c        --compact               簡易表示（空の構造ノードを除外）
+-d <N>    --depth                 ツリー深さを制限（0 = ルートのみ、既定: 無制限）
+-s <sel>  --selector              CSS selector で対象範囲を限定
+-D        --diff                  前回 snapshot との差分を unified diff で表示（初回はベースライン保存）
+-a        --annotate              ref ラベル付き赤枠オーバーレイの注釈付きスクリーンショット
+-o <path> --output                注釈付きスクリーンショットの出力先（既定: /tmp/browse-annotated.png）
+-C        --cursor-interactive    cursor-interactive 要素（@c ref: pointer/onclick の div など）
 ```
 
 All flags can be combined freely. `-o` only applies when `-a` is also used.
@@ -291,97 +291,97 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 ### Navigation
 | Command | Description |
 |---------|-------------|
-| `back` | History back |
-| `forward` | History forward |
-| `goto <url>` | Navigate to URL |
-| `reload` | Reload page |
-| `url` | Print current URL |
+| `back` | 履歴を戻る |
+| `forward` | 履歴を進む |
+| `goto <url>` | URLへ移動 |
+| `reload` | ページを再読み込み |
+| `url` | 現在のURLを表示 |
 
 ### Reading
 | Command | Description |
 |---------|-------------|
-| `accessibility` | Full ARIA tree |
-| `forms` | Form fields as JSON |
-| `html [selector]` | innerHTML of selector (throws if not found), or full page HTML if no selector given |
-| `links` | All links as "text → href" |
-| `text` | Cleaned page text |
+| `accessibility` | ARIAツリー全体 |
+| `forms` | フォーム項目をJSONで表示 |
+| `html [selector]` | selector の innerHTML（見つからなければエラー）。selector 省略時はページ全体のHTML |
+| `links` | すべてのリンクを "text → href" 形式で表示 |
+| `text` | 整形済みページテキスト |
 
 ### Interaction
 | Command | Description |
 |---------|-------------|
-| `click <sel>` | Click element |
-| `cookie <name>=<value>` | Set cookie on current page domain |
-| `cookie-import <json>` | Import cookies from JSON file |
-| `cookie-import-browser [browser] [--domain d]` | Import cookies from Comet, Chrome, Arc, Brave, or Edge (opens picker, or use --domain for direct import) |
-| `dialog-accept [text]` | Auto-accept next alert/confirm/prompt. Optional text is sent as the prompt response |
-| `dialog-dismiss` | Auto-dismiss next dialog |
-| `fill <sel> <val>` | Fill input |
-| `header <name>:<value>` | Set custom request header (colon-separated, sensitive values auto-redacted) |
-| `hover <sel>` | Hover element |
-| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter |
-| `scroll [sel]` | Scroll element into view, or scroll to page bottom if no selector |
-| `select <sel> <val>` | Select dropdown option by value, label, or visible text |
-| `type <text>` | Type into focused element |
-| `upload <sel> <file> [file2...]` | Upload file(s) |
-| `useragent <string>` | Set user agent |
-| `viewport <WxH>` | Set viewport size |
-| `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (timeout: 15s) |
+| `click <sel>` | 要素をクリック |
+| `cookie <name>=<value>` | 現在ページのドメインに cookie を設定 |
+| `cookie-import <json>` | JSONファイルから cookie を取り込み |
+| `cookie-import-browser [browser] [--domain d]` | Comet/Chrome/Arc/Brave/Edge から cookie を取り込み（picker を開くか、--domain で直接取り込み） |
+| `dialog-accept [text]` | 次の alert/confirm/prompt を自動 accept。任意テキストは prompt 応答として送信 |
+| `dialog-dismiss` | 次のダイアログを自動 dismiss |
+| `fill <sel> <val>` | 入力欄に値を入力 |
+| `header <name>:<value>` | カスタムリクエストヘッダーを設定（colon区切り。機密値は自動マスク） |
+| `hover <sel>` | 要素にホバー |
+| `press <key>` | キー入力（Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, Shift+Enter など） |
+| `scroll [sel]` | 要素を表示位置までスクロール。selector 省略時はページ最下部までスクロール |
+| `select <sel> <val>` | ドロップダウンを value/label/表示テキストで選択 |
+| `type <text>` | フォーカス中の要素へ入力 |
+| `upload <sel> <file> [file2...]` | ファイルをアップロード |
+| `useragent <string>` | User-Agent を設定 |
+| `viewport <WxH>` | ビューポートサイズを設定 |
+| `wait <sel|--networkidle|--load>` | 要素、network idle、ページ読み込みを待機（timeout: 15秒） |
 
 ### Inspection
 | Command | Description |
 |---------|-------------|
-| `attrs <sel|@ref>` | Element attributes as JSON |
-| `console [--clear|--errors]` | Console messages (--errors filters to error/warning) |
-| `cookies` | All cookies as JSON |
-| `css <sel> <prop>` | Computed CSS value |
-| `dialog [--clear]` | Dialog messages |
-| `eval <file>` | Run JavaScript from file and return result as string (path must be under /tmp or cwd) |
-| `is <prop> <sel>` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
-| `js <expr>` | Run JavaScript expression and return result as string |
-| `network [--clear]` | Network requests |
-| `perf` | Page load timings |
-| `storage [set k v]` | Read all localStorage + sessionStorage as JSON, or set <key> <value> to write localStorage |
+| `attrs <sel|@ref>` | 要素属性をJSONで表示 |
+| `console [--clear|--errors]` | コンソールメッセージ（--errors で error/warning のみ） |
+| `cookies` | すべての cookie をJSONで表示 |
+| `css <sel> <prop>` | 計算済みCSS値を取得 |
+| `dialog [--clear]` | ダイアログメッセージ |
+| `eval <file>` | ファイル内の JavaScript を実行し、結果を文字列で返す（path は /tmp または cwd 配下のみ） |
+| `is <prop> <sel>` | 状態確認（visible/hidden/enabled/disabled/checked/editable/focused） |
+| `js <expr>` | JavaScript 式を実行し、結果を文字列で返す |
+| `network [--clear]` | ネットワークリクエスト |
+| `perf` | ページ読み込みタイミング |
+| `storage [set k v]` | localStorage + sessionStorage をJSONで表示。set <key> <value> で localStorage に書き込み |
 
 ### Visual
 | Command | Description |
 |---------|-------------|
-| `diff <url1> <url2>` | Text diff between pages |
-| `pdf [path]` | Save as PDF |
-| `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
-| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport) |
+| `diff <url1> <url2>` | ページ間のテキスト差分 |
+| `pdf [path]` | PDFとして保存 |
+| `responsive [prefix]` | mobile(375x812)/tablet(768x1024)/desktop(1280x720) で撮影。{prefix}-mobile.png 形式で保存 |
+| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | スクリーンショットを保存（CSS/@ref 指定の要素切り抜き、--clip 範囲、--viewport 対応） |
 
 ### Snapshot
 | Command | Description |
 |---------|-------------|
-| `snapshot [flags]` | Accessibility tree with @e refs for element selection. Flags: -i interactive only, -c compact, -d N depth limit, -s sel scope, -D diff vs previous, -a annotated screenshot, -o path output, -C cursor-interactive @c refs |
+| `snapshot [flags]` | 要素選択用 @e ref 付きアクセシビリティツリー。フラグ: -i interactive のみ, -c compact, -d N 深さ制限, -s sel 範囲指定, -D 前回との差分, -a 注釈付きスクリーンショット, -o 出力パス, -C cursor-interactive @c ref |
 
 ### Meta
 | Command | Description |
 |---------|-------------|
-| `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
+| `chain` | stdin の JSON からコマンドを順に実行。形式: [["cmd","arg1",...],...] |
 
 ### Tabs
 | Command | Description |
 |---------|-------------|
-| `closetab [id]` | Close tab |
-| `newtab [url]` | Open new tab |
-| `tab <id>` | Switch to tab |
-| `tabs` | List open tabs |
+| `closetab [id]` | タブを閉じる |
+| `newtab [url]` | 新しいタブを開く |
+| `tab <id>` | タブを切り替え |
+| `tabs` | 開いているタブ一覧 |
 
 ### Server
 | Command | Description |
 |---------|-------------|
-| `restart` | Restart server |
-| `status` | Health check |
-| `stop` | Shutdown server |
+| `restart` | サーバーを再起動 |
+| `status` | ヘルスチェック |
+| `stop` | サーバーを停止 |
 
 ## Tips
 
-1. **Navigate once, query many times.** `goto` loads the page; then `text`, `js`, `screenshot` all hit the loaded page instantly.
-2. **Use `snapshot -i` first.** See all interactive elements, then click/fill by ref. No CSS selector guessing.
-3. **Use `snapshot -D` to verify.** Baseline → action → diff. See exactly what changed.
-4. **Use `is` for assertions.** `is visible .modal` is faster and more reliable than parsing page text.
-5. **Use `snapshot -a` for evidence.** Annotated screenshots are great for bug reports.
-6. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-7. **Check `console` after actions.** Catch JS errors that don't surface visually.
-8. **Use `chain` for long flows.** Single command, no per-step CLI overhead.
+1. **1 回移動して何度も確認する。** `goto` でページを読み込んだ後、`text` / `js` / `screenshot` は即時実行できる。
+2. **最初に `snapshot -i` を使う。** 対話可能要素を見てから ref で click/fill する。CSS selector 推測は不要。
+3. **検証は `snapshot -D`。** baseline → action → diff で変化点を正確に確認できる。
+4. **アサーションには `is`。** `is visible .modal` はページ全文解析より速く堅牢。
+5. **証拠収集には `snapshot -a`。** 注釈付きスクリーンショットはバグ報告に有効。
+6. **難しい UI には `snapshot -C`。** accessibility tree が拾わない clickable div も見つかる。
+7. **操作後に `console` を確認。** 見た目に出ない JS エラーを拾える。
+8. **長いフローは `chain`。** 1 コマンドで実行し、ステップごとの CLI オーバーヘッドを減らせる。
