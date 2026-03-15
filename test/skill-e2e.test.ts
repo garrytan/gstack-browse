@@ -280,6 +280,52 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
     // Clean up
     try { fs.rmSync(nonGitDir, { recursive: true, force: true }); } catch {}
   }, 60_000);
+
+  test('contributor mode files a report on gstack error', async () => {
+    const contribDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-contrib-'));
+    const logsDir = path.join(contribDir, 'contributor-logs');
+    fs.mkdirSync(logsDir, { recursive: true });
+
+    // Extract contributor mode instructions from generated SKILL.md
+    const skillMd = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const contribStart = skillMd.indexOf('## Contributor Mode');
+    const contribEnd = skillMd.indexOf('\n## ', contribStart + 1);
+    const contribBlock = skillMd.slice(contribStart, contribEnd > 0 ? contribEnd : undefined);
+
+    const result = await runSkillTest({
+      prompt: `You are in contributor mode (_CONTRIB=true).
+
+${contribBlock}
+
+OVERRIDE: Write contributor logs to ${logsDir}/ instead of ~/.gstack/contributor-logs/
+
+Now try this browse command (it will fail — there is no binary at this path):
+/nonexistent/path/browse goto https://example.com
+
+This is a gstack issue (the browse binary is missing/misconfigured).
+File a contributor report about this issue. Then tell me what you filed.`,
+      workingDirectory: contribDir,
+      maxTurns: 8,
+      timeout: 60_000,
+      testName: 'contributor-mode',
+      runId,
+    });
+
+    logCost('contributor mode', result);
+    recordE2E('contributor mode report', 'Skill E2E tests', result);
+
+    // Verify a contributor log was created with expected format
+    const logFiles = fs.readdirSync(logsDir).filter(f => f.endsWith('.md'));
+    expect(logFiles.length).toBeGreaterThan(0);
+
+    const logContent = fs.readFileSync(path.join(logsDir, logFiles[0]), 'utf-8');
+    expect(logContent).toContain('Hey gstack team');
+    expect(logContent).toContain('What I was trying to do');
+    expect(logContent).toContain('What happened instead');
+
+    // Clean up
+    try { fs.rmSync(contribDir, { recursive: true, force: true }); } catch {}
+  }, 90_000);
 });
 
 // --- B4: QA skill E2E ---

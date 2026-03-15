@@ -71,6 +71,24 @@ When you need to interact with a browser (QA, dogfooding, cookie setup), use the
 `mcp__claude-in-chrome__*` tools — they are slow, unreliable, and not what this
 project uses.
 
+## Vendored symlink awareness
+
+When developing gstack, `.claude/skills/gstack` may be a symlink back to this
+working directory (gitignored). This means skill changes are **live immediately** —
+great for rapid iteration, risky during big refactors where half-written skills
+could break other Claude Code sessions using gstack concurrently.
+
+**Check once per session:** Run `ls -la .claude/skills/gstack` to see if it's a
+symlink or a real copy. If it's a symlink to your working directory, be aware that:
+- Template changes + `bun run gen:skill-docs` immediately affect all gstack invocations
+- Breaking changes to SKILL.md.tmpl files can break concurrent gstack sessions
+- During large refactors, remove the symlink (`rm .claude/skills/gstack`) so the
+  global install at `~/.claude/skills/gstack/` is used instead
+
+**For plan reviews:** When reviewing plans that modify skill templates or the
+gen-skill-docs pipeline, consider whether the changes should be tested in isolation
+before going live (especially if the user is actively using gstack in other windows).
+
 ## Deploying to the active skill
 
 The active skill lives at `~/.claude/skills/gstack/`. After making changes:

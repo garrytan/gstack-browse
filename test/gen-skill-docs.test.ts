@@ -124,10 +124,26 @@ describe('gen-skill-docs', () => {
     const rootTmpl = fs.readFileSync(path.join(ROOT, 'SKILL.md.tmpl'), 'utf-8');
     expect(rootTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(rootTmpl).toContain('{{SNAPSHOT_FLAGS}}');
+    expect(rootTmpl).toContain('{{PREAMBLE}}');
 
     const browseTmpl = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md.tmpl'), 'utf-8');
     expect(browseTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(browseTmpl).toContain('{{SNAPSHOT_FLAGS}}');
+    expect(browseTmpl).toContain('{{PREAMBLE}}');
+  });
+
+  test('generated SKILL.md contains contributor mode check', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Contributor Mode');
+    expect(content).toContain('gstack_contributor');
+    expect(content).toContain('contributor-logs');
+  });
+
+  test('generated SKILL.md contains session awareness', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('_SESSIONS');
+    expect(content).toContain('RECOMMENDATION');
+    expect(content).toContain('ELI16');
   });
 });
 
