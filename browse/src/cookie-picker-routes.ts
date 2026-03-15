@@ -94,7 +94,7 @@ export async function handleCookiePickerRoute(
     if (pathname === '/cookie-picker/domains' && req.method === 'GET') {
       const browserName = url.searchParams.get('browser');
       if (!browserName) {
-        return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
+        return errorResponse("'browser' パラメータがありません", 'missing_param', { port });
       }
       const result = listDomains(browserName);
       return jsonResponse({
@@ -109,13 +109,13 @@ export async function handleCookiePickerRoute(
       try {
         body = await req.json();
       } catch {
-        return errorResponse('Invalid JSON body', 'bad_request', { port });
+        return errorResponse('JSON body が不正です', 'bad_request', { port });
       }
 
       const { browser, domains } = body;
-      if (!browser) return errorResponse("Missing 'browser' field", 'missing_param', { port });
+      if (!browser) return errorResponse("'browser' フィールドがありません", 'missing_param', { port });
       if (!domains || !Array.isArray(domains) || domains.length === 0) {
-        return errorResponse("Missing or empty 'domains' array", 'missing_param', { port });
+        return errorResponse("'domains' 配列がないか空です", 'missing_param', { port });
       }
 
       // Decrypt cookies from the browser DB
@@ -127,8 +127,8 @@ export async function handleCookiePickerRoute(
           failed: result.failed,
           domainCounts: {},
           message: result.failed > 0
-            ? `All ${result.failed} cookies failed to decrypt`
-            : 'No cookies found for the specified domains',
+            ? `${result.failed} 件すべての cookie で復号に失敗しました`
+            : '指定したドメインの cookie が見つかりません',
         }, { port });
       }
 
@@ -142,7 +142,7 @@ export async function handleCookiePickerRoute(
         importedCounts.set(domain, (importedCounts.get(domain) || 0) + result.domainCounts[domain]);
       }
 
-      console.log(`[cookie-picker] Imported ${result.count} cookies for ${Object.keys(result.domainCounts).length} domains`);
+      console.log(`[cookie-picker] ${Object.keys(result.domainCounts).length} ドメインで ${result.count} 件の cookie を取り込みました`);
 
       return jsonResponse({
         imported: result.count,
@@ -157,12 +157,12 @@ export async function handleCookiePickerRoute(
       try {
         body = await req.json();
       } catch {
-        return errorResponse('Invalid JSON body', 'bad_request', { port });
+        return errorResponse('JSON body が不正です', 'bad_request', { port });
       }
 
       const { domains } = body;
       if (!domains || !Array.isArray(domains) || domains.length === 0) {
-        return errorResponse("Missing or empty 'domains' array", 'missing_param', { port });
+        return errorResponse("'domains' 配列がないか空です", 'missing_param', { port });
       }
 
       const page = bm.getPage();
@@ -173,7 +173,7 @@ export async function handleCookiePickerRoute(
         importedCounts.delete(domain);
       }
 
-      console.log(`[cookie-picker] Removed cookies for ${domains.length} domains`);
+      console.log(`[cookie-picker] ${domains.length} ドメインの cookie を削除しました`);
 
       return jsonResponse({
         removed: domains.length,
@@ -196,12 +196,12 @@ export async function handleCookiePickerRoute(
       }, { port });
     }
 
-    return new Response('Not found', { status: 404 });
+    return new Response('見つかりません', { status: 404 });
   } catch (err: any) {
     if (err instanceof CookieImportError) {
       return errorResponse(err.message, err.code, { port, status: 400, action: err.action });
     }
-    console.error(`[cookie-picker] Error: ${err.message}`);
-    return errorResponse(err.message || 'Internal error', 'internal_error', { port, status: 500 });
+    console.error(`[cookie-picker] エラー: ${err.message}`);
+    return errorResponse(err.message || '内部エラー', 'internal_error', { port, status: 500 });
   }
 }

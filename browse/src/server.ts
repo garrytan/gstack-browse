@@ -55,16 +55,29 @@ function generateHelpText(): string {
     'Visual', 'Snapshot', 'Meta', 'Tabs', 'Server',
   ];
 
-  const lines = ['gstack browse — headless browser for AI agents', '', 'Commands:'];
+  const categoryLabels: Record<string, string> = {
+    Navigation: 'ナビゲーション',
+    Reading: '読み取り',
+    Interaction: '操作',
+    Inspection: '確認',
+    Visual: '可視化',
+    Snapshot: 'スナップショット',
+    Meta: 'メタ',
+    Tabs: 'タブ',
+    Server: 'サーバー',
+  };
+
+  const lines = ['gstack browse — AI エージェント向けヘッドレスブラウザ', '', 'コマンド:'];
   for (const cat of categoryOrder) {
     const cmds = groups.get(cat);
     if (!cmds) continue;
-    lines.push(`  ${(cat + ':').padEnd(15)}${cmds.join(', ')}`);
+    const label = categoryLabels[cat] || cat;
+    lines.push(`  ${(label + ':').padEnd(15)}${cmds.join(', ')}`);
   }
 
   // Snapshot flags from source of truth
   lines.push('');
-  lines.push('Snapshot flags:');
+  lines.push('snapshot フラグ:');
   const flagPairs: string[] = [];
   for (const flag of SNAPSHOT_FLAGS) {
     const label = flag.valueHint ? `${flag.short} ${flag.valueHint}` : flag.short;
@@ -113,7 +126,7 @@ async function flushBuffers() {
     if (newNetworkCount > 0) {
       const entries = networkBuffer.last(Math.min(newNetworkCount, networkBuffer.length));
       const lines = entries.map(e =>
-        `[${new Date(e.timestamp).toISOString()}] ${e.method} ${e.url} → ${e.status || 'pending'} (${e.duration || '?'}ms, ${e.size || '?'}B)`
+        `[${new Date(e.timestamp).toISOString()}] ${e.method} ${e.url} → ${e.status || '保留中'} (${e.duration || '?'}ms, ${e.size || '?'}B)`
       ).join('\n') + '\n';
       await Bun.write(NETWORK_LOG_PATH, (await Bun.file(NETWORK_LOG_PATH).text().catch(() => '')) + lines);
       lastNetworkFlushed = networkBuffer.totalAdded;
@@ -148,7 +161,7 @@ function resetIdleTimer() {
 
 const idleCheckInterval = setInterval(() => {
   if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
-    console.log(`[browse] Idle for ${IDLE_TIMEOUT_MS / 1000}s, shutting down`);
+    console.log(`[browse] ${IDLE_TIMEOUT_MS / 1000}秒間アイドル状態のため終了します`);
     shutdown();
   }
 }, 60_000);
@@ -170,7 +183,7 @@ async function findPort(): Promise<number> {
       testServer.stop();
       return BROWSE_PORT;
     } catch {
-      throw new Error(`[browse] Port ${BROWSE_PORT} (from BROWSE_PORT env) is in use`);
+      throw new Error(`[browse] ポート ${BROWSE_PORT}（BROWSE_PORT env）が使用中です`);
     }
   }
 
@@ -188,7 +201,7 @@ async function findPort(): Promise<number> {
       continue;
     }
   }
-  throw new Error(`[browse] No available port after ${MAX_RETRIES} attempts in range ${MIN_PORT}-${MAX_PORT}`);
+  throw new Error(`[browse] ${MIN_PORT}-${MAX_PORT} の範囲で ${MAX_RETRIES} 回試しましたが利用可能なポートがありません`);
 }
 
 /**
@@ -199,16 +212,16 @@ function wrapError(err: any): string {
   // Timeout errors
   if (err.name === 'TimeoutError' || msg.includes('Timeout') || msg.includes('timeout')) {
     if (msg.includes('locator.click') || msg.includes('locator.fill') || msg.includes('locator.hover')) {
-      return `Element not found or not interactable within timeout. Check your selector or run 'snapshot' for fresh refs.`;
+      return `タイムアウト内に要素が見つからないか、操作できませんでした。selector を確認するか、'snapshot' で新しい ref を取得してください。`;
     }
     if (msg.includes('page.goto') || msg.includes('Navigation')) {
-      return `Page navigation timed out. The URL may be unreachable or the page may be loading slowly.`;
+      return `ページ遷移がタイムアウトしました。URL に到達できないか、読み込みが遅い可能性があります。`;
     }
-    return `Operation timed out: ${msg.split('\n')[0]}`;
+    return `操作がタイムアウトしました: ${msg.split('\n')[0]}`;
   }
   // Multiple elements matched
   if (msg.includes('resolved to') && msg.includes('elements')) {
-    return `Selector matched multiple elements. Be more specific or use @refs from 'snapshot'.`;
+    return `selector が複数要素に一致しました。より具体的に指定するか、'snapshot' の @ref を使ってください。`;
   }
   // Pass through other errors
   return msg;
@@ -218,7 +231,7 @@ async function handleCommand(body: any): Promise<Response> {
   const { command, args = [] } = body;
 
   if (!command) {
-    return new Response(JSON.stringify({ error: 'Missing "command" field' }), {
+    return new Response(JSON.stringify({ error: '"command" フィールドがありません' }), {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -241,8 +254,8 @@ async function handleCommand(body: any): Promise<Response> {
       });
     } else {
       return new Response(JSON.stringify({
-        error: `Unknown command: ${command}`,
-        hint: `Available commands: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
+        error: `未知のコマンドです: ${command}`,
+        hint: `利用可能なコマンド: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
       }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
@@ -265,7 +278,7 @@ async function shutdown() {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log('[browse] Shutting down...');
+  console.log('[browse] シャットダウンしています...');
   clearInterval(flushInterval);
   clearInterval(idleCheckInterval);
   await flushBuffers(); // Final flush (async now)
@@ -324,7 +337,7 @@ async function start() {
 
       // All other endpoints require auth
       if (!validateAuth(req)) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        return new Response(JSON.stringify({ error: '認証されていません' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
         });
@@ -335,7 +348,7 @@ async function start() {
         return handleCommand(body);
       }
 
-      return new Response('Not found', { status: 404 });
+      return new Response('見つかりません', { status: 404 });
     },
   });
 
@@ -353,12 +366,12 @@ async function start() {
   fs.renameSync(tmpFile, config.stateFile);
 
   browserManager.serverPort = port;
-  console.log(`[browse] Server running on http://127.0.0.1:${port} (PID: ${process.pid})`);
-  console.log(`[browse] State file: ${config.stateFile}`);
-  console.log(`[browse] Idle timeout: ${IDLE_TIMEOUT_MS / 1000}s`);
+  console.log(`[browse] サーバーを起動しました: http://127.0.0.1:${port} (PID: ${process.pid})`);
+  console.log(`[browse] state ファイル: ${config.stateFile}`);
+  console.log(`[browse] アイドルタイムアウト: ${IDLE_TIMEOUT_MS / 1000}秒`);
 }
 
 start().catch((err) => {
-  console.error(`[browse] Failed to start: ${err.message}`);
+  console.error(`[browse] 起動に失敗しました: ${err.message}`);
   process.exit(1);
 });

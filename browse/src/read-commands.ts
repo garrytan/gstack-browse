@@ -19,12 +19,12 @@ function validateReadPath(filePath: string): void {
     const resolved = path.resolve(filePath);
     const isSafe = SAFE_DIRECTORIES.some(dir => resolved === dir || resolved.startsWith(dir + '/'));
     if (!isSafe) {
-      throw new Error(`Absolute path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+      throw new Error(`絶対パスは次の範囲内である必要があります: ${SAFE_DIRECTORIES.join(', ')}`);
     }
   }
   const normalized = path.normalize(filePath);
   if (normalized.includes('..')) {
-    throw new Error('Path traversal sequences (..) are not allowed');
+    throw new Error('パストラバーサル (..) は許可されていません');
   }
 }
 
@@ -117,16 +117,16 @@ export async function handleReadCommand(
 
     case 'js': {
       const expr = args[0];
-      if (!expr) throw new Error('Usage: browse js <expression>');
+      if (!expr) throw new Error('使い方: browse js <expression>');
       const result = await page.evaluate(expr);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }
 
     case 'eval': {
       const filePath = args[0];
-      if (!filePath) throw new Error('Usage: browse eval <js-file>');
+      if (!filePath) throw new Error('使い方: browse eval <js-file>');
       validateReadPath(filePath);
-      if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
+      if (!fs.existsSync(filePath)) throw new Error(`ファイルが見つかりません: ${filePath}`);
       const code = fs.readFileSync(filePath, 'utf-8');
       const result = await page.evaluate(code);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
@@ -134,7 +134,7 @@ export async function handleReadCommand(
 
     case 'css': {
       const [selector, property] = args;
-      if (!selector || !property) throw new Error('Usage: browse css <selector> <property>');
+      if (!selector || !property) throw new Error('使い方: browse css <selector> <property>');
       const resolved = bm.resolveRef(selector);
       if ('locator' in resolved) {
         const value = await resolved.locator.evaluate(
@@ -146,7 +146,7 @@ export async function handleReadCommand(
       const value = await page.evaluate(
         ([sel, prop]) => {
           const el = document.querySelector(sel);
-          if (!el) return `Element not found: ${sel}`;
+          if (!el) return `要素が見つかりません: ${sel}`;
           return getComputedStyle(el).getPropertyValue(prop);
         },
         [resolved.selector, property]
@@ -156,7 +156,7 @@ export async function handleReadCommand(
 
     case 'attrs': {
       const selector = args[0];
-      if (!selector) throw new Error('Usage: browse attrs <selector>');
+      if (!selector) throw new Error('使い方: browse attrs <selector>');
       const resolved = bm.resolveRef(selector);
       if ('locator' in resolved) {
         const attrs = await resolved.locator.evaluate((el) => {
@@ -170,7 +170,7 @@ export async function handleReadCommand(
       }
       const attrs = await page.evaluate((sel) => {
         const el = document.querySelector(sel);
-        if (!el) return `Element not found: ${sel}`;
+        if (!el) return `要素が見つかりません: ${sel}`;
         const result: Record<string, string> = {};
         for (const attr of el.attributes) {
           result[attr.name] = attr.value;
@@ -183,12 +183,12 @@ export async function handleReadCommand(
     case 'console': {
       if (args[0] === '--clear') {
         consoleBuffer.clear();
-        return 'Console buffer cleared.';
+        return 'コンソールバッファをクリアしました。';
       }
       const entries = args[0] === '--errors'
         ? consoleBuffer.toArray().filter(e => e.level === 'error' || e.level === 'warning')
         : consoleBuffer.toArray();
-      if (entries.length === 0) return args[0] === '--errors' ? '(no console errors)' : '(no console messages)';
+      if (entries.length === 0) return args[0] === '--errors' ? '（コンソールエラーはありません）' : '（コンソールメッセージはありません）';
       return entries.map(e =>
         `[${new Date(e.timestamp).toISOString()}] [${e.level}] ${e.text}`
       ).join('\n');
@@ -197,20 +197,20 @@ export async function handleReadCommand(
     case 'network': {
       if (args[0] === '--clear') {
         networkBuffer.clear();
-        return 'Network buffer cleared.';
+        return 'ネットワークバッファをクリアしました。';
       }
-      if (networkBuffer.length === 0) return '(no network requests)';
+      if (networkBuffer.length === 0) return '（ネットワークリクエストはありません）';
       return networkBuffer.toArray().map(e =>
-        `${e.method} ${e.url} → ${e.status || 'pending'} (${e.duration || '?'}ms, ${e.size || '?'}B)`
+        `${e.method} ${e.url} → ${e.status || '保留中'} (${e.duration || '?'}ms, ${e.size || '?'}B)`
       ).join('\n');
     }
 
     case 'dialog': {
       if (args[0] === '--clear') {
         dialogBuffer.clear();
-        return 'Dialog buffer cleared.';
+        return 'ダイアログバッファをクリアしました。';
       }
-      if (dialogBuffer.length === 0) return '(no dialogs captured)';
+      if (dialogBuffer.length === 0) return '（ダイアログは記録されていません）';
       return dialogBuffer.toArray().map(e =>
         `[${new Date(e.timestamp).toISOString()}] [${e.type}] "${e.message}" → ${e.action}${e.response ? ` "${e.response}"` : ''}`
       ).join('\n');
@@ -219,7 +219,7 @@ export async function handleReadCommand(
     case 'is': {
       const property = args[0];
       const selector = args[1];
-      if (!property || !selector) throw new Error('Usage: browse is <property> <selector>\nProperties: visible, hidden, enabled, disabled, checked, editable, focused');
+      if (!property || !selector) throw new Error('使い方: browse is <property> <selector>\n指定可能: visible, hidden, enabled, disabled, checked, editable, focused');
 
       const resolved = bm.resolveRef(selector);
       let locator;
@@ -243,7 +243,7 @@ export async function handleReadCommand(
           return String(isFocused);
         }
         default:
-          throw new Error(`Unknown property: ${property}. Use: visible, hidden, enabled, disabled, checked, editable, focused`);
+          throw new Error(`未知の property です: ${property}. 次を使ってください: visible, hidden, enabled, disabled, checked, editable, focused`);
       }
     }
 
@@ -257,7 +257,7 @@ export async function handleReadCommand(
         const key = args[1];
         const value = args[2] || '';
         await page.evaluate(([k, v]) => localStorage.setItem(k, v), [key, value]);
-        return `Set localStorage["${key}"]`;
+        return `localStorage["${key}"] を設定しました`;
       }
       const storage = await page.evaluate(() => ({
         localStorage: { ...localStorage },
@@ -269,7 +269,7 @@ export async function handleReadCommand(
     case 'perf': {
       const timings = await page.evaluate(() => {
         const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
-        if (!nav) return 'No navigation timing data available.';
+        if (!nav) return 'ナビゲーションタイミングデータがありません。';
         return {
           dns: Math.round(nav.domainLookupEnd - nav.domainLookupStart),
           tcp: Math.round(nav.connectEnd - nav.connectStart),
@@ -289,6 +289,6 @@ export async function handleReadCommand(
     }
 
     default:
-      throw new Error(`Unknown read command: ${command}`);
+      throw new Error(`未知の read コマンドです: ${command}`);
   }
 }

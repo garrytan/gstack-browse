@@ -46,8 +46,8 @@ export class BrowserManager {
 
     // Chromium crash → exit with clear message
     this.browser.on('disconnected', () => {
-      console.error('[browse] FATAL: Chromium process crashed or was killed. Server exiting.');
-      console.error('[browse] Console/network logs flushed to .gstack/browse-*.log');
+      console.error('[browse] FATAL: Chromium プロセスがクラッシュまたは強制終了されました。サーバーを終了します。');
+      console.error('[browse] console/network ログを .gstack/browse-*.log にフラッシュしました');
       process.exit(1);
     });
 
@@ -84,7 +84,7 @@ export class BrowserManager {
       if (!page) return true; // connected but no pages — still healthy
       await Promise.race([
         page.evaluate('1'),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('タイムアウト')), 2000)),
       ]);
       return true;
     } catch {
@@ -94,7 +94,7 @@ export class BrowserManager {
 
   // ─── Tab Management ────────────────────────────────────────
   async newTab(url?: string): Promise<number> {
-    if (!this.context) throw new Error('Browser not launched');
+    if (!this.context) throw new Error('ブラウザが起動していません');
 
     const page = await this.context.newPage();
     const id = this.nextTabId++;
@@ -114,7 +114,7 @@ export class BrowserManager {
   async closeTab(id?: number): Promise<void> {
     const tabId = id ?? this.activeTabId;
     const page = this.pages.get(tabId);
-    if (!page) throw new Error(`Tab ${tabId} not found`);
+    if (!page) throw new Error(`タブ ${tabId} が見つかりません`);
 
     await page.close();
     this.pages.delete(tabId);
@@ -132,7 +132,7 @@ export class BrowserManager {
   }
 
   switchTab(id: number): void {
-    if (!this.pages.has(id)) throw new Error(`Tab ${id} not found`);
+    if (!this.pages.has(id)) throw new Error(`タブ ${id} が見つかりません`);
     this.activeTabId = id;
   }
 
@@ -156,7 +156,7 @@ export class BrowserManager {
   // ─── Page Access ───────────────────────────────────────────
   getPage(): Page {
     const page = this.pages.get(this.activeTabId);
-    if (!page) throw new Error('No active page. Use "browse goto <url>" first.');
+    if (!page) throw new Error('アクティブなページがありません。先に "browse goto <url>" を実行してください。');
     return page;
   }
 
@@ -187,7 +187,7 @@ export class BrowserManager {
       const locator = this.refMap.get(ref);
       if (!locator) {
         throw new Error(
-          `Ref ${selector} not found. Page may have changed — run 'snapshot' to get fresh refs.`
+          `Ref ${selector} が見つかりません。ページが変わった可能性があります。'snapshot' を再実行して最新の ref を取得してください。`
         );
       }
       return { locator };
@@ -254,7 +254,7 @@ export class BrowserManager {
    */
   async recreateContext(): Promise<string | null> {
     if (!this.browser || !this.context) {
-      throw new Error('Browser not launched');
+      throw new Error('ブラウザが起動していません');
     }
 
     try {
@@ -365,7 +365,7 @@ export class BrowserManager {
       } catch {
         // If even the fallback fails, we're in trouble — but browser is still alive
       }
-      return `Context recreation failed: ${err.message}. Browser reset to blank tab.`;
+      return `コンテキスト再作成に失敗しました: ${err.message}。ブラウザは空タブにリセットされました。`;
     }
   }
 

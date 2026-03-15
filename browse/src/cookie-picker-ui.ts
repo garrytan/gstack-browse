@@ -11,11 +11,11 @@ export function getCookiePickerHTML(serverPort: number): string {
   const baseUrl = `http://127.0.0.1:${serverPort}`;
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Cookie Import — gstack browse</title>
+<title>Cookie 取り込み — gstack browse</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -257,7 +257,7 @@ export function getCookiePickerHTML(serverPort: number): string {
 <body>
 
 <div class="header">
-  <h1>Cookie Import</h1>
+  <h1>Cookie 取り込み</h1>
   <span class="port">localhost:${serverPort}</span>
 </div>
 
@@ -266,22 +266,22 @@ export function getCookiePickerHTML(serverPort: number): string {
 <div class="container">
   <!-- Left Panel: Source Browser -->
   <div class="panel panel-left">
-    <div class="panel-header">Source Browser</div>
+    <div class="panel-header">取り込み元ブラウザ</div>
     <div id="browser-pills" class="browser-pills"></div>
     <div class="search-wrap">
-      <input type="text" class="search-input" id="search" placeholder="Search domains..." />
+      <input type="text" class="search-input" id="search" placeholder="ドメインを検索..." />
     </div>
     <div class="domain-list" id="source-domains">
-      <div class="loading-row"><span class="spinner"></span> Detecting browsers...</div>
+      <div class="loading-row"><span class="spinner"></span> ブラウザを検出しています...</div>
     </div>
     <div class="panel-footer" id="source-footer"></div>
   </div>
 
   <!-- Right Panel: Imported -->
   <div class="panel panel-right">
-    <div class="panel-header">Imported to Session</div>
+    <div class="panel-header">セッションに取り込み済み</div>
     <div class="domain-list" id="imported-domains">
-      <div class="imported-empty">No cookies imported yet</div>
+      <div class="imported-empty">まだ cookie は取り込まれていません</div>
     </div>
     <div class="panel-footer" id="imported-footer"></div>
   </div>
@@ -309,7 +309,7 @@ export function getCookiePickerHTML(serverPort: number): string {
     $banner.style.display = 'flex';
     let html = '<span class="banner-text">' + escHtml(msg) + '</span>';
     if (retryFn) {
-      html += '<button class="banner-retry" id="banner-retry">Retry</button>';
+      html += '<button class="banner-retry" id="banner-retry">再試行</button>';
     }
     html += '<button class="banner-close" id="banner-close">×</button>';
     $banner.innerHTML = html;
@@ -331,7 +331,7 @@ export function getCookiePickerHTML(serverPort: number): string {
     const res = await fetch(BASE + '/cookie-picker' + path, opts);
     const data = await res.json();
     if (!res.ok) {
-      const err = new Error(data.error || 'Request failed');
+      const err = new Error(data.error || 'リクエストに失敗しました');
       err.code = data.code;
       err.action = data.action;
       throw err;
@@ -356,7 +356,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       // Render browser pills
       const browsers = browserData.browsers;
       if (browsers.length === 0) {
-        $sourceDomains.innerHTML = '<div class="imported-empty">No Chromium browsers detected</div>';
+        $sourceDomains.innerHTML = '<div class="imported-empty">Chromium ブラウザが見つかりません</div>';
         return;
       }
 
@@ -373,7 +373,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       selectBrowser(browsers[0].name);
     } catch (err) {
       showBanner(err.message, 'error', init);
-      $sourceDomains.innerHTML = '<div class="imported-empty">Failed to load</div>';
+      $sourceDomains.innerHTML = '<div class="imported-empty">読み込みに失敗しました</div>';
     }
   }
 
@@ -386,7 +386,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       p.classList.toggle('active', p.textContent === name);
     });
 
-    $sourceDomains.innerHTML = '<div class="loading-row"><span class="spinner"></span> Loading domains...</div>';
+    $sourceDomains.innerHTML = '<div class="loading-row"><span class="spinner"></span> ドメインを読み込み中...</div>';
     $sourceFooter.textContent = '';
     $search.value = '';
 
@@ -396,7 +396,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       renderSourceDomains();
     } catch (err) {
       showBanner(err.message, 'error', err.action === 'retry' ? () => selectBrowser(name) : null);
-      $sourceDomains.innerHTML = '<div class="imported-empty">Failed to load domains</div>';
+      $sourceDomains.innerHTML = '<div class="imported-empty">ドメインの読み込みに失敗しました</div>';
     }
   }
 
@@ -409,7 +409,7 @@ export function getCookiePickerHTML(serverPort: number): string {
 
     if (filtered.length === 0) {
       $sourceDomains.innerHTML = '<div class="imported-empty">' +
-        (query ? 'No matching domains' : 'No cookie domains found') + '</div>';
+        (query ? '一致するドメインがありません' : 'cookie ドメインが見つかりません') + '</div>';
       $sourceFooter.textContent = '';
       return;
     }
@@ -426,7 +426,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       } else if (isImported) {
         html += '<span class="btn-add imported">&#10003;</span>';
       } else {
-        html += '<button class="btn-add" data-domain="' + escHtml(d.domain) + '" title="Import">+</button>';
+        html += '<button class="btn-add" data-domain="' + escHtml(d.domain) + '" title="取り込む">+</button>';
       }
       html += '</div>';
     }
@@ -435,7 +435,7 @@ export function getCookiePickerHTML(serverPort: number): string {
     // Total counts
     const totalDomains = allDomains.length;
     const totalCookies = allDomains.reduce((s, d) => s + d.count, 0);
-    $sourceFooter.textContent = totalDomains + ' domains · ' + totalCookies.toLocaleString() + ' cookies';
+    $sourceFooter.textContent = totalDomains + ' ドメイン · ' + totalCookies.toLocaleString() + ' 件の cookie';
 
     // Click handlers
     $sourceDomains.querySelectorAll('.btn-add[data-domain]').forEach(btn => {
@@ -463,7 +463,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       }
       renderImported();
     } catch (err) {
-      showBanner('Import failed for ' + domain + ': ' + err.message, 'error',
+      showBanner(domain + ' の取り込みに失敗しました: ' + err.message, 'error',
         err.action === 'retry' ? () => importDomain(domain) : null);
     } finally {
       delete inflight[domain];
@@ -476,7 +476,7 @@ export function getCookiePickerHTML(serverPort: number): string {
     const entries = Object.entries(importedSet).sort((a, b) => b[1] - a[1]);
 
     if (entries.length === 0) {
-      $importedDomains.innerHTML = '<div class="imported-empty">No cookies imported yet</div>';
+      $importedDomains.innerHTML = '<div class="imported-empty">まだ cookie は取り込まれていません</div>';
       $importedFooter.textContent = '';
       return;
     }
@@ -490,14 +490,14 @@ export function getCookiePickerHTML(serverPort: number): string {
       if (isInflight) {
         html += '<span class="btn-trash" disabled><span class="spinner" style="width:12px;height:12px;border-width:1.5px;border-top-color:#f87171;"></span></span>';
       } else {
-        html += '<button class="btn-trash" data-domain="' + escHtml(domain) + '" title="Remove">&#128465;</button>';
+        html += '<button class="btn-trash" data-domain="' + escHtml(domain) + '" title="削除">&#128465;</button>';
       }
       html += '</div>';
     }
     $importedDomains.innerHTML = html;
 
     const totalCookies = entries.reduce((s, e) => s + e[1], 0);
-    $importedFooter.textContent = entries.length + ' domains · ' + totalCookies.toLocaleString() + ' cookies imported';
+    $importedFooter.textContent = entries.length + ' ドメイン · ' + totalCookies.toLocaleString() + ' 件の cookie 取り込み済み';
 
     // Click handlers
     $importedDomains.querySelectorAll('.btn-trash[data-domain]').forEach(btn => {
@@ -521,7 +521,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       renderImported();
       renderSourceDomains(); // update checkmarks
     } catch (err) {
-      showBanner('Remove failed for ' + domain + ': ' + err.message, 'error',
+      showBanner(domain + ' の削除に失敗しました: ' + err.message, 'error',
         err.action === 'retry' ? () => removeDomain(domain) : null);
     } finally {
       delete inflight['remove:' + domain];

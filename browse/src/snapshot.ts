@@ -55,14 +55,14 @@ export const SNAPSHOT_FLAGS: Array<{
   valueHint?: string;
   optionKey: keyof SnapshotOptions;
 }> = [
-  { short: '-i', long: '--interactive', description: 'Interactive elements only (buttons, links, inputs) with @e refs', optionKey: 'interactive' },
-  { short: '-c', long: '--compact', description: 'Compact (no empty structural nodes)', optionKey: 'compact' },
-  { short: '-d', long: '--depth', description: 'Limit tree depth (0 = root only, default: unlimited)', takesValue: true, valueHint: '<N>', optionKey: 'depth' },
-  { short: '-s', long: '--selector', description: 'Scope to CSS selector', takesValue: true, valueHint: '<sel>', optionKey: 'selector' },
-  { short: '-D', long: '--diff', description: 'Unified diff against previous snapshot (first call stores baseline)', optionKey: 'diff' },
-  { short: '-a', long: '--annotate', description: 'Annotated screenshot with red overlay boxes and ref labels', optionKey: 'annotate' },
-  { short: '-o', long: '--output', description: 'Output path for annotated screenshot (default: /tmp/browse-annotated.png)', takesValue: true, valueHint: '<path>', optionKey: 'outputPath' },
-  { short: '-C', long: '--cursor-interactive', description: 'Cursor-interactive elements (@c refs — divs with pointer, onclick)', optionKey: 'cursorInteractive' },
+  { short: '-i', long: '--interactive', description: '@e ref 付きの操作可能要素のみ（button/link/input）', optionKey: 'interactive' },
+  { short: '-c', long: '--compact', description: '簡易表示（空の構造ノードを除外）', optionKey: 'compact' },
+  { short: '-d', long: '--depth', description: 'ツリー深さを制限（0 = ルートのみ、既定: 無制限）', takesValue: true, valueHint: '<N>', optionKey: 'depth' },
+  { short: '-s', long: '--selector', description: 'CSS selector で対象範囲を限定', takesValue: true, valueHint: '<sel>', optionKey: 'selector' },
+  { short: '-D', long: '--diff', description: '前回 snapshot との差分を unified diff で表示（初回はベースライン保存）', optionKey: 'diff' },
+  { short: '-a', long: '--annotate', description: 'ref ラベル付き赤枠オーバーレイの注釈付きスクリーンショット', optionKey: 'annotate' },
+  { short: '-o', long: '--output', description: '注釈付きスクリーンショットの出力先（既定: /tmp/browse-annotated.png）', takesValue: true, valueHint: '<path>', optionKey: 'outputPath' },
+  { short: '-C', long: '--cursor-interactive', description: 'cursor-interactive 要素（@c ref: pointer/onclick の div など）', optionKey: 'cursorInteractive' },
 ];
 
 interface ParsedNode {
@@ -81,13 +81,13 @@ export function parseSnapshotArgs(args: string[]): SnapshotOptions {
   const opts: SnapshotOptions = {};
   for (let i = 0; i < args.length; i++) {
     const flag = SNAPSHOT_FLAGS.find(f => f.short === args[i] || f.long === args[i]);
-    if (!flag) throw new Error(`Unknown snapshot flag: ${args[i]}`);
+    if (!flag) throw new Error(`未知の snapshot フラグです: ${args[i]}`);
     if (flag.takesValue) {
       const value = args[++i];
-      if (!value) throw new Error(`Usage: snapshot ${flag.short} <value>`);
+      if (!value) throw new Error(`使い方: snapshot ${flag.short} <value>`);
       if (flag.optionKey === 'depth') {
         (opts as any)[flag.optionKey] = parseInt(value, 10);
-        if (isNaN(opts.depth!)) throw new Error('Usage: snapshot -d <number>');
+        if (isNaN(opts.depth!)) throw new Error('使い方: snapshot -d <number>');
       } else {
         (opts as any)[flag.optionKey] = value;
       }
@@ -141,7 +141,7 @@ export async function handleSnapshot(
   if (opts.selector) {
     rootLocator = page.locator(opts.selector);
     const count = await rootLocator.count();
-    if (count === 0) throw new Error(`Selector not found: ${opts.selector}`);
+    if (count === 0) throw new Error(`selector が見つかりません: ${opts.selector}`);
   } else {
     rootLocator = page.locator('body');
   }
@@ -149,7 +149,7 @@ export async function handleSnapshot(
   const ariaText = await rootLocator.ariaSnapshot();
   if (!ariaText || ariaText.trim().length === 0) {
     bm.setRefMap(new Map());
-    return '(no accessible elements found)';
+    return '（アクセシブル要素が見つかりません）';
   }
 
   // Parse the ariaSnapshot output
@@ -282,7 +282,7 @@ export async function handleSnapshot(
 
       if (cursorElements.length > 0) {
         output.push('');
-        output.push('── cursor-interactive (not in ARIA tree) ──');
+        output.push('── cursor-interactive（ARIAツリー外）──');
         let cRefCounter = 1;
         for (const elem of cursorElements) {
           const ref = `c${cRefCounter++}`;
@@ -293,7 +293,7 @@ export async function handleSnapshot(
       }
     } catch {
       output.push('');
-      output.push('(cursor scan failed — CSP restriction)');
+      output.push('（cursor スキャンに失敗しました: CSP 制約）');
     }
   }
 
@@ -301,7 +301,7 @@ export async function handleSnapshot(
   bm.setRefMap(refMap);
 
   if (output.length === 0) {
-    return '(no interactive elements found)';
+    return '（操作可能要素が見つかりません）';
   }
 
   const snapshotText = output.join('\n');
@@ -313,7 +313,7 @@ export async function handleSnapshot(
     const resolvedPath = require('path').resolve(screenshotPath);
     const safeDirs = ['/tmp', process.cwd()];
     if (!safeDirs.some((dir: string) => resolvedPath === dir || resolvedPath.startsWith(dir + '/'))) {
-      throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
+      throw new Error(`パスは次の範囲内である必要があります: ${safeDirs.join(', ')}`);
     }
     try {
       // Inject overlay divs at each ref's bounding box
@@ -356,7 +356,7 @@ export async function handleSnapshot(
       });
 
       output.push('');
-      output.push(`[annotated screenshot: ${screenshotPath}]`);
+      output.push(`[注釈付きスクリーンショット: ${screenshotPath}]`);
     } catch {
       // Remove overlays even on screenshot failure
       try {
@@ -372,11 +372,11 @@ export async function handleSnapshot(
     const lastSnapshot = bm.getLastSnapshot();
     if (!lastSnapshot) {
       bm.setLastSnapshot(snapshotText);
-      return snapshotText + '\n\n(no previous snapshot to diff against — this snapshot stored as baseline)';
+      return snapshotText + '\n\n（比較対象の前回 snapshot がないため、この snapshot をベースラインとして保存しました）';
     }
 
     const changes = Diff.diffLines(lastSnapshot, snapshotText);
-    const diffOutput: string[] = ['--- previous snapshot', '+++ current snapshot', ''];
+    const diffOutput: string[] = ['--- 前回 snapshot', '+++ 現在 snapshot', ''];
 
     for (const part of changes) {
       const prefix = part.added ? '+' : part.removed ? '-' : ' ';

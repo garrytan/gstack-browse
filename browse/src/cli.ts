@@ -42,7 +42,7 @@ export function resolveServerScript(
   }
 
   throw new Error(
-    'Cannot find server.ts. Set BROWSE_SERVER_SCRIPT env or run from the browse source tree.'
+    'server.ts が見つかりません。BROWSE_SERVER_SCRIPT env を設定するか、browse のソースツリーから実行してください。'
   );
 }
 
@@ -166,10 +166,10 @@ async function startServer(): Promise<ServerState> {
     const { value } = await reader.read();
     if (value) {
       const errText = new TextDecoder().decode(value);
-      throw new Error(`Server failed to start:\n${errText}`);
+      throw new Error(`サーバーの起動に失敗しました:\n${errText}`);
     }
   }
-  throw new Error(`Server failed to start within ${MAX_START_WAIT / 1000}s`);
+  throw new Error(`${MAX_START_WAIT / 1000}秒以内にサーバーが起動しませんでした`);
 }
 
 async function ensureServer(): Promise<ServerState> {
@@ -179,7 +179,7 @@ async function ensureServer(): Promise<ServerState> {
     // Check for binary version mismatch (auto-restart on update)
     const currentVersion = readVersionHash();
     if (currentVersion && state.binaryVersion && currentVersion !== state.binaryVersion) {
-      console.error('[browse] Binary updated, restarting server...');
+      console.error('[browse] バイナリが更新されたため、サーバーを再起動します...');
       await killServer(state.pid);
       return startServer();
     }
@@ -201,7 +201,7 @@ async function ensureServer(): Promise<ServerState> {
   }
 
   // Need to (re)start
-  console.error('[browse] Starting server...');
+  console.error('[browse] サーバーを起動しています...');
   return startServer();
 }
 
@@ -222,12 +222,12 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
 
     if (resp.status === 401) {
       // Token mismatch — server may have restarted
-      console.error('[browse] Auth failed — server may have restarted. Retrying...');
+      console.error('[browse] 認証に失敗しました。サーバーが再起動した可能性があるため再試行します...');
       const newState = readState();
       if (newState && newState.token !== state.token) {
         return sendCommand(newState, command, args);
       }
-      throw new Error('Authentication failed');
+      throw new Error('認証に失敗しました');
     }
 
     const text = await resp.text();
@@ -248,13 +248,13 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
     }
   } catch (err: any) {
     if (err.name === 'AbortError') {
-      console.error('[browse] Command timed out after 30s');
+      console.error('[browse] コマンドが30秒でタイムアウトしました');
       process.exit(1);
     }
     // Connection error — server may have crashed
     if (err.code === 'ECONNREFUSED' || err.code === 'ECONNRESET' || err.message?.includes('fetch failed')) {
-      if (retries >= 1) throw new Error('[browse] Server crashed twice in a row — aborting');
-      console.error('[browse] Server connection lost. Restarting...');
+      if (retries >= 1) throw new Error('[browse] サーバーが2回連続でクラッシュしました。中断します');
+      console.error('[browse] サーバー接続が切れました。再起動します...');
       const newState = await startServer();
       return sendCommand(newState, command, args, retries + 1);
     }
@@ -267,38 +267,38 @@ async function main() {
   const args = process.argv.slice(2);
 
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
-    console.log(`gstack browse — Fast headless browser for AI coding agents
+    console.log(`gstack browse — AI コーディングエージェント向け高速ヘッドレスブラウザ
 
-Usage: browse <command> [args...]
+使い方: browse <command> [args...]
 
-Navigation:     goto <url> | back | forward | reload | url
-Content:        text | html [sel] | links | forms | accessibility
-Interaction:    click <sel> | fill <sel> <val> | select <sel> <val>
+ナビゲーション: goto <url> | back | forward | reload | url
+読み取り:       text | html [sel] | links | forms | accessibility
+操作:           click <sel> | fill <sel> <val> | select <sel> <val>
                 hover <sel> | type <text> | press <key>
                 scroll [sel] | wait <sel|--networkidle|--load> | viewport <WxH>
                 upload <sel> <file1> [file2...]
                 cookie-import <json-file>
                 cookie-import-browser [browser] [--domain <d>]
-Inspection:     js <expr> | eval <file> | css <sel> <prop> | attrs <sel>
+確認:           js <expr> | eval <file> | css <sel> <prop> | attrs <sel>
                 console [--clear|--errors] | network [--clear] | dialog [--clear]
                 cookies | storage [set <k> <v>] | perf
                 is <prop> <sel> (visible|hidden|enabled|disabled|checked|editable|focused)
-Visual:         screenshot [--viewport] [--clip x,y,w,h] [@ref|sel] [path]
+可視化:         screenshot [--viewport] [--clip x,y,w,h] [@ref|sel] [path]
                 pdf [path] | responsive [prefix]
-Snapshot:       snapshot [-i] [-c] [-d N] [-s sel] [-D] [-a] [-o path] [-C]
-                -D/--diff: diff against previous snapshot
-                -a/--annotate: annotated screenshot with ref labels
-                -C/--cursor-interactive: find non-ARIA clickable elements
-Compare:        diff <url1> <url2>
-Multi-step:     chain (reads JSON from stdin)
-Tabs:           tabs | tab <id> | newtab [url] | closetab [id]
-Server:         status | cookie <n>=<v> | header <n>:<v>
+スナップショット: snapshot [-i] [-c] [-d N] [-s sel] [-D] [-a] [-o path] [-C]
+                -D/--diff: 前回 snapshot との差分
+                -a/--annotate: ref ラベル付き注釈スクリーンショット
+                -C/--cursor-interactive: ARIA外のクリック可能要素を探索
+比較:           diff <url1> <url2>
+複数実行:       chain (stdin から JSON を読み込み)
+タブ:           tabs | tab <id> | newtab [url] | closetab [id]
+サーバー:       status | cookie <n>=<v> | header <n>:<v>
                 useragent <str> | stop | restart
-Dialogs:        dialog-accept [text] | dialog-dismiss
+ダイアログ:     dialog-accept [text] | dialog-dismiss
 
-Refs:           After 'snapshot', use @e1, @e2... as selectors:
+Ref:            'snapshot' 実行後は @e1, @e2... を selector として使用:
                 click @e3 | fill @e4 "value" | hover @e1
-                @c refs from -C: click @c1`);
+                -C の @c ref: click @c1`);
     process.exit(0);
   }
 

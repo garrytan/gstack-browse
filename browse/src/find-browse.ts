@@ -46,7 +46,7 @@ export function locateBinary(): string | null {
 function main() {
   const bin = locateBinary();
   if (!bin) {
-    process.stderr.write('ERROR: browse binary not found. Run: cd <skill-dir> && ./setup\n');
+    process.stderr.write('ERROR: browse バイナリが見つかりません。実行: cd <skill-dir> && ./setup\n');
     process.exit(1);
   }
 
