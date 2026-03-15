@@ -15,8 +15,8 @@ import * as os from 'os';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
 const config = resolveConfig();
-const MAX_START_WAIT = IS_WINDOWS ? 20000 : 8000; // Windows needs more time (Node.js + tsx startup)
 const IS_WINDOWS = process.platform === 'win32';
+const MAX_START_WAIT = IS_WINDOWS ? 20000 : 8000; // Windows needs more time (Node.js + tsx startup)
 const TMPDIR = IS_WINDOWS ? (os.tmpdir() || process.env.TEMP || 'C:\\Temp') : '/tmp';
 
 export function resolveServerScript(

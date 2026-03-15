@@ -6,7 +6,7 @@
  */
 
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
+import { findInstalledBrowsers, importCookies } from './cookie-import';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -295,14 +295,17 @@ export async function handleWriteCommand(
       const port = bm.serverPort;
       if (!port) throw new Error('Server port not available');
 
-      const browsers = findInstalledBrowsers();
+      const browsers = await findInstalledBrowsers();
       if (browsers.length === 0) {
         throw new Error('No Chromium browsers found. Supported: Comet, Chrome, Arc, Brave, Edge');
       }
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
       try {
-        Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
+        const openCmd = process.platform === 'win32' ? ['cmd', '/c', 'start', pickerUrl]
+          : process.platform === 'darwin' ? ['open', pickerUrl]
+          : ['xdg-open', pickerUrl];
+        Bun.spawn(openCmd, { stdout: 'ignore', stderr: 'ignore' });
       } catch {
         // open may fail silently — URL is in the message below
       }

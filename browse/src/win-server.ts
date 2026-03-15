@@ -153,15 +153,4 @@ if (typeof globalThis.Bun === 'undefined') {
 }
 
 // Now import the server — it will use our polyfilled Bun globals
-// We need to handle the bun:sqlite import by catching it
-try {
-  await import('./server.ts');
-} catch (err: any) {
-  if (err.code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME' && err.message?.includes('bun:')) {
-    console.error('[browse] Note: bun:sqlite not available in Node.js mode (cookie import disabled)');
-    // Try again — the import failure may be from a lazy import
-    await import('./server.ts');
-  } else {
-    throw err;
-  }
-}
+await import('./server.ts');

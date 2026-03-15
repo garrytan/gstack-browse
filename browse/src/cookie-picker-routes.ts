@@ -14,7 +14,7 @@
  */
 
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, listDomains, importCookies, CookieImportError, type PlaywrightCookie } from './cookie-import-browser';
+import { findInstalledBrowsers, listDomains, importCookies, CookieImportError, type PlaywrightCookie } from './cookie-import';
 import { getCookiePickerHTML } from './cookie-picker-ui';
 
 // ─── State ──────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ export async function handleCookiePickerRoute(
 
     // GET /cookie-picker/browsers — list installed browsers
     if (pathname === '/cookie-picker/browsers' && req.method === 'GET') {
-      const browsers = findInstalledBrowsers();
+      const browsers = await findInstalledBrowsers();
       return jsonResponse({
         browsers: browsers.map(b => ({
           name: b.name,
@@ -96,7 +96,7 @@ export async function handleCookiePickerRoute(
       if (!browserName) {
         return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
       }
-      const result = listDomains(browserName);
+      const result = await listDomains(browserName);
       return jsonResponse({
         browser: result.browser,
         domains: result.domains,
