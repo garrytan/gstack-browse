@@ -1,4 +1,4 @@
-# gstack development
+# gstack development (Cybereum fork)
 
 ## Commands
 
@@ -11,37 +11,38 @@ bun run build        # compile binary to browse/dist/browse
 
 ## Project structure
 
+This repo contains the **workflow skills** for building Cybereum. The analytical
+skills (schedule-intelligence, decision-ai, risk-engine, etc.) live in the
+[cybereum_Projects repo](https://github.com/ProBloCh/cybereum_Projects) under
+`.claude/skills/`.
+
 ```
 gstack/
 ├── browse/                          # Headless browser CLI (Playwright)
 │   ├── src/                         # CLI + server + commands
 │   ├── test/                        # Integration tests + fixtures
 │   └── dist/                        # Compiled binary
-├── ship/                            # Ship workflow skill
-├── review/                          # PR review skill
-├── plan-ceo-review/                 # /plan-ceo-review skill
-├── plan-eng-review/                 # /plan-eng-review skill
-├── retro/                           # Retrospective skill
-├── qa/                              # QA testing skill
 │
-│ ── Cybereum Platform Skills ──
-│
-│   Dev Team (building Cybereum):
-├── cybereum-schedule-intelligence/  # P6/XER schedule analysis, DCMA 14-Point
-├── cybereum-decision-ai/            # Schwerpunkt decision engine
-├── cybereum-risk-engine/            # Risk register, scoring, mitigation
-├── cybereum-evm-control/            # Earned Value Management analytics
-│
-│   PM Team (inside Cybereum):
-├── cybereum-completion-prediction/  # Monte Carlo, P50/P80 forecasting
-├── cybereum-reference-class/        # Flyvbjerg RCF, optimism bias correction
-├── cybereum-executive-reporting/    # Board/PMO/lender report generation
-├── cybereum-sales-intelligence/     # BD, prospect research, pitch materials
+│ ── Workflow Skills (dev process, Cybereum-adapted) ──
+├── ship/                            # Ship workflow (bun test + build, PR)
+├── review/                          # Pre-landing review (calculation integrity, graph consistency)
+├── plan-ceo-review/                 # CEO/founder plan review (Cybereum product vision)
+├── plan-eng-review/                 # Eng plan review (cross-skill architecture)
+├── retro/                           # Retrospective (skill development tracking)
+├── qa/                              # QA testing (formula verification, cross-skill consistency)
 │
 ├── setup                            # One-time setup: build binary + symlink skills
 ├── SKILL.md                         # Browse skill (Claude discovers this)
 └── package.json                     # Build scripts for browse
 ```
+
+## Where things live
+
+| What | Repo | Deploy to |
+|------|------|-----------|
+| Workflow skills (ship, review, qa, retro, plan reviews) | This repo (cybereum/Team) | `~/.claude/skills/gstack/` |
+| Analytical skills (8 Cybereum product skills) | ProBloCh/cybereum_Projects | `cybereum_Projects/.claude/skills/` |
+| Browse CLI binary | This repo | `~/.claude/skills/gstack/browse/dist/browse` |
 
 ## Deploying to the active skill
 
