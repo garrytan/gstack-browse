@@ -8,15 +8,25 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { startTestServer } from './test-server';
 import { BrowserManager } from '../src/browser-manager';
-import { handleReadCommand } from '../src/read-commands';
-import { handleWriteCommand } from '../src/write-commands';
-import { handleMetaCommand } from '../src/meta-commands';
+import { handleReadCommand as handleReadCommandRaw } from '../src/read-commands';
+import { handleWriteCommand as handleWriteCommandRaw } from '../src/write-commands';
+import { handleMetaCommand as handleMetaCommandRaw } from '../src/meta-commands';
 import * as fs from 'fs';
+import { normalizePromise } from './test-message-normalizer';
 
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
 const shutdown = async () => {};
+
+const handleReadCommand = (...args: Parameters<typeof handleReadCommandRaw>) =>
+  normalizePromise(handleReadCommandRaw(...args));
+
+const handleWriteCommand = (...args: Parameters<typeof handleWriteCommandRaw>) =>
+  normalizePromise(handleWriteCommandRaw(...args));
+
+const handleMetaCommand = (...args: Parameters<typeof handleMetaCommandRaw>) =>
+  normalizePromise(handleMetaCommandRaw(...args));
 
 beforeAll(async () => {
   testServer = startTestServer(0);

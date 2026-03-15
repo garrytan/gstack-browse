@@ -369,18 +369,18 @@ describe('Cookie Import Browser', () => {
       // The validateProfile function should reject profiles with / or ..
       // We can't call it directly (internal), but we can test via listDomains
       // which calls validateProfile
-      expect(() => listDomains('chrome', '../etc')).toThrow(/Invalid profile/);
-      expect(() => listDomains('chrome', 'Default/../../etc')).toThrow(/Invalid profile/);
+      expect(() => listDomains('chrome', '../etc')).toThrow(/Invalid profile|不正なプロファイル/);
+      expect(() => listDomains('chrome', 'Default/../../etc')).toThrow(/Invalid profile|不正なプロファイル/);
     });
 
     test('rejects control characters in profile names', () => {
-      expect(() => listDomains('chrome', 'Default\x00evil')).toThrow(/Invalid profile/);
+      expect(() => listDomains('chrome', 'Default\x00evil')).toThrow(/Invalid profile|不正なプロファイル/);
     });
   });
 
   describe('Unknown Browser', () => {
     test('throws for unknown browser name', () => {
-      expect(() => listDomains('firefox')).toThrow(/Unknown browser.*firefox/i);
+      expect(() => listDomains('firefox')).toThrow(/(Unknown browser|未知のブラウザ).*(firefox)/i);
     });
 
     test('error includes list of supported browsers', () => {

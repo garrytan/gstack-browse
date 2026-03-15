@@ -44,10 +44,10 @@ export interface SkillTestResult {
 }
 
 const BROWSE_ERROR_PATTERNS = [
-  /Unknown command: \w+/,
-  /Unknown snapshot flag: .+/,
-  /ERROR: browse binary not found/,
-  /Server failed to start/,
+  /(Unknown command: \w+|未知のコマンドです: .+)/,
+  /(Unknown snapshot flag: .+|未知の snapshot フラグです: .+)/,
+  /(ERROR: browse binary not found|ERROR: browse バイナリが見つかりません)/,
+  /(Server failed to start|サーバー起動に失敗)/,
   /no such file or directory.*browse/i,
 ];
 

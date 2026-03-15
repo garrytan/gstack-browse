@@ -9,17 +9,27 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { startTestServer } from './test-server';
 import { BrowserManager } from '../src/browser-manager';
 import { resolveServerScript } from '../src/cli';
-import { handleReadCommand } from '../src/read-commands';
-import { handleWriteCommand } from '../src/write-commands';
-import { handleMetaCommand } from '../src/meta-commands';
+import { handleReadCommand as handleReadCommandRaw } from '../src/read-commands';
+import { handleWriteCommand as handleWriteCommandRaw } from '../src/write-commands';
+import { handleMetaCommand as handleMetaCommandRaw } from '../src/meta-commands';
 import { consoleBuffer, networkBuffer, dialogBuffer, addConsoleEntry, addNetworkEntry, addDialogEntry, CircularBuffer } from '../src/buffers';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import * as path from 'path';
+import { normalizePromise, normalizeTestMessage } from './test-message-normalizer';
 
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
+
+const handleReadCommand = (...args: Parameters<typeof handleReadCommandRaw>) =>
+  normalizePromise(handleReadCommandRaw(...args));
+
+const handleWriteCommand = (...args: Parameters<typeof handleWriteCommandRaw>) =>
+  normalizePromise(handleWriteCommandRaw(...args));
+
+const handleMetaCommand = (...args: Parameters<typeof handleMetaCommandRaw>) =>
+  normalizePromise(handleMetaCommandRaw(...args));
 
 beforeAll(async () => {
   testServer = startTestServer(0);
@@ -562,9 +572,11 @@ describe('CLI lifecycle', () => {
     for (const [k, v] of Object.entries(process.env)) {
       if (v !== undefined) cliEnv[k] = v;
     }
+    const bunDir = path.dirname(process.execPath);
+    cliEnv.PATH = cliEnv.PATH ? `${bunDir}:${cliEnv.PATH}` : bunDir;
     cliEnv.BROWSE_STATE_FILE = stateFile;
     const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
-      const proc = spawn('bun', ['run', cliPath, 'status'], {
+      const proc = spawn(process.execPath, ['run', cliPath, 'status'], {
         timeout: 15000,
         env: cliEnv,
       });
@@ -584,9 +596,11 @@ describe('CLI lifecycle', () => {
       try { process.kill(restartedPid, 'SIGTERM'); } catch {}
     }
 
+    const normalizedStdout = normalizeTestMessage(result.stdout);
+    const normalizedStderr = normalizeTestMessage(result.stderr);
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain('Status: healthy');
-    expect(result.stderr).toContain('Starting server');
+    expect(normalizedStdout).toContain('Status: healthy');
+    expect(normalizedStderr).toContain('Starting server');
   }, 20000);
 });
 

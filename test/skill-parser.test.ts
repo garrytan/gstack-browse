@@ -154,7 +154,7 @@ describe('validateSkill', () => {
     ].join('\n'));
     const result = validateSkill(p);
     expect(result.snapshotFlagErrors).toHaveLength(1);
-    expect(result.snapshotFlagErrors[0].error).toContain('Unknown snapshot flag');
+    expect(result.snapshotFlagErrors[0].error).toMatch(/Unknown snapshot flag|未知の snapshot フラグ/);
   });
 
   test('returns warning when no $B commands found', () => {

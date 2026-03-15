@@ -97,7 +97,7 @@ describe('gen-skill-docs', () => {
   });
 
   test('generated files are fresh (match --dry-run)', () => {
-    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
+    const result = Bun.spawnSync([process.execPath, 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
       cwd: ROOT,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -184,10 +184,11 @@ describe('description quality evals', () => {
     expect(flag.description).toContain('@c');
   });
 
-  // Guard: every description must be at least 8 chars (catches empty or stub descriptions)
+  // Guard: every description must be at least 5 chars (catches empty or stub descriptions)
+  // while still allowing short Japanese phrasing.
   test('all command descriptions have meaningful length', () => {
     for (const [cmd, meta] of Object.entries(COMMAND_DESCRIPTIONS)) {
-      expect(meta.description.length).toBeGreaterThanOrEqual(8);
+      expect(meta.description.length).toBeGreaterThanOrEqual(5);
     }
   });
 

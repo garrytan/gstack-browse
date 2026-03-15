@@ -120,6 +120,6 @@ describe('gstack-config', () => {
   test('no args shows usage and exits 1', () => {
     const { exitCode, stdout } = run([]);
     expect(exitCode).toBe(1);
-    expect(stdout).toContain('Usage');
+    expect(stdout).toMatch(/Usage|使い方/);
   });
 });
