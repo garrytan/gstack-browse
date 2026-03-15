@@ -308,11 +308,16 @@ export async function handleSnapshot(
 
   // ─── Annotated screenshot (-a) ────────────────────────────
   if (opts.annotate) {
-    const screenshotPath = opts.outputPath || '/tmp/browse-annotated.png';
+    const os = require('os');
+    const pathMod = require('path');
+    const screenshotPath = opts.outputPath || pathMod.join(os.tmpdir(), 'browse-annotated.png');
     // Validate output path (consistent with screenshot/pdf/responsive)
-    const resolvedPath = require('path').resolve(screenshotPath);
-    const safeDirs = ['/tmp', process.cwd()];
-    if (!safeDirs.some((dir: string) => resolvedPath === dir || resolvedPath.startsWith(dir + '/'))) {
+    const resolvedPath = pathMod.resolve(screenshotPath);
+    const safeDirs = ['/tmp', os.tmpdir(), process.cwd()].filter(Boolean);
+    if (!safeDirs.some((dir: string) => {
+      const normalDir = pathMod.normalize(dir);
+      return resolvedPath === normalDir || resolvedPath.startsWith(normalDir + pathMod.sep);
+    })) {
       throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
     }
     try {

@@ -345,7 +345,7 @@ async function start() {
     port,
     token: AUTH_TOKEN,
     startedAt: new Date().toISOString(),
-    serverPath: path.resolve(import.meta.dir, 'server.ts'),
+    serverPath: path.resolve(import.meta.dir || path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/i, '$1')), 'server.ts'),
     binaryVersion: readVersionHash() || undefined,
   };
   const tmpFile = config.stateFile + '.tmp';

@@ -32,7 +32,14 @@
  *   └──────────────────────────────────────────────────────────────────┘
  */
 
-import { Database } from 'bun:sqlite';
+// Dynamic import to support Node.js on Windows (bun:sqlite unavailable)
+let Database: any;
+try {
+  Database = (await import('bun:sqlite')).Database;
+} catch {
+  // On Node.js, bun:sqlite is unavailable — cookie import from browser DBs disabled
+  Database = null;
+}
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -115,6 +122,7 @@ export function findInstalledBrowsers(): BrowserInfo[] {
  * List unique cookie domains + counts from a browser's DB. No decryption.
  */
 export function listDomains(browserName: string, profile = 'Default'): { domains: DomainEntry[]; browser: string } {
+  if (!Database) throw new CookieImportError('Cookie import from browser databases requires Bun runtime (bun:sqlite). This feature is not available when running under Node.js on Windows.');
   const browser = resolveBrowser(browserName);
   const dbPath = getCookieDbPath(browser, profile);
   const db = openDb(dbPath, browser.name);

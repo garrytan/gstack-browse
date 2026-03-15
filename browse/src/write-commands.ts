@@ -238,9 +238,13 @@ export async function handleWriteCommand(
       if (!filePath) throw new Error('Usage: browse cookie-import <json-file>');
       // Path validation — prevent reading arbitrary files
       if (path.isAbsolute(filePath)) {
-        const safeDirs = ['/tmp', process.cwd()];
+        const os = require('os');
+        const safeDirs = ['/tmp', os.tmpdir(), process.cwd()].filter(Boolean);
         const resolved = path.resolve(filePath);
-        if (!safeDirs.some(dir => resolved === dir || resolved.startsWith(dir + '/'))) {
+        if (!safeDirs.some((dir: string) => {
+          const normalDir = path.normalize(dir);
+          return resolved === normalDir || resolved.startsWith(normalDir + path.sep);
+        })) {
           throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
         }
       }

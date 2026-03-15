@@ -11,10 +11,13 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
 const config = resolveConfig();
-const MAX_START_WAIT = 8000; // 8 seconds to start
+const MAX_START_WAIT = IS_WINDOWS ? 20000 : 8000; // Windows needs more time (Node.js + tsx startup)
+const IS_WINDOWS = process.platform === 'win32';
+const TMPDIR = IS_WINDOWS ? (os.tmpdir() || process.env.TEMP || 'C:\\Temp') : '/tmp';
 
 export function resolveServerScript(
   env: Record<string, string | undefined> = process.env,
@@ -26,7 +29,10 @@ export function resolveServerScript(
   }
 
   // Dev mode: cli.ts runs directly from browse/src
-  if (metaDir.startsWith('/') && !metaDir.includes('$bunfs')) {
+  const isRealPath = IS_WINDOWS
+    ? /^[A-Za-z]:[\\/]/.test(metaDir) && !metaDir.includes('$bunfs')
+    : metaDir.startsWith('/') && !metaDir.includes('$bunfs');
+  if (isRealPath) {
     const direct = path.resolve(metaDir, 'server.ts');
     if (fs.existsSync(direct)) {
       return direct;
@@ -90,7 +96,11 @@ async function killServer(pid: number): Promise<void> {
 
   // Force kill if still alive
   if (isProcessAlive(pid)) {
-    try { process.kill(pid, 'SIGKILL'); } catch {}
+    if (IS_WINDOWS) {
+      try { Bun.spawnSync(['taskkill', '/F', '/PID', String(pid)], { stdout: 'pipe', stderr: 'pipe' }); } catch {}
+    } else {
+      try { process.kill(pid, 'SIGKILL'); } catch {}
+    }
   }
 }
 
@@ -100,19 +110,30 @@ async function killServer(pid: number): Promise<void> {
  */
 function cleanupLegacyState(): void {
   try {
-    const files = fs.readdirSync('/tmp').filter(f => f.startsWith('browse-server') && f.endsWith('.json'));
+    const files = fs.readdirSync(TMPDIR).filter(f => f.startsWith('browse-server') && f.endsWith('.json'));
     for (const file of files) {
-      const fullPath = `/tmp/${file}`;
+      const fullPath = path.join(TMPDIR, file);
       try {
         const data = JSON.parse(fs.readFileSync(fullPath, 'utf-8'));
         if (data.pid && isProcessAlive(data.pid)) {
-          // Verify this is actually a browse server before killing
-          const check = Bun.spawnSync(['ps', '-p', String(data.pid), '-o', 'command='], {
-            stdout: 'pipe', stderr: 'pipe', timeout: 2000,
-          });
-          const cmd = check.stdout.toString().trim();
-          if (cmd.includes('bun') || cmd.includes('server.ts')) {
-            try { process.kill(data.pid, 'SIGTERM'); } catch {}
+          if (IS_WINDOWS) {
+            // On Windows, use wmic to check process command line
+            const check = Bun.spawnSync(['wmic', 'process', 'where', `ProcessId=${data.pid}`, 'get', 'CommandLine'], {
+              stdout: 'pipe', stderr: 'pipe', timeout: 2000,
+            });
+            const cmd = check.stdout.toString().trim();
+            if (cmd.includes('bun') || cmd.includes('server.ts')) {
+              try { process.kill(data.pid, 'SIGTERM'); } catch {}
+            }
+          } else {
+            // Verify this is actually a browse server before killing
+            const check = Bun.spawnSync(['ps', '-p', String(data.pid), '-o', 'command='], {
+              stdout: 'pipe', stderr: 'pipe', timeout: 2000,
+            });
+            const cmd = check.stdout.toString().trim();
+            if (cmd.includes('bun') || cmd.includes('server.ts')) {
+              try { process.kill(data.pid, 'SIGTERM'); } catch {}
+            }
           }
         }
         fs.unlinkSync(fullPath);
@@ -121,15 +142,51 @@ function cleanupLegacyState(): void {
       }
     }
     // Clean up legacy log files too
-    const logFiles = fs.readdirSync('/tmp').filter(f =>
+    const logFiles = fs.readdirSync(TMPDIR).filter(f =>
       f.startsWith('browse-console') || f.startsWith('browse-network') || f.startsWith('browse-dialog')
     );
     for (const file of logFiles) {
-      try { fs.unlinkSync(`/tmp/${file}`); } catch {}
+      try { fs.unlinkSync(path.join(TMPDIR, file)); } catch {}
     }
   } catch {
-    // /tmp read failed — skip legacy cleanup
+    // tmp read failed — skip legacy cleanup
   }
+}
+
+// ─── Bun Resolution ────────────────────────────────────────────
+/**
+ * Find the bun executable. On Windows, the browser-manager handles
+ * Playwright's pipe issue by launching Chromium via Node.js separately.
+ * The Bun server itself works fine on all platforms.
+ */
+function findBunExecutable(): string {
+  const whichCmd = IS_WINDOWS ? 'where' : 'which';
+  const check = Bun.spawnSync([whichCmd, 'bun'], { stdout: 'pipe', stderr: 'pipe', timeout: 3000 });
+  if (check.exitCode === 0) {
+    const found = check.stdout.toString().trim().split(/\r?\n/)[0];
+    if (found) return found;
+  }
+
+  const homedir = os.homedir();
+  const candidates = IS_WINDOWS
+    ? [
+        path.join(homedir, '.bun', 'bin', 'bun.exe'),
+        path.join(process.env.LOCALAPPDATA || '', 'bun', 'bun.exe'),
+        path.join(process.env.APPDATA || '', 'bun', 'bun.exe'),
+      ]
+    : [
+        path.join(homedir, '.bun', 'bin', 'bun'),
+        '/usr/local/bin/bun',
+        '/opt/homebrew/bin/bun',
+      ];
+
+  for (const candidate of candidates) {
+    if (candidate && fs.existsSync(candidate)) return candidate;
+  }
+
+  throw new Error(
+    `[browse] Cannot find bun executable. Install bun (https://bun.sh) and ensure it is in PATH.`
+  );
 }
 
 // ─── Server Lifecycle ──────────────────────────────────────────
@@ -139,11 +196,40 @@ async function startServer(): Promise<ServerState> {
   // Clean up stale state file
   try { fs.unlinkSync(config.stateFile); } catch {}
 
-  // Start server as detached background process
-  const proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
-  });
+  // On Windows, use Node.js + tsx to run the server (Bun's pipes break Playwright).
+  // On macOS/Linux, use bun directly.
+  let proc: any;
+  if (IS_WINDOWS) {
+    // Resolve win-server.ts path relative to SERVER_SCRIPT
+    const winServerScript = path.resolve(path.dirname(SERVER_SCRIPT), 'win-server.ts');
+    // Find npx or tsx
+    // tsx binary: bun installs as .exe, npm installs as .cmd
+    let tsxPath = path.resolve(path.dirname(SERVER_SCRIPT), '..', 'node_modules', '.bin', 'tsx.exe');
+    let tsxExists = fs.existsSync(tsxPath);
+    if (!tsxExists) {
+      tsxPath = path.resolve(path.dirname(SERVER_SCRIPT), '..', 'node_modules', '.bin', 'tsx.cmd');
+      tsxExists = fs.existsSync(tsxPath);
+    }
+
+    if (tsxExists && fs.existsSync(winServerScript)) {
+      proc = Bun.spawn([tsxPath, winServerScript], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+      });
+    } else {
+      // Fallback: try npx tsx
+      proc = Bun.spawn(['npx', 'tsx', winServerScript], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+      });
+    }
+  } else {
+    const bunPath = findBunExecutable();
+    proc = Bun.spawn([bunPath, 'run', SERVER_SCRIPT], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+    });
+  }
 
   // Don't hold the CLI open
   proc.unref();
