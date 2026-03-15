@@ -16,7 +16,7 @@ function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
   const isSafe = SAFE_DIRECTORIES.some(dir => resolved === dir || resolved.startsWith(dir + '/'));
   if (!isSafe) {
-    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+    throw new Error(`パスは次の範囲内である必要があります: ${SAFE_DIRECTORIES.join(', ')}`);
   }
 }
 
@@ -53,27 +53,27 @@ export async function handleMetaCommand(
     case 'tabs': {
       const tabs = await bm.getTabListWithTitles();
       return tabs.map(t =>
-        `${t.active ? '→ ' : '  '}[${t.id}] ${t.title || '(untitled)'} — ${t.url}`
+        `${t.active ? '→ ' : '  '}[${t.id}] ${t.title || '（無題）'} — ${t.url}`
       ).join('\n');
     }
 
     case 'tab': {
       const id = parseInt(args[0], 10);
-      if (isNaN(id)) throw new Error('Usage: browse tab <id>');
+      if (isNaN(id)) throw new Error('使い方: browse tab <id>');
       bm.switchTab(id);
-      return `Switched to tab ${id}`;
+      return `タブ ${id} に切り替えました`;
     }
 
     case 'newtab': {
       const url = args[0];
       const id = await bm.newTab(url);
-      return `Opened tab ${id}${url ? ` → ${url}` : ''}`;
+      return `タブ ${id} を開きました${url ? ` → ${url}` : ''}`;
     }
 
     case 'closetab': {
       const id = args[0] ? parseInt(args[0], 10) : undefined;
       await bm.closeTab(id);
-      return `Closed tab${id ? ` ${id}` : ''}`;
+      return `タブを閉じました${id ? ` ${id}` : ''}`;
     }
 
     // ─── Server Control ────────────────────────────────
@@ -81,9 +81,9 @@ export async function handleMetaCommand(
       const page = bm.getPage();
       const tabs = bm.getTabCount();
       return [
-        `Status: healthy`,
+        `ステータス: healthy`,
         `URL: ${page.url()}`,
-        `Tabs: ${tabs}`,
+        `タブ数: ${tabs}`,
         `PID: ${process.pid}`,
       ].join('\n');
     }
@@ -94,14 +94,14 @@ export async function handleMetaCommand(
 
     case 'stop': {
       await shutdown();
-      return 'Server stopped';
+      return 'サーバーを停止しました';
     }
 
     case 'restart': {
       // Signal that we want a restart — the CLI will detect exit and restart
-      console.log('[browse] Restart requested. Exiting for CLI to restart.');
+      console.log('[browse] 再起動要求を受け付けました。CLI 再起動のため終了します。');
       await shutdown();
-      return 'Restarting...';
+      return '再起動しています...';
     }
 
     // ─── Visual ────────────────────────────────────────
@@ -119,13 +119,13 @@ export async function handleMetaCommand(
           viewportOnly = true;
         } else if (args[i] === '--clip') {
           const coords = args[++i];
-          if (!coords) throw new Error('Usage: screenshot --clip x,y,w,h [path]');
+          if (!coords) throw new Error('使い方: screenshot --clip x,y,w,h [path]');
           const parts = coords.split(',').map(Number);
           if (parts.length !== 4 || parts.some(isNaN))
-            throw new Error('Usage: screenshot --clip x,y,width,height — all must be numbers');
+            throw new Error('使い方: screenshot --clip x,y,width,height（すべて数値）');
           clipRect = { x: parts[0], y: parts[1], width: parts[2], height: parts[3] };
         } else if (args[i].startsWith('--')) {
-          throw new Error(`Unknown screenshot flag: ${args[i]}`);
+          throw new Error(`未知の screenshot フラグです: ${args[i]}`);
         } else {
           remaining.push(args[i]);
         }
@@ -143,26 +143,26 @@ export async function handleMetaCommand(
       validateOutputPath(outputPath);
 
       if (clipRect && targetSelector) {
-        throw new Error('Cannot use --clip with a selector/ref — choose one');
+        throw new Error('--clip と selector/ref は同時に使えません。どちらか一方を指定してください');
       }
       if (viewportOnly && clipRect) {
-        throw new Error('Cannot use --viewport with --clip — choose one');
+        throw new Error('--viewport と --clip は同時に使えません。どちらか一方を指定してください');
       }
 
       if (targetSelector) {
         const resolved = bm.resolveRef(targetSelector);
         const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
         await locator.screenshot({ path: outputPath, timeout: 5000 });
-        return `Screenshot saved (element): ${outputPath}`;
+        return `スクリーンショットを保存しました（要素）: ${outputPath}`;
       }
 
       if (clipRect) {
         await page.screenshot({ path: outputPath, clip: clipRect });
-        return `Screenshot saved (clip ${clipRect.x},${clipRect.y},${clipRect.width},${clipRect.height}): ${outputPath}`;
+        return `スクリーンショットを保存しました（clip ${clipRect.x},${clipRect.y},${clipRect.width},${clipRect.height}）: ${outputPath}`;
       }
 
       await page.screenshot({ path: outputPath, fullPage: !viewportOnly });
-      return `Screenshot saved${viewportOnly ? ' (viewport)' : ''}: ${outputPath}`;
+      return `スクリーンショットを保存しました${viewportOnly ? '（viewport）' : ''}: ${outputPath}`;
     }
 
     case 'pdf': {
@@ -170,7 +170,7 @@ export async function handleMetaCommand(
       const pdfPath = args[0] || '/tmp/browse-page.pdf';
       validateOutputPath(pdfPath);
       await page.pdf({ path: pdfPath, format: 'A4' });
-      return `PDF saved: ${pdfPath}`;
+      return `PDFを保存しました: ${pdfPath}`;
     }
 
     case 'responsive': {
@@ -204,16 +204,16 @@ export async function handleMetaCommand(
     case 'chain': {
       // Read JSON array from args[0] (if provided) or expect it was passed as body
       const jsonStr = args[0];
-      if (!jsonStr) throw new Error('Usage: echo \'[["goto","url"],["text"]]\' | browse chain');
+      if (!jsonStr) throw new Error('使い方: echo \'[["goto","url"],["text"]]\' | browse chain');
 
       let commands: string[][];
       try {
         commands = JSON.parse(jsonStr);
       } catch {
-        throw new Error('Invalid JSON. Expected: [["command", "arg1", "arg2"], ...]');
+        throw new Error('JSON が不正です。期待形式: [["command", "arg1", "arg2"], ...]');
       }
 
-      if (!Array.isArray(commands)) throw new Error('Expected JSON array of commands');
+      if (!Array.isArray(commands)) throw new Error('コマンドの JSON 配列を指定してください');
 
       const results: string[] = [];
       const { handleReadCommand } = await import('./read-commands');
@@ -226,7 +226,7 @@ export async function handleMetaCommand(
           if (CHAIN_WRITE.has(name))      result = await handleWriteCommand(name, cmdArgs, bm);
           else if (CHAIN_READ.has(name))  result = await handleReadCommand(name, cmdArgs, bm);
           else if (CHAIN_META.has(name))  result = await handleMetaCommand(name, cmdArgs, bm, shutdown);
-          else throw new Error(`Unknown command: ${name}`);
+          else throw new Error(`未知のコマンドです: ${name}`);
           results.push(`[${name}] ${result}`);
         } catch (err: any) {
           results.push(`[${name}] ERROR: ${err.message}`);
@@ -239,7 +239,7 @@ export async function handleMetaCommand(
     // ─── Diff ──────────────────────────────────────────
     case 'diff': {
       const [url1, url2] = args;
-      if (!url1 || !url2) throw new Error('Usage: browse diff <url1> <url2>');
+      if (!url1 || !url2) throw new Error('使い方: browse diff <url1> <url2>');
 
       const page = bm.getPage();
       await page.goto(url1, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -268,6 +268,6 @@ export async function handleMetaCommand(
     }
 
     default:
-      throw new Error(`Unknown meta command: ${command}`);
+      throw new Error(`未知の meta コマンドです: ${command}`);
   }
 }

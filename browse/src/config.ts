@@ -82,10 +82,10 @@ export function ensureStateDir(config: BrowseConfig): void {
     fs.mkdirSync(config.stateDir, { recursive: true });
   } catch (err: any) {
     if (err.code === 'EACCES') {
-      throw new Error(`Cannot create state directory ${config.stateDir}: permission denied`);
+      throw new Error(`state ディレクトリ ${config.stateDir} を作成できません: 権限がありません`);
     }
     if (err.code === 'ENOTDIR') {
-      throw new Error(`Cannot create state directory ${config.stateDir}: a file exists at that path`);
+      throw new Error(`state ディレクトリ ${config.stateDir} を作成できません: そのパスにはファイルがあります`);
     }
     throw err;
   }
@@ -103,7 +103,7 @@ export function ensureStateDir(config: BrowseConfig): void {
       // Write warning to server log (visible even in daemon mode)
       const logPath = path.join(config.stateDir, 'browse-server.log');
       try {
-        fs.appendFileSync(logPath, `[${new Date().toISOString()}] Warning: could not update .gitignore at ${gitignorePath}: ${err.message}\n`);
+        fs.appendFileSync(logPath, `[${new Date().toISOString()}] 警告: ${gitignorePath} の .gitignore を更新できませんでした: ${err.message}\n`);
       } catch {
         // stateDir write failed too — nothing more we can do
       }

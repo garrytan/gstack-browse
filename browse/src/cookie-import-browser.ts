@@ -192,7 +192,7 @@ function resolveBrowser(nameOrAlias: string): BrowserInfo {
   if (!found) {
     const supported = BROWSER_REGISTRY.flatMap(b => b.aliases).join(', ');
     throw new CookieImportError(
-      `Unknown browser '${nameOrAlias}'. Supported: ${supported}`,
+      `未知のブラウザです: '${nameOrAlias}'。対応: ${supported}`,
       'unknown_browser',
     );
   }
@@ -202,7 +202,7 @@ function resolveBrowser(nameOrAlias: string): BrowserInfo {
 function validateProfile(profile: string): void {
   if (/[/\\]|\.\./.test(profile) || /[\x00-\x1f]/.test(profile)) {
     throw new CookieImportError(
-      `Invalid profile name: '${profile}'`,
+      `不正なプロファイル名です: '${profile}'`,
       'bad_request',
     );
   }
@@ -214,7 +214,7 @@ function getCookieDbPath(browser: BrowserInfo, profile: string): string {
   const dbPath = path.join(appSupport, browser.dataDir, profile, 'Cookies');
   if (!fs.existsSync(dbPath)) {
     throw new CookieImportError(
-      `${browser.name} is not installed (no cookie database at ${dbPath})`,
+      `${browser.name} がインストールされていません（cookie DB が見つかりません: ${dbPath}）`,
       'not_installed',
     );
   }
@@ -232,7 +232,7 @@ function openDb(dbPath: string, browserName: string): Database {
     }
     if (err.message?.includes('SQLITE_CORRUPT') || err.message?.includes('malformed')) {
       throw new CookieImportError(
-        `Cookie database for ${browserName} is corrupt`,
+        `${browserName} の cookie データベースが破損しています`,
         'db_corrupt',
       );
     }
@@ -264,7 +264,7 @@ function openDbFromCopy(dbPath: string, browserName: string): Database {
     // Clean up on failure
     try { fs.unlinkSync(tmpPath); } catch {}
     throw new CookieImportError(
-      `Cookie database is locked (${browserName} may be running). Try closing ${browserName} first.`,
+      `cookie データベースがロックされています（${browserName} が起動中の可能性）。先に ${browserName} を終了して再試行してください。`,
       'db_locked',
       'retry',
     );
@@ -295,7 +295,7 @@ async function getKeychainPassword(service: string): Promise<string> {
     setTimeout(() => {
       proc.kill();
       reject(new CookieImportError(
-        `macOS is waiting for Keychain permission. Look for a dialog asking to allow access to "${service}".`,
+        `macOS が Keychain 権限待ちです。"${service}" へのアクセス許可ダイアログを確認してください。`,
         'keychain_timeout',
         'retry',
       ));
@@ -312,19 +312,19 @@ async function getKeychainPassword(service: string): Promise<string> {
       const errText = stderr.trim().toLowerCase();
       if (errText.includes('user canceled') || errText.includes('denied') || errText.includes('interaction not allowed')) {
         throw new CookieImportError(
-          `Keychain access denied. Click "Allow" in the macOS dialog for "${service}".`,
+          `Keychain アクセスが拒否されました。macOS ダイアログで "${service}" への "Allow" を選択してください。`,
           'keychain_denied',
           'retry',
         );
       }
       if (errText.includes('could not be found') || errText.includes('not found')) {
         throw new CookieImportError(
-          `No Keychain entry for "${service}". Is this a Chromium-based browser?`,
+          `"${service}" の Keychain エントリが見つかりません。Chromium ベースブラウザか確認してください。`,
           'keychain_not_found',
         );
       }
       throw new CookieImportError(
-        `Could not read Keychain: ${stderr.trim()}`,
+        `Keychain を読み取れませんでした: ${stderr.trim()}`,
         'keychain_error',
         'retry',
       );
@@ -334,7 +334,7 @@ async function getKeychainPassword(service: string): Promise<string> {
   } catch (err) {
     if (err instanceof CookieImportError) throw err;
     throw new CookieImportError(
-      `Could not read Keychain: ${(err as Error).message}`,
+      `Keychain を読み取れませんでした: ${(err as Error).message}`,
       'keychain_error',
       'retry',
     );
@@ -365,7 +365,7 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
 
   const prefix = ev.slice(0, 3).toString('utf-8');
   if (prefix !== 'v10') {
-    throw new Error(`Unknown encryption prefix: ${prefix}`);
+    throw new Error(`未知の暗号化プレフィックスです: ${prefix}`);
   }
 
   const ciphertext = ev.slice(3);
