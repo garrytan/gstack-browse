@@ -79,6 +79,7 @@ describe('gen-skill-docs', () => {
     { dir: 'comms', name: 'comms' },
     { dir: 'pr-comms', name: 'pr-comms' },
     { dir: 'ai-hybrid', name: 'ai-hybrid' },
+    { dir: 'escalation', name: 'escalation' },
   ];
 
   test('every skill has a SKILL.md.tmpl template', () => {

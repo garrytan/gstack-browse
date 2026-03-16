@@ -37,6 +37,7 @@ const SKILL_FILES = [
   'comms/SKILL.md',
   'pr-comms/SKILL.md',
   'ai-hybrid/SKILL.md',
+  'escalation/SKILL.md',
 ].filter(f => fs.existsSync(path.join(ROOT, f)));
 
 let hasErrors = false;
@@ -96,6 +97,7 @@ const TEMPLATES = [
   { tmpl: 'comms/SKILL.md.tmpl', output: 'comms/SKILL.md' },
   { tmpl: 'pr-comms/SKILL.md.tmpl', output: 'pr-comms/SKILL.md' },
   { tmpl: 'ai-hybrid/SKILL.md.tmpl', output: 'ai-hybrid/SKILL.md' },
+  { tmpl: 'escalation/SKILL.md.tmpl', output: 'escalation/SKILL.md' },
 ];
 
 for (const { tmpl, output } of TEMPLATES) {

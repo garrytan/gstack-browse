@@ -180,6 +180,7 @@ describe('Update check preamble', () => {
     'cfo/SKILL.md', 'vc/SKILL.md', 'board/SKILL.md',
     'media/SKILL.md', 'comms/SKILL.md', 'pr-comms/SKILL.md',
     'ai-hybrid/SKILL.md',
+    'escalation/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -429,6 +430,7 @@ describe('v0.4.1 preamble features', () => {
     'cfo/SKILL.md', 'vc/SKILL.md', 'board/SKILL.md',
     'media/SKILL.md', 'comms/SKILL.md', 'pr-comms/SKILL.md',
     'ai-hybrid/SKILL.md',
+    'escalation/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
