@@ -27,6 +27,7 @@ Ten opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/
 | `/setup-browser-cookies` | Session manager | Import cookies from your real browser (Comet, Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages without logging in manually. |
 | `/retro` | Engineering manager | Team-aware retro: your deep-dive + per-person praise and growth opportunities for every contributor. |
 | `/document-release` | Technical writer | Update README, ARCHITECTURE, CONTRIBUTING, and project docs to match what you just shipped. |
+| `/mastery-status` | Process architect | Project status from [Mastery](https://github.com/RAiWorks/MASTERY.md) framework docs. Shows active feature, task progress, and where the last session stopped. |
 
 ## Demo: one feature, five modes
 
