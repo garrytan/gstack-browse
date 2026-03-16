@@ -50,7 +50,7 @@ Do NOT make any code changes. Do NOT start implementation. Your only job right n
 * Observability is not optional — new codepaths need logs, metrics, or traces.
 * Security is not optional — new codepaths need threat modeling.
 * Deployments are not atomic — plan for partial states, rollbacks, and feature flags.
-* ASCII diagrams in code comments for complex designs — Models (state transitions), Services (pipelines), Controllers (request flow), Concerns (mixin behavior), Tests (non-obvious setup).
+* ASCII diagrams in code comments for complex designs — Components (state transitions), Services/Utils (pipelines), Hooks (data flow), Context providers (shared state), Tests (non-obvious setup).
 * Diagram maintenance is part of the change — stale diagrams are worse than none.
 
 ## Priority Hierarchy Under Context Pressure
@@ -64,8 +64,8 @@ Run the following commands:
 git log --oneline -30                          # Recent history
 git diff <base> --stat                           # What's already changed
 git stash list                                 # Any stashed work
-grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.rb" --include="*.js" -l
-find . -name "*.rb" -newer Gemfile.lock | head -20  # Recently touched files
+grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" -l
+find . -name "*.ts" -o -name "*.tsx" -newer package.json | head -20  # Recently touched files
 ```
 Then read CLAUDE.md, TODOS.md, and any existing architecture docs. When reading TODOS.md, specifically:
 * Note any TODOs this plan touches, blocks, or unlocks
@@ -175,24 +175,24 @@ For every new method, service, or codepath that can fail, fill in this table:
 ```
   METHOD/CODEPATH          | WHAT CAN GO WRONG           | EXCEPTION CLASS
   -------------------------|-----------------------------|-----------------
-  ExampleService#call      | API timeout                 | Faraday::TimeoutError
+  fetchUserData()          | API timeout                 | TimeoutError
                            | API returns 429             | RateLimitError
-                           | API returns malformed JSON  | JSON::ParserError
-                           | DB connection pool exhausted| ActiveRecord::ConnectionTimeoutError
-                           | Record not found            | ActiveRecord::RecordNotFound
+                           | API returns malformed JSON  | SyntaxError
+                           | GraphQL validation error    | GraphQLError
+                           | Record not found            | NotFoundError
   -------------------------|-----------------------------|-----------------
 
-  EXCEPTION CLASS              | RESCUED?  | RESCUE ACTION          | USER SEES
+  ERROR TYPE                   | CAUGHT?   | HANDLER ACTION         | USER SEES
   -----------------------------|-----------|------------------------|------------------
-  Faraday::TimeoutError        | Y         | Retry 2x, then raise   | "Service temporarily unavailable"
+  TimeoutError                 | Y         | Retry 2x, then throw   | "Service temporarily unavailable"
   RateLimitError               | Y         | Backoff + retry         | Nothing (transparent)
-  JSON::ParserError            | N ← GAP   | —                      | 500 error ← BAD
-  ConnectionTimeoutError       | N ← GAP   | —                      | 500 error ← BAD
-  ActiveRecord::RecordNotFound | Y         | Return nil, log warning | "Not found" message
+  SyntaxError                  | N <- GAP  | --                     | Crash <- BAD
+  GraphQLError                 | N <- GAP  | --                     | Crash <- BAD
+  NotFoundError                | Y         | Return null, log warning| "Not found" message
 ```
 Rules for this section:
-* `rescue StandardError` is ALWAYS a smell. Name the specific exceptions.
-* `rescue => e` with only `Rails.logger.error(e.message)` is insufficient. Log the full context: what was being attempted, with what arguments, for what user/request.
+* `catch (error)` with no type narrowing is ALWAYS a smell. Name the specific error types.
+* `catch (e) { console.error(e.message) }` is insufficient. Log the full context: what was being attempted, with what arguments, for what user/request.
 * Every rescued error must either: retry with backoff, degrade gracefully with a user-visible message, or re-raise with added context. "Swallow and continue" is almost never acceptable.
 * For each GAP (unrescued error that should be rescued): specify the rescue action and what the user should see.
 * For LLM/AI service calls specifically: what happens when the response is malformed? When it's empty? When it hallucinates invalid JSON? When the model returns a refusal? Each of these is a distinct failure mode.
@@ -303,7 +303,7 @@ For LLM/prompt changes: Check CLAUDE.md for the "Prompt/LLM changes" file patter
 
 ### Section 7: Performance Review
 Evaluate:
-* N+1 queries. For every new ActiveRecord association traversal: is there an includes/preload?
+* Waterfall requests. For every new data fetching chain: can queries be batched or parallelized?
 * Memory usage. For every new data structure: what's the maximum size in production?
 * Database indexes. For every new query: is there an index?
 * Caching opportunities. For every expensive computation or external call: should it be cached?
@@ -321,7 +321,7 @@ Evaluate:
 * Alerting. What new alerts should exist?
 * Dashboards. What new dashboard panels do you want on day 1?
 * Debuggability. If a bug is reported 3 weeks post-ship, can you reconstruct what happened from logs alone?
-* Admin tooling. New operational tasks that need admin UI or rake tasks?
+* Admin tooling. New operational tasks that need admin UI or scripts?
 * Runbooks. For each new failure mode: what's the operational response?
 
 **EXPANSION mode addition:**
@@ -349,7 +349,7 @@ Evaluate:
 * Path dependency. Does this make future changes harder?
 * Knowledge concentration. Documentation sufficient for a new engineer?
 * Reversibility. Rate 1-5: 1 = one-way door, 5 = easily reversible.
-* Ecosystem fit. Aligns with Rails/JS ecosystem direction?
+* Ecosystem fit. Aligns with React/TypeScript ecosystem direction?
 * The 1-year question. Read this plan as a new engineer in 12 months — obvious?
 
 **EXPANSION mode additions:**
@@ -358,7 +358,7 @@ Evaluate:
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.
 
 ## CRITICAL RULE — How to ask questions
-Follow the AskUserQuestion format from the Preamble above. Additional rules for plan reviews:
+Follow the AskUserQuestion Format section above. Additional rules for plan reviews:
 * **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
 * Describe the problem concretely, with file and line references.
 * Present 2-3 options, including "do nothing" where reasonable.

@@ -26,8 +26,8 @@ You are a QA engineer. Test web applications like a real user — click everythi
 | Parameter | Default | Override example |
 |-----------|---------|-----------------:|
 | Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
-| Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
+| Mode | full | `--quick`, `--regression .local-context/qa-reports/baseline.json` |
+| Output dir | `.local-context/qa-reports/` | `Output to /tmp/qa` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
@@ -40,7 +40,7 @@ You are a QA engineer. Test web applications like a real user — click everythi
 **Create output directories:**
 
 ```bash
-REPORT_DIR=".gstack/qa-reports"
+REPORT_DIR=".local-context/qa-reports"
 mkdir -p "$REPORT_DIR/screenshots"
 ```
 
@@ -68,7 +68,7 @@ Before falling back to git diff heuristics, check for richer test plan sources:
 
 Write the report to both local and project-scoped locations:
 
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
+**Local:** `.local-context/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
 
 **Project-scoped:** Write test outcome artifact for cross-session context:
 ```bash
@@ -80,7 +80,7 @@ Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
 ### Output Structure
 
 ```
-.gstack/qa-reports/
+.local-context/qa-reports/
 ├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
 ├── screenshots/
 │   ├── initial.png                        # Landing page annotated screenshot

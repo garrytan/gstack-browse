@@ -18,10 +18,10 @@ allowed-tools:
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+1. **Re-ground:** State the project, the current branch, and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]`
-4. **Options:** Lettered options: `A) ... B) ... C) ...`
+3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\`
+4. **Options:** Lettered options: \`A) ... B) ... C) ...\`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -138,7 +138,7 @@ Then show a **per-author leaderboard** immediately below:
 ```
 Contributor         Commits   +/-          Top area
 You (garry)              32   +2400/-300   browse/
-alice                    12   +800/-150    app/services/
+alice                    12   +800/-150    src/components/
 bob                       3   +120/-40     tests/
 ```
 
@@ -341,7 +341,7 @@ Use the Write tool to save the JSON file with this schema:
   },
   "authors": {
     "Garry Tan": { "commits": 32, "insertions": 2400, "deletions": 300, "test_ratio": 0.41, "top_area": "browse/" },
-    "Alice": { "commits": 12, "insertions": 800, "deletions": 150, "test_ratio": 0.35, "top_area": "app/services/" }
+    "Alice": { "commits": 12, "insertions": 800, "deletions": 150, "test_ratio": 0.35, "top_area": "src/components/" }
   },
   "version_range": ["1.16.0.0", "1.16.1.0"],
   "streak_days": 47,
@@ -437,7 +437,7 @@ For each teammate (sorted by commits descending), write a section:
 - **Praise**: 1-2 specific things they did well, anchored in actual commits. Be genuine — what would you actually say in a 1:1? Examples:
   - "Cleaned up the entire auth module in 3 small, reviewable PRs — textbook decomposition"
   - "Added integration tests for every new endpoint, not just happy paths"
-  - "Fixed the waterfall fetch that was causing 2s load times on the dashboard"
+  - "Fixed the waterfall request chain that was causing 2s load times on the dashboard"
 - **Opportunity for growth**: 1 specific, constructive suggestion. Frame as investment, not criticism. Examples:
   - "Test coverage on the payment module is at 8% — worth investing in before the next feature lands on top of it"
   - "3 of the 5 PRs were 800+ LOC — breaking these up would catch issues earlier and make review easier"

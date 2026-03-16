@@ -19,10 +19,10 @@ allowed-tools:
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+1. **Re-ground:** State the project, the current branch, and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]`
-4. **Options:** Lettered options: `A) ... B) ... C) ...`
+3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\`
+4. **Options:** Lettered options: \`A) ... B) ... C) ...\`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -45,7 +45,7 @@ If you are running low on context or the user asks you to compress: Step 0 > Tes
 
 ## Documentation and diagrams:
 * I value ASCII art diagrams highly — for data flow, state machines, dependency graphs, processing pipelines, and decision trees. Use them liberally in plans and design docs.
-* For particularly complex designs or behaviors, embed ASCII diagrams directly in code comments in the appropriate places: Components (data relationships, state transitions), Pages/Routes (request flow), Hooks (shared behavior), Services/Utils (processing pipelines), and Tests (what's being set up and why) when the test structure is non-obvious.
+* For particularly complex designs or behaviors, embed ASCII diagrams directly in code comments in the appropriate places: Components (data relationships, state transitions), Hooks (data flow), Context providers (shared state), Services/Utils (processing pipelines), and Tests (what's being set up and why) when the test structure is non-obvious.
 * **Diagram maintenance is part of the change.** When modifying code that has ASCII diagrams in comments nearby, review whether those diagrams are still accurate. Update them as part of the same commit. Stale diagrams are worse than no diagrams — they actively mislead. Flag any stale diagrams you encounter during review even if they're outside the immediate scope of the change.
 
 ## BEFORE YOU START:
@@ -94,6 +94,8 @@ Make a diagram of all new UX, new data flow, new codepaths, and new branching if
 
 For LLM/prompt changes: check the "Prompt/LLM changes" file patterns listed in CLAUDE.md. If this plan touches ANY of those patterns, state which eval suites must be run, which cases should be added, and what baselines to compare against. Then use AskUserQuestion to confirm the eval scope with the user.
 
+When a plan requires new API queries/mutations, include a "Request for BE team" section: ideal query shape, missing API capabilities, N+1 risks.
+
 **STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
 
 ### Test Plan Artifact
@@ -131,12 +133,9 @@ Repo: {owner/repo}
 
 This file is consumed by `/qa` and `/qa-only` as primary test input. Include only the information that helps a QA tester know **what to test and where** — not implementation details.
 
-### Request for BE team
-When a plan requires new API queries/mutations, include a "Request for BE team" section: ideal query shape, missing API capabilities, N+1 risks.
-
 ### 4. Performance review
 Evaluate:
-* Waterfall fetches and data-fetching patterns (parallel vs sequential queries, GraphQL client cache usage).
+* Waterfall requests and data fetching patterns.
 * Memory-usage concerns.
 * Caching opportunities.
 * Slow or high-complexity code paths.
@@ -144,7 +143,7 @@ Evaluate:
 **STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
 
 ## CRITICAL RULE — How to ask questions
-Follow the AskUserQuestion format from the Preamble above. Additional rules for plan reviews:
+Follow the AskUserQuestion Format section above. Additional rules for plan reviews:
 * **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
 * Describe the problem concretely, with file and line references.
 * Present 2-3 options, including "do nothing" where that's reasonable.
@@ -178,7 +177,7 @@ Then present options: **A)** Add to TODOS.md **B)** Skip — not valuable enough
 Do NOT just append vague bullet points. A TODO without context is worse than no TODO — it creates false confidence that the idea was captured while actually losing the reasoning.
 
 ### Diagrams
-The plan itself should use ASCII diagrams for any non-trivial data flow, state machine, or processing pipeline. Additionally, identify which files in the implementation should get inline ASCII diagram comments — particularly Components with complex state transitions, Services/Utils with multi-step pipelines, and Hooks with non-obvious shared behavior.
+The plan itself should use ASCII diagrams for any non-trivial data flow, state machine, or processing pipeline. Additionally, identify which files in the implementation should get inline ASCII diagram comments — particularly Components with complex state transitions, Services/Utils with multi-step pipelines, and Hooks/Context providers with non-obvious shared state behavior.
 
 ### Failure modes
 For each new codepath identified in the test review diagram, list one realistic way it could fail in production (timeout, nil reference, race condition, stale data, etc.) and whether:

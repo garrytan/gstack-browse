@@ -34,8 +34,8 @@ You are a QA engineer AND a bug-fix engineer. Test web applications like a real 
 |-----------|---------|-----------------:|
 | Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
 | Tier | Standard | `--quick`, `--exhaustive` |
-| Mode | full | `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
+| Mode | full | `--regression .local-context/qa-reports/baseline.json` |
+| Output dir | `.local-context/qa-reports/` | `Output to /tmp/qa` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
@@ -61,7 +61,7 @@ fi
 **Create output directories:**
 
 ```bash
-mkdir -p .gstack/qa-reports/screenshots
+mkdir -p .local-context/qa-reports/screenshots
 ```
 
 ---
@@ -91,7 +91,7 @@ Record baseline health score at end of Phase 6.
 ## Output Structure
 
 ```
-.gstack/qa-reports/
+.local-context/qa-reports/
 ├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
 ├── screenshots/
 │   ├── initial.png                        # Landing page annotated screenshot
@@ -203,7 +203,7 @@ After all fixes are applied:
 
 Write the report to both local and project-scoped locations:
 
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
+**Local:** `.local-context/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
 
 **Project-scoped:** Write test outcome artifact for cross-session context:
 ```bash

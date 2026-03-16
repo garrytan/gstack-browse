@@ -23,10 +23,10 @@ allowed-tools:
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+1. **Re-ground:** State the project, the current branch, and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]`
-4. **Options:** Lettered options: `A) ... B) ... C) ...`
+3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\`
+4. **Options:** Lettered options: \`A) ... B) ... C) ...\`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -63,8 +63,8 @@ You are a QA engineer AND a bug-fix engineer. Test web applications like a real 
 |-----------|---------|-----------------:|
 | Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
 | Tier | Standard | `--quick`, `--exhaustive` |
-| Mode | full | `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
+| Mode | full | `--regression .local-context/qa-reports/baseline.json` |
+| Output dir | `.local-context/qa-reports/` | `Output to /tmp/qa` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
@@ -107,7 +107,7 @@ If `NEEDS_SETUP`:
 **Create output directories:**
 
 ```bash
-mkdir -p .gstack/qa-reports/screenshots
+mkdir -p .local-context/qa-reports/screenshots
 ```
 
 ---
@@ -141,9 +141,9 @@ This is the **primary mode** for developers verifying their work. When the user 
    ```
 
 2. **Identify affected pages/routes** from the changed files:
-   - Controller/route files → which URL paths they serve
-   - View/template/component files → which pages render them
-   - Model/service files → which pages use those models (check controllers that reference them)
+   - Route/page files → which URL paths they serve
+   - Component files → which pages render them
+   - Hook/service/util files → which pages use them (check components that import them)
    - CSS/style files → which pages include those stylesheets
    - API endpoints → test them directly with `$B js "await fetch('/api/...')"`
    - Static pages (markdown, HTML) → navigate to them directly
@@ -231,7 +231,7 @@ $B console --errors               # any errors on landing?
 
 **Detect framework** (note in report metadata):
 - `__next` in HTML or `_next/data` requests → Next.js
-- `csrf-token` meta tag → Rails
+- `csrf-token` meta tag → Server-rendered framework
 - `wp-content` in URLs → WordPress
 - Client-side routing with no page reloads → SPA
 
@@ -369,12 +369,6 @@ Minimum 0 per category.
 - Test client-side navigation (click links, don't just `goto`) — catches routing issues
 - Check for CLS (Cumulative Layout Shift) on pages with dynamic content
 
-### Rails
-- Check for N+1 query warnings in console (if development mode)
-- Verify CSRF token presence in forms
-- Test Turbo/Stimulus integration — do page transitions work smoothly?
-- Check for flash messages appearing and dismissing correctly
-
 ### WordPress
 - Check for plugin conflicts (JS errors from different plugins)
 - Verify admin bar visibility for logged-in users
@@ -383,8 +377,11 @@ Minimum 0 per category.
 
 ### General SPA (React, Vue, Angular)
 - Use `snapshot -i` for navigation — `links` command misses client-side routes
+- Check for hydration errors (`Hydration failed`, `Text content did not match`)
 - Check for stale state (navigate away and back — does data refresh?)
+- Test client-side routing (click links, don't just `goto`) — catches routing issues
 - Test browser back/forward — does the app handle history correctly?
+- Check for CLS (Cumulative Layout Shift) on pages with dynamic content
 - Check for memory leaks (monitor console after extended use)
 
 ---
@@ -409,7 +406,7 @@ Record baseline health score at end of Phase 6.
 ## Output Structure
 
 ```
-.gstack/qa-reports/
+.local-context/qa-reports/
 ├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
 ├── screenshots/
 │   ├── initial.png                        # Landing page annotated screenshot
@@ -521,7 +518,7 @@ After all fixes are applied:
 
 Write the report to both local and project-scoped locations:
 
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
+**Local:** `.local-context/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
 
 **Project-scoped:** Write test outcome artifact for cross-session context:
 ```bash

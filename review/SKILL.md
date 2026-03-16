@@ -2,8 +2,8 @@
 name: review
 version: 1.0.0
 description: |
-  Pre-landing PR review. Analyzes diff against the base branch for data-fetching safety,
-  LLM trust boundary violations, conditional side effects, and other structural issues.
+  Pre-landing PR review. Analyzes diff against the base branch for data mutation safety, LLM trust
+  boundary violations, conditional side effects, and other structural issues.
 allowed-tools:
   - Bash
   - Read
@@ -19,10 +19,10 @@ allowed-tools:
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+1. **Re-ground:** State the project, the current branch, and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]`
-4. **Options:** Lettered options: `A) ... B) ... C) ...`
+3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\`
+4. **Options:** Lettered options: \`A) ... B) ... C) ...\`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -95,10 +95,10 @@ Run `git diff origin/<base>` to get the full diff. This includes both committed 
 
 Apply the checklist against the diff in two passes:
 
-1. **Pass 1 (CRITICAL):** GraphQL/Data-Fetching Safety, Race Conditions & Concurrency, LLM Output Trust Boundary, Enum & Value Completeness
-2. **Pass 2 (INFORMATIONAL):** Conditional Side Effects, Magic Numbers & String Coupling, Dead Code & Consistency, LLM Prompt Issues, Test Gaps, Component/UI
+1. **Pass 1 (CRITICAL):** Data Mutation Safety, Race Conditions & Concurrency, LLM Output Trust Boundary, Enum & Value Completeness
+2. **Pass 2 (INFORMATIONAL):** Conditional Side Effects, Magic Numbers & String Coupling, Dead Code & Consistency, LLM Prompt Issues, Test Gaps, Component/Frontend
 
-**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use Grep to find all files that reference sibling values, then Read those files to check if the new value is handled. This is the one category where within-diff review is insufficient.
+**Enum & Value Completeness requires reading code OUTSIDE the diff.** When the diff introduces a new enum value, status, tier, or type constant, use Grep to find all components, hooks, services, and utils that reference sibling values, then Read those files to check if the new value is handled. This is the one category where within-diff review is insufficient.
 
 Follow the output format specified in the checklist. Respect the suppressions — do NOT flag items listed in the "DO NOT flag" section.
 

@@ -19,10 +19,10 @@ allowed-tools:
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+1. **Re-ground:** State the project, the current branch, and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]`
-4. **Options:** Lettered options: `A) ... B) ... C) ...`
+3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\`
+4. **Options:** Lettered options: \`A) ... B) ... C) ...\`
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -60,7 +60,7 @@ Do NOT make any code changes. Do NOT start implementation. Your only job right n
 
 ## Prime Directives
 1. Zero silent failures. Every failure mode must be visible — to the system, to the team, to the user. If a failure can happen silently, that is a critical defect in the plan.
-2. Every error has a name. Don't say "handle errors." Name the specific error type (`TypeError`, `AbortError`, `DOMException`, GraphQL client errors), what triggers it, what catches it, what the user sees, and whether it's tested. Bare `catch (e)` with no type narrowing is a code smell — call it out.
+2. Every error has a name. Don't say "handle errors." Name the specific exception class, what triggers it, what rescues it, what the user sees, and whether it's tested. rescue StandardError is a code smell — call it out.
 3. Data flows have shadow paths. Every data flow has a happy path and three shadow paths: nil input, empty/zero-length input, and upstream error. Trace all four for every new flow.
 4. Interactions have edge cases. Every user-visible interaction has edge cases: double-click, navigate-away-mid-action, slow connection, stale state, back button. Map them.
 5. Observability is scope, not afterthought. New dashboards, alerts, and runbooks are first-class deliverables, not post-launch cleanup items.
@@ -79,7 +79,7 @@ Do NOT make any code changes. Do NOT start implementation. Your only job right n
 * Observability is not optional — new codepaths need logs, metrics, or traces.
 * Security is not optional — new codepaths need threat modeling.
 * Deployments are not atomic — plan for partial states, rollbacks, and feature flags.
-* ASCII diagrams in code comments for complex designs — Components (state transitions), Services/Utils (pipelines), Pages/Routes (request flow), Hooks (shared behavior), Tests (non-obvious setup).
+* ASCII diagrams in code comments for complex designs — Components (state transitions), Services/Utils (pipelines), Hooks (data flow), Context providers (shared state), Tests (non-obvious setup).
 * Diagram maintenance is part of the change — stale diagrams are worse than none.
 
 ## Priority Hierarchy Under Context Pressure
@@ -93,8 +93,8 @@ Run the following commands:
 git log --oneline -30                          # Recent history
 git diff <base> --stat                           # What's already changed
 git stash list                                 # Any stashed work
-grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.ts" --include="*.tsx" --include="*.js" -l
-find . -name "*.tsx" -newer package-lock.json 2>/dev/null | head -20  # Recently touched files
+grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" -l
+find . -name "*.ts" -o -name "*.tsx" -newer package.json | head -20  # Recently touched files
 ```
 Then read CLAUDE.md, TODOS.md, and any existing architecture docs. When reading TODOS.md, specifically:
 * Note any TODOs this plan touches, blocks, or unlocks
@@ -204,26 +204,26 @@ For every new method, service, or codepath that can fail, fill in this table:
 ```
   METHOD/CODEPATH          | WHAT CAN GO WRONG           | EXCEPTION CLASS
   -------------------------|-----------------------------|-----------------
-  useDataQuery()           | API timeout                 | AbortError
-                           | API returns 429             | GraphQL client error
+  fetchUserData()          | API timeout                 | TimeoutError
+                           | API returns 429             | RateLimitError
                            | API returns malformed JSON  | SyntaxError
-                           | Network failure             | TypeError (fetch)
-                           | Resource not found          | GraphQL NOT_FOUND error
+                           | GraphQL validation error    | GraphQLError
+                           | Record not found            | NotFoundError
   -------------------------|-----------------------------|-----------------
 
-  ERROR TYPE                   | CAUGHT?   | CATCH ACTION           | USER SEES
+  ERROR TYPE                   | CAUGHT?   | HANDLER ACTION         | USER SEES
   -----------------------------|-----------|------------------------|------------------
-  AbortError                   | Y         | Retry 2x, then throw   | "Service temporarily unavailable"
-  GraphQL client error (429)   | Y         | Backoff + retry         | Nothing (transparent)
-  SyntaxError                  | N ← GAP   | —                      | Error boundary ← BAD
-  TypeError (fetch)            | N ← GAP   | —                      | Error boundary ← BAD
-  GraphQL NOT_FOUND            | Y         | Return null, log warning| "Not found" message
+  TimeoutError                 | Y         | Retry 2x, then throw   | "Service temporarily unavailable"
+  RateLimitError               | Y         | Backoff + retry         | Nothing (transparent)
+  SyntaxError                  | N <- GAP  | --                     | Crash <- BAD
+  GraphQLError                 | N <- GAP  | --                     | Crash <- BAD
+  NotFoundError                | Y         | Return null, log warning| "Not found" message
 ```
 Rules for this section:
-* Bare `catch (e)` with no type narrowing is ALWAYS a smell. Name the specific error types.
+* `catch (error)` with no type narrowing is ALWAYS a smell. Name the specific error types.
 * `catch (e) { console.error(e.message) }` is insufficient. Log the full context: what was being attempted, with what arguments, for what user/request.
-* Every caught error must either: retry with backoff, degrade gracefully with a user-visible message, or re-throw with added context. "Swallow and continue" is almost never acceptable.
-* For each GAP (uncaught error that should be caught): specify the catch action and what the user should see.
+* Every rescued error must either: retry with backoff, degrade gracefully with a user-visible message, or re-raise with added context. "Swallow and continue" is almost never acceptable.
+* For each GAP (unrescued error that should be rescued): specify the rescue action and what the user should see.
 * For LLM/AI service calls specifically: what happens when the response is malformed? When it's empty? When it hallucinates invalid JSON? When the model returns a refusal? Each of these is a distinct failure mode.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.
 
@@ -332,7 +332,7 @@ For LLM/prompt changes: Check CLAUDE.md for the "Prompt/LLM changes" file patter
 
 ### Section 7: Performance Review
 Evaluate:
-* Waterfall fetches. For every new data-fetching hook or GraphQL query: are requests parallelized? Is the GraphQL client cache used effectively?
+* Waterfall requests. For every new data fetching chain: can queries be batched or parallelized?
 * Memory usage. For every new data structure: what's the maximum size in production?
 * Database indexes. For every new query: is there an index?
 * Caching opportunities. For every expensive computation or external call: should it be cached?
@@ -387,7 +387,7 @@ Evaluate:
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.
 
 ## CRITICAL RULE — How to ask questions
-Follow the AskUserQuestion format from the Preamble above. Additional rules for plan reviews:
+Follow the AskUserQuestion Format section above. Additional rules for plan reviews:
 * **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
 * Describe the problem concretely, with file and line references.
 * Present 2-3 options, including "do nothing" where reasonable.
