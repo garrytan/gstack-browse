@@ -42,6 +42,7 @@ gstack/
 │   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
 │   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
 │   └── skill-e2e.test.ts         # Tier 2: E2E via claude -p (~$3.85/run)
+├── qa-only/         # /qa-only skill (report-only QA, no fixes)
 ├── ship/            # Ship workflow skill
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill
@@ -70,6 +71,35 @@ When you need to interact with a browser (QA, dogfooding, cookie setup), use the
 `/browse` skill or run the browse binary directly via `$B <command>`. NEVER use
 `mcp__claude-in-chrome__*` tools — they are slow, unreliable, and not what this
 project uses.
+
+## Vendored symlink awareness
+
+When developing gstack, `.claude/skills/gstack` may be a symlink back to this
+working directory (gitignored). This means skill changes are **live immediately** —
+great for rapid iteration, risky during big refactors where half-written skills
+could break other Claude Code sessions using gstack concurrently.
+
+**Check once per session:** Run `ls -la .claude/skills/gstack` to see if it's a
+symlink or a real copy. If it's a symlink to your working directory, be aware that:
+- Template changes + `bun run gen:skill-docs` immediately affect all gstack invocations
+- Breaking changes to SKILL.md.tmpl files can break concurrent gstack sessions
+- During large refactors, remove the symlink (`rm .claude/skills/gstack`) so the
+  global install at `~/.claude/skills/gstack/` is used instead
+
+**For plan reviews:** When reviewing plans that modify skill templates or the
+gen-skill-docs pipeline, consider whether the changes should be tested in isolation
+before going live (especially if the user is actively using gstack in other windows).
+
+## CHANGELOG style
+
+CHANGELOG.md is **for users**, not contributors. Write it like product release notes:
+
+- Lead with what the user can now **do** that they couldn't before. Sell the feature.
+- Use plain language, not implementation details. "You can now..." not "Refactored the..."
+- Put contributor/internal changes in a separate "For contributors" section at the bottom.
+- Every entry should make someone think "oh nice, I want to try that."
+- No jargon: say "every question now tells you which project and branch you're in" not
+  "AskUserQuestion format standardized across skill templates via preamble resolver."
 
 ## Deploying to the active skill
 

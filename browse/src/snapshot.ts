@@ -18,7 +18,7 @@
  */
 
 import type { Page, Locator } from 'playwright';
-import type { BrowserManager } from './browser-manager';
+import type { BrowserManager, RefEntry } from './browser-manager';
 import * as Diff from 'diff';
 
 // Roles considered "interactive" for the -i flag
@@ -154,7 +154,7 @@ export async function handleSnapshot(
 
   // Parse the ariaSnapshot output
   const lines = ariaText.split('\n');
-  const refMap = new Map<string, Locator>();
+  const refMap = new Map<string, RefEntry>();
   const output: string[] = [];
   let refCounter = 1;
 
@@ -218,7 +218,7 @@ export async function handleSnapshot(
       locator = locator.nth(seenIndex);
     }
 
-    refMap.set(ref, locator);
+    refMap.set(ref, { locator, role: node.role, name: node.name || '' });
 
     // Format output line
     let outputLine = `${indent}@${ref} [${node.role}]`;
@@ -287,7 +287,7 @@ export async function handleSnapshot(
         for (const elem of cursorElements) {
           const ref = `c${cRefCounter++}`;
           const locator = page.locator(elem.selector);
-          refMap.set(ref, locator);
+          refMap.set(ref, { locator, role: 'cursor-interactive', name: elem.text });
           output.push(`@${ref} [${elem.reason}] "${elem.text}"`);
         }
       }
@@ -318,9 +318,9 @@ export async function handleSnapshot(
     try {
       // Inject overlay divs at each ref's bounding box
       const boxes: Array<{ ref: string; box: { x: number; y: number; width: number; height: number } }> = [];
-      for (const [ref, locator] of refMap) {
+      for (const [ref, entry] of refMap) {
         try {
-          const box = await locator.boundingBox({ timeout: 1000 });
+          const box = await entry.locator.boundingBox({ timeout: 1000 });
           if (box) {
             boxes.push({ ref: `@${ref}`, box });
           }

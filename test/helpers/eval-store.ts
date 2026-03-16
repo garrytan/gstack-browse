@@ -71,9 +71,9 @@ export interface EvalResult {
 
 export interface TestDelta {
   name: string;
-  before: { passed: boolean; cost_usd: number; turns_used?: number;
+  before: { passed: boolean; cost_usd: number; turns_used?: number; duration_ms?: number;
             detection_rate?: number; tool_summary?: Record<string, number> };
-  after:  { passed: boolean; cost_usd: number; turns_used?: number;
+  after:  { passed: boolean; cost_usd: number; turns_used?: number; duration_ms?: number;
             detection_rate?: number; tool_summary?: Record<string, number> };
   status_change: 'improved' | 'regressed' | 'unchanged';
 }
@@ -93,6 +93,21 @@ export interface ComparisonResult {
   unchanged: number;
   tool_count_before: number;
   tool_count_after: number;
+}
+
+// --- Shared helpers ---
+
+/**
+ * Determine if a planted-bug eval passed based on judge results vs ground truth thresholds.
+ * Centralizes the pass/fail logic so all planted-bug tests use the same criteria.
+ */
+export function judgePassed(
+  judgeResult: { detection_rate: number; false_positives: number; evidence_quality: number },
+  groundTruth: { minimum_detection: number; max_false_positives: number },
+): boolean {
+  return judgeResult.detection_rate >= groundTruth.minimum_detection
+    && judgeResult.false_positives <= groundTruth.max_false_positives
+    && judgeResult.evidence_quality >= 2;
 }
 
 // --- Comparison functions (exported for eval:compare CLI) ---
@@ -207,6 +222,7 @@ export function compareEvalResults(
         passed: beforeTest?.passed ?? false,
         cost_usd: beforeTest?.cost_usd ?? 0,
         turns_used: beforeTest?.turns_used,
+        duration_ms: beforeTest?.duration_ms,
         detection_rate: beforeTest?.detection_rate,
         tool_summary: beforeToolSummary,
       },
@@ -214,6 +230,7 @@ export function compareEvalResults(
         passed: afterTest.passed,
         cost_usd: afterTest.cost_usd,
         turns_used: afterTest.turns_used,
+        duration_ms: afterTest.duration_ms,
         detection_rate: afterTest.detection_rate,
         tool_summary: afterToolSummary,
       },
@@ -235,6 +252,7 @@ export function compareEvalResults(
         passed: beforeTest.passed,
         cost_usd: beforeTest.cost_usd,
         turns_used: beforeTest.turns_used,
+        duration_ms: beforeTest.duration_ms,
         detection_rate: beforeTest.detection_rate,
         tool_summary: beforeToolSummary,
       },
@@ -276,6 +294,28 @@ export function formatComparison(c: ComparisonResult): string {
     const beforeStatus = d.before.passed ? 'PASS' : 'FAIL';
     const afterStatus = d.after.passed ? 'PASS' : 'FAIL';
 
+    // Turns delta
+    let turnsDelta = '';
+    if (d.before.turns_used !== undefined && d.after.turns_used !== undefined) {
+      const td = d.after.turns_used - d.before.turns_used;
+      turnsDelta = ` ${d.before.turns_used}→${d.after.turns_used}t`;
+      if (td !== 0) turnsDelta += `(${td > 0 ? '+' : ''}${td})`;
+    } else if (d.after.turns_used !== undefined) {
+      turnsDelta = ` ${d.after.turns_used}t`;
+    }
+
+    // Duration delta
+    let durDelta = '';
+    if (d.before.duration_ms !== undefined && d.after.duration_ms !== undefined) {
+      const bs = Math.round(d.before.duration_ms / 1000);
+      const as = Math.round(d.after.duration_ms / 1000);
+      const dd = as - bs;
+      durDelta = ` ${bs}→${as}s`;
+      if (dd !== 0) durDelta += `(${dd > 0 ? '+' : ''}${dd})`;
+    } else if (d.after.duration_ms !== undefined) {
+      durDelta = ` ${Math.round(d.after.duration_ms / 1000)}s`;
+    }
+
     let detail = '';
     if (d.before.detection_rate !== undefined || d.after.detection_rate !== undefined) {
       detail = ` ${d.before.detection_rate ?? '?'}→${d.after.detection_rate ?? '?'} det`;
@@ -285,8 +325,8 @@ export function formatComparison(c: ComparisonResult): string {
       detail = ` $${costBefore}→$${costAfter}`;
     }
 
-    const name = d.name.length > 35 ? d.name.slice(0, 32) + '...' : d.name.padEnd(35);
-    lines.push(`  ${name}  ${beforeStatus.padEnd(5)} → ${afterStatus.padEnd(5)}  ${arrow}${detail}`);
+    const name = d.name.length > 30 ? d.name.slice(0, 27) + '...' : d.name.padEnd(30);
+    lines.push(`  ${name}  ${beforeStatus.padEnd(5)} → ${afterStatus.padEnd(5)}  ${arrow}${detail}${turnsDelta}${durDelta}`);
   }
 
   lines.push('─'.repeat(70));
@@ -339,7 +379,141 @@ export function formatComparison(c: ComparisonResult): string {
     }
   }
 
+  // Commentary — interpret what the deltas mean
+  const commentary = generateCommentary(c);
+  if (commentary.length > 0) {
+    lines.push('');
+    lines.push('  Takeaway:');
+    for (const line of commentary) {
+      lines.push(`    ${line}`);
+    }
+  }
+
   return lines.join('\n');
+}
+
+/**
+ * Generate human-readable commentary interpreting comparison deltas.
+ * Pure function — analyzes the numbers and explains what they mean.
+ */
+export function generateCommentary(c: ComparisonResult): string[] {
+  const notes: string[] = [];
+
+  // 1. Regressions are the most important signal — call them out first
+  const regressions = c.deltas.filter(d => d.status_change === 'regressed');
+  if (regressions.length > 0) {
+    for (const d of regressions) {
+      notes.push(`REGRESSION: "${d.name}" was passing, now fails. Investigate immediately.`);
+    }
+  }
+
+  // 2. Improvements
+  const improvements = c.deltas.filter(d => d.status_change === 'improved');
+  for (const d of improvements) {
+    notes.push(`Fixed: "${d.name}" now passes.`);
+  }
+
+  // 3. Per-test efficiency changes (only for unchanged-status tests — regressions/improvements are already noted)
+  const stable = c.deltas.filter(d => d.status_change === 'unchanged' && d.after.passed);
+  for (const d of stable) {
+    const insights: string[] = [];
+
+    // Turns
+    if (d.before.turns_used !== undefined && d.after.turns_used !== undefined && d.before.turns_used > 0) {
+      const turnsDelta = d.after.turns_used - d.before.turns_used;
+      const turnsPct = Math.round((turnsDelta / d.before.turns_used) * 100);
+      if (Math.abs(turnsPct) >= 20 && Math.abs(turnsDelta) >= 2) {
+        if (turnsDelta < 0) {
+          insights.push(`${Math.abs(turnsDelta)} fewer turns (${Math.abs(turnsPct)}% more efficient)`);
+        } else {
+          insights.push(`${turnsDelta} more turns (${turnsPct}% less efficient)`);
+        }
+      }
+    }
+
+    // Duration
+    if (d.before.duration_ms !== undefined && d.after.duration_ms !== undefined && d.before.duration_ms > 0) {
+      const durDelta = d.after.duration_ms - d.before.duration_ms;
+      const durPct = Math.round((durDelta / d.before.duration_ms) * 100);
+      if (Math.abs(durPct) >= 20 && Math.abs(durDelta) >= 5000) {
+        if (durDelta < 0) {
+          insights.push(`${Math.round(Math.abs(durDelta) / 1000)}s faster`);
+        } else {
+          insights.push(`${Math.round(durDelta / 1000)}s slower`);
+        }
+      }
+    }
+
+    // Detection rate
+    if (d.before.detection_rate !== undefined && d.after.detection_rate !== undefined) {
+      const detDelta = d.after.detection_rate - d.before.detection_rate;
+      if (detDelta !== 0) {
+        if (detDelta > 0) {
+          insights.push(`detecting ${detDelta} more bug${detDelta > 1 ? 's' : ''}`);
+        } else {
+          insights.push(`detecting ${Math.abs(detDelta)} fewer bug${Math.abs(detDelta) > 1 ? 's' : ''} — check prompt quality`);
+        }
+      }
+    }
+
+    // Cost
+    if (d.before.cost_usd > 0) {
+      const costDelta = d.after.cost_usd - d.before.cost_usd;
+      const costPct = Math.round((costDelta / d.before.cost_usd) * 100);
+      if (Math.abs(costPct) >= 30 && Math.abs(costDelta) >= 0.05) {
+        if (costDelta < 0) {
+          insights.push(`${Math.abs(costPct)}% cheaper`);
+        } else {
+          insights.push(`${costPct}% more expensive`);
+        }
+      }
+    }
+
+    if (insights.length > 0) {
+      notes.push(`"${d.name}": ${insights.join(', ')}.`);
+    }
+  }
+
+  // 4. Overall summary
+  if (c.deltas.length >= 3 && regressions.length === 0) {
+    const overallParts: string[] = [];
+
+    // Total cost
+    const totalBefore = c.deltas.reduce((s, d) => s + d.before.cost_usd, 0);
+    if (totalBefore > 0) {
+      const costPct = Math.round((c.total_cost_delta / totalBefore) * 100);
+      if (Math.abs(costPct) >= 10) {
+        overallParts.push(`${Math.abs(costPct)}% ${costPct < 0 ? 'cheaper' : 'more expensive'} overall`);
+      }
+    }
+
+    // Total duration
+    const totalDurBefore = c.deltas.reduce((s, d) => s + (d.before.duration_ms || 0), 0);
+    if (totalDurBefore > 0) {
+      const durPct = Math.round((c.total_duration_delta / totalDurBefore) * 100);
+      if (Math.abs(durPct) >= 10) {
+        overallParts.push(`${Math.abs(durPct)}% ${durPct < 0 ? 'faster' : 'slower'}`);
+      }
+    }
+
+    // Total turns
+    const turnsBefore = c.deltas.reduce((s, d) => s + (d.before.turns_used || 0), 0);
+    const turnsAfter = c.deltas.reduce((s, d) => s + (d.after.turns_used || 0), 0);
+    if (turnsBefore > 0) {
+      const turnsPct = Math.round(((turnsAfter - turnsBefore) / turnsBefore) * 100);
+      if (Math.abs(turnsPct) >= 10) {
+        overallParts.push(`${Math.abs(turnsPct)}% ${turnsPct < 0 ? 'fewer' : 'more'} turns`);
+      }
+    }
+
+    if (overallParts.length > 0) {
+      notes.push(`Overall: ${overallParts.join(', ')}. ${regressions.length === 0 ? 'No regressions.' : ''}`);
+    } else if (regressions.length === 0) {
+      notes.push('Stable run — no significant efficiency changes, no regressions.');
+    }
+  }
+
+  return notes;
 }
 
 // --- EvalCollector ---
@@ -481,19 +655,19 @@ export class EvalCollector {
     for (const t of this.tests) {
       const status = t.passed ? ' PASS ' : ' FAIL ';
       const cost = `$${t.cost_usd.toFixed(2)}`;
+      const dur = t.duration_ms ? `${Math.round(t.duration_ms / 1000)}s` : '';
+      const turns = t.turns_used !== undefined ? `${t.turns_used}t` : '';
 
       let detail = '';
       if (t.detection_rate !== undefined) {
         detail = `${t.detection_rate}/${(t.detected_bugs?.length || 0) + (t.missed_bugs?.length || 0)} det`;
-      } else if (t.turns_used !== undefined) {
-        detail = `${t.turns_used} turns`;
       } else if (t.judge_scores) {
         const scores = Object.entries(t.judge_scores).map(([k, v]) => `${k[0]}:${v}`).join(' ');
         detail = scores;
       }
 
-      const name = t.name.length > 38 ? t.name.slice(0, 35) + '...' : t.name.padEnd(38);
-      lines.push(`  ${name}  ${status}  ${cost.padStart(6)}  ${detail}`);
+      const name = t.name.length > 35 ? t.name.slice(0, 32) + '...' : t.name.padEnd(35);
+      lines.push(`  ${name}  ${status}  ${cost.padStart(6)}  ${turns.padStart(4)}  ${dur.padStart(5)}  ${detail}`);
     }
 
     lines.push('─'.repeat(70));

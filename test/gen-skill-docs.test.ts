@@ -61,6 +61,7 @@ describe('gen-skill-docs', () => {
     { dir: '.', name: 'root gstack' },
     { dir: 'browse', name: 'browse' },
     { dir: 'qa', name: 'qa' },
+    { dir: 'qa-only', name: 'qa-only' },
     { dir: 'review', name: 'review' },
     { dir: 'ship', name: 'ship' },
     { dir: 'plan-ceo-review', name: 'plan-ceo-review' },
@@ -124,10 +125,81 @@ describe('gen-skill-docs', () => {
     const rootTmpl = fs.readFileSync(path.join(ROOT, 'SKILL.md.tmpl'), 'utf-8');
     expect(rootTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(rootTmpl).toContain('{{SNAPSHOT_FLAGS}}');
+    expect(rootTmpl).toContain('{{PREAMBLE}}');
 
     const browseTmpl = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md.tmpl'), 'utf-8');
     expect(browseTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(browseTmpl).toContain('{{SNAPSHOT_FLAGS}}');
+    expect(browseTmpl).toContain('{{PREAMBLE}}');
+  });
+
+  test('generated SKILL.md contains contributor mode check', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Contributor Mode');
+    expect(content).toContain('gstack_contributor');
+    expect(content).toContain('contributor-logs');
+  });
+
+  test('generated SKILL.md contains session awareness', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('_SESSIONS');
+    expect(content).toContain('RECOMMENDATION');
+    expect(content).toContain('ELI16');
+  });
+
+  test('qa and qa-only templates use QA_METHODOLOGY placeholder', () => {
+    const qaTmpl = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md.tmpl'), 'utf-8');
+    expect(qaTmpl).toContain('{{QA_METHODOLOGY}}');
+
+    const qaOnlyTmpl = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md.tmpl'), 'utf-8');
+    expect(qaOnlyTmpl).toContain('{{QA_METHODOLOGY}}');
+  });
+
+  test('QA_METHODOLOGY appears expanded in both qa and qa-only generated files', () => {
+    const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    const qaOnlyContent = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
+
+    // Both should contain the health score rubric
+    expect(qaContent).toContain('Health Score Rubric');
+    expect(qaOnlyContent).toContain('Health Score Rubric');
+
+    // Both should contain framework guidance
+    expect(qaContent).toContain('Framework-Specific Guidance');
+    expect(qaOnlyContent).toContain('Framework-Specific Guidance');
+
+    // Both should contain the important rules
+    expect(qaContent).toContain('Important Rules');
+    expect(qaOnlyContent).toContain('Important Rules');
+
+    // Both should contain the 6 phases
+    expect(qaContent).toContain('Phase 1');
+    expect(qaOnlyContent).toContain('Phase 1');
+    expect(qaContent).toContain('Phase 6');
+    expect(qaOnlyContent).toContain('Phase 6');
+  });
+
+  test('qa-only has no-fix guardrails', () => {
+    const qaOnlyContent = fs.readFileSync(path.join(ROOT, 'qa-only', 'SKILL.md'), 'utf-8');
+    expect(qaOnlyContent).toContain('Never fix bugs');
+    expect(qaOnlyContent).toContain('NEVER fix anything');
+    // Should not have Edit, Glob, or Grep in allowed-tools
+    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Edit/);
+    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Glob/);
+    expect(qaOnlyContent).not.toMatch(/allowed-tools:[\s\S]*?Grep/);
+  });
+
+  test('qa has fix-loop tools and phases', () => {
+    const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    // Should have Edit, Glob, Grep in allowed-tools
+    expect(qaContent).toContain('Edit');
+    expect(qaContent).toContain('Glob');
+    expect(qaContent).toContain('Grep');
+    // Should have fix-loop phases
+    expect(qaContent).toContain('Phase 7');
+    expect(qaContent).toContain('Phase 8');
+    expect(qaContent).toContain('Fix Loop');
+    expect(qaContent).toContain('Triage');
+    expect(qaContent).toContain('WTF');
   });
 });
 

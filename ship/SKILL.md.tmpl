@@ -13,7 +13,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-{{UPDATE_CHECK}}
+{{PREAMBLE}}
 
 # Ship: Fully Automated Ship Workflow
 
@@ -165,8 +165,8 @@ Review the diff for structural issues that tests don't catch.
 
 6. **If CRITICAL issues found:** For EACH critical issue, use a separate AskUserQuestion with:
    - The problem (`file:line` + description)
-   - Your recommended fix
-   - Options: A) Fix it now (recommend), B) Acknowledge and ship anyway, C) It's a false positive — skip
+   - `RECOMMENDATION: Choose A because [one-line reason]`
+   - Options: A) Fix it now, B) Acknowledge and ship anyway, C) It's a false positive — skip
    After resolving all critical issues: if the user chose A (fix) on any issue, apply the recommended fixes, then commit only the fixed files by name (`git add <fixed-files> && git commit -m "fix: apply pre-landing review fixes"`), then **STOP** and tell the user to run `/ship` again to re-test with the fixes applied. If the user chose only B (acknowledge) or C (false positive) on all issues, continue with Step 4.
 
 7. **If only non-critical issues found:** Output them and continue. They will be included in the PR body at Step 8.
@@ -193,8 +193,8 @@ For each classified comment:
 
 **VALID & ACTIONABLE:** Use AskUserQuestion with:
 - The comment (file:line or [top-level] + body summary + permalink URL)
-- Your recommended fix
-- Options: A) Fix now (recommended), B) Acknowledge and ship anyway, C) It's a false positive
+- `RECOMMENDATION: Choose A because [one-line reason]`
+- Options: A) Fix now, B) Acknowledge and ship anyway, C) It's a false positive
 - If user chooses A: apply the fix, commit the fixed files (`git add <fixed-files> && git commit -m "fix: address Greptile review — <brief description>"`), reply using the **Fix reply template** from greptile-triage.md (include inline diff + explanation), and save to both per-project and global greptile-history (type: fix).
 - If user chooses C: reply using the **False Positive reply template** from greptile-triage.md (include evidence + suggested re-rank), save to both per-project and global greptile-history (type: fp).
 

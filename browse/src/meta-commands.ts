@@ -150,7 +150,7 @@ export async function handleMetaCommand(
       }
 
       if (targetSelector) {
-        const resolved = bm.resolveRef(targetSelector);
+        const resolved = await bm.resolveRef(targetSelector);
         const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
         await locator.screenshot({ path: outputPath, timeout: 5000 });
         return `Screenshot saved (element): ${outputPath}`;
