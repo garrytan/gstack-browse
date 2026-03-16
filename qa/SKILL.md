@@ -29,6 +29,27 @@ If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/g
 
 You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence.
 
+## Browse Binary — Subcommand Reference
+
+All browse commands use the binary found in Setup as `$B`. Valid subcommands, flags, and arguments:
+
+| Subcommand | Flags / Arguments | Description |
+|---|---|---|
+| `goto <url>` | — | Navigate to a URL |
+| `snapshot` | `-i` (interactive/annotated), `-a` (accessibility tree), `-D` (diff since last snapshot), `-C` (clickable-only scan), `-o <path>` (save PNG) | Capture page state; flags are combinable, e.g. `-i -a -o file.png` |
+| `screenshot <path>` | — | Save a plain PNG screenshot to `<path>` |
+| `click <ref>` | `<ref>` is an element reference like `@e5` from snapshot output | Click an element |
+| `fill <ref> <value>` | `<ref>` element reference, `<value>` string | Type into an input |
+| `links` | — | List all links on the current page |
+| `console` | `--errors` (only show errors), `--all` (show all log levels) | Read browser console output |
+| `viewport <WxH>` | `<WxH>` e.g. `375x812`, `1280x720` | Resize the browser viewport |
+| `cookie-import <file>` | `<file>` path to a JSON cookie file | Import cookies for authentication |
+| `js <expression>` | `<expression>` a JS string to evaluate, e.g. `"await fetch('/api/v1/health')"` | Execute JavaScript in the page context and return the result |
+
+**Element references (`@eN`):** These are short-lived identifiers returned by `snapshot -i`. Re-run `snapshot -i` after any navigation or DOM change before using a new `@eN` reference — stale references will error.
+
+---
+
 ## Setup
 
 **Parse the user's request for these parameters:**
