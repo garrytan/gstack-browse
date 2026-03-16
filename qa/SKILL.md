@@ -113,7 +113,7 @@ Capture the current page's accessibility tree (and optionally a screenshot). Ret
 | `-d N` | Limit tree depth to N levels. Useful for getting a high-level overview of a complex page. |
 | `-a` | Annotated screenshot — renders the page with a red overlay marking all interactive elements. Saves to the path specified by `-o`. |
 | `-o <path>` | Output path for the annotated screenshot produced by `-a`. Required when using `-a`. |
-| `-D` | Unified diff vs. the previous snapshot — shows only what changed since the last `snapshot` call. Use after interactions to verify the expected DOM change occurred. |
+| `-D` | Unified diff vs. previous snapshot — first call stores the baseline, second call shows what changed. Use after interactions to verify the expected DOM change occurred. |
 | `-C` | Cursor-interactive mode — resolves `@c` refs (elements under the cursor). Use for tricky UIs where standard accessibility refs are missing. |
 | `-s <sel>` | Scope the snapshot to a CSS selector — only the subtree matching `<sel>` is returned. Useful for focusing on a specific component. |
 
@@ -146,15 +146,15 @@ $B fill @e4 "hunter2"
 $B fill "input[name=search]" "hello world"
 ```
 
-### `$B screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]`
-Take a screenshot. All arguments are optional and positional in the order shown.
+### `$B screenshot [selector|@ref] [path]`
+Take a screenshot. Positional args (in order): optional `[selector|@ref]` then optional `[path]`.
 
-| Argument | Description |
-|----------|-------------|
-| `--viewport` | Capture the full viewport (default behavior when no selector is given). |
-| `--clip x,y,w,h` | Clip to a rectangle: x and y are the top-left corner, w and h are width and height in pixels. |
-| `selector\|@ref` | Capture only the element matching this CSS selector or `@eN` ref. |
-| `path` | File path to save the PNG. If omitted, the screenshot is returned inline. |
+| Flag / Argument | Description |
+|-----------------|-------------|
+| `--viewport` | Flag: capture the full viewport. |
+| `--clip x,y,w,h` | Flag: clip to a rectangle (x, y = top-left corner, w, h = dimensions in pixels). |
+| `selector\|@ref` | Positional: capture only the element matching this CSS selector or `@eN` ref. |
+| `path` | Positional: file path to save the PNG. If omitted, screenshot is returned inline. |
 
 ```bash
 $B screenshot screenshots/page.png                        # full viewport to file
