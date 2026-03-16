@@ -69,6 +69,11 @@ describe('gen-skill-docs', () => {
     { dir: 'retro', name: 'retro' },
     { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
     { dir: 'gstack-upgrade', name: 'gstack-upgrade' },
+    { dir: 'conflicts', name: 'conflicts' },
+    { dir: 'risk', name: 'risk' },
+    { dir: 'cso', name: 'cso' },
+    { dir: 'escalation', name: 'escalation' },
+    { dir: 'ai-hybrid', name: 'ai-hybrid' },
   ];
 
   test('every skill has a SKILL.md.tmpl template', () => {
