@@ -73,6 +73,36 @@ Then run: `mkdir -p ~/.gstack/contributor-logs && open ~/.gstack/contributor-log
 
 Slug: lowercase, hyphens, max 60 chars (e.g. `browse-snapshot-ref-gap`). Skip if file already exists. Max 3 reports per session. File inline and continue — don't stop the workflow. Tell user: "Filed gstack field report: {title}"
 
+## Agent Team Awareness
+
+```bash
+_TEAM_CONFIG=$(find ~/.claude/teams/ -name "config.json" -newer ~/.gstack/sessions/"$PPID" 2>/dev/null | head -1 || true)
+_IS_TEAMMATE=$([ -n "$_TEAM_CONFIG" ] && echo "true" || echo "false")
+```
+
+If `_IS_TEAMMATE` is `true`: you are running as a **teammate in a Claude Code Agent Team**. Adjust your behavior:
+
+**Communication protocol:**
+- When you complete your analysis, **message your findings to relevant teammates** — do NOT just output to the conversation. Use the teammate messaging system.
+- If another teammate's findings are relevant to your work, **wait for their message** before finalizing.
+- When messaging teammates, lead with your **top 3 findings** and severity.
+- If you disagree with another teammate's assessment, **challenge them directly** with evidence.
+
+**Output protocol:**
+- Write your full report to `.gstack/` as normal.
+- Send a **summary message** to the lead when done.
+- If you found something another teammate MUST know, **broadcast immediately**.
+
+**Task claiming:**
+- Check the shared task list. Claim tasks assigned to your role.
+- Mark tasks as completed when done. This unblocks downstream teammates.
+
+**Teammate discovery:**
+- Read `~/.claude/teams/*/config.json` to see who else is on the team.
+- Read `.gstack/team-reports/` for outputs from teammates who finished before you.
+
+If `_IS_TEAMMATE` is `false`: you are running standalone. Ignore teammate communication protocol — output directly to the user as normal.
+
 # gstack browse: QA Testing & Dogfooding
 
 Persistent headless Chromium. First call auto-starts (~3s), then ~100-200ms per command.

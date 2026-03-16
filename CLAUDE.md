@@ -118,6 +118,44 @@ CHANGELOG.md is **for users**, not contributors. Write it like product release n
 - No jargon: say "every question now tells you which project and branch you're in" not
   "AskUserQuestion format standardized across skill templates via preamble resolver."
 
+## Agent Teams
+
+gstack skills are designed to run as **Claude Code Agent Teams** where teammates
+communicate directly with each other. Enable this in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+### How it works
+
+When a user says `/team ship` or "create a team to review this code," the lead:
+1. Spawns teammates, each assigned a gstack skill persona
+2. Each teammate reads their SKILL.md and follows it as their methodology
+3. Teammates message findings to each other
+4. The lead synthesizes all teammate outputs into a unified report
+
+### Pre-built team configurations
+
+See `team/SKILL.md` for the 7 pre-built configurations. The `/team` skill handles
+teammate spawning, skill assignment, task dependency ordering, and output synthesis.
+
+### Every skill is teammate-aware
+
+The shared `{{PREAMBLE}}` includes agent team detection. When a skill runs as a
+teammate, it automatically:
+- Messages findings to relevant teammates instead of just outputting
+- Waits for upstream teammate findings before dependent analysis
+- Writes reports to `.gstack/` for cross-teammate access
+- Marks shared tasks as completed to unblock downstream work
+
+This means ANY gstack skill works both standalone (user invokes directly) and as
+a teammate (lead spawns it in a team). No special configuration needed.
+
 ## Deploying to the active skill
 
 The active skill lives at `~/.claude/skills/gstack/`. After making changes:

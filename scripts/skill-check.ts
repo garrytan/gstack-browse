@@ -27,6 +27,7 @@ const SKILL_FILES = [
   'plan-ceo-review/SKILL.md',
   'plan-eng-review/SKILL.md',
   'setup-browser-cookies/SKILL.md',
+  'team/SKILL.md',
 ].filter(f => fs.existsSync(path.join(ROOT, f)));
 
 let hasErrors = false;
@@ -67,6 +68,7 @@ console.log('\n  Templates:');
 const TEMPLATES = [
   { tmpl: 'SKILL.md.tmpl', output: 'SKILL.md' },
   { tmpl: 'browse/SKILL.md.tmpl', output: 'browse/SKILL.md' },
+  { tmpl: 'team/SKILL.md.tmpl', output: 'team/SKILL.md' },
 ];
 
 for (const { tmpl, output } of TEMPLATES) {

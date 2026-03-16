@@ -69,6 +69,7 @@ describe('gen-skill-docs', () => {
     { dir: 'retro', name: 'retro' },
     { dir: 'setup-browser-cookies', name: 'setup-browser-cookies' },
     { dir: 'gstack-upgrade', name: 'gstack-upgrade' },
+    { dir: 'team', name: 'team' },
   ];
 
   test('every skill has a SKILL.md.tmpl template', () => {

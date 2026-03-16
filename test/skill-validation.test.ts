@@ -176,6 +176,7 @@ describe('Update check preamble', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'team/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -479,6 +480,7 @@ describe('v0.4.1 preamble features', () => {
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'team/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
