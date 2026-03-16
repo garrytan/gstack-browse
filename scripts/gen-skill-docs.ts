@@ -539,6 +539,9 @@ function findTemplates(): string[] {
     path.join(ROOT, 'plan-eng-review', 'SKILL.md.tmpl'),
     path.join(ROOT, 'retro', 'SKILL.md.tmpl'),
     path.join(ROOT, 'mastery-status', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'mastery-init', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'mastery-plan', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'mastery-handoff', 'SKILL.md.tmpl'),
     path.join(ROOT, 'gstack-upgrade', 'SKILL.md.tmpl'),
     path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
   ];

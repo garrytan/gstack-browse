@@ -28,6 +28,9 @@ Ten opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/
 | `/retro` | Engineering manager | Team-aware retro: your deep-dive + per-person praise and growth opportunities for every contributor. |
 | `/document-release` | Technical writer | Update README, ARCHITECTURE, CONTRIBUTING, and project docs to match what you just shipped. |
 | `/mastery-status` | Process architect | Project status from [Mastery](https://github.com/RAiWorks/MASTERY.md) framework docs. Shows active feature, task progress, and where the last session stopped. |
+| `/mastery-init` | Project bootstrapper | Set up the Mastery development framework in any project. Creates docs skeleton, runs project discussion, and builds the roadmap. |
+| `/mastery-plan` | Feature planner | Plan a feature end-to-end: discussion doc, architecture doc, tasks, and testplan. One command from idea to ready-to-build. |
+| `/mastery-handoff` | Session closer | Write a session handoff note. Logs what you did, where you stopped, and what comes next — so the next session starts instantly. |
 
 ## Demo: one feature, five modes
 
