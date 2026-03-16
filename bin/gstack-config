@@ -23,7 +23,7 @@ case "${1:-}" in
     VALUE="${3:?Usage: gstack-config set <key> <value>}"
     mkdir -p "$STATE_DIR"
     if grep -qE "^${KEY}:" "$CONFIG_FILE" 2>/dev/null; then
-      sed -i '' "s/^${KEY}:.*/${KEY}: ${VALUE}/" "$CONFIG_FILE"
+      sed -i "s/^${KEY}:.*/${KEY}: ${VALUE}/" "$CONFIG_FILE"
     else
       echo "${KEY}: ${VALUE}" >> "$CONFIG_FILE"
     fi
