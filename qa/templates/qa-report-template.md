@@ -72,6 +72,33 @@
 
 ---
 
+## Fixes Applied (if applicable)
+
+| Issue | Fix Status | Commit | Files Changed |
+|-------|-----------|--------|---------------|
+| ISSUE-NNN | verified / best-effort / reverted / deferred | {SHA} | {files} |
+
+### Before/After Evidence
+
+#### ISSUE-NNN: {title}
+**Before:** ![Before](screenshots/issue-NNN-before.png)
+**After:** ![After](screenshots/issue-NNN-after.png)
+
+---
+
+## Ship Readiness
+
+| Metric | Value |
+|--------|-------|
+| Health score | {before} → {after} ({delta}) |
+| Issues found | N |
+| Fixes applied | N (verified: X, best-effort: Y, reverted: Z) |
+| Deferred | N |
+
+**PR Summary:** "QA found N issues, fixed M, health score X → Y."
+
+---
+
 ## Regression (if applicable)
 
 | Metric | Baseline | Current | Delta |

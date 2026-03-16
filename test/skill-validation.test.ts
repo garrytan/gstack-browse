@@ -43,6 +43,20 @@ describe('SKILL.md command validation', () => {
     const result = validateSkill(qaSkill);
     expect(result.snapshotFlagErrors).toHaveLength(0);
   });
+
+  test('all $B commands in qa-only/SKILL.md are valid browse commands', () => {
+    const qaOnlySkill = path.join(ROOT, 'qa-only', 'SKILL.md');
+    if (!fs.existsSync(qaOnlySkill)) return;
+    const result = validateSkill(qaOnlySkill);
+    expect(result.invalid).toHaveLength(0);
+  });
+
+  test('all snapshot flags in qa-only/SKILL.md are valid', () => {
+    const qaOnlySkill = path.join(ROOT, 'qa-only', 'SKILL.md');
+    if (!fs.existsSync(qaOnlySkill)) return;
+    const result = validateSkill(qaOnlySkill);
+    expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
 });
 
 describe('Command registry consistency', () => {
@@ -157,6 +171,7 @@ describe('Generated SKILL.md freshness', () => {
 describe('Update check preamble', () => {
   const skillsWithUpdateCheck = [
     'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
     'setup-browser-cookies/SKILL.md',
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
@@ -261,7 +276,7 @@ describe('Cross-skill path consistency', () => {
 describe('QA skill structure validation', () => {
   const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
 
-  test('qa/SKILL.md has all 6 phases', () => {
+  test('qa/SKILL.md has all 11 phases', () => {
     const phases = [
       'Phase 1', 'Initialize',
       'Phase 2', 'Authenticate',
@@ -269,6 +284,11 @@ describe('QA skill structure validation', () => {
       'Phase 4', 'Explore',
       'Phase 5', 'Document',
       'Phase 6', 'Wrap Up',
+      'Phase 7', 'Triage',
+      'Phase 8', 'Fix Loop',
+      'Phase 9', 'Final QA',
+      'Phase 10', 'Report',
+      'Phase 11', 'TODOS',
     ];
     for (const phase of phases) {
       expect(qaContent).toContain(phase);
@@ -289,6 +309,13 @@ describe('QA skill structure validation', () => {
     // Mode triggers/flags
     expect(qaContent).toContain('--quick');
     expect(qaContent).toContain('--regression');
+  });
+
+  test('has all three tiers defined', () => {
+    const tiers = ['Quick', 'Standard', 'Exhaustive'];
+    for (const tier of tiers) {
+      expect(qaContent).toContain(tier);
+    }
   });
 
   test('health score weights sum to 100%', () => {

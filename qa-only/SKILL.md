@@ -1,20 +1,15 @@
 ---
-name: qa
-version: 2.0.0
+name: qa-only
+version: 1.0.0
 description: |
-  Systematically QA test a web application and fix bugs found. Runs QA testing,
-  then iteratively fixes bugs in source code, committing each fix atomically and
-  re-verifying. Use when asked to "qa", "QA", "test this site", "find bugs",
-  "test and fix", or "fix what's broken". Three tiers: Quick (critical/high only),
-  Standard (+ medium), Exhaustive (+ cosmetic). Produces before/after health scores,
-  fix evidence, and a ship-readiness summary. For report-only mode, use /qa-only.
+  Report-only QA testing. Systematically tests a web application and produces a
+  structured report with health score, screenshots, and repro steps — but never
+  fixes anything. Use when asked to "just report bugs", "qa report only", or
+  "test but don't fix". For the full test-fix-verify loop, use /qa instead.
 allowed-tools:
   - Bash
   - Read
   - Write
-  - Edit
-  - Glob
-  - Grep
   - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
@@ -29,9 +24,9 @@ _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/sk
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
-# /qa: Test → Fix → Verify
+# /qa-only: Report-Only QA Testing
 
-You are a QA engineer AND a bug-fix engineer. Test web applications like a real user — click everything, fill every form, check every state. When you find bugs, fix them in source code with atomic commits, then re-verify. Produce a structured report with before/after evidence.
+You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence. **NEVER fix anything.**
 
 ## Setup
 
@@ -40,26 +35,12 @@ You are a QA engineer AND a bug-fix engineer. Test web applications like a real 
 | Parameter | Default | Override example |
 |-----------|---------|-----------------:|
 | Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
-| Tier | Standard | `--quick`, `--exhaustive` |
-| Mode | full | `--regression .gstack/qa-reports/baseline.json` |
+| Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
 | Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
-**Tiers determine which issues get fixed:**
-- **Quick:** Fix critical + high severity only
-- **Standard:** + medium severity (default)
-- **Exhaustive:** + low/cosmetic severity
-
 **If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
-
-**Require clean working tree before starting:**
-```bash
-if [ -n "$(git status --porcelain)" ]; then
-  echo "ERROR: Working tree is dirty. Commit or stash changes before running /qa."
-  exit 1
-fi
-```
 
 **Find the browse binary:**
 
@@ -104,8 +85,6 @@ Before falling back to git diff heuristics, check for richer test plan sources:
 3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
 
 ---
-
-## Phases 1-6: QA Baseline
 
 ## Modes
 
@@ -381,122 +360,9 @@ Minimum 0 per category.
 9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
 10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
 
-Record baseline health score at end of Phase 6.
-
 ---
 
-## Output Structure
-
-```
-.gstack/qa-reports/
-├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
-├── screenshots/
-│   ├── initial.png                        # Landing page annotated screenshot
-│   ├── issue-001-step-1.png               # Per-issue evidence
-│   ├── issue-001-result.png
-│   ├── issue-001-before.png               # Before fix (if fixed)
-│   ├── issue-001-after.png                # After fix (if fixed)
-│   └── ...
-└── baseline.json                          # For regression mode
-```
-
-Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
-
----
-
-## Phase 7: Triage
-
-Sort all discovered issues by severity, then decide which to fix based on the selected tier:
-
-- **Quick:** Fix critical + high only. Mark medium/low as "deferred."
-- **Standard:** Fix critical + high + medium. Mark low as "deferred."
-- **Exhaustive:** Fix all, including cosmetic/low severity.
-
-Mark issues that cannot be fixed from source code (e.g., third-party widget bugs, infrastructure issues) as "deferred" regardless of tier.
-
----
-
-## Phase 8: Fix Loop
-
-For each fixable issue, in severity order:
-
-### 8a. Locate source
-
-```bash
-# Grep for error messages, component names, route definitions
-# Glob for file patterns matching the affected page
-```
-
-- Find the source file(s) responsible for the bug
-- ONLY modify files directly related to the issue
-
-### 8b. Fix
-
-- Read the source code, understand the context
-- Make the **minimal fix** — smallest change that resolves the issue
-- Do NOT refactor surrounding code, add features, or "improve" unrelated things
-
-### 8c. Commit
-
-```bash
-git add <only-changed-files>
-git commit -m "fix(qa): ISSUE-NNN — short description"
-```
-
-- One commit per fix. Never bundle multiple fixes.
-- Message format: `fix(qa): ISSUE-NNN — short description`
-
-### 8d. Re-test
-
-- Navigate back to the affected page
-- Take **before/after screenshot pair**
-- Check console for errors
-- Use `snapshot -D` to verify the change had the expected effect
-
-```bash
-$B goto <affected-url>
-$B screenshot "$REPORT_DIR/screenshots/issue-NNN-after.png"
-$B console --errors
-$B snapshot -D
-```
-
-### 8e. Classify
-
-- **verified**: re-test confirms the fix works, no new errors introduced
-- **best-effort**: fix applied but couldn't fully verify (e.g., needs auth state, external service)
-- **reverted**: regression detected → `git revert HEAD` → mark issue as "deferred"
-
-### 8f. Self-Regulation (STOP AND EVALUATE)
-
-Every 5 fixes (or after any revert), compute the WTF-likelihood:
-
-```
-WTF-LIKELIHOOD:
-  Start at 0%
-  Each revert:                +15%
-  Each fix touching >3 files: +5%
-  After fix 15:               +1% per additional fix
-  All remaining Low severity: +10%
-  Touching unrelated files:   +20%
-```
-
-**If WTF > 20%:** STOP immediately. Show the user what you've done so far. Ask whether to continue.
-
-**Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
-
----
-
-## Phase 9: Final QA
-
-After all fixes are applied:
-
-1. Re-run QA on all affected pages
-2. Compute final health score
-3. **If final score is WORSE than baseline:** WARN prominently — something regressed
-
----
-
-## Phase 10: Report
+## Output
 
 Write the report to both local and project-scoped locations:
 
@@ -509,36 +375,23 @@ mkdir -p ~/.gstack/projects/$SLUG
 ```
 Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
 
-**Per-issue additions** (beyond standard report template):
-- Fix Status: verified / best-effort / reverted / deferred
-- Commit SHA (if fixed)
-- Files Changed (if fixed)
-- Before/After screenshots (if fixed)
+### Output Structure
 
-**Summary section:**
-- Total issues found
-- Fixes applied (verified: X, best-effort: Y, reverted: Z)
-- Deferred issues
-- Health score delta: baseline → final
+```
+.gstack/qa-reports/
+├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
+├── screenshots/
+│   ├── initial.png                        # Landing page annotated screenshot
+│   ├── issue-001-step-1.png               # Per-issue evidence
+│   ├── issue-001-result.png
+│   └── ...
+└── baseline.json                          # For regression mode
+```
 
-**PR Summary:** Include a one-line summary suitable for PR descriptions:
-> "QA found N issues, fixed M, health score X → Y."
-
----
-
-## Phase 11: TODOS.md Update
-
-If the repo has a `TODOS.md`:
-
-1. **New deferred bugs** → add as TODOs with severity, category, and repro steps
-2. **Fixed bugs that were in TODOS.md** → annotate with "Fixed by /qa on {branch}, {date}"
+Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
 
 ---
 
-## Additional Rules (qa-specific)
+## Additional Rules (qa-only specific)
 
-11. **Clean working tree required.** Refuse to start if `git status --porcelain` is non-empty.
-12. **One commit per fix.** Never bundle multiple fixes into one commit.
-13. **Never modify tests or CI configuration.** Only fix application source code.
-14. **Revert on regression.** If a fix makes things worse, `git revert HEAD` immediately.
-15. **Self-regulate.** Follow the WTF-likelihood heuristic. When in doubt, stop and ask.
+11. **Never fix bugs.** Find and document only. Do not read source code, edit files, or suggest fixes in the report. Your job is to report what's broken, not to fix it. Use `/qa` for the test-fix-verify loop.
