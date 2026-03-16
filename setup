@@ -72,7 +72,7 @@ if [ "$SKILLS_BASENAME" = "skills" ]; then
       target="$SKILLS_DIR/$skill_name"
       # Create or update symlink; skip if a real file/directory exists
       if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
+        ln -snf "$(basename "$GSTACK_DIR")/$skill_name" "$target"
         linked+=("$skill_name")
       fi
     fi
