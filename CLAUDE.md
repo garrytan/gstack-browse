@@ -101,6 +101,76 @@ CHANGELOG.md is **for users**, not contributors. Write it like product release n
 - No jargon: say "every question now tells you which project and branch you're in" not
   "AskUserQuestion format standardized across skill templates via preamble resolver."
 
+## Agent Teams
+
+gstack skills are designed to run as **Claude Code Agent Teams** where teammates
+communicate directly with each other. Enable this in `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  }
+}
+```
+
+### How it works
+
+When a user says `/team ship` or "create a team to review this code," the lead:
+1. Spawns teammates, each assigned a gstack skill persona
+2. Each teammate reads their SKILL.md and follows it as their methodology
+3. Teammates message findings to each other (security → risk, vc → board, etc.)
+4. The lead synthesizes all teammate outputs into a unified report
+
+### Skill dependency graph (who messages whom)
+
+```
+ENGINEERING PIPELINE:
+  /plan-eng-review → /review + /cso (parallel) → /ship → /qa
+
+EXECUTIVE ANALYSIS:
+  /vc + /cfo + /cso (parallel) → /risk (incorporates security) → /board (synthesizes all)
+
+LAUNCH:
+  /media + /pr-comms + /comms (parallel, coordinate on messaging consistency)
+
+INCIDENT:
+  /escalation (IC, makes decisions) ← /cso (security assessment) ← /comms (drafts comms)
+
+CROSS-FUNCTIONAL:
+  /conflicts → /review (knows which PRs conflict)
+  /ai-hybrid → any skill (measures AI-assisted workflow effectiveness)
+  /retro → all skills (analyzes historical performance)
+```
+
+### Team patterns
+
+| Pattern | When to use | Example |
+|---------|-------------|---------|
+| Pipeline | Sequential workflow | `/team ship`: plan → review → ship → qa |
+| Parallel | Independent analysis | `/team review`: 4 reviewers, different lenses |
+| War room | Time-critical incident | `/team incident`: IC + security + comms |
+| Parallel+deps | Analysis with synthesis | `/team diligence`: 3 analysts → risk → board |
+
+### Pre-built team configurations
+
+See `team/SKILL.md` for the 7 pre-built configurations. The `/team` skill is the
+recommended way to spawn agent teams — it handles teammate spawning, skill assignment,
+task dependency ordering, and output synthesis.
+
+### Every skill is teammate-aware
+
+The shared `{{PREAMBLE}}` includes agent team detection. When a skill runs as a
+teammate, it automatically:
+- Messages findings to relevant teammates instead of just outputting
+- Waits for upstream teammate findings before dependent analysis
+- Challenges other teammates' assessments when it disagrees
+- Writes reports to `.gstack/` for cross-teammate access
+- Marks shared tasks as completed to unblock downstream work
+
+This means ANY gstack skill works both standalone (user invokes directly) and as
+a teammate (lead spawns it in a team). No special configuration needed.
+
 ## Deploying to the active skill
 
 The active skill lives at `~/.claude/skills/gstack/`. After making changes:
