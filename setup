@@ -6,10 +6,17 @@ GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
 BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
 
+# Prefer ~/.bun/bin/bun over snap bun (snap has filesystem confinement issues)
+if [ -x "$HOME/.bun/bin/bun" ]; then
+  BUN="$HOME/.bun/bin/bun"
+else
+  BUN="$(command -v bun)"
+fi
+
 ensure_playwright_browser() {
   (
     cd "$GSTACK_DIR"
-    bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
+    "$BUN" --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
   ) >/dev/null 2>&1
 }
 
@@ -29,8 +36,12 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
   echo "Building browse binary..."
   (
     cd "$GSTACK_DIR"
-    bun install
-    bun run build
+    "$BUN" install
+    "$BUN" scripts/gen-skill-docs.ts
+    "$BUN" build --compile browse/src/cli.ts --outfile browse/dist/browse
+    "$BUN" build --compile browse/src/find-browse.ts --outfile browse/dist/find-browse
+    git rev-parse HEAD > browse/dist/.version 2>/dev/null || true
+    rm -f .*.bun-build
   )
   # Safety net: write .version if build script didn't (e.g., git not available during build)
   if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
@@ -48,7 +59,7 @@ if ! ensure_playwright_browser; then
   echo "Installing Playwright Chromium..."
   (
     cd "$GSTACK_DIR"
-    bunx playwright install chromium
+    "$BUN" x playwright install chromium
   )
 fi
 
