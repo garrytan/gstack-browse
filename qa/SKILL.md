@@ -91,6 +91,129 @@ mkdir -p "$REPORT_DIR/screenshots"
 
 ---
 
+## Browse CLI Reference
+
+All browse commands are invoked as `$B <command> [flags] [args]`. The variable `$B` is set during Setup to the path of the browse binary.
+
+### `$B goto <url>`
+Navigate to a URL. Waits for the page to load before returning.
+
+```bash
+$B goto https://example.com
+$B goto http://localhost:3000/dashboard
+```
+
+### `$B snapshot [flags]`
+Capture the current page's accessibility tree (and optionally a screenshot). Returns a structured text representation of the page with element references (`@eN`) you can use in subsequent `click` and `fill` commands.
+
+| Flag | Description |
+|------|-------------|
+| `-i` | Interactive elements only — filters the tree to buttons, links, inputs, and other actionable nodes. Use this when you need to find things to click or fill. |
+| `-c` | Compact output — omits empty/whitespace-only nodes. Reduces noise in large pages. |
+| `-d N` | Limit tree depth to N levels. Useful for getting a high-level overview of a complex page. |
+| `-a` | Annotated screenshot — renders the page with a red overlay marking all interactive elements. Saves to the path specified by `-o`. |
+| `-o <path>` | Output path for the annotated screenshot produced by `-a`. Required when using `-a`. |
+| `-D` | Unified diff vs. the previous snapshot — shows only what changed since the last `snapshot` call. Use after interactions to verify the expected DOM change occurred. |
+| `-C` | Cursor-interactive mode — resolves `@c` refs (elements under the cursor). Use for tricky UIs where standard accessibility refs are missing. |
+| `-s <sel>` | Scope the snapshot to a CSS selector — only the subtree matching `<sel>` is returned. Useful for focusing on a specific component. |
+
+```bash
+$B snapshot                                          # full tree
+$B snapshot -i                                       # interactive elements only
+$B snapshot -i -c                                    # interactive + compact
+$B snapshot -i -a -o screenshots/page.png            # interactive + annotated screenshot
+$B snapshot -d 3                                     # top 3 levels only
+$B snapshot -D                                       # diff vs previous snapshot
+$B snapshot -s "#checkout-form"                      # scoped to one component
+$B snapshot -C                                       # cursor-interactive refs
+```
+
+### `$B click <sel>`
+Click an element. `<sel>` accepts a CSS selector or an `@eN` element reference from a prior `snapshot`.
+
+```bash
+$B click @e5                    # click element ref from snapshot
+$B click "button[type=submit]"  # CSS selector
+$B click "#nav-menu"
+```
+
+### `$B fill <sel> <value>`
+Type a value into an input field. `<sel>` accepts a CSS selector or an `@eN` element reference from a prior `snapshot`.
+
+```bash
+$B fill @e3 "user@example.com"
+$B fill @e4 "hunter2"
+$B fill "input[name=search]" "hello world"
+```
+
+### `$B screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]`
+Take a screenshot. All arguments are optional and positional in the order shown.
+
+| Argument | Description |
+|----------|-------------|
+| `--viewport` | Capture the full viewport (default behavior when no selector is given). |
+| `--clip x,y,w,h` | Clip to a rectangle: x and y are the top-left corner, w and h are width and height in pixels. |
+| `selector\|@ref` | Capture only the element matching this CSS selector or `@eN` ref. |
+| `path` | File path to save the PNG. If omitted, the screenshot is returned inline. |
+
+```bash
+$B screenshot screenshots/page.png                        # full viewport to file
+$B screenshot --clip 0,0,400,300 screenshots/crop.png     # clipped region
+$B screenshot "#hero-banner" screenshots/hero.png         # element screenshot
+$B screenshot @e7 screenshots/element.png                 # element by ref
+```
+
+### `$B console [--clear] [--errors]`
+Read the browser console buffer.
+
+| Flag | Description |
+|------|-------------|
+| `--clear` | Reset (clear) the console buffer after reading. |
+| `--errors` | Filter output to error and warning messages only. |
+
+```bash
+$B console                  # all console output
+$B console --errors         # errors and warnings only
+$B console --clear          # read then clear the buffer
+```
+
+### `$B js <expr>`
+Execute JavaScript in the page context and return the result as a string. `await` is supported for async expressions.
+
+```bash
+$B js "document.title"
+$B js "window.location.href"
+$B js "await fetch('/api/health').then(r => r.status)"
+$B js "document.querySelectorAll('img[src=\"\"]').length"
+```
+
+### `$B viewport <WxH>`
+Resize the browser viewport. Use before taking screenshots to test responsive layouts.
+
+```bash
+$B viewport 375x812     # iPhone-sized mobile
+$B viewport 768x1024    # tablet
+$B viewport 1280x720    # desktop
+```
+
+### `$B cookie-import <json>`
+Import cookies from a JSON file. `<json>` is a path to a JSON cookie file (typically an array of cookie objects with fields like `name`, `value`, `domain`, `path`).
+
+```bash
+# cookies.json format:
+# [{"name":"session","value":"abc123","domain":"example.com","path":"/"}]
+$B cookie-import cookies.json
+```
+
+### `$B links`
+List all hyperlinks (`<a href>`) on the current page. Returns each link as `"text → href"` format. Note: for SPAs with client-side routing, many navigation targets may not appear as `<a>` tags — use `snapshot -i` to find nav elements instead.
+
+```bash
+$B links
+```
+
+---
+
 ## Test Plan Context
 
 Before falling back to git diff heuristics, check for richer test plan sources:
