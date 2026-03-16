@@ -20,12 +20,15 @@ const SKILL_FILES = [
   'SKILL.md',
   'browse/SKILL.md',
   'qa/SKILL.md',
+  'qa-only/SKILL.md',
   'ship/SKILL.md',
   'review/SKILL.md',
   'retro/SKILL.md',
   'plan-ceo-review/SKILL.md',
   'plan-eng-review/SKILL.md',
   'setup-browser-cookies/SKILL.md',
+  'gstack-upgrade/SKILL.md',
+  'document-release/SKILL.md',
 ].filter(f => fs.existsSync(path.join(ROOT, f)));
 
 let hasErrors = false;

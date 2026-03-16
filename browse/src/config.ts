@@ -98,8 +98,17 @@ export function ensureStateDir(config: BrowseConfig): void {
       const separator = content.endsWith('\n') ? '' : '\n';
       fs.appendFileSync(gitignorePath, `${separator}.gstack/\n`);
     }
-  } catch {
-    // No .gitignore or unreadable — skip
+  } catch (err: any) {
+    if (err.code !== 'ENOENT') {
+      // Write warning to server log (visible even in daemon mode)
+      const logPath = path.join(config.stateDir, 'browse-server.log');
+      try {
+        fs.appendFileSync(logPath, `[${new Date().toISOString()}] Warning: could not update .gitignore at ${gitignorePath}: ${err.message}\n`);
+      } catch {
+        // stateDir write failed too — nothing more we can do
+      }
+    }
+    // ENOENT (no .gitignore) — skip silently
   }
 }
 

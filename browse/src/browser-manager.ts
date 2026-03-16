@@ -18,6 +18,12 @@
 import { chromium, type Browser, type BrowserContext, type Page, type Locator } from 'playwright';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 
+export interface RefEntry {
+  locator: Locator;
+  role: string;
+  name: string;
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
@@ -31,7 +37,7 @@ export class BrowserManager {
   public serverPort: number = 0;
 
   // ─── Ref Map (snapshot → @e1, @e2, @c1, @c2, ...) ────────
-  private refMap: Map<string, Locator> = new Map();
+  private refMap: Map<string, RefEntry> = new Map();
 
   // ─── Snapshot Diffing ─────────────────────────────────────
   // NOT cleared on navigation — it's a text baseline for diffing
@@ -169,7 +175,7 @@ export class BrowserManager {
   }
 
   // ─── Ref Map ──────────────────────────────────────────────
-  setRefMap(refs: Map<string, Locator>) {
+  setRefMap(refs: Map<string, RefEntry>) {
     this.refMap = refs;
   }
 
@@ -181,16 +187,23 @@ export class BrowserManager {
    * Resolve a selector that may be a @ref (e.g., "@e3", "@c1") or a CSS selector.
    * Returns { locator } for refs or { selector } for CSS selectors.
    */
-  resolveRef(selector: string): { locator: Locator } | { selector: string } {
+  async resolveRef(selector: string): Promise<{ locator: Locator } | { selector: string }> {
     if (selector.startsWith('@e') || selector.startsWith('@c')) {
       const ref = selector.slice(1); // "e3" or "c1"
-      const locator = this.refMap.get(ref);
-      if (!locator) {
+      const entry = this.refMap.get(ref);
+      if (!entry) {
         throw new Error(
-          `Ref ${selector} not found. Page may have changed — run 'snapshot' to get fresh refs.`
+          `Ref ${selector} not found. Run 'snapshot' to get fresh refs.`
         );
       }
-      return { locator };
+      const count = await entry.locator.count();
+      if (count === 0) {
+        throw new Error(
+          `Ref ${selector} (${entry.role} "${entry.name}") is stale — element no longer exists. ` +
+          `Run 'snapshot' for fresh refs.`
+        );
+      }
+      return { locator: entry.locator };
     }
     return { selector };
   }

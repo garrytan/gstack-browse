@@ -87,6 +87,8 @@ The browser's key innovation is ref-based element selection, built on Playwright
 
 No DOM mutation. No injected scripts. Just Playwright's native accessibility API.
 
+**Ref staleness detection:** SPAs can mutate the DOM without navigation (React router, tab switches, modals). When this happens, refs collected from a previous `snapshot` may point to elements that no longer exist. To handle this, `resolveRef()` runs an async `count()` check before using any ref — if the element count is 0, it throws immediately with a message telling the agent to re-run `snapshot`. This fails fast (~5ms) instead of waiting for Playwright's 30-second action timeout.
+
 **Extended snapshot features:**
 - `--diff` (`-D`): Stores each snapshot as a baseline. On the next `-D` call, returns a unified diff showing what changed. Use this to verify that an action (click, fill, etc.) actually worked.
 - `--annotate` (`-a`): Injects temporary overlay divs at each ref's bounding box, takes a screenshot with ref labels visible, then removes the overlays. Use `-o <path>` to control the output path.
@@ -124,6 +126,18 @@ The `console`, `network`, and `dialog` commands read from the in-memory buffers,
 ### Dialog handling
 
 Dialogs (alert, confirm, prompt) are auto-accepted by default to prevent browser lockup. The `dialog-accept` and `dialog-dismiss` commands control this behavior. For prompts, `dialog-accept <text>` provides the response text. All dialogs are logged to the dialog buffer with type, message, and action taken.
+
+### JavaScript execution (`js` and `eval`)
+
+`js` runs a single expression, `eval` runs a JS file. Both support `await` — expressions containing `await` are automatically wrapped in an async context:
+
+```bash
+$B js "await fetch('/api/data').then(r => r.json())"  # works
+$B js "document.title"                                  # also works (no wrapping needed)
+$B eval my-script.js                                    # file with await works too
+```
+
+For `eval` files, single-line files return the expression value directly. Multi-line files need explicit `return` when using `await`. Comments containing "await" don't trigger wrapping.
 
 ### Multi-workspace support
 

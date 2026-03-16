@@ -95,6 +95,27 @@ describe('config', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
+    test('logs warning to browse-server.log on non-ENOENT gitignore error', () => {
+      const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+      // Create a read-only .gitignore (no .gstack/ entry → would try to append)
+      fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n');
+      fs.chmodSync(path.join(tmpDir, '.gitignore'), 0o444);
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.gstack', 'browse.json') });
+      ensureStateDir(config); // should not throw
+      // Verify warning was written to server log
+      const logPath = path.join(config.stateDir, 'browse-server.log');
+      expect(fs.existsSync(logPath)).toBe(true);
+      const logContent = fs.readFileSync(logPath, 'utf-8');
+      expect(logContent).toContain('Warning: could not update .gitignore');
+      // .gitignore should remain unchanged
+      const gitignoreContent = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf-8');
+      expect(gitignoreContent).toBe('node_modules/\n');
+      // Cleanup
+      fs.chmodSync(path.join(tmpDir, '.gitignore'), 0o644);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    });
+
     test('skips if no .gitignore exists', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });

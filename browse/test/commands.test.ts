@@ -144,6 +144,60 @@ describe('Inspection', () => {
     expect(obj.b).toBe(2);
   });
 
+  test('js supports await expressions', async () => {
+    const result = await handleReadCommand('js', ['await Promise.resolve(42)'], bm);
+    expect(result).toBe('42');
+  });
+
+  test('js does not false-positive on await substring', async () => {
+    const result = await handleReadCommand('js', ['(() => { const awaitable = 5; return awaitable })()'], bm);
+    expect(result).toBe('5');
+  });
+
+  test('eval supports await in single-line file', async () => {
+    const tmp = '/tmp/eval-await-test.js';
+    fs.writeFileSync(tmp, 'await Promise.resolve("hello from eval")');
+    try {
+      const result = await handleReadCommand('eval', [tmp], bm);
+      expect(result).toBe('hello from eval');
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  test('eval does not wrap when await is only in a comment', async () => {
+    const tmp = '/tmp/eval-comment-test.js';
+    fs.writeFileSync(tmp, '// no need to await this\ndocument.title');
+    try {
+      const result = await handleReadCommand('eval', [tmp], bm);
+      expect(result).toBe('Test Page - Basic');
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  test('eval multi-line with await and explicit return', async () => {
+    const tmp = '/tmp/eval-multiline-await.js';
+    fs.writeFileSync(tmp, 'const data = await Promise.resolve("multi");\nreturn data;');
+    try {
+      const result = await handleReadCommand('eval', [tmp], bm);
+      expect(result).toBe('multi');
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  test('eval multi-line with await but no return gives empty string', async () => {
+    const tmp = '/tmp/eval-multiline-no-return.js';
+    fs.writeFileSync(tmp, 'const data = await Promise.resolve("lost");\ndata;');
+    try {
+      const result = await handleReadCommand('eval', [tmp], bm);
+      expect(result).toBe('');
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
   test('css returns computed property', async () => {
     const result = await handleReadCommand('css', ['h1', 'color'], bm);
     // Navy color

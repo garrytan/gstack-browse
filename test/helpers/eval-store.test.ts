@@ -8,8 +8,10 @@ import {
   findPreviousRun,
   compareEvalResults,
   formatComparison,
+  generateCommentary,
+  judgePassed,
 } from './eval-store';
-import type { EvalResult, EvalTestEntry } from './eval-store';
+import type { EvalResult, EvalTestEntry, ComparisonResult } from './eval-store';
 
 let tmpDir: string;
 
@@ -114,7 +116,7 @@ describe('EvalCollector', () => {
 
     expect(filepath1).toBeTruthy();
     expect(filepath2).toBe(''); // second call returns empty
-    expect(fs.readdirSync(tmpDir).filter(f => f.endsWith('.json'))).toHaveLength(1);
+    expect(fs.readdirSync(tmpDir).filter(f => f.endsWith('.json') && !f.startsWith('_partial'))).toHaveLength(1);
   });
 
   test('empty collector writes valid file', async () => {
@@ -126,6 +128,45 @@ describe('EvalCollector', () => {
     expect(data.passed).toBe(0);
     expect(data.tests).toHaveLength(0);
     expect(data.tier).toBe('llm-judge');
+  });
+});
+
+// --- judgePassed tests ---
+
+describe('judgePassed', () => {
+  test('passes when all thresholds met', () => {
+    expect(judgePassed(
+      { detection_rate: 3, false_positives: 1, evidence_quality: 3 },
+      { minimum_detection: 2, max_false_positives: 2 },
+    )).toBe(true);
+  });
+
+  test('fails when detection rate below minimum', () => {
+    expect(judgePassed(
+      { detection_rate: 1, false_positives: 0, evidence_quality: 3 },
+      { minimum_detection: 2, max_false_positives: 2 },
+    )).toBe(false);
+  });
+
+  test('fails when too many false positives', () => {
+    expect(judgePassed(
+      { detection_rate: 3, false_positives: 3, evidence_quality: 3 },
+      { minimum_detection: 2, max_false_positives: 2 },
+    )).toBe(false);
+  });
+
+  test('fails when evidence quality below 2', () => {
+    expect(judgePassed(
+      { detection_rate: 3, false_positives: 0, evidence_quality: 1 },
+      { minimum_detection: 2, max_false_positives: 2 },
+    )).toBe(false);
+  });
+
+  test('passes at exact thresholds', () => {
+    expect(judgePassed(
+      { detection_rate: 2, false_positives: 2, evidence_quality: 2 },
+      { minimum_detection: 2, max_false_positives: 2 },
+    )).toBe(true);
   });
 });
 
@@ -302,8 +343,8 @@ describe('formatComparison', () => {
       deltas: [
         {
           name: 'browse basic',
-          before: { passed: true, cost_usd: 0.07, tool_summary: { Bash: 3 } },
-          after: { passed: true, cost_usd: 0.06, tool_summary: { Bash: 4 } },
+          before: { passed: true, cost_usd: 0.07, turns_used: 6, duration_ms: 24000, tool_summary: { Bash: 3 } },
+          after: { passed: true, cost_usd: 0.06, turns_used: 5, duration_ms: 19000, tool_summary: { Bash: 4 } },
           status_change: 'unchanged',
         },
         {
@@ -329,5 +370,179 @@ describe('formatComparison', () => {
     expect(output).toContain('1 unchanged');
     expect(output).toContain('↑'); // improved arrow
     expect(output).toContain('='); // unchanged arrow
+    // Turns and duration deltas
+    expect(output).toContain('6→5t');
+    expect(output).toContain('24→19s');
+  });
+
+  test('includes commentary section', () => {
+    const comparison: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '2026-03-13T14:30:00Z',
+      after_timestamp: '2026-03-14T14:30:00Z',
+      deltas: [
+        {
+          name: 'test-a',
+          before: { passed: true, cost_usd: 0.50, turns_used: 20, duration_ms: 120000 },
+          after: { passed: true, cost_usd: 0.30, turns_used: 10, duration_ms: 60000 },
+          status_change: 'unchanged',
+        },
+        {
+          name: 'test-b',
+          before: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          status_change: 'unchanged',
+        },
+        {
+          name: 'test-c',
+          before: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          status_change: 'unchanged',
+        },
+      ],
+      total_cost_delta: -0.20,
+      total_duration_delta: -60000,
+      improved: 0, regressed: 0, unchanged: 3,
+      tool_count_before: 30, tool_count_after: 20,
+    };
+
+    const output = formatComparison(comparison);
+    expect(output).toContain('Takeaway');
+    expect(output).toContain('fewer turns');
+    expect(output).toContain('faster');
+  });
+});
+
+// --- generateCommentary tests ---
+
+describe('generateCommentary', () => {
+  test('flags regressions prominently', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [{
+        name: 'critical-test',
+        before: { passed: true, cost_usd: 0.10 },
+        after: { passed: false, cost_usd: 0.10 },
+        status_change: 'regressed',
+      }],
+      total_cost_delta: 0, total_duration_delta: 0,
+      improved: 0, regressed: 1, unchanged: 0,
+      tool_count_before: 0, tool_count_after: 0,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('REGRESSION'))).toBe(true);
+    expect(notes.some(n => n.includes('critical-test'))).toBe(true);
+  });
+
+  test('notes improvements', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [{
+        name: 'fixed-test',
+        before: { passed: false, cost_usd: 0.10 },
+        after: { passed: true, cost_usd: 0.10 },
+        status_change: 'improved',
+      }],
+      total_cost_delta: 0, total_duration_delta: 0,
+      improved: 1, regressed: 0, unchanged: 0,
+      tool_count_before: 0, tool_count_after: 0,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('Fixed'))).toBe(true);
+    expect(notes.some(n => n.includes('fixed-test'))).toBe(true);
+  });
+
+  test('reports efficiency gains for stable tests', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [{
+        name: 'fast-test',
+        before: { passed: true, cost_usd: 0.50, turns_used: 20, duration_ms: 120000 },
+        after: { passed: true, cost_usd: 0.25, turns_used: 10, duration_ms: 60000 },
+        status_change: 'unchanged',
+      }],
+      total_cost_delta: -0.25, total_duration_delta: -60000,
+      improved: 0, regressed: 0, unchanged: 1,
+      tool_count_before: 0, tool_count_after: 0,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('fewer turns'))).toBe(true);
+    expect(notes.some(n => n.includes('faster'))).toBe(true);
+    expect(notes.some(n => n.includes('cheaper'))).toBe(true);
+  });
+
+  test('reports detection rate changes', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [{
+        name: 'detection-test',
+        before: { passed: true, cost_usd: 0.50, detection_rate: 3 },
+        after: { passed: true, cost_usd: 0.50, detection_rate: 5 },
+        status_change: 'unchanged',
+      }],
+      total_cost_delta: 0, total_duration_delta: 0,
+      improved: 0, regressed: 0, unchanged: 1,
+      tool_count_before: 0, tool_count_after: 0,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('detecting 2 more bugs'))).toBe(true);
+  });
+
+  test('produces overall summary for 3+ tests with no regressions', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [
+        { name: 'a', before: { passed: true, cost_usd: 0.50, turns_used: 10, duration_ms: 60000 },
+          after: { passed: true, cost_usd: 0.30, turns_used: 6, duration_ms: 40000 }, status_change: 'unchanged' },
+        { name: 'b', before: { passed: true, cost_usd: 0.20, turns_used: 5, duration_ms: 30000 },
+          after: { passed: true, cost_usd: 0.15, turns_used: 4, duration_ms: 25000 }, status_change: 'unchanged' },
+        { name: 'c', before: { passed: true, cost_usd: 0.10, turns_used: 3, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.08, turns_used: 3, duration_ms: 18000 }, status_change: 'unchanged' },
+      ],
+      total_cost_delta: -0.27, total_duration_delta: -27000,
+      improved: 0, regressed: 0, unchanged: 3,
+      tool_count_before: 0, tool_count_after: 0,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('Overall'))).toBe(true);
+    expect(notes.some(n => n.includes('No regressions'))).toBe(true);
+  });
+
+  test('returns empty for stable run with no significant changes', () => {
+    const c: ComparisonResult = {
+      before_file: 'a.json', after_file: 'b.json',
+      before_branch: 'main', after_branch: 'main',
+      before_timestamp: '', after_timestamp: '',
+      deltas: [
+        { name: 'a', before: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 21000 }, status_change: 'unchanged' },
+        { name: 'b', before: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 }, status_change: 'unchanged' },
+        { name: 'c', before: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 },
+          after: { passed: true, cost_usd: 0.10, turns_used: 5, duration_ms: 20000 }, status_change: 'unchanged' },
+      ],
+      total_cost_delta: 0, total_duration_delta: 1000,
+      improved: 0, regressed: 0, unchanged: 3,
+      tool_count_before: 15, tool_count_after: 15,
+    };
+
+    const notes = generateCommentary(c);
+    expect(notes.some(n => n.includes('Stable run'))).toBe(true);
   });
 });

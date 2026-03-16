@@ -11,6 +11,12 @@ import type { Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
 
+/** Detect await keyword, ignoring comments. Accepted risk: await in string literals triggers wrapping (harmless). */
+function hasAwait(code: string): boolean {
+  const stripped = code.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  return /\bawait\b/.test(stripped);
+}
+
 // Security: Path validation to prevent path traversal attacks
 const SAFE_DIRECTORIES = ['/tmp', process.cwd()];
 
@@ -61,7 +67,7 @@ export async function handleReadCommand(
     case 'html': {
       const selector = args[0];
       if (selector) {
-        const resolved = bm.resolveRef(selector);
+        const resolved = await bm.resolveRef(selector);
         if ('locator' in resolved) {
           return await resolved.locator.innerHTML({ timeout: 5000 });
         }
@@ -118,7 +124,8 @@ export async function handleReadCommand(
     case 'js': {
       const expr = args[0];
       if (!expr) throw new Error('Usage: browse js <expression>');
-      const result = await page.evaluate(expr);
+      const wrapped = hasAwait(expr) ? `(async()=>(${expr}))()` : expr;
+      const result = await page.evaluate(wrapped);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }
 
@@ -128,6 +135,13 @@ export async function handleReadCommand(
       validateReadPath(filePath);
       if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
       const code = fs.readFileSync(filePath, 'utf-8');
+      if (hasAwait(code)) {
+        const trimmed = code.trim();
+        const isSingleExpr = trimmed.split('\n').length === 1;
+        const wrapped = isSingleExpr ? `(async()=>(${trimmed}))()` : `(async()=>{\n${code}\n})()`;
+        const result = await page.evaluate(wrapped);
+        return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
+      }
       const result = await page.evaluate(code);
       return typeof result === 'object' ? JSON.stringify(result, null, 2) : String(result ?? '');
     }
@@ -135,7 +149,7 @@ export async function handleReadCommand(
     case 'css': {
       const [selector, property] = args;
       if (!selector || !property) throw new Error('Usage: browse css <selector> <property>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         const value = await resolved.locator.evaluate(
           (el, prop) => getComputedStyle(el).getPropertyValue(prop),
@@ -157,7 +171,7 @@ export async function handleReadCommand(
     case 'attrs': {
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse attrs <selector>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         const attrs = await resolved.locator.evaluate((el) => {
           const result: Record<string, string> = {};
@@ -221,7 +235,7 @@ export async function handleReadCommand(
       const selector = args[1];
       if (!property || !selector) throw new Error('Usage: browse is <property> <selector>\nProperties: visible, hidden, enabled, disabled, checked, editable, focused');
 
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       let locator;
       if ('locator' in resolved) {
         locator = resolved.locator;

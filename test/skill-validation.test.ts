@@ -43,6 +43,20 @@ describe('SKILL.md command validation', () => {
     const result = validateSkill(qaSkill);
     expect(result.snapshotFlagErrors).toHaveLength(0);
   });
+
+  test('all $B commands in qa-only/SKILL.md are valid browse commands', () => {
+    const qaOnlySkill = path.join(ROOT, 'qa-only', 'SKILL.md');
+    if (!fs.existsSync(qaOnlySkill)) return;
+    const result = validateSkill(qaOnlySkill);
+    expect(result.invalid).toHaveLength(0);
+  });
+
+  test('all snapshot flags in qa-only/SKILL.md are valid', () => {
+    const qaOnlySkill = path.join(ROOT, 'qa-only', 'SKILL.md');
+    if (!fs.existsSync(qaOnlySkill)) return;
+    const result = validateSkill(qaOnlySkill);
+    expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
 });
 
 describe('Command registry consistency', () => {
@@ -157,10 +171,12 @@ describe('Generated SKILL.md freshness', () => {
 describe('Update check preamble', () => {
   const skillsWithUpdateCheck = [
     'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
     'setup-browser-cookies/SKILL.md',
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
+    'document-release/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -261,7 +277,7 @@ describe('Cross-skill path consistency', () => {
 describe('QA skill structure validation', () => {
   const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
 
-  test('qa/SKILL.md has all 6 phases', () => {
+  test('qa/SKILL.md has all 11 phases', () => {
     const phases = [
       'Phase 1', 'Initialize',
       'Phase 2', 'Authenticate',
@@ -269,6 +285,11 @@ describe('QA skill structure validation', () => {
       'Phase 4', 'Explore',
       'Phase 5', 'Document',
       'Phase 6', 'Wrap Up',
+      'Phase 7', 'Triage',
+      'Phase 8', 'Fix Loop',
+      'Phase 9', 'Final QA',
+      'Phase 10', 'Report',
+      'Phase 11', 'TODOS',
     ];
     for (const phase of phases) {
       expect(qaContent).toContain(phase);
@@ -289,6 +310,13 @@ describe('QA skill structure validation', () => {
     // Mode triggers/flags
     expect(qaContent).toContain('--quick');
     expect(qaContent).toContain('--regression');
+  });
+
+  test('has all three tiers defined', () => {
+    const tiers = ['Quick', 'Standard', 'Exhaustive'];
+    for (const tier of tiers) {
+      expect(qaContent).toContain(tier);
+    }
   });
 
   test('health score weights sum to 100%', () => {
@@ -358,6 +386,187 @@ describe('Greptile history format consistency', () => {
     for (const cat of categories) {
       expect(content).toContain(cat);
     }
+  });
+});
+
+// --- Hardcoded branch name detection in templates ---
+
+describe('No hardcoded branch names in SKILL templates', () => {
+  const tmplFiles = [
+    'ship/SKILL.md.tmpl',
+    'review/SKILL.md.tmpl',
+    'qa/SKILL.md.tmpl',
+    'plan-ceo-review/SKILL.md.tmpl',
+    'retro/SKILL.md.tmpl',
+    'document-release/SKILL.md.tmpl',
+  ];
+
+  // Patterns that indicate hardcoded 'main' in git commands
+  const gitMainPatterns = [
+    /\bgit\s+diff\s+(?:origin\/)?main\b/,
+    /\bgit\s+log\s+(?:origin\/)?main\b/,
+    /\bgit\s+fetch\s+origin\s+main\b/,
+    /\bgit\s+merge\s+origin\/main\b/,
+    /\borigin\/main\b/,
+  ];
+
+  // Lines that are allowed to mention 'main' (fallback logic, prose)
+  const allowlist = [
+    /fall\s*back\s+to\s+`main`/i,
+    /fall\s*back\s+to\s+`?main`?/i,
+    /typically\s+`?main`?/i,
+    /If\s+on\s+`main`/i,  // old pattern — should not exist
+  ];
+
+  for (const tmplFile of tmplFiles) {
+    test(`${tmplFile} has no hardcoded 'main' in git commands`, () => {
+      const filePath = path.join(ROOT, tmplFile);
+      if (!fs.existsSync(filePath)) return;
+      const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
+      const violations: string[] = [];
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isAllowlisted = allowlist.some(p => p.test(line));
+        if (isAllowlisted) continue;
+
+        for (const pattern of gitMainPatterns) {
+          if (pattern.test(line)) {
+            violations.push(`Line ${i + 1}: ${line.trim()}`);
+            break;
+          }
+        }
+      }
+
+      if (violations.length > 0) {
+        throw new Error(
+          `${tmplFile} has hardcoded 'main' in git commands:\n` +
+          violations.map(v => `  ${v}`).join('\n')
+        );
+      }
+    });
+  }
+});
+
+// --- Part 7b: TODOS-format.md reference consistency ---
+
+describe('TODOS-format.md reference consistency', () => {
+  test('review/TODOS-format.md exists and defines canonical format', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'TODOS-format.md'), 'utf-8');
+    expect(content).toContain('**What:**');
+    expect(content).toContain('**Why:**');
+    expect(content).toContain('**Priority:**');
+    expect(content).toContain('**Effort:**');
+    expect(content).toContain('## Completed');
+  });
+
+  test('skills that write TODOs reference TODOS-format.md', () => {
+    const shipContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    const ceoPlanContent = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
+    const engPlanContent = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+
+    expect(shipContent).toContain('TODOS-format.md');
+    expect(ceoPlanContent).toContain('TODOS-format.md');
+    expect(engPlanContent).toContain('TODOS-format.md');
+  });
+});
+
+// --- v0.4.1 feature coverage: RECOMMENDATION format, session awareness, enum completeness ---
+
+describe('v0.4.1 preamble features', () => {
+  const skillsWithPreamble = [
+    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
+    'setup-browser-cookies/SKILL.md',
+    'ship/SKILL.md', 'review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'retro/SKILL.md',
+    'document-release/SKILL.md',
+  ];
+
+  for (const skill of skillsWithPreamble) {
+    test(`${skill} contains RECOMMENDATION format`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('RECOMMENDATION: Choose');
+      expect(content).toContain('AskUserQuestion');
+    });
+
+    test(`${skill} contains session awareness`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('_SESSIONS');
+      expect(content).toContain('RECOMMENDATION');
+    });
+  }
+});
+
+// --- Contributor mode preamble structure validation ---
+
+describe('Contributor mode preamble structure', () => {
+  const skillsWithPreamble = [
+    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa-only/SKILL.md',
+    'setup-browser-cookies/SKILL.md',
+    'ship/SKILL.md', 'review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'retro/SKILL.md',
+  ];
+
+  for (const skill of skillsWithPreamble) {
+    test(`${skill} has 0-10 rating in contributor mode`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('0 to 10');
+      expect(content).toContain('My rating');
+    });
+
+    test(`${skill} has calibration example`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('Calibration');
+      expect(content).toContain('the bar');
+    });
+
+    test(`${skill} has "what would make this a 10" field`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('What would make this a 10');
+    });
+
+    test(`${skill} uses periodic reflection (not per-command)`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('workflow step');
+      expect(content).not.toContain('After you use gstack-provided CLIs');
+    });
+  }
+});
+
+describe('Enum & Value Completeness in review checklist', () => {
+  const checklist = fs.readFileSync(path.join(ROOT, 'review', 'checklist.md'), 'utf-8');
+
+  test('checklist has Enum & Value Completeness section', () => {
+    expect(checklist).toContain('Enum & Value Completeness');
+  });
+
+  test('Enum & Value Completeness is classified as CRITICAL', () => {
+    // It should appear under Pass 1 — CRITICAL, not Pass 2
+    const pass1Start = checklist.indexOf('### Pass 1');
+    const pass2Start = checklist.indexOf('### Pass 2');
+    const enumStart = checklist.indexOf('Enum & Value Completeness');
+    expect(enumStart).toBeGreaterThan(pass1Start);
+    expect(enumStart).toBeLessThan(pass2Start);
+  });
+
+  test('Enum & Value Completeness mentions tracing through consumers', () => {
+    expect(checklist).toContain('Trace it through every consumer');
+    expect(checklist).toContain('case');
+    expect(checklist).toContain('allowlist');
+  });
+
+  test('Enum & Value Completeness is in the gate classification as CRITICAL', () => {
+    const gateSection = checklist.slice(checklist.indexOf('## Gate Classification'));
+    // The ASCII art has CRITICAL on the left and INFORMATIONAL on the right
+    // Enum & Value Completeness should appear on a line with the CRITICAL tree (├─ or └─)
+    const enumLine = gateSection.split('\n').find(l => l.includes('Enum & Value Completeness'));
+    expect(enumLine).toBeDefined();
+    // It's on the left (CRITICAL) side — starts with ├─ or └─
+    expect(enumLine!.trimStart().startsWith('├─') || enumLine!.trimStart().startsWith('└─')).toBe(true);
   });
 });
 

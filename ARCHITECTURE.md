@@ -120,7 +120,7 @@ Refs (`@e1`, `@e2`, `@c1`) are how the agent addresses page elements without wri
 2. Server calls Playwright's page.accessibility.snapshot()
 3. Parser walks the ARIA tree, assigns sequential refs: @e1, @e2, @e3...
 4. For each ref, builds a Playwright Locator: getByRole(role, { name }).nth(index)
-5. Stores Map<string, Locator> on the BrowserManager instance
+5. Stores Map<string, RefEntry> on the BrowserManager instance (role + name + Locator)
 6. Returns the annotated tree as plain text
 
 Later:
@@ -141,6 +141,19 @@ Playwright Locators are external to the DOM. They use the accessibility tree (wh
 ### Ref lifecycle
 
 Refs are cleared on navigation (the `framenavigated` event on the main frame). This is correct — after navigation, all locators are stale. The agent must run `snapshot` again to get fresh refs. This is by design: stale refs should fail loudly, not click the wrong element.
+
+### Ref staleness detection
+
+SPAs can mutate the DOM without triggering `framenavigated` (e.g. React router transitions, tab switches, modal opens). This makes refs stale even though the page URL didn't change. To catch this, `resolveRef()` performs an async `count()` check before using any ref:
+
+```
+resolveRef(@e3) → entry = refMap.get("e3")
+                → count = await entry.locator.count()
+                → if count === 0: throw "Ref @e3 is stale — element no longer exists. Run 'snapshot' to get fresh refs."
+                → if count > 0: return { locator }
+```
+
+This fails fast (~5ms overhead) instead of letting Playwright's 30-second action timeout expire on a missing element. The `RefEntry` stores `role` and `name` metadata alongside the Locator so the error message can tell the agent what the element was.
 
 ### Cursor-interactive refs (@c)
 
@@ -179,7 +192,27 @@ gen-skill-docs.ts      (reads source code metadata)
 SKILL.md               (committed, auto-generated sections)
 ```
 
-Templates contain the workflows, tips, and examples that require human judgment. The `{{COMMAND_REFERENCE}}` and `{{SNAPSHOT_FLAGS}}` placeholders are filled from `commands.ts` and `snapshot.ts` at build time. This is structurally sound — if a command exists in code, it appears in docs. If it doesn't exist, it can't appear.
+Templates contain the workflows, tips, and examples that require human judgment. Placeholders are filled from source code at build time:
+
+| Placeholder | Source | What it generates |
+|-------------|--------|-------------------|
+| `{{COMMAND_REFERENCE}}` | `commands.ts` | Categorized command table |
+| `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | Flag reference with examples |
+| `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, AskUserQuestion format |
+| `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | Binary discovery + setup instructions |
+| `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for PR-targeting skills (ship, review, qa, plan-ceo-review) |
+| `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared QA methodology block for /qa and /qa-only |
+
+This is structurally sound — if a command exists in code, it appears in docs. If it doesn't exist, it can't appear.
+
+### The preamble
+
+Every skill starts with a `{{PREAMBLE}}` block that runs before the skill's own logic. It handles four things in a single bash command:
+
+1. **Update check** — calls `gstack-update-check`, reports if an upgrade is available.
+2. **Session tracking** — touches `~/.gstack/sessions/$PPID` and counts active sessions (files modified in the last 2 hours). When 3+ sessions are running, all skills enter "ELI16 mode" — every question re-grounds the user on context because they're juggling windows.
+3. **Contributor mode** — reads `gstack_contributor` from config. When true, the agent files casual field reports to `~/.gstack/contributor-logs/` when gstack itself misbehaves.
+4. **AskUserQuestion format** — universal format: context, question, `RECOMMENDATION: Choose X because ___`, lettered options. Consistent across all skills.
 
 ### Why committed, not generated at runtime?
 

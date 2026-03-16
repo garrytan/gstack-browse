@@ -201,6 +201,55 @@ describe('Ref invalidation', () => {
   });
 });
 
+
+// ─── Ref Staleness Detection ────────────────────────────────────
+
+describe('Ref staleness detection', () => {
+  test('ref metadata stores role and name', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
+    await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    // Refs should exist with metadata
+    expect(bm.getRefCount()).toBeGreaterThan(0);
+  });
+
+  test('stale ref after DOM removal gives descriptive error', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    // Find a button ref
+    const buttonLine = snap.split('\n').find(l => l.includes('[button]') && l.includes('"Submit"'));
+    expect(buttonLine).toBeDefined();
+    const refMatch = buttonLine!.match(/@(e\d+)/);
+    expect(refMatch).toBeDefined();
+    const ref = `@${refMatch![1]}`;
+    
+    // Remove the button from DOM (simulates SPA re-render)
+    await handleReadCommand('js', ['document.querySelector("button[type=submit]").remove()'], bm);
+    
+    // Try to click — should get descriptive staleness error
+    try {
+      await handleWriteCommand('click', [ref], bm);
+      expect(true).toBe(false); // Should not reach here
+    } catch (err: any) {
+      expect(err.message).toContain('stale');
+      expect(err.message).toContain('button');
+      expect(err.message).toContain('Submit');
+      expect(err.message).toContain('snapshot');
+    }
+  });
+
+  test('valid ref still resolves normally after staleness check', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/snapshot.html'], bm);
+    const snap = await handleMetaCommand('snapshot', ['-i'], bm, shutdown);
+    const linkLine = snap.split('\n').find(l => l.includes('[link]'));
+    expect(linkLine).toBeDefined();
+    const refMatch = linkLine!.match(/@(e\d+)/);
+    const ref = `@${refMatch![1]}`;
+    // Should work normally — element still exists
+    const result = await handleWriteCommand('hover', [ref], bm);
+    expect(result).toContain('Hovered');
+  });
+});
+
 // ─── Snapshot Diffing ──────────────────────────────────────────
 
 describe('Snapshot diff', () => {

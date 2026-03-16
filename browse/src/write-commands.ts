@@ -44,7 +44,7 @@ export async function handleWriteCommand(
     case 'click': {
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse click <selector>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.click({ timeout: 5000 });
       } else {
@@ -59,7 +59,7 @@ export async function handleWriteCommand(
       const [selector, ...valueParts] = args;
       const value = valueParts.join(' ');
       if (!selector || !value) throw new Error('Usage: browse fill <selector> <value>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.fill(value, { timeout: 5000 });
       } else {
@@ -72,7 +72,7 @@ export async function handleWriteCommand(
       const [selector, ...valueParts] = args;
       const value = valueParts.join(' ');
       if (!selector || !value) throw new Error('Usage: browse select <selector> <value>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.selectOption(value, { timeout: 5000 });
       } else {
@@ -84,7 +84,7 @@ export async function handleWriteCommand(
     case 'hover': {
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse hover <selector>');
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.hover({ timeout: 5000 });
       } else {
@@ -110,7 +110,7 @@ export async function handleWriteCommand(
     case 'scroll': {
       const selector = args[0];
       if (selector) {
-        const resolved = bm.resolveRef(selector);
+        const resolved = await bm.resolveRef(selector);
         if ('locator' in resolved) {
           await resolved.locator.scrollIntoViewIfNeeded({ timeout: 5000 });
         } else {
@@ -139,7 +139,7 @@ export async function handleWriteCommand(
         return 'DOM content loaded';
       }
       const timeout = args[1] ? parseInt(args[1], 10) : 15000;
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.waitFor({ state: 'visible', timeout });
       } else {
@@ -204,7 +204,7 @@ export async function handleWriteCommand(
         if (!fs.existsSync(fp)) throw new Error(`File not found: ${fp}`);
       }
 
-      const resolved = bm.resolveRef(selector);
+      const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.setInputFiles(filePaths);
       } else {
