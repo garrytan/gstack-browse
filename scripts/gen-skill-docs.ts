@@ -398,7 +398,7 @@ Minimum 0 per category.
 - Test REST API endpoints (\`/wp-json/\`)
 - Check for mixed content warnings (common with WP)
 
-### General SPA (React, Vue, Angular)
+### SPA / Single-Page App
 - Use \`snapshot -i\` for navigation — \`links\` command misses client-side routes
 - Check for hydration errors (\`Hydration failed\`, \`Text content did not match\`)
 - Check for stale state (navigate away and back — does data refresh?)

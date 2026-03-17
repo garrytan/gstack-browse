@@ -127,7 +127,7 @@ Use these templates for every Greptile reply. Always include concrete evidence â
 
 **Evidence:**
 - <specific code reference showing the pattern is safe/correct>
-- <e.g., "The nil check is handled by `ActiveRecord::FinderMethods#find` which raises RecordNotFound, not nil">
+- <e.g., "The null check is handled upstream â€” `fetchUser()` throws `NotFoundError` on missing records, not null">
 
 **Suggested re-rank:** This appears to be a `<style|noise|misread>` issue, not a `<what Greptile called it>`. Consider lowering severity.
 ```
@@ -199,9 +199,9 @@ Format:
 
 Example entries:
 ```
-2026-03-13 | garrytan/myapp | fp | app/services/auth_service.rb | race-condition
-2026-03-13 | garrytan/myapp | fix | app/models/user.rb | null-check
-2026-03-13 | garrytan/myapp | already-fixed | lib/payments.rb | error-handling
+2026-03-13 | garrytan/myapp | fp | src/services/auth-service.ts | race-condition
+2026-03-13 | garrytan/myapp | fix | src/models/user.ts | null-check
+2026-03-13 | garrytan/myapp | already-fixed | src/lib/payments.ts | error-handling
 ```
 
 ---
