@@ -4,9 +4,14 @@ Thanks for wanting to make gstack better. Whether you're fixing a typo in a skil
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+gstack skills are Markdown files discovered from a `skills/` directory. Claude uses
+`~/.claude/skills/gstack/`; Codex uses the generated `.agents/skills/` tree and
+installs it into `~/.agents/skills/`. When you're developing gstack itself, you
+want both hosts to read from your working tree so edits take effect instantly.
 
-That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
+That's what dev mode does. It symlinks your repo into the local `.claude/skills/`
+directory for Claude and ensures the checked-in `.agents/skills/gstack` tree has
+the support links Codex expects.
 
 ```bash
 git clone <repo> && cd gstack
@@ -14,7 +19,8 @@ bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
 ```
 
-Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your changes live. When you're done developing:
+Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`) or Codex
+(e.g. `$gstack-review`), and see your changes live. When you're done developing:
 
 ```bash
 bin/dev-teardown               # deactivate — back to your global install
@@ -58,11 +64,12 @@ project where you actually felt the pain.
 
 When you're editing gstack skills and want to test them by actually using gstack
 in the same repo, `bin/dev-setup` wires this up. It creates `.claude/skills/`
-symlinks (gitignored) pointing back to your working tree, so Claude Code uses
-your local edits instead of the global install.
+symlinks (gitignored) pointing back to your working tree, and keeps
+`.agents/skills/gstack` ready for Codex.
 
 ```
 gstack/                          <- your working tree
+├── .agents/skills/              <- generated Codex skill tree (checked in)
 ├── .claude/skills/              <- created by dev-setup (gitignored)
 │   ├── gstack -> ../../         <- symlink back to repo root
 │   ├── review -> gstack/review
@@ -87,8 +94,9 @@ bin/dev-setup
 # 2. Edit a skill
 vim review/SKILL.md
 
-# 3. Test it in Claude Code — changes are live
+# 3. Test it in Claude Code or Codex — changes are live
 #    > /review
+#    > $gstack-review
 
 # 4. Editing browse source? Rebuild the binary
 bun run build
@@ -133,7 +141,7 @@ Runs automatically with `bun test`. No API keys needed.
 
 - **Skill parser tests** (`test/skill-parser.test.ts`) — Extracts every `$B` command from SKILL.md bash code blocks and validates against the command registry in `browse/src/commands.ts`. Catches typos, removed commands, and invalid snapshot flags.
 - **Skill validation tests** (`test/skill-validation.test.ts`) — Validates that SKILL.md files reference only real commands and flags, and that command descriptions meet quality thresholds.
-- **Generator tests** (`test/gen-skill-docs.test.ts`) — Tests the template system: verifies placeholders resolve correctly, output includes value hints for flags (e.g. `-d <N>` not just `-d`), enriched descriptions for key commands (e.g. `is` lists valid states, `press` lists key examples).
+- **Generator tests** (`test/gen-skill-docs.test.ts`) — Tests the template system for both Claude and Codex outputs: placeholder resolution, output routing, value hints for flags (e.g. `-d <N>` not just `-d`), enriched descriptions for key commands, and no Claude-only paths in Codex docs.
 
 ### Tier 2: E2E via `claude -p` (~$3.85/run)
 
@@ -197,7 +205,7 @@ Each dimension is scored 1-5. Threshold: every dimension must score **≥ 4**. T
 
 ### CI
 
-A GitHub Action (`.github/workflows/skill-docs.yml`) runs `bun run gen:skill-docs --dry-run` on every push and PR. If the generated SKILL.md files differ from what's committed, CI fails. This catches stale docs before they merge.
+A GitHub Action (`.github/workflows/skill-docs.yml`) runs both `bun run gen:skill-docs --dry-run` and `bun run gen:skill-docs --host codex --dry-run` on every push and PR. If either generated skill tree differs from what's committed, CI fails.
 
 Tests run against the browse binary directly — they don't require dev mode.
 
@@ -211,6 +219,7 @@ vim SKILL.md.tmpl              # or browse/SKILL.md.tmpl
 
 # 2. Regenerate
 bun run gen:skill-docs
+bun run gen:skill-docs --host codex
 
 # 3. Check health
 bun run skill:check
@@ -238,10 +247,10 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 
 ## Things to know
 
-- **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
+- **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` and `bun run gen:skill-docs --host codex` (or just `bun run build`) to regenerate both hosts.
 - **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
-- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/gstack`. `bin/dev-teardown` restores the global one.
+- **Dev mode shadows your global Claude install and refreshes Codex support links.** Project-local Claude skills take priority over `~/.claude/skills/gstack`, while Codex reads the checked-in `.agents/skills/` tree. `bin/dev-teardown` restores the global Claude install.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
 - **`.env` propagates across worktrees.** Set it once in the main repo, all Conductor workspaces get it.
 - **`.claude/skills/` is gitignored.** The symlinks never get committed.

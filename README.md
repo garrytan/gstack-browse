@@ -1,8 +1,8 @@
 # gstack
 
-**gstack turns Claude Code from one generic assistant into a team of specialists you can summon on demand.**
+**gstack turns Claude Code and Codex CLI from one generic assistant into a team of specialists you can summon on demand.**
 
-Twelve opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code). Plan review, design review, code review, one-command shipping, browser automation, QA testing, engineering retrospectives, and post-ship documentation — all as slash commands.
+Twelve opinionated workflow skills for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and Codex CLI. Plan review, design review, code review, one-command shipping, browser automation, QA testing, engineering retrospectives, and post-ship documentation — all from one template system.
 
 ### Without gstack
 
@@ -125,13 +125,34 @@ This is the setup I use. One person, ten parallel agents, each with the right co
 
 ## Install
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
+**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or Codex CLI, [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
 
 ### Step 1: Install on your machine
 
 Open Claude Code and paste this. Claude will do the rest.
 
 > Install gstack: run `git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup` then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /plan-design-review, /review, /ship, /browse, /qa, /qa-only, /qa-design-review, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add gstack to the current project so teammates get it.
+
+### Codex Setup
+
+Clone gstack anywhere convenient, then let `setup --host codex` register the generated
+Codex skill tree in `~/.agents/skills/`:
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack
+cd ~/.codex/skills/gstack
+./setup --host codex
+```
+
+This links:
+
+- `~/.agents/skills/gstack/` → the generated root Codex skill
+- `~/.agents/skills/gstack-review`, `~/.agents/skills/gstack-ship`, etc.
+- the shared browse binary and helper docs through the checked-in `.agents/skills/` tree
+
+If you keep repo-level agent instructions, add a short `gstack` section to `AGENTS.md`
+that tells Codex to use `$gstack-browse` for web browsing, never use
+`mcp__claude-in-chrome__*`, and lists the available `$gstack-*` skills.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
@@ -143,11 +164,12 @@ Real files get committed to your repo (not a submodule), so `git clone` just wor
 
 - Skill files (Markdown prompts) in `~/.claude/skills/gstack/` (or `.claude/skills/gstack/` for project installs)
 - Symlinks at `~/.claude/skills/browse`, `~/.claude/skills/qa`, `~/.claude/skills/review`, etc. pointing into the gstack directory
+- Codex skill files in `~/.agents/skills/gstack*/`
 - Browser binary at `browse/dist/browse` (~58MB, gitignored)
 - `node_modules/` (gitignored)
 - `/retro` saves JSON snapshots to `.context/retros/` in your project for trend tracking
 
-Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
+Everything lives inside `.claude/` or `.agents/`. Nothing touches your PATH or runs in the background.
 
 ---
 
