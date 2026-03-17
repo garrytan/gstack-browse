@@ -8,7 +8,71 @@
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import * as fs from 'fs';
+import * as net from 'net';
 import * as path from 'path';
+
+// ─── SSRF Protection ────────────────────────────────────────────
+// Block navigation to private networks, cloud metadata endpoints,
+// and other internal resources.  See issue #17.
+
+const BLOCKED_HOSTNAMES = new Set([
+  'localhost',
+  'metadata.google.internal',
+  'metadata.azure.internal',
+]);
+
+const BLOCKED_HOSTNAME_SUFFIXES = ['.local', '.internal', '.localhost'];
+
+/** Return true if the IPv4 string is in a private/reserved range. */
+function isPrivateIPv4(ip: string): boolean {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) return false;
+  const [a, b] = parts;
+  return (
+    a === 10 ||                           // 10.0.0.0/8
+    a === 127 ||                           // 127.0.0.0/8
+    (a === 172 && b >= 16 && b <= 31) ||   // 172.16.0.0/12
+    (a === 192 && b === 168) ||            // 192.168.0.0/16
+    (a === 169 && b === 254) ||            // 169.254.0.0/16 (link-local / AWS IMDS)
+    (a === 100 && b >= 64 && b <= 127) ||  // 100.64.0.0/10 (carrier-grade NAT / Alibaba IMDS)
+    a === 0                                // 0.0.0.0/8
+  );
+}
+
+function isBlockedURL(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null; // let Playwright handle malformed URLs
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+
+  // Explicit blocklist
+  if (BLOCKED_HOSTNAMES.has(hostname)) {
+    return `Blocked: ${hostname} is a reserved hostname`;
+  }
+
+  // Suffix blocklist
+  for (const suffix of BLOCKED_HOSTNAME_SUFFIXES) {
+    if (hostname.endsWith(suffix)) {
+      return `Blocked: ${hostname} matches reserved suffix ${suffix}`;
+    }
+  }
+
+  // IPv4 private range check
+  if (net.isIPv4(hostname) && isPrivateIPv4(hostname)) {
+    return `Blocked: ${hostname} is a private/reserved IP address`;
+  }
+
+  // IPv6 loopback
+  if (hostname === '::1' || hostname === '[::1]') {
+    return `Blocked: ${hostname} is the IPv6 loopback address`;
+  }
+
+  return null;
+}
 
 export async function handleWriteCommand(
   command: string,
@@ -21,6 +85,8 @@ export async function handleWriteCommand(
     case 'goto': {
       const url = args[0];
       if (!url) throw new Error('Usage: browse goto <url>');
+      const blocked = isBlockedURL(url);
+      if (blocked) throw new Error(blocked);
       const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
       const status = response?.status() || 'unknown';
       return `Navigated to ${url} (${status})`;
