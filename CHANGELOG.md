@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.1.0 — 2026-03-17
+
+### Added
+
+- **`/ship` now uses your repo's PR template.** If your repo has a `.github/PULL_REQUEST_TEMPLATE.md` (or any standard location), `/ship` reads it and uses it as the base structure for the PR body — filling in your sections, preserving your checkboxes, and appending ship-specific sections (eval results, review findings, etc.) only where the template doesn't already cover them. No template? Falls back to the existing default format.
+- **New `{{REPO_TEMPLATE_DETECT}}` placeholder for skill authors.** Drop it into any `.tmpl` file and get automatic detection of PR templates, issue templates, and bug report templates. Any skill that creates PRs or issues can reuse this resolver.
+
+### Changed
+
+- Removed hardcoded "Generated with Claude Code" signature from PR bodies — that's up to each repo's own PR template to decide.
+
 ## 0.6.0.1 — 2026-03-17
 
 - **`/gstack-upgrade` now catches stale vendored copies automatically.** If your global gstack is up to date but the vendored copy in your project is behind, `/gstack-upgrade` detects the mismatch and syncs it. No more manually asking "did we vendor it?" — it just tells you and offers to update.
