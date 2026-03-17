@@ -99,6 +99,21 @@ This is the setup I use. One person, ten parallel agents, each with the right co
 
 ## Install
 
+gstack supports both Claude Code and [OpenClaw](https://github.com/nichochar/openclaw). Choose your platform:
+
+### OpenClaw
+
+See [openclaw/INSTALL.md](openclaw/INSTALL.md) for full instructions. Quick start:
+
+```bash
+git clone https://github.com/dddabtc/gstack.git
+cp -r gstack/openclaw/skills/* ~/.openclaw/workspace/skills/
+```
+
+No binary compilation needed — OpenClaw's built-in browser tool replaces the compiled browse binary.
+
+### Claude Code
+
 **Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+. `/browse` compiles a native binary — works on macOS and Linux (x64 and arm64).
 
 ### Step 1: Install on your machine
