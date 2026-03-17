@@ -250,6 +250,28 @@ describe('Codex-generated SKILL.md validation', () => {
       expect(lines.length).toBeGreaterThan(0);
     }
   });
+
+  test('generated Codex skills do not contain Claude install paths', () => {
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(codexSkillPath(skill), 'utf-8');
+      expect(content).not.toContain('.claude/skills/');
+    }
+  });
+
+  test('root Codex skill points at the canonical Codex install path', () => {
+    const content = fs.readFileSync(codexSkillPath('.'), 'utf-8');
+    expect(content).toContain('$HOME/.codex/skills/gstack');
+    expect(content).not.toContain('$HOME/.claude/skills/gstack');
+  });
+
+  test('Codex browse setup prefers ~/.codex before repo fallbacks', () => {
+    const content = fs.readFileSync(codexSkillPath('.'), 'utf-8');
+    expect(content).toContain('$HOME/.codex/skills/gstack/browse/dist/find-browse');
+    expect(content).toContain('$HOME/.agents/skills/gstack/browse/dist/find-browse');
+    expect(content.indexOf('$HOME/.codex/skills/gstack/browse/dist/find-browse')).toBeLessThan(
+      content.indexOf('$HOME/.agents/skills/gstack/browse/dist/find-browse')
+    );
+  });
 });
 
 // --- Update check preamble validation ---

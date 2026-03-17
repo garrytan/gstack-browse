@@ -136,18 +136,18 @@ Open Claude Code and paste this. Claude will do the rest.
 ### Codex Setup
 
 Clone gstack anywhere convenient, then let `setup --host codex` register the generated
-Codex skill tree in `~/.agents/skills/`:
+Codex skill tree in `~/.codex/skills/`:
 
 ```bash
-git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack
-cd ~/.codex/skills/gstack
+git clone https://github.com/garrytan/gstack.git ~/src/gstack
+cd ~/src/gstack
 ./setup --host codex
 ```
 
 This links:
 
-- `~/.agents/skills/gstack/` → the generated root Codex skill
-- `~/.agents/skills/gstack-review`, `~/.agents/skills/gstack-ship`, etc.
+- `~/.codex/skills/gstack/` → the generated root Codex skill
+- `~/.codex/skills/gstack-review`, `~/.codex/skills/gstack-ship`, etc.
 - the shared browse binary and helper docs through the checked-in `.agents/skills/` tree
 
 If you keep repo-level agent instructions, add a short `gstack` section to `AGENTS.md`
@@ -164,12 +164,12 @@ Real files get committed to your repo (not a submodule), so `git clone` just wor
 
 - Skill files (Markdown prompts) in `~/.claude/skills/gstack/` (or `.claude/skills/gstack/` for project installs)
 - Symlinks at `~/.claude/skills/browse`, `~/.claude/skills/qa`, `~/.claude/skills/review`, etc. pointing into the gstack directory
-- Codex skill files in `~/.agents/skills/gstack*/`
+- Codex skill files in `~/.codex/skills/gstack*/`
 - Browser binary at `browse/dist/browse` (~58MB, gitignored)
 - `node_modules/` (gitignored)
 - `/retro` saves JSON snapshots to `.context/retros/` in your project for trend tracking
 
-Everything lives inside `.claude/` or `.agents/`. Nothing touches your PATH or runs in the background.
+Everything lives inside `.claude/`, `.agents/`, or `~/.codex/skills/`. Nothing touches your PATH or runs in the background.
 
 ---
 

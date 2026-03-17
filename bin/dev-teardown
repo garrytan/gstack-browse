@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Remove local Claude dev symlinks. Codex uses the checked-in .agents/skills tree.
+# Remove local Claude dev symlinks. Codex installs continue to point at the
+# generated .agents/skills tree via ~/.codex/skills.
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -33,4 +34,4 @@ if [ ${#removed[@]} -gt 0 ]; then
 else
   echo "No symlinks found."
 fi
-echo "Dev mode deactivated. Global gstack (~/.claude/skills/gstack or ~/.agents/skills/gstack) is now active."
+echo "Dev mode deactivated. Global gstack (~/.claude/skills/gstack or ~/.codex/skills/gstack) is now active."

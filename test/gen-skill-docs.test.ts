@@ -164,6 +164,12 @@ describe('gen-skill-docs', () => {
     }
   });
 
+  test('root Codex skill uses the canonical install path', () => {
+    const content = fs.readFileSync(codexSkillPath('.'), 'utf-8');
+    expect(content).toContain('$HOME/.codex/skills/gstack');
+    expect(content).not.toContain('$HOME/.claude/skills/gstack');
+  });
+
   test('templates contain placeholders', () => {
     const rootTmpl = fs.readFileSync(path.join(ROOT, 'SKILL.md.tmpl'), 'utf-8');
     expect(rootTmpl).toContain('{{COMMAND_REFERENCE}}');

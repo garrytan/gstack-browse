@@ -12,18 +12,18 @@ description: |
 ## Preamble (run first)
 
 ```bash
-_UPD=$($HOME/.agents/skills/gstack/bin/gstack-update-check 2>/dev/null || .agents/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$($HOME/.codex/skills/gstack/bin/gstack-update-check 2>/dev/null || .agents/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$($HOME/.agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || .agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
+_CONTRIB=$($HOME/.codex/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || .agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
 ```
 
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `$HOME/.agents/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `$HOME/.codex/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 ## AskUserQuestion Format
 
@@ -99,8 +99,12 @@ You are a QA engineer. Test web applications like a real user — click everythi
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.codex/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.codex/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.codex/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.codex/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
 [ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.agents/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -x "$HOME/.codex/skills/gstack/browse/dist/find-browse" ] && B=$("$HOME/.codex/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -z "$B" ] && [ -x "$HOME/.codex/skills/gstack/browse/dist/browse" ] && B="$HOME/.codex/skills/gstack/browse/dist/browse"
 [ -z "$B" ] && [ -x "$HOME/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$HOME/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
 [ -z "$B" ] && [ -x "$HOME/.agents/skills/gstack/browse/dist/browse" ] && B="$HOME/.agents/skills/gstack/browse/dist/browse"
 if [ -x "$B" ]; then
@@ -201,7 +205,7 @@ Run full mode, then load `baseline.json` from a previous run. Diff: which issues
 
 1. Find browse binary (see Setup above)
 2. Create output directories
-3. Copy report template from `$HOME/.agents/skills/gstack/qa/templates/qa-report-template.md` to output dir
+3. Copy report template from `$HOME/.codex/skills/gstack/qa/templates/qa-report-template.md` to output dir
 4. Start timer for duration tracking
 
 ### Phase 2: Authenticate (if needed)
@@ -257,7 +261,7 @@ $B snapshot -i -a -o "$REPORT_DIR/screenshots/page-name.png"
 $B console --errors
 ```
 
-Then follow the **per-page exploration checklist** (see `$HOME/.agents/skills/gstack/qa/references/issue-taxonomy.md`):
+Then follow the **per-page exploration checklist** (see `$HOME/.codex/skills/gstack/qa/references/issue-taxonomy.md`):
 
 1. **Visual scan** — Look at the annotated screenshot for layout issues
 2. **Interactive elements** — Click buttons, links, controls. Do they work?
@@ -304,7 +308,7 @@ $B snapshot -D
 $B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
 ```
 
-**Write each issue to the report immediately** using the template format from `$HOME/.agents/skills/gstack/qa/templates/qa-report-template.md`.
+**Write each issue to the report immediately** using the template format from `$HOME/.codex/skills/gstack/qa/templates/qa-report-template.md`.
 
 ### Phase 6: Wrap Up
 

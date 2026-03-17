@@ -4,7 +4,8 @@
 
 - **You can now use gstack from Codex CLI.** The same skill templates now generate native Codex skill files in `.agents/skills/`, so you get `$gstack-review`, `$gstack-ship`, `$gstack-qa`, and the rest without maintaining a second prompt stack.
 - **Claude and Codex stay in sync automatically.** One `.tmpl` template now produces both hosts' `SKILL.md` files, which means new workflow improvements ship to both environments from a single source of truth.
-- **Codex setup is one command.** Run `./setup --host codex` to register the generated Codex skills in `~/.agents/skills/`, including the shared browse binary and helper docs.
+- **Codex setup is one command.** Run `./setup --host codex` to register the generated Codex skills in `~/.codex/skills/`, including the shared browse binary and helper docs.
+- **Codex installs now resolve the right browse binary out of the box.** The Codex installer and browse discovery logic now agree on `~/.codex/skills/` as the active install root, while still using `.agents/skills/` as the generated source tree inside the repo.
 - **Contributing now covers the dual-host workflow.** The docs, tests, and CI checks all verify both Claude and Codex generation, so it is much harder to accidentally fix one host and break the other.
 
 ### For contributors

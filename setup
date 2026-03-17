@@ -75,7 +75,7 @@ link_claude_global() {
 }
 
 link_codex_global() {
-  local skills_dir="$HOME/.agents/skills"
+  local skills_dir="$HOME/.codex/skills"
   mkdir -p "$skills_dir"
 
   ln -snf "$CODEX_ROOT" "$skills_dir/gstack"
@@ -150,7 +150,7 @@ case "$HOST" in
     link_codex_global
     ;;
   auto)
-    if command -v codex >/dev/null 2>&1; then
+    if command -v codex >/dev/null 2>&1 || [ -d "$HOME/.codex" ]; then
       link_codex_global
     fi
     if [ -d "$HOME/.claude" ]; then

@@ -9,6 +9,12 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
+const SKILL_ROOT_MARKERS = [
+  ['.codex', 'skills', 'gstack'],
+  ['.agents', 'skills', 'gstack'],
+  ['.claude', 'skills', 'gstack'],
+] as const;
+
 // ─── Binary Discovery ───────────────────────────────────────────
 
 function getGitRoot(): string | null {
@@ -24,25 +30,21 @@ function getGitRoot(): string | null {
   }
 }
 
-export function locateBinary(): string | null {
-  const root = getGitRoot();
-  const home = homedir();
+export function locateBinary(options: { root?: string | null; home?: string } = {}): string | null {
+  const root = options.root ?? getGitRoot();
+  const home = options.home ?? homedir();
 
-  // Workspace-local takes priority (for development)
   if (root) {
-    const localAgents = join(root, '.agents', 'skills', 'gstack', 'browse', 'dist', 'browse');
-    if (existsSync(localAgents)) return localAgents;
-
-    const local = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-    if (existsSync(local)) return local;
+    for (const marker of SKILL_ROOT_MARKERS) {
+      const local = join(root, ...marker, 'browse', 'dist', 'browse');
+      if (existsSync(local)) return local;
+    }
   }
 
-  const globalAgents = join(home, '.agents', 'skills', 'gstack', 'browse', 'dist', 'browse');
-  if (existsSync(globalAgents)) return globalAgents;
-
-  // Global fallback
-  const global = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-  if (existsSync(global)) return global;
+  for (const marker of SKILL_ROOT_MARKERS) {
+    const global = join(home, ...marker, 'browse', 'dist', 'browse');
+    if (existsSync(global)) return global;
+  }
 
   return null;
 }

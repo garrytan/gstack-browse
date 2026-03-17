@@ -108,7 +108,7 @@ branch first. Prompt and skill changes have invisible couplings.
 
 ## Deploying to the active skill
 
-The active Codex skill lives at `~/.agents/skills/gstack/`. After making changes:
+The active Codex skill lives at `~/.codex/skills/gstack/`. After making changes:
 
 1. Push your branch.
 2. Refresh the checkout you installed from.
@@ -117,6 +117,6 @@ The active Codex skill lives at `~/.agents/skills/gstack/`. After making changes
 Or copy binaries directly:
 
 ```bash
-cp browse/dist/browse ~/.agents/skills/gstack/browse/dist/browse
-cp browse/dist/find-browse ~/.agents/skills/gstack/browse/dist/find-browse
+cp browse/dist/browse ~/.codex/skills/gstack/browse/dist/browse
+cp browse/dist/find-browse ~/.codex/skills/gstack/browse/dist/find-browse
 ```

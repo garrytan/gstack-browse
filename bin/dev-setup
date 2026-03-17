@@ -2,9 +2,9 @@
 # Set up gstack for local development — test skills from within this repo.
 #
 # Creates .claude/skills/gstack → repo root so Claude Code resolves skills from
-# your working tree. Codex reads the checked-in .agents/skills tree directly, so
-# this script also ensures the support symlinks inside .agents/skills/gstack are
-# present for browse/setup/helper-doc access.
+# your working tree. Codex installs are linked from ~/.codex/skills into the
+# checked-in .agents/skills tree, so this script also ensures the support
+# symlinks inside .agents/skills/gstack are present for browse/setup/helper-doc access.
 #
 # Also copies .env from the main worktree if this is a git worktree so API keys
 # carry over automatically.
@@ -68,7 +68,8 @@ ln -snf ../../../package.json "$REPO_ROOT/.agents/skills/gstack/package.json"
 ln -snf ../../../VERSION "$REPO_ROOT/.agents/skills/gstack/VERSION"
 
 echo ""
-echo "Dev mode active. Claude resolves from .claude/skills/gstack; Codex resolves from .agents/skills/."
+echo "Dev mode active. Claude resolves from .claude/skills/gstack."
+echo "Codex uses the generated .agents/skills tree once you run ./setup --host codex."
 echo "Edit skill docs, regenerate if needed, and test immediately — no copy/deploy needed."
 echo ""
 echo "To tear down: bin/dev-teardown"

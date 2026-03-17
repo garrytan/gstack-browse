@@ -55,7 +55,7 @@ function resolveCodexSkillName(skillDirName: string | null): string {
 }
 
 function getSkillRoot(host: Host): string {
-  return host === 'codex' ? '$HOME/.agents/skills/gstack' : '~/.claude/skills/gstack';
+  return host === 'codex' ? '$HOME/.codex/skills/gstack' : '~/.claude/skills/gstack';
 }
 
 function getInvocation(host: Host, skill: string): string {
@@ -261,13 +261,13 @@ Slug: lowercase, hyphens, max 60 chars (e.g. \`browse-js-no-await\`). Skip if fi
   return `## Preamble (run first)
 
 \`\`\`bash
-_UPD=$($HOME/.agents/skills/gstack/bin/gstack-update-check 2>/dev/null || .agents/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$($HOME/.codex/skills/gstack/bin/gstack-update-check 2>/dev/null || .agents/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$($HOME/.agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || .agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
+_CONTRIB=$($HOME/.codex/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || .agents/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
 \`\`\`
@@ -351,8 +351,12 @@ If \`NEEDS_SETUP\`:
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.codex/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.codex/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.codex/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.codex/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$_ROOT/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
 [ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.agents/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -x "$HOME/.codex/skills/gstack/browse/dist/find-browse" ] && B=$("$HOME/.codex/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
+[ -z "$B" ] && [ -x "$HOME/.codex/skills/gstack/browse/dist/browse" ] && B="$HOME/.codex/skills/gstack/browse/dist/browse"
 [ -z "$B" ] && [ -x "$HOME/.agents/skills/gstack/browse/dist/find-browse" ] && B=$("$HOME/.agents/skills/gstack/browse/dist/find-browse" 2>/dev/null || true)
 [ -z "$B" ] && [ -x "$HOME/.agents/skills/gstack/browse/dist/browse" ] && B="$HOME/.agents/skills/gstack/browse/dist/browse"
 if [ -x "$B" ]; then

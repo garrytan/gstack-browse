@@ -33,6 +33,12 @@ const SKILL_FILES = [
   'document-release/SKILL.md',
 ].filter(f => fs.existsSync(path.join(ROOT, f)));
 
+const CODEX_SKILLS = fs.existsSync(path.join(ROOT, '.agents', 'skills'))
+  ? fs.readdirSync(path.join(ROOT, '.agents', 'skills'))
+      .map(dir => path.join('.agents', 'skills', dir, 'SKILL.md'))
+      .filter(file => fs.existsSync(path.join(ROOT, file)))
+  : [];
+
 let hasErrors = false;
 
 // ─── Skills ─────────────────────────────────────────────────
@@ -63,6 +69,21 @@ for (const file of SKILL_FILES) {
   } else {
     console.log(`  \u2705 ${file.padEnd(30)} — ${totalValid} commands, all valid`);
   }
+}
+
+// ─── Templates ──────────────────────────────────────────────
+
+console.log('\n  Codex skills:');
+for (const file of CODEX_SKILLS) {
+  const content = fs.readFileSync(path.join(ROOT, file), 'utf-8');
+  const nameMatch = content.match(/^name:\s+(.+)$/m);
+  const descMatch = content.match(/^description:\s+\|$/m);
+  if (!nameMatch || !descMatch || content.includes('.claude/skills/')) {
+    hasErrors = true;
+    console.log(`  \u274c ${file.padEnd(30)} — invalid frontmatter or legacy Claude path`);
+    continue;
+  }
+  console.log(`  \u2705 ${file.padEnd(30)} — frontmatter + paths look good`);
 }
 
 // ─── Templates ──────────────────────────────────────────────
@@ -101,6 +122,7 @@ for (const file of SKILL_FILES) {
 console.log('\n  Freshness:');
 try {
   execSync('bun run scripts/gen-skill-docs.ts --dry-run', { cwd: ROOT, stdio: 'pipe' });
+  execSync('bun run scripts/gen-skill-docs.ts --host codex --dry-run', { cwd: ROOT, stdio: 'pipe' });
   console.log('  \u2705 All generated files are fresh');
 } catch (err: any) {
   hasErrors = true;

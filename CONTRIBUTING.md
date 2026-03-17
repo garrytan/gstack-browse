@@ -6,7 +6,7 @@ Thanks for wanting to make gstack better. Whether you're fixing a typo in a skil
 
 gstack skills are Markdown files discovered from a `skills/` directory. Claude uses
 `~/.claude/skills/gstack/`; Codex uses the generated `.agents/skills/` tree and
-installs it into `~/.agents/skills/`. When you're developing gstack itself, you
+installs it into `~/.codex/skills/`. When you're developing gstack itself, you
 want both hosts to read from your working tree so edits take effect instantly.
 
 That's what dev mode does. It symlinks your repo into the local `.claude/skills/`
