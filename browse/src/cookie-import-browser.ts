@@ -32,11 +32,21 @@
  *   └──────────────────────────────────────────────────────────────────┘
  */
 
-import { Database } from 'bun:sqlite';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { spawn as nodeSpawn } from 'child_process';
+import { IS_MACOS, TEMP_DIR } from './platform';
+
+// Dynamic import: bun:sqlite is only available in Bun (macOS-only code path)
+let Database: any;
+async function ensureSqlite() {
+  if (!Database) {
+    const mod = await import('bun:sqlite');
+    Database = mod.Database;
+  }
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -104,6 +114,9 @@ const keyCache = new Map<string, Buffer>();
  * Find which browsers are installed (have a cookie DB on disk).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
+  // Cookie import from system browsers uses macOS Keychain — only supported on macOS
+  if (!IS_MACOS) return [];
+
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
     const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
@@ -114,7 +127,8 @@ export function findInstalledBrowsers(): BrowserInfo[] {
 /**
  * List unique cookie domains + counts from a browser's DB. No decryption.
  */
-export function listDomains(browserName: string, profile = 'Default'): { domains: DomainEntry[]; browser: string } {
+export async function listDomains(browserName: string, profile = 'Default'): Promise<{ domains: DomainEntry[]; browser: string }> {
+  await ensureSqlite();
   const browser = resolveBrowser(browserName);
   const dbPath = getCookieDbPath(browser, profile);
   const db = openDb(dbPath, browser.name);
@@ -141,8 +155,15 @@ export async function importCookies(
   domains: string[],
   profile = 'Default',
 ): Promise<ImportResult> {
+  if (!IS_MACOS) {
+    throw new CookieImportError(
+      'Browser cookie import is only supported on macOS (requires Keychain access)',
+      'unsupported_platform',
+    );
+  }
   if (domains.length === 0) return { cookies: [], count: 0, failed: 0, domainCounts: {} };
 
+  await ensureSqlite();
   const browser = resolveBrowser(browserName);
   const derivedKey = await getDerivedKey(browser);
   const dbPath = getCookieDbPath(browser, profile);
@@ -241,7 +262,7 @@ function openDb(dbPath: string, browserName: string): Database {
 }
 
 function openDbFromCopy(dbPath: string, browserName: string): Database {
-  const tmpPath = `/tmp/browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`;
+  const tmpPath = path.join(TEMP_DIR, `browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`);
   try {
     fs.copyFileSync(dbPath, tmpPath);
     // Also copy WAL and SHM if they exist (for consistent reads)
@@ -284,12 +305,18 @@ async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
 }
 
 async function getKeychainPassword(service: string): Promise<string> {
-  // Use async Bun.spawn with timeout to avoid blocking the event loop.
+  // Use async spawn with timeout to avoid blocking the event loop.
   // macOS may show an Allow/Deny dialog that blocks until the user responds.
-  const proc = Bun.spawn(
-    ['security', 'find-generic-password', '-s', service, '-w'],
-    { stdout: 'pipe', stderr: 'pipe' },
+  const proc = nodeSpawn(
+    'security', ['find-generic-password', '-s', service, '-w'],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
   );
+
+  // Collect output as it arrives
+  let stdoutStr = '';
+  let stderrStr = '';
+  proc.stdout!.on('data', (d: Buffer) => { stdoutStr += d.toString(); });
+  proc.stderr!.on('data', (d: Buffer) => { stderrStr += d.toString(); });
 
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => {
@@ -303,9 +330,12 @@ async function getKeychainPassword(service: string): Promise<string> {
   );
 
   try {
-    const exitCode = await Promise.race([proc.exited, timeout]);
-    const stdout = await new Response(proc.stdout).text();
-    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await Promise.race([
+      new Promise<number | null>((resolve) => proc.on('exit', resolve)),
+      timeout,
+    ]);
+    const stdout = stdoutStr;
+    const stderr = stderrStr;
 
     if (exitCode !== 0) {
       // Distinguish denied vs not found vs other

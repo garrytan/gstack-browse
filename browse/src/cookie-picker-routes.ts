@@ -96,7 +96,7 @@ export async function handleCookiePickerRoute(
       if (!browserName) {
         return errorResponse("Missing 'browser' parameter", 'missing_param', { port });
       }
-      const result = listDomains(browserName);
+      const result = await listDomains(browserName);
       return jsonResponse({
         browser: result.browser,
         domains: result.domains,

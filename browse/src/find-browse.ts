@@ -27,15 +27,16 @@ function getGitRoot(): string | null {
 export function locateBinary(): string | null {
   const root = getGitRoot();
   const home = homedir();
+  const binName = process.platform === 'win32' ? 'browse.exe' : 'browse';
 
   // Workspace-local takes priority (for development)
   if (root) {
-    const local = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+    const local = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', binName);
     if (existsSync(local)) return local;
   }
 
   // Global fallback
-  const global = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+  const global = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', binName);
   if (existsSync(global)) return global;
 
   return null;

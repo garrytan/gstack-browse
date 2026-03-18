@@ -9,13 +9,14 @@ import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 import * as path from 'path';
+import { TEMP_DIR, getSafeDirectories, isPathWithin } from './platform';
 
 // Security: Path validation to prevent path traversal attacks
-const SAFE_DIRECTORIES = ['/tmp', process.cwd()];
+const SAFE_DIRECTORIES = getSafeDirectories();
 
 function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
-  const isSafe = SAFE_DIRECTORIES.some(dir => resolved === dir || resolved.startsWith(dir + '/'));
+  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
   }
@@ -87,7 +88,7 @@ export async function handleMetaCommand(
     case 'screenshot': {
       // Parse priority: flags (--viewport, --clip) → selector (@ref, CSS) → output path
       const page = bm.getPage();
-      let outputPath = '/tmp/browse-screenshot.png';
+      let outputPath = path.join(TEMP_DIR, 'browse-screenshot.png');
       let clipRect: { x: number; y: number; width: number; height: number } | undefined;
       let targetSelector: string | undefined;
       let viewportOnly = false;
@@ -146,7 +147,7 @@ export async function handleMetaCommand(
 
     case 'pdf': {
       const page = bm.getPage();
-      const pdfPath = args[0] || '/tmp/browse-page.pdf';
+      const pdfPath = args[0] || path.join(TEMP_DIR, 'browse-page.pdf');
       validateOutputPath(pdfPath);
       await page.pdf({ path: pdfPath, format: 'A4' });
       return `PDF saved: ${pdfPath}`;
@@ -154,7 +155,7 @@ export async function handleMetaCommand(
 
     case 'responsive': {
       const page = bm.getPage();
-      const prefix = args[0] || '/tmp/browse-responsive';
+      const prefix = args[0] || path.join(TEMP_DIR, 'browse-responsive');
       validateOutputPath(prefix);
       const viewports = [
         { name: 'mobile', width: 375, height: 812 },

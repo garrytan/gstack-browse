@@ -27,8 +27,8 @@
     "eval:select": "bun run scripts/eval-select.ts"
   },
   "dependencies": {
-    "playwright": "^1.58.2",
-    "diff": "^7.0.0"
+    "diff": "^7.0.0",
+    "playwright": "^1.58.2"
   },
   "engines": {
     "bun": ">=1.0.0"
@@ -44,6 +44,7 @@
     "devtools"
   ],
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0"
+    "@anthropic-ai/sdk": "^0.78.0",
+    "tsx": "^4.21.0"
   }
 }

@@ -12,6 +12,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawnSync } from 'child_process';
 
 export interface BrowseConfig {
   projectDir: string;
@@ -27,12 +28,11 @@ export interface BrowseConfig {
  */
 export function getGitRoot(): string | null {
   try {
-    const proc = Bun.spawnSync(['git', 'rev-parse', '--show-toplevel'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
+    const proc = spawnSync('git', ['rev-parse', '--show-toplevel'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 2_000, // Don't hang if .git is broken
     });
-    if (proc.exitCode !== 0) return null;
+    if (proc.status !== 0) return null;
     return proc.stdout.toString().trim() || null;
   } catch {
     return null;
@@ -118,12 +118,11 @@ export function ensureStateDir(config: BrowseConfig): void {
  */
 export function getRemoteSlug(): string {
   try {
-    const proc = Bun.spawnSync(['git', 'remote', 'get-url', 'origin'], {
-      stdout: 'pipe',
-      stderr: 'pipe',
+    const proc = spawnSync('git', ['remote', 'get-url', 'origin'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 2_000,
     });
-    if (proc.exitCode !== 0) throw new Error('no remote');
+    if (proc.status !== 0) throw new Error('no remote');
     const url = proc.stdout.toString().trim();
     // SSH:   git@github.com:owner/repo.git → owner-repo
     // HTTPS: https://github.com/owner/repo.git → owner-repo

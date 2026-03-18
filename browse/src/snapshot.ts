@@ -20,6 +20,8 @@
 import type { Page, Locator } from 'playwright';
 import type { BrowserManager, RefEntry } from './browser-manager';
 import * as Diff from 'diff';
+import * as path from 'path';
+import { TEMP_DIR, getSafeDirectories, isPathWithin } from './platform';
 
 // Roles considered "interactive" for the -i flag
 const INTERACTIVE_ROLES = new Set([
@@ -308,11 +310,11 @@ export async function handleSnapshot(
 
   // ─── Annotated screenshot (-a) ────────────────────────────
   if (opts.annotate) {
-    const screenshotPath = opts.outputPath || '/tmp/browse-annotated.png';
+    const screenshotPath = opts.outputPath || path.join(TEMP_DIR, 'browse-annotated.png');
     // Validate output path (consistent with screenshot/pdf/responsive)
-    const resolvedPath = require('path').resolve(screenshotPath);
-    const safeDirs = ['/tmp', process.cwd()];
-    if (!safeDirs.some((dir: string) => resolvedPath === dir || resolvedPath.startsWith(dir + '/'))) {
+    const resolvedPath = path.resolve(screenshotPath);
+    const safeDirs = getSafeDirectories();
+    if (!safeDirs.some((dir: string) => isPathWithin(resolvedPath, dir))) {
       throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
     }
     try {

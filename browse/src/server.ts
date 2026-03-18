@@ -281,6 +281,12 @@ async function shutdown() {
 // Handle signals
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+// On Windows, SIGTERM is a no-op — use 'exit' to ensure state file cleanup
+if (process.platform === 'win32') {
+  process.on('exit', () => {
+    try { fs.unlinkSync(config.stateFile); } catch {}
+  });
+}
 
 // ─── Start ─────────────────────────────────────────────────────
 async function start() {

@@ -11,10 +11,37 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawn as nodeSpawn } from 'child_process';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
+import { IS_WINDOWS } from './platform';
 
 const config = resolveConfig();
 const MAX_START_WAIT = 8000; // 8 seconds to start
+
+/**
+ * Resolve the full path to the `bun` executable.
+ * On Windows, Bun.which may return a .cmd shim — follow it to the real .exe.
+ */
+function resolveBunPath(): string {
+  const found = Bun.which('bun');
+  if (!found) return 'bun'; // fallback — let the OS try
+
+  if (IS_WINDOWS && found.endsWith('.cmd')) {
+    // npm .cmd shims contain: "%dp0%\node_modules\bun\bin\bun.exe"
+    try {
+      const content = fs.readFileSync(found, 'utf-8');
+      const match = content.match(/%dp0%\\([^\s"]+\.exe)/i);
+      if (match) {
+        const realPath = path.join(path.dirname(found), match[1]);
+        if (fs.existsSync(realPath)) return realPath;
+      }
+    } catch {}
+  }
+
+  return found;
+}
+
+const BUN_PATH = resolveBunPath();
 
 export function resolveServerScript(
   env: Record<string, string | undefined> = process.env,
@@ -26,7 +53,7 @@ export function resolveServerScript(
   }
 
   // Dev mode: cli.ts runs directly from browse/src
-  if (metaDir.startsWith('/') && !metaDir.includes('$bunfs')) {
+  if (path.isAbsolute(metaDir) && !metaDir.includes('$bunfs')) {
     const direct = path.resolve(metaDir, 'server.ts');
     if (fs.existsSync(direct)) {
       return direct;
@@ -47,6 +74,19 @@ export function resolveServerScript(
 }
 
 const SERVER_SCRIPT = resolveServerScript();
+
+/**
+ * On Windows, resolve the Node-compatible server entry point.
+ * Falls back to the Bun server script if not found.
+ */
+function resolveNodeServerScript(): string {
+  const dir = path.dirname(SERVER_SCRIPT);
+  const nodeScript = path.join(dir, 'server-node.mjs');
+  if (fs.existsSync(nodeScript)) return nodeScript;
+  return SERVER_SCRIPT;
+}
+
+
 
 interface ServerState {
   pid: number;
@@ -80,6 +120,12 @@ function isProcessAlive(pid: number): boolean {
 async function killServer(pid: number): Promise<void> {
   if (!isProcessAlive(pid)) return;
 
+  if (IS_WINDOWS) {
+    // On Windows, SIGTERM/SIGKILL don't work — process.kill(pid) terminates immediately
+    try { process.kill(pid); } catch {}
+    return;
+  }
+
   try { process.kill(pid, 'SIGTERM'); } catch { return; }
 
   // Wait up to 2s for graceful shutdown
@@ -99,6 +145,9 @@ async function killServer(pid: number): Promise<void> {
  * Verifies PID ownership before sending signals.
  */
 function cleanupLegacyState(): void {
+  // Legacy /tmp state files only ever existed on Unix — skip on Windows
+  if (IS_WINDOWS) return;
+
   try {
     const files = fs.readdirSync('/tmp').filter(f => f.startsWith('browse-server') && f.endsWith('.json'));
     for (const file of files) {
@@ -140,13 +189,33 @@ async function startServer(): Promise<ServerState> {
   try { fs.unlinkSync(config.stateFile); } catch {}
 
   // Start server as detached background process
-  const proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
-  });
-
-  // Don't hold the CLI open
-  proc.unref();
+  // On Windows, use Node+tsx (Bun's pipe handling breaks Playwright's CDP connection)
+  const serverCmd = IS_WINDOWS
+    ? ['node', '--import', 'tsx', resolveNodeServerScript()]
+    : [BUN_PATH, 'run', SERVER_SCRIPT];
+  // On Windows, set cwd to gstack root so Node resolves tsx from node_modules
+  const serverCwd = IS_WINDOWS
+    ? path.resolve(path.dirname(SERVER_SCRIPT), '..', '..')
+    : undefined;
+  let proc: any;
+  if (IS_WINDOWS) {
+    // On Windows, use child_process.spawn with detached:true so the Node server
+    // survives after browse.exe exits. Bun.spawn doesn't support detached.
+    const cp = nodeSpawn(serverCmd[0], serverCmd.slice(1), {
+      stdio: 'ignore',
+      detached: true,
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+      cwd: serverCwd,
+    });
+    cp.unref();
+    proc = { unref() {}, stderr: null };
+  } else {
+    proc = Bun.spawn(serverCmd, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+    });
+    proc.unref();
+  }
 
   // Wait for state file to appear
   const start = Date.now();

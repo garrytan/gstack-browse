@@ -9,6 +9,8 @@ import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawn as nodeSpawn } from 'child_process';
+import { IS_WINDOWS, getSafeDirectories, isPathWithin } from './platform';
 
 export async function handleWriteCommand(
   command: string,
@@ -275,9 +277,9 @@ export async function handleWriteCommand(
       if (!filePath) throw new Error('Usage: browse cookie-import <json-file>');
       // Path validation — prevent reading arbitrary files
       if (path.isAbsolute(filePath)) {
-        const safeDirs = ['/tmp', process.cwd()];
+        const safeDirs = getSafeDirectories();
         const resolved = path.resolve(filePath);
-        if (!safeDirs.some(dir => resolved === dir || resolved.startsWith(dir + '/'))) {
+        if (!safeDirs.some(dir => isPathWithin(resolved, dir))) {
           throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
         }
       }
@@ -335,7 +337,12 @@ export async function handleWriteCommand(
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
       try {
-        Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
+        const openCmd = IS_WINDOWS
+          ? ['cmd', '/c', 'start', '', pickerUrl]
+          : process.platform === 'linux'
+            ? ['xdg-open', pickerUrl]
+            : ['open', pickerUrl];
+        nodeSpawn(openCmd[0], openCmd.slice(1), { stdio: 'ignore' });
       } catch {
         // open may fail silently — URL is in the message below
       }
