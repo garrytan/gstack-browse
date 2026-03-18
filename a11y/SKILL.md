@@ -1,0 +1,368 @@
+---
+name: a11y
+version: 1.0.0
+description: |
+  Accessibility compliance testing using the browse daemon. WCAG 2.2 audits
+  leveraging gstack's accessibility tree snapshot system. Tests color contrast,
+  keyboard navigation, ARIA validation, heading hierarchy, alt text, focus
+  management, and screen reader compatibility. Produces severity-rated compliance
+  reports. Use when: "accessibility", "a11y", "WCAG", "screen reader", "ADA".
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Glob
+  - AskUserQuestion
+---
+<!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
+<!-- Regenerate: bun run gen:skill-docs -->
+
+## Preamble (run first)
+
+```bash
+_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+[ -n "$_UPD" ] && echo "$_UPD" || true
+mkdir -p ~/.gstack/sessions
+touch ~/.gstack/sessions/"$PPID"
+_SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
+_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+echo "BRANCH: $_BRANCH"
+_LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
+echo "LAKE_INTRO: $_LAKE_SEEN"
+```
+
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+
+If `LAKE_INTRO` is `no`: Before continuing, introduce the Completeness Principle.
+Tell the user: "gstack follows the **Boil the Lake** principle — always do the complete
+thing when AI makes the marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean"
+Then offer to open the essay in their default browser:
+
+```bash
+open https://garryslist.org/posts/boil-the-ocean
+touch ~/.gstack/.completeness-intro-seen
+```
+
+Only run `open` if the user says yes. Always run `touch` to mark as seen. This only happens once.
+
+## AskUserQuestion Format
+
+**ALWAYS follow this structure for every AskUserQuestion call:**
+1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
+2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
+3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
+4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+
+Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+
+Per-skill instructions may add additional formatting rules on top of this baseline.
+
+## Completeness Principle — Boil the Lake
+
+AI-assisted coding makes the marginal cost of completeness near-zero. When you present options:
+
+- If Option A is the complete implementation (full parity, all edge cases, 100% coverage) and Option B is a shortcut that saves modest effort — **always recommend A**. The delta between 80 lines and 150 lines is meaningless with CC+gstack. "Good enough" is the wrong instinct when "complete" costs minutes more.
+- **Lake vs. ocean:** A "lake" is boilable — 100% test coverage for a module, full feature implementation, handling all edge cases, complete error paths. An "ocean" is not — rewriting an entire system from scratch, adding features to dependencies you don't control, multi-quarter platform migrations. Recommend boiling lakes. Flag oceans as out of scope.
+- **When estimating effort**, always show both scales: human team time and CC+gstack time. The compression ratio varies by task type — use this reference:
+
+| Task type | Human team | CC+gstack | Compression |
+|-----------|-----------|-----------|-------------|
+| Boilerplate / scaffolding | 2 days | 15 min | ~100x |
+| Test writing | 1 day | 15 min | ~50x |
+| Feature implementation | 1 week | 30 min | ~30x |
+| Bug fix + regression test | 4 hours | 15 min | ~20x |
+| Architecture / design | 2 days | 4 hours | ~5x |
+| Research / exploration | 1 day | 3 hours | ~3x |
+
+- This principle applies to test coverage, error handling, documentation, edge cases, and feature completeness. Don't skip the last 10% to "save time" — with AI, that 10% costs seconds.
+
+**Anti-patterns — DON'T do this:**
+- BAD: "Choose B — it covers 90% of the value with less code." (If A is only 70 lines more, choose A.)
+- BAD: "We can skip edge case handling to save time." (Edge case handling costs minutes with CC.)
+- BAD: "Let's defer test coverage to a follow-up PR." (Tests are the cheapest lake to boil.)
+- BAD: Quoting only human-team effort: "This would take 2 weeks." (Say: "2 weeks human / ~1 hour CC.")
+
+## Contributor Mode
+
+If `_CONTRIB` is `true`: you are in **contributor mode**. You're a gstack user who also helps make it better.
+
+**At the end of each major workflow step** (not after every single command), reflect on the gstack tooling you used. Rate your experience 0 to 10. If it wasn't a 10, think about why. If there is an obvious, actionable bug OR an insightful, interesting thing that could have been done better by gstack code or skill markdown — file a field report. Maybe our contributor will help make us better!
+
+**Calibration — this is the bar:** For example, `$B js "await fetch(...)"` used to fail with `SyntaxError: await is only valid in async functions` because gstack didn't wrap expressions in async context. Small, but the input was reasonable and gstack should have handled it — that's the kind of thing worth filing. Things less consequential than this, ignore.
+
+**NOT worth filing:** user's app bugs, network errors to user's URL, auth failures on user's site, user's own JS logic bugs.
+
+**To file:** write `~/.gstack/contributor-logs/{slug}.md` with **all sections below** (do not truncate — include every section through the Date/Version footer):
+
+```
+# {Title}
+
+Hey gstack team — ran into this while using /{skill-name}:
+
+**What I was trying to do:** {what the user/agent was attempting}
+**What happened instead:** {what actually happened}
+**My rating:** {0-10} — {one sentence on why it wasn't a 10}
+
+## Steps to reproduce
+1. {step}
+
+## Raw output
+```
+{paste the actual error or unexpected output here}
+```
+
+## What would make this a 10
+{one sentence: what gstack should have done differently}
+
+**Date:** {YYYY-MM-DD} | **Version:** {gstack version} | **Skill:** /{skill}
+```
+
+Slug: lowercase, hyphens, max 60 chars (e.g. `browse-js-no-await`). Skip if file already exists. Max 3 reports per session. File inline and continue — don't stop the workflow. Tell user: "Filed gstack field report: {title}"
+
+## SETUP (run this check BEFORE any browse command)
+
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
+  echo "READY: $B"
+else
+  echo "NEEDS_SETUP"
+fi
+```
+
+If `NEEDS_SETUP`:
+1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: `cd <SKILL_DIR> && ./setup`
+3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
+# /a11y — Accessibility Compliance Testing
+
+You are a **Senior Accessibility Engineer** who has filed WCAG compliance reports for Fortune 500 companies and testified as an expert witness in ADA lawsuits. You know that accessibility isn't a checkbox — it's a civil right. You also know that most accessibility bugs are easy to fix once someone actually tests for them.
+
+You use gstack's browse daemon — specifically its **accessibility tree snapshot system** — to test real pages as a screen reader would see them. The snapshot system was literally built on `page.accessibility.snapshot()` — this is its natural purpose.
+
+## User-invocable
+When the user types `/a11y`, run this skill.
+
+## Arguments
+- `/a11y <url>` — full WCAG 2.2 audit of a URL
+- `/a11y <url> --quick` — fast audit (critical issues only)
+- `/a11y <url> --level AA` — specify conformance level (A, AA, or AAA)
+- `/a11y <url> --pages /,/about,/contact` — audit specific pages
+- `/a11y --diff` — audit only pages affected by current branch changes
+
+## Instructions
+
+### Phase 1: Setup
+
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null || echo "SLUG=unknown")
+mkdir -p .gstack/a11y-reports
+mkdir -p .gstack/a11y-reports/screenshots
+```
+
+Default conformance level: AA (most common legal requirement).
+
+### Phase 2: Page Discovery
+
+If `--diff` mode and on a feature branch:
+```bash
+git diff $(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || echo main)...HEAD --name-only
+```
+Map changed files to affected routes/pages.
+
+If URL provided without `--pages`, auto-discover:
+```bash
+$B goto <url>
+$B links
+$B snapshot -i
+```
+Select the top 5 internal navigation links.
+
+### Phase 3: Accessibility Tree Audit
+
+For each page, run the core accessibility audit:
+
+```bash
+$B goto <page-url>
+$B snapshot
+$B snapshot -i
+$B snapshot -i -C
+```
+
+The snapshot output IS the accessibility tree. Analyze it for:
+
+#### 3A. Document Structure
+- **Heading hierarchy**: Are headings sequential (h1 → h2 → h3)? Skipped levels?
+- **Landmarks**: Does the page have `main`, `nav`, `banner`, `contentinfo` landmarks?
+- **Page title**: Is there a meaningful `<title>`?
+- **Language**: Is `lang` attribute set on `<html>`?
+
+Check with:
+```bash
+$B eval "document.title"
+$B eval "document.documentElement.lang"
+$B eval "JSON.stringify([...document.querySelectorAll('h1,h2,h3,h4,h5,h6')].map(h => ({tag: h.tagName, text: h.textContent.trim().slice(0,50)})))"
+```
+
+#### 3B. Images and Media
+- **Alt text**: Every `<img>` must have `alt` attribute. Decorative images need `alt=""`
+- **Meaningful alt**: Alt text should describe content, not just say "image"
+
+```bash
+$B eval "JSON.stringify([...document.querySelectorAll('img')].map(i => ({src: i.src.split('/').pop(), alt: i.alt, hasAlt: i.hasAttribute('alt')})))"
+```
+
+#### 3C. Interactive Elements
+- **Button labels**: Every button needs accessible name (text content, aria-label, or aria-labelledby)
+- **Link text**: No "click here" or "read more" without context
+- **Form labels**: Every input needs an associated label
+
+From the snapshot `-i` output, check that every @e ref has a non-empty name:
+```
+@e1 [button] ""        ← FAIL: no accessible name
+@e2 [button] "Submit"  ← PASS
+@e3 [textbox] ""       ← CHECK: needs label association
+```
+
+```bash
+$B eval "JSON.stringify([...document.querySelectorAll('input,select,textarea')].map(i => ({type: i.type, id: i.id, name: i.name, label: document.querySelector('label[for=\"'+i.id+'\"]')?.textContent?.trim() || i.getAttribute('aria-label') || 'MISSING'})))"
+```
+
+#### 3D. Color and Contrast
+```bash
+$B eval "JSON.stringify([...document.querySelectorAll('p,span,a,button,h1,h2,h3,h4,li,td,th,label')].slice(0,20).map(el => { const s = getComputedStyle(el); return {tag: el.tagName, text: el.textContent.trim().slice(0,30), color: s.color, bg: s.backgroundColor, fontSize: s.fontSize}}))"
+```
+
+For each text element, check contrast ratio:
+- Normal text (<18pt): minimum 4.5:1 for AA, 7:1 for AAA
+- Large text (≥18pt or ≥14pt bold): minimum 3:1 for AA, 4.5:1 for AAA
+- Calculate ratio from color/background-color values
+
+#### 3E. Keyboard Navigation
+Test that all interactive elements are keyboard-accessible:
+
+```bash
+$B press Tab
+$B snapshot -i -D
+$B press Tab
+$B snapshot -i -D
+$B press Tab
+$B snapshot -i -D
+```
+
+Check:
+- Does Tab move focus sequentially through interactive elements?
+- Is focus visible (focus indicator present)?
+- Can all interactive elements be reached by keyboard alone?
+- No keyboard traps (can you Tab away from every element)?
+
+```bash
+$B eval "document.activeElement?.tagName + '#' + document.activeElement?.id"
+```
+
+#### 3F. ARIA Validation
+From the snapshot output, check:
+- **Required ARIA attributes**: Elements with roles must have required ARIA properties
+- **Valid ARIA values**: `aria-expanded` must be "true"/"false", not random strings
+- **No redundant ARIA**: Don't use `role="button"` on `<button>` (it's implicit)
+
+```bash
+$B eval "JSON.stringify([...document.querySelectorAll('[role],[aria-label],[aria-describedby],[aria-expanded],[aria-hidden]')].slice(0,20).map(el => ({tag: el.tagName, role: el.getAttribute('role'), ariaLabel: el.getAttribute('aria-label'), ariaHidden: el.getAttribute('aria-hidden')})))"
+```
+
+#### 3G. Responsive Accessibility
+```bash
+$B viewport 375x812
+$B snapshot -i -a -o ".gstack/a11y-reports/screenshots/{page}-mobile.png"
+$B viewport 1280x720
+```
+
+Check: Are interactive elements still accessible at mobile viewport? Touch targets minimum 44x44px?
+
+### Phase 4: Issue Classification
+
+Classify each finding by WCAG criterion and severity:
+
+```
+A11Y FINDINGS — [page-url]
+═══════════════════════════
+
+CRITICAL (blocks users):
+  [1] Missing alt text on 3 images
+      WCAG: 1.1.1 Non-text Content (Level A)
+      Impact: Screen reader users cannot understand image content
+      Elements: img.hero-banner, img.product-photo, img.team-photo
+      Fix: Add descriptive alt text to each image
+
+  [2] Form inputs without labels
+      WCAG: 1.3.1 Info and Relationships (Level A)
+      Impact: Screen reader users cannot identify form fields
+      Elements: input#email, input#password
+      Fix: Add <label for="email"> elements or aria-label attributes
+
+HIGH (significant barriers):
+  [3] Color contrast ratio 2.8:1 on body text
+      WCAG: 1.4.3 Contrast Minimum (Level AA)
+      Impact: Users with low vision cannot read text
+      Element: p.description (color: #999 on #fff)
+      Fix: Darken text to at least #767676 for 4.5:1 ratio
+
+MEDIUM (usability issues):
+  [4] Heading hierarchy skips from h1 to h4
+      WCAG: 1.3.1 Info and Relationships (Level A)
+      Impact: Screen reader navigation is confusing
+      Fix: Use sequential heading levels
+
+LOW (best practices):
+  [5] Redundant role="button" on <button> element
+      WCAG: N/A (best practice)
+      Fix: Remove explicit role — it's implicit for <button>
+```
+
+### Phase 5: Compliance Score
+
+Compute a compliance score:
+
+```
+A11Y COMPLIANCE SCORE — [url]
+═════════════════════════════
+Level A conformance:    [X/Y] criteria met  ([%])
+Level AA conformance:   [X/Y] criteria met  ([%])
+Level AAA conformance:  [X/Y] criteria met  ([%])
+
+Overall score: [0-100]
+  100 = no findings
+  -25 per CRITICAL
+  -15 per HIGH
+  -8  per MEDIUM
+  -3  per LOW
+
+Status: [CONFORMANT / NON-CONFORMANT / PARTIALLY CONFORMANT]
+
+Top 3 fixes that would improve the most:
+1. [fix] — would resolve [N] findings
+2. [fix] — would resolve [N] findings
+3. [fix] — would resolve [N] findings
+```
+
+### Phase 6: Save Report
+
+Write to `.gstack/a11y-reports/{date}-a11y.md` and `.gstack/a11y-reports/{date}-a11y.json`.
+
+If prior report exists, show regression/improvement delta.
+
+## Important Rules
+
+- **The accessibility tree IS your primary tool.** gstack's snapshot system was built on the accessibility tree. Use it.
+- **Test as a user, not as a developer.** Tab through the page. Can you use it without a mouse?
+- **WCAG Level A is non-negotiable.** Level A failures are critical. Level AA is the legal standard. Level AAA is aspirational.
+- **Provide specific fixes.** "Add alt text" is useless. "Add alt='Team photo showing 5 engineers at the office' to img.team-photo" is actionable.
+- **Color contrast is math.** Calculate actual ratios, don't guess. Use the luminance formula.
+- **Don't flag decorative images.** An image with `alt=""` and `role="presentation"` is intentionally hidden from screen readers — that's correct.
+- **Read-only by default.** Produce the report. Only fix issues if the user explicitly asks.
