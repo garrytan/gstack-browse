@@ -44,6 +44,36 @@ Expect first useful run in under 5 minutes on any repo with tests already set up
 
 **Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
 
+### Codex install
+
+Clone the repo anywhere convenient, then install the Codex skill aliases:
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/src/gstack
+cd ~/src/gstack
+./setup --host codex
+```
+
+This creates skills at `$HOME/.codex/skills/`:
+
+- `gstack`
+- `gstack-browse`
+- `gstack-review`
+- `gstack-ship`
+- `gstack-qa`
+- `gstack-qa-only`
+- `gstack-plan-ceo-review`
+- `gstack-plan-eng-review`
+- `gstack-plan-design-review`
+- `gstack-design-consultation`
+- `gstack-design-review`
+- `gstack-office-hours`
+- `gstack-debug`
+- `gstack-document-release`
+- `gstack-retro`
+- `gstack-setup-browser-cookies`
+- `gstack-upgrade`
+
 ### Step 1: Install on your machine
 
 Open Claude Code and paste this. Claude does the rest.
@@ -181,9 +211,13 @@ Fifteen specialists. All slash commands. All Markdown. All free. **[github.com/g
 
 ## Troubleshooting
 
-**Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
+**Claude skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
 
-**`/browse` fails?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+**Codex skill not showing up?** `cd ~/src/gstack && ./setup --host codex`
+
+**Claude `/browse` fails?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+
+**Codex `gstack-browse` fails?** `cd ~/src/gstack && bun install && bun run build && ./setup --host codex`
 
 **Stale install?** Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml`
 

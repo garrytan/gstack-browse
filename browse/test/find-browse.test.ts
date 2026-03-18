@@ -4,7 +4,9 @@
 
 import { describe, test, expect } from 'bun:test';
 import { locateBinary } from '../src/find-browse';
-import { existsSync } from 'fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { tmpdir } from 'os';
 
 describe('locateBinary', () => {
   test('returns null when no binary exists at known paths', () => {
@@ -20,5 +22,39 @@ describe('locateBinary', () => {
     if (result !== null) {
       expect(existsSync(result)).toBe(true);
     }
+  });
+
+  test('prefers workspace-local Codex install over Claude install', () => {
+    const root = mkdtempSync(join(tmpdir(), 'find-browse-root-'));
+    const home = mkdtempSync(join(tmpdir(), 'find-browse-home-'));
+    const codex = join(root, '.codex', 'skills', 'gstack', 'browse', 'dist', 'browse');
+    const claude = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+
+    for (const file of [claude, codex]) {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, '');
+      chmodSync(file, 0o755);
+    }
+
+    expect(locateBinary({ root, home })).toBe(codex);
+    rmSync(root, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  test('falls back to global Codex install before global Claude install', () => {
+    const root = mkdtempSync(join(tmpdir(), 'find-browse-root-empty-'));
+    const home = mkdtempSync(join(tmpdir(), 'find-browse-home-global-'));
+    const codex = join(home, '.codex', 'skills', 'gstack', 'browse', 'dist', 'browse');
+    const claude = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+
+    for (const file of [claude, codex]) {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, '');
+      chmodSync(file, 0o755);
+    }
+
+    expect(locateBinary({ root, home })).toBe(codex);
+    rmSync(root, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
   });
 });

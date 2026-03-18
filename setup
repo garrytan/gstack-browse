@@ -1,14 +1,95 @@
 #!/usr/bin/env bash
-# gstack setup — build browser binary + register all skills with Claude Code
+# gstack setup — build browser binary + register skills for Claude Code or Codex
 set -e
 
+HOST="claude"
+if [ "${1:-}" = "--host" ]; then
+  if [ -z "${2:-}" ]; then
+    echo "--host requires a value: claude or codex" >&2
+    exit 1
+  fi
+  HOST="$2"
+fi
+
+case "$HOST" in
+  claude|codex) ;;
+  *)
+    echo "Unknown host: $HOST" >&2
+    exit 1
+    ;;
+esac
+
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
+GSTACK_DIR_REAL="$(cd "$(dirname "$0")" && pwd -P)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
-BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+BROWSE_BIN="$GSTACK_DIR_REAL/browse/dist/browse"
+
+link_claude_dir() {
+  local skills_dir="$1"
+  local label="$2"
+
+  mkdir -p "$skills_dir"
+  if [ -L "$skills_dir/gstack" ] || [ ! -e "$skills_dir/gstack" ]; then
+    ln -snf "$GSTACK_DIR_REAL" "$skills_dir/gstack"
+  else
+    echo "  skipped $label root: $skills_dir/gstack already exists"
+  fi
+
+  local linked=()
+  for skill_dir in "$GSTACK_DIR_REAL"/*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "node_modules" ] && continue
+      local target="$skills_dir/$skill_name"
+      if [ -L "$target" ] || [ ! -e "$target" ]; then
+        ln -snf "gstack/$skill_name" "$target"
+        linked+=("$skill_name")
+      fi
+    fi
+  done
+
+  if [ ${#linked[@]} -gt 0 ]; then
+    echo "  linked $label: ${linked[*]}"
+  fi
+}
+
+link_codex_dir() {
+  local skills_dir="$1"
+
+  mkdir -p "$skills_dir"
+  if [ -L "$skills_dir/gstack" ] || [ ! -e "$skills_dir/gstack" ]; then
+    ln -snf "$GSTACK_DIR_REAL" "$skills_dir/gstack"
+  else
+    echo "  skipped Codex root: $skills_dir/gstack already exists"
+  fi
+
+  local linked=()
+  for skill_dir in "$GSTACK_DIR_REAL"/*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      local skill_name
+      skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "node_modules" ] && continue
+      local alias_name="gstack-$skill_name"
+      case "$skill_name" in
+        gstack-*) alias_name="$skill_name" ;;
+      esac
+      local target="$skills_dir/$alias_name"
+      if [ -L "$target" ] || [ ! -e "$target" ]; then
+        ln -snf "$skill_dir" "$target"
+        linked+=("$alias_name")
+      fi
+    fi
+  done
+
+  if [ ${#linked[@]} -gt 0 ]; then
+    echo "  linked Codex skills: ${linked[*]}"
+  fi
+}
 
 ensure_playwright_browser() {
   (
-    cd "$GSTACK_DIR"
+    cd "$GSTACK_DIR_REAL"
     bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
   ) >/dev/null 2>&1
 }
@@ -17,24 +98,24 @@ ensure_playwright_browser() {
 NEEDS_BUILD=0
 if [ ! -x "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+elif [ -n "$(find "$GSTACK_DIR_REAL/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
   NEEDS_BUILD=1
-elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+elif [ "$GSTACK_DIR_REAL/package.json" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+elif [ -f "$GSTACK_DIR_REAL/bun.lock" ] && [ "$GSTACK_DIR_REAL/bun.lock" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
 fi
 
 if [ "$NEEDS_BUILD" -eq 1 ]; then
   echo "Building browse binary..."
   (
-    cd "$GSTACK_DIR"
+    cd "$GSTACK_DIR_REAL"
     bun install
     bun run build
   )
   # Safety net: write .version if build script didn't (e.g., git not available during build)
-  if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
-    git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
+  if [ ! -f "$GSTACK_DIR_REAL/browse/dist/.version" ]; then
+    git -C "$GSTACK_DIR_REAL" rev-parse HEAD > "$GSTACK_DIR_REAL/browse/dist/.version" 2>/dev/null || true
   fi
 fi
 
@@ -47,7 +128,7 @@ fi
 if ! ensure_playwright_browser; then
   echo "Installing Playwright Chromium..."
   (
-    cd "$GSTACK_DIR"
+    cd "$GSTACK_DIR_REAL"
     bunx playwright install chromium
   )
 fi
@@ -60,33 +141,22 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
-SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
-if [ "$SKILLS_BASENAME" = "skills" ]; then
-  linked=()
-  for skill_dir in "$GSTACK_DIR"/*/; do
-    if [ -f "$skill_dir/SKILL.md" ]; then
-      skill_name="$(basename "$skill_dir")"
-      # Skip node_modules
-      [ "$skill_name" = "node_modules" ] && continue
-      target="$SKILLS_DIR/$skill_name"
-      # Create or update symlink; skip if a real file/directory exists
-      if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
-        linked+=("$skill_name")
-      fi
-    fi
-  done
+echo "gstack ready."
+echo "  browse: $BROWSE_BIN"
 
-  echo "gstack ready."
-  echo "  browse: $BROWSE_BIN"
-  if [ ${#linked[@]} -gt 0 ]; then
-    echo "  linked skills: ${linked[*]}"
+if [ "$HOST" = "claude" ]; then
+  # Only create Claude symlinks automatically if we're inside a .claude/skills directory.
+  SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
+  if [ "$SKILLS_BASENAME" = "skills" ]; then
+    link_claude_dir "$SKILLS_DIR" "Claude skills"
+  else
+    echo "  (skipped skill symlinks — not inside .claude/skills/)"
   fi
 else
-  echo "gstack ready."
-  echo "  browse: $BROWSE_BIN"
-  echo "  (skipped skill symlinks — not inside .claude/skills/)"
+  link_codex_dir "$HOME/.codex/skills"
+  # Keep the current Claude-layout helper paths available until the skill docs
+  # themselves become fully host-aware.
+  link_claude_dir "$HOME/.claude/skills" "Claude compatibility skills"
 fi
 
 # 4. First-time welcome + legacy cleanup

@@ -5,7 +5,7 @@
  * Outputs the absolute path to the browse binary on stdout, or exits 1 if not found.
  */
 
-import { existsSync } from 'fs';
+import { accessSync, constants } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
 
@@ -24,19 +24,35 @@ function getGitRoot(): string | null {
   }
 }
 
-export function locateBinary(): string | null {
-  const root = getGitRoot();
-  const home = homedir();
+const SKILL_ROOT_MARKERS = [
+  ['.codex', 'skills', 'gstack'],
+  ['.claude', 'skills', 'gstack'],
+] as const;
 
-  // Workspace-local takes priority (for development)
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function locateBinary(options: { root?: string | null; home?: string } = {}): string | null {
+  const root = options.root ?? getGitRoot();
+  const home = options.home ?? homedir();
+
   if (root) {
-    const local = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-    if (existsSync(local)) return local;
+    for (const marker of SKILL_ROOT_MARKERS) {
+      const local = join(root, ...marker, 'browse', 'dist', 'browse');
+      if (isExecutable(local)) return local;
+    }
   }
 
-  // Global fallback
-  const global = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-  if (existsSync(global)) return global;
+  for (const marker of SKILL_ROOT_MARKERS) {
+    const global = join(home, ...marker, 'browse', 'dist', 'browse');
+    if (isExecutable(global)) return global;
+  }
 
   return null;
 }

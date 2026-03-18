@@ -4,7 +4,7 @@ Thanks for wanting to make gstack better. Whether you're fixing a typo in a skil
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). Codex can also discover them from `$HOME/.codex/skills/` via `./setup --host codex`. But when you're developing gstack itself, you usually want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
 That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
 
@@ -19,6 +19,14 @@ Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your
 ```bash
 bin/dev-teardown               # deactivate — back to your global install
 ```
+
+To install the current checkout for Codex:
+
+```bash
+./setup --host codex
+```
+
+This creates `gstack` and `gstack-*` aliases under `$HOME/.codex/skills/`. See [AGENTS.md](/Users/andrewcampbell/workspace/gstack-codex-v2/AGENTS.md) for the Codex-facing usage guide.
 
 ## Contributor mode
 

@@ -1,0 +1,5 @@
+interface:
+  display_name: "gstack"
+  short_description: "Ship, review, QA, plan, and retro — powered by a headless browser"
+  brand_color: "#18181B"
+  default_prompt: "What would you like to ship today?"
