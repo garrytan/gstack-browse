@@ -2,8 +2,20 @@ const API_BASE = '/api';
 
 let _isApiAvailable: boolean | null = null;
 
+// Map logical API paths to static JSON file paths
+const STATIC_PATH_MAP: Record<string, string> = {
+  '/system': '/system.json',
+  '/skills': '/skills.json',
+  '/qa/reports': '/qa/reports.json',
+  '/evals/runs': '/evals/runs.json',
+  '/evals/summary': '/evals/summary.json',
+  '/browse/status': '/browse/status.json',
+};
+
 async function fetchJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+  const staticPath = STATIC_PATH_MAP[path];
+  const url = staticPath ? `${API_BASE}${staticPath}` : `${API_BASE}${path}`;
+  const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`API ${path}: ${res.status} ${body}`);
@@ -205,8 +217,9 @@ export function getQAReports(): Promise<QAReport[]> {
   return fetchWithFallback('/qa/reports', DEMO_QA);
 }
 
-export function getQAReport(file: string): Promise<QAReportDetail> {
-  return fetchJSON(`/qa/reports/${encodeURIComponent(file)}`);
+export function getQAReport(_file: string): Promise<QAReportDetail> {
+  // QA report detail not available in static mode
+  return Promise.reject(new Error('QA report detail not available in static mode'));
 }
 
 export function getEvalRuns(): Promise<EvalRun[]> {

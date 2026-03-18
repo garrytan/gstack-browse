@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "prebuild": "node prebuild-api.mjs",
+    "build": "node prebuild-api.mjs && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
