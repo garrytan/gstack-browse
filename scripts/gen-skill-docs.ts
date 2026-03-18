@@ -1155,6 +1155,7 @@ function findTemplates(): string[] {
     path.join(ROOT, 'design-review', 'SKILL.md.tmpl'),
     path.join(ROOT, 'design-consultation', 'SKILL.md.tmpl'),
     path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'hyper-plan', 'SKILL.md.tmpl'),
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) templates.push(p);
