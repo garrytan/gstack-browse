@@ -90,6 +90,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
   // gstack-upgrade
   'gstack-upgrade-happy-path': ['gstack-upgrade/**'],
+
+  // Debug escalation
+  'qa-debug-prompt-logic': ['qa/**', 'debug/**'],
+  'qa-debug-escalation':   ['qa/**', 'debug/**', 'browse/src/**'],
 };
 
 /**
@@ -123,6 +127,9 @@ export const LLM_JUDGE_TOUCHFILES: Record<string, string[]> = {
   'retro/SKILL.md instructions':          ['retro/SKILL.md', 'retro/SKILL.md.tmpl'],
   'qa-only/SKILL.md workflow':            ['qa-only/SKILL.md', 'qa-only/SKILL.md.tmpl'],
   'gstack-upgrade/SKILL.md upgrade flow': ['gstack-upgrade/SKILL.md', 'gstack-upgrade/SKILL.md.tmpl'],
+
+  // Debug escalation
+  'qa/SKILL.md debug escalation': ['qa/SKILL.md', 'qa/SKILL.md.tmpl', 'debug/SKILL.md', 'debug/SKILL.md.tmpl'],
 };
 
 /**

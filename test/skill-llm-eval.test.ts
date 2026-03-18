@@ -668,6 +668,23 @@ describeIfSelected('Other skill evals', [
   }, 30_000);
 });
 
+// Block 5: Debug escalation
+describeIfSelected('Debug escalation evals', [
+  'qa/SKILL.md debug escalation',
+], () => {
+  testIfSelected('qa/SKILL.md debug escalation', async () => {
+    await runWorkflowJudge({
+      testName: 'qa/SKILL.md debug escalation',
+      suite: 'Debug escalation evals',
+      skillPath: 'qa/SKILL.md',
+      startMarker: '### 8g. Debug Escalation',
+      endMarker: '## Phase 9: Final QA',
+      judgeContext: 'a debug sub-agent escalation workflow within a QA fix loop',
+      judgeGoal: 'when and how to spawn a debug sub-agent for bugs that resisted multiple fix attempts, including structured bug brief format (issue ID, symptom, reproduction, failed fix attempts, files), result handling for all four statuses (DONE, DONE_WITH_CONCERNS, BLOCKED, agent failure), working tree cleanup, and sequential processing',
+    });
+  }, 30_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {

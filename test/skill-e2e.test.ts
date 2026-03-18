@@ -2841,6 +2841,67 @@ Output the diagram directly.`,
   }, 180_000);
 });
 
+// --- Debug escalation E2E tests ---
+
+describeIfSelected('Debug escalation', ['qa-debug-prompt-logic', 'qa-debug-escalation'], () => {
+  // Test A: Prompt-level deterministic — verify the template produces correct escalation behavior
+  testIfSelected('qa-debug-prompt-logic', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in Phase 8g of the /qa workflow. The following has happened:
+- ISSUE-007: "Submit button does nothing on checkout page"
+  - Severity: critical
+  - URL: http://localhost:3000/checkout
+  - Fix attempt 1: Added click handler to button → caused JS error on payment page (reverted)
+  - Fix attempt 2: Fixed form action attribute → broke form validation (reverted)
+  - Files investigated: src/components/Checkout.tsx, src/pages/checkout.ts
+  - Console errors: "TypeError: Cannot read property 'submit' of null"
+
+Read qa/SKILL.md and follow Phase 8g exactly. Show the Agent prompt you would use to spawn the debug sub-agent. Do NOT actually spawn the agent — just output the prompt you would use.`,
+      maxTurns: 10,
+    });
+
+    recordE2E('qa-debug-prompt-logic', 'Debug escalation', result);
+
+    // Verify the output contains a well-formed structured brief
+    const output = result.output ?? '';
+    const hasIssueId = /ISSUE-007/i.test(output);
+    const hasSymptom = /submit.*button|does nothing|checkout/i.test(output);
+    const hasRepro = /localhost.*3000|checkout/i.test(output);
+    const hasFailedAttempts = /fix attempt|click handler|form action/i.test(output);
+    const hasFiles = /Checkout\.tsx|checkout\.ts/i.test(output);
+    const hasDebugSkillRef = /debug\/SKILL\.md/i.test(output);
+
+    console.log(`Has Issue ID: ${hasIssueId}`);
+    console.log(`Has Symptom: ${hasSymptom}`);
+    console.log(`Has Repro: ${hasRepro}`);
+    console.log(`Has Failed Attempts: ${hasFailedAttempts}`);
+    console.log(`Has Files: ${hasFiles}`);
+    console.log(`Has Debug Skill Ref: ${hasDebugSkillRef}`);
+
+    // The output should contain all the structured handoff fields
+    expect(hasIssueId).toBe(true);
+    expect(hasSymptom).toBe(true);
+    expect(hasFailedAttempts).toBe(true);
+    expect(hasDebugSkillRef).toBe(true);
+  }, 120_000);
+
+  // Test B: Full E2E with planted regression
+  // This test requires a fixture app with a deliberately hard-to-fix bug.
+  // The bug should resist at least 2 fix attempts to trigger escalation.
+  // TODO: Create fixture at browse/test/fixtures/qa-eval-debug-escalation/
+  testIfSelected('qa-debug-escalation', async () => {
+    // Skip until fixture is created — this is a placeholder for the full flow
+    console.log('SKIP: qa-debug-escalation — fixture not yet created');
+    console.log('TODO: Create browse/test/fixtures/qa-eval-debug-escalation/ with a deliberately hard-to-fix bug');
+    // When implemented, this test should:
+    // 1. Start test server serving the fixture
+    // 2. Run /qa against it
+    // 3. Verify fix attempts are made and reverted
+    // 4. Verify Phase 8g triggers (Agent tool call appears in transcript)
+    // 5. Verify debug report appears in QA output
+  }, 300_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {
