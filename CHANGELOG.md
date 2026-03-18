@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.0.0] - 2026-03-18
+
+### Added
+
+- **`/land-and-deploy` — the missing piece after `/ship`.** Merges your PR, waits for CI and deploy workflows, then runs a canary health check on production. Auto-detects merge queues, deploy platforms (Vercel, Netlify, Fly.io, GitHub Actions), and production URLs. Offers one-click revert if something breaks. Timing data (CI wait, queue, deploy, canary) logged for retrospectives. The workflow is now: `/review` → `/ship` → `/land-and-deploy`.
+- **`/canary` — standalone post-deploy monitoring.** Watches production for 10 minutes after a deploy using the browse daemon. Takes periodic screenshots, detects new console errors, flags performance regressions (>2x baseline). Run `--baseline` before deploying to capture the "before" state. Alerts on *changes*, not absolutes — 3 pre-existing errors is fine, 1 new error is an alert.
+- **`/benchmark` — performance regression detection.** Collects real Web Vitals (TTFB, FCP, LCP), bundle sizes, and request counts via `performance.getEntries()` through the browse daemon. Compares against saved baselines with configurable thresholds. Trend analysis across historical runs. Performance budgets with letter grades.
+- **Performance & Bundle Impact review category.** `/review` and `/ship` now catch heavy dependency additions (moment.js → date-fns), missing lazy loading, synchronous scripts, CSS @import blocking, fetch waterfalls, and tree-shaking breaks. Added to `review/checklist.md` as an INFORMATIONAL category.
+- **Deploy bootstrap auto-detection.** First time you run `/land-and-deploy`, it scans your repo for deploy platforms, production URLs, and merge method preferences. Saves results to CLAUDE.md so future runs skip detection. Same pattern as test bootstrap.
+- **"Deployed" row in Review Readiness Dashboard.** After `/land-and-deploy` runs, the dashboard shows deploy status (HEALTHY/REVERTED/ISSUES) alongside Eng, CEO, and Design review status.
+
+### For contributors
+
+- Incorporated canary monitoring and benchmark patterns from community PR #151 (HMAKT99).
+- 3 new skills registered across gen-skill-docs.ts, skill-check.ts, skill-validation, and gen-skill-docs tests.
+
 ## [0.6.4.0] - 2026-03-17
 
 ### Added

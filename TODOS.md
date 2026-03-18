@@ -161,17 +161,6 @@
 **Priority:** P2
 **Depends on:** None
 
-### Post-deploy verification (ship + browse)
-
-**What:** After push, browse staging/preview URL, screenshot key pages, check console for JS errors, compare staging vs prod via snapshot diff. Include verification screenshots in PR body. STOP if critical errors found.
-
-**Why:** Catch deployment-time regressions (JS errors, broken layouts) before merge.
-
-**Context:** Requires S3 upload infrastructure for PR screenshots. Pairs with visual PR annotations.
-
-**Effort:** L
-**Priority:** P2
-**Depends on:** /setup-gstack-upload, visual PR annotations
 
 ### Visual verification with screenshots in PR body
 
@@ -332,14 +321,6 @@
 **Priority:** P3
 **Depends on:** Video recording
 
-### Deploy-verify skill
-
-**What:** Lightweight post-deploy smoke test: hit key URLs, verify 200s, screenshot critical pages, console error check, compare against baseline snapshots. Pass/fail with evidence.
-
-**Why:** Fast post-deploy confidence check, separate from full QA.
-
-**Effort:** M
-**Priority:** P2
 
 ### GitHub Actions eval upload
 
@@ -456,17 +437,6 @@ Shipped as `/design-consultation` on garrytan/design branch. Renamed from `/setu
 **Priority:** P3
 **Depends on:** gstack-diff-scope (shipped)
 
-### /merge skill — review-gated PR merge
-
-**What:** Create a `/merge` skill that merges an approved PR, but first checks the Review Readiness Dashboard and runs `/review` (Fix-First) if code review hasn't been done. Separates "ship" (create PR) from "merge" (land it).
-
-**Why:** Currently `/review` runs inside `/ship` Step 3.5 but isn't tracked as a gate. A `/merge` skill ensures code review always happens before landing, and enables workflows where someone else reviews the PR first.
-
-**Context:** `/ship` creates the PR. `/merge` would: check dashboard → run `/review` if needed → `gh pr merge`. This is where code review tracking belongs — at merge time, not at plan time.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Ship Confidence Dashboard (shipped)
 
 ## Completeness
 
@@ -483,6 +453,12 @@ Shipped as `/design-consultation` on garrytan/design branch. Renamed from `/setu
 **Depends on:** Boil the Lake shipped (v0.6.1)
 
 ## Completed
+
+### Deploy pipeline (v0.7.0)
+- /merge skill — review-gated PR merge → superseded by /land-and-deploy
+- Deploy-verify skill → superseded by /land-and-deploy canary verification
+- Post-deploy verification (ship + browse) → superseded by /land-and-deploy
+**Completed:** v0.7.0
 
 ### Phase 1: Foundations (v0.2.0)
 - Rename to gstack
