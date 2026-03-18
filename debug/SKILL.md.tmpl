@@ -16,6 +16,8 @@ allowed-tools:
 
 {{PREAMBLE}}
 
+{{BROWSE_SETUP}}
+
 # Systematic Debugging
 
 ## Iron Law
@@ -41,6 +43,14 @@ Gather context before forming any hypothesis.
    Was this working before? What changed? A regression means the root cause is in the diff.
 
 4. **Reproduce:** Can you trigger the bug deterministically? If not, gather more evidence before proceeding.
+
+5. **Visual reproduction (if browser-testable bug):** Use the browse binary to reproduce the bug:
+   ```bash
+   $B goto <affected-url>
+   $B screenshot screenshots/debug-ISSUE-NNN-repro.png
+   $B console --errors
+   ```
+   Compare what you see against the reported symptom. If the bug is not reproducible visually, that's useful evidence too — the root cause may be in data flow, not rendering.
 
 Output: **"Root cause hypothesis: ..."** — a specific, testable claim about what is wrong and why.
 
@@ -119,6 +129,14 @@ Once root cause is confirmed:
 **Fresh verification:** Reproduce the original bug scenario and confirm it's fixed. This is not optional.
 
 Run the test suite and paste the output.
+
+**Visual verification (if browser-testable bug):**
+```bash
+$B goto <affected-url>
+$B screenshot screenshots/debug-ISSUE-NNN-fixed.png
+$B console --errors
+```
+Compare against the original reproduction screenshot. The bug should no longer be present.
 
 Output a structured debug report:
 ```

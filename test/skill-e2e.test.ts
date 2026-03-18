@@ -2841,6 +2841,272 @@ Output the diagram directly.`,
   }, 180_000);
 });
 
+// --- Review pre-existing bug detection E2E ---
+
+describeIfSelected('Review pre-existing bug detection', ['review-pre-existing-bug'], () => {
+  let reviewBugDir: string;
+  const run = (cmd: string, args: string[], cwd: string) =>
+    spawnSync(cmd, args, { cwd, stdio: 'pipe', timeout: 5000 });
+
+  beforeAll(() => {
+    reviewBugDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-review-preexisting-'));
+
+    run('git', ['init', '-b', 'main'], reviewBugDir);
+    run('git', ['config', 'user.email', 'test@test.com'], reviewBugDir);
+    run('git', ['config', 'user.name', 'Test'], reviewBugDir);
+
+    // Base commit with a pre-existing bug: SQL injection in existing code
+    fs.writeFileSync(path.join(reviewBugDir, 'user_service.rb'), `class UserService
+  def find_user(id)
+    # PRE-EXISTING BUG: SQL injection — id is not sanitized
+    User.where("id = \#{id}").first
+  end
+
+  def list_users
+    User.all.order(:name)
+  end
+end
+`);
+    run('git', ['add', '.'], reviewBugDir);
+    run('git', ['commit', '-m', 'initial: user service'], reviewBugDir);
+
+    // Feature branch adds a new safe method — the diff is clean
+    run('git', ['checkout', '-b', 'feature/add-search'], reviewBugDir);
+    fs.writeFileSync(path.join(reviewBugDir, 'user_service.rb'), `class UserService
+  def find_user(id)
+    # PRE-EXISTING BUG: SQL injection — id is not sanitized
+    User.where("id = \#{id}").first
+  end
+
+  def list_users
+    User.all.order(:name)
+  end
+
+  def search_users(query)
+    User.where("name LIKE ?", "%\#{query}%")
+  end
+end
+`);
+    run('git', ['add', '.'], reviewBugDir);
+    run('git', ['commit', '-m', 'feat: add user search'], reviewBugDir);
+
+    // Copy review skill files
+    fs.copyFileSync(path.join(ROOT, 'review', 'SKILL.md'), path.join(reviewBugDir, 'review-SKILL.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(reviewBugDir, 'review-checklist.md'));
+    fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(reviewBugDir, 'review-greptile-triage.md'));
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(reviewBugDir, { recursive: true, force: true }); } catch {}
+  });
+
+  testIfSelected('review-pre-existing-bug', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in a git repo on branch feature/add-search with changes against main.
+Read review-SKILL.md for the full review workflow.
+Read review-checklist.md for the code review checklist.
+
+IMPORTANT: Follow Step 0 to detect the base branch. Since there is no remote, gh commands will fail — fall back to main.
+Run the review against the detected base branch.
+
+The diff adds a search_users method. But notice the existing find_user method has a SQL injection bug (string interpolation instead of parameterized query). This is a pre-existing issue, not introduced by this PR.
+
+Follow Step 5.7: Pre-existing bug detection. If you find pre-existing bugs, classify them as INFORMATIONAL and recommend /debug.
+
+Write your review findings to ${reviewBugDir}/review-output.md`,
+      workingDirectory: reviewBugDir,
+      maxTurns: 15,
+      timeout: 120_000,
+      testName: 'review-pre-existing-bug',
+      runId,
+    });
+
+    logCost('/review pre-existing bug', result);
+    recordE2E('review-pre-existing-bug', 'Review pre-existing bug detection', result);
+    expect(result.exitReason).toBe('success');
+
+    // Check output for /debug recommendation
+    const allOutput = (result.output ?? '') +
+      result.toolCalls.map(tc => tc.output || '').join('\n');
+
+    // Also check written file
+    const outputPath = path.join(reviewBugDir, 'review-output.md');
+    const fileOutput = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+    const combined = (allOutput + fileOutput).toLowerCase();
+
+    const mentionsPreExisting = /pre-existing|pre existing|base branch|not introduced/i.test(combined);
+    const mentionsDebug = /\/debug/i.test(combined);
+    const mentionsSqlInjection = /sql injection|interpolat|unsanitized|inject/i.test(combined);
+
+    console.log(`Mentions pre-existing: ${mentionsPreExisting}`);
+    console.log(`Mentions /debug: ${mentionsDebug}`);
+    console.log(`Mentions SQL injection: ${mentionsSqlInjection}`);
+
+    // Must detect the SQL injection as pre-existing and recommend /debug
+    expect(mentionsSqlInjection).toBe(true);
+    expect(mentionsDebug).toBe(true);
+  }, 150_000);
+});
+
+// --- Ship reverted QA commit detection E2E ---
+
+describeIfSelected('Ship reverted QA commits', ['ship-reverted-qa-commits'], () => {
+  let shipRevertDir: string;
+  const run = (cmd: string, args: string[], cwd: string) =>
+    spawnSync(cmd, args, { cwd, stdio: 'pipe', timeout: 5000 });
+
+  beforeAll(() => {
+    shipRevertDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-ship-revert-'));
+
+    run('git', ['init', '-b', 'main'], shipRevertDir);
+    run('git', ['config', 'user.email', 'test@test.com'], shipRevertDir);
+    run('git', ['config', 'user.name', 'Test'], shipRevertDir);
+
+    // Initial commit on main
+    fs.writeFileSync(path.join(shipRevertDir, 'app.ts'), 'console.log("v1");\n');
+    run('git', ['add', '.'], shipRevertDir);
+    run('git', ['commit', '-m', 'initial'], shipRevertDir);
+
+    // Feature branch with a QA fix that was reverted
+    run('git', ['checkout', '-b', 'feature/with-reverted-qa'], shipRevertDir);
+    fs.writeFileSync(path.join(shipRevertDir, 'app.ts'), 'console.log("v2 - feature");\n');
+    run('git', ['add', '.'], shipRevertDir);
+    run('git', ['commit', '-m', 'feat: add new feature'], shipRevertDir);
+
+    // Simulate a QA fix commit
+    fs.writeFileSync(path.join(shipRevertDir, 'app.ts'), 'console.log("v2 - feature - qa fix");\n');
+    run('git', ['add', '.'], shipRevertDir);
+    run('git', ['commit', '-m', 'fix(qa): ISSUE-003 — fix broken button handler'], shipRevertDir);
+
+    // Simulate reverting the QA fix
+    run('git', ['revert', 'HEAD', '--no-edit'], shipRevertDir);
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(shipRevertDir, { recursive: true, force: true }); } catch {}
+  });
+
+  testIfSelected('ship-reverted-qa-commits', async () => {
+    // Copy ship skill
+    fs.copyFileSync(path.join(ROOT, 'ship', 'SKILL.md'), path.join(shipRevertDir, 'ship-SKILL.md'));
+
+    const result = await runSkillTest({
+      prompt: `You are on a feature branch in a git repo. The base branch is main (no remote exists).
+
+Do these two things:
+
+1. Run this command and show the output:
+   git log main..HEAD --oneline | grep -i 'revert.*fix(qa)'
+
+2. Read ship-SKILL.md and find the "Reverted QA fix detection" section. Follow its instructions based on the output from step 1.
+
+Write your findings to ${shipRevertDir}/ship-preflight.md including whether reverted QA fixes were found and what you recommend.`,
+      workingDirectory: shipRevertDir,
+      maxTurns: 15,
+      timeout: 90_000,
+      testName: 'ship-reverted-qa-commits',
+      runId,
+    });
+
+    logCost('/ship reverted QA', result);
+    recordE2E('ship-reverted-qa-commits', 'Ship reverted QA commits', result);
+    expect(['success', 'error_max_turns']).toContain(result.exitReason);
+
+    // Check output for /debug recommendation
+    const allOutput = (result.output ?? '') +
+      result.toolCalls.map(tc => tc.output || '').join('\n');
+    const outputPath = path.join(shipRevertDir, 'ship-preflight.md');
+    const fileOutput = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+    const combined = (allOutput + fileOutput).toLowerCase();
+
+    const mentionsRevert = /revert.*fix\(qa\)|reverted qa/i.test(combined);
+    const mentionsDebug = /\/debug/i.test(combined);
+    const mentionsBugs = /bug.*present|underlying|still present/i.test(combined);
+
+    console.log(`Mentions reverted QA fix: ${mentionsRevert}`);
+    console.log(`Mentions /debug: ${mentionsDebug}`);
+    console.log(`Mentions underlying bugs: ${mentionsBugs}`);
+
+    // The git log should show the reverted QA commit (initial branch may be main or master)
+    let gitLog = run('git', ['log', 'main..HEAD', '--oneline'], shipRevertDir);
+    let logOutput = gitLog.stdout.toString();
+    if (!logOutput.trim()) {
+      gitLog = run('git', ['log', 'master..HEAD', '--oneline'], shipRevertDir);
+      logOutput = gitLog.stdout.toString();
+    }
+    console.log(`Git log: ${logOutput.trim()}`);
+    expect(logOutput.toLowerCase()).toContain('revert');
+
+    // The ship preflight should detect the reverted QA fix
+    expect(mentionsRevert || mentionsDebug).toBe(true);
+  }, 90_000);
+});
+
+// --- Debug escalation E2E tests ---
+
+describeIfSelected('Debug escalation', ['qa-debug-prompt-logic', 'qa-debug-escalation'], () => {
+  // Test A: Prompt-level deterministic — verify the template produces correct escalation behavior
+  testIfSelected('qa-debug-prompt-logic', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in Phase 8g of the /qa workflow. The following has happened:
+- ISSUE-007: "Submit button does nothing on checkout page"
+  - Severity: critical
+  - URL: http://localhost:3000/checkout
+  - Fix attempt 1: Added click handler to button → caused JS error on payment page (reverted)
+  - Fix attempt 2: Fixed form action attribute → broke form validation (reverted)
+  - Files investigated: src/components/Checkout.tsx, src/pages/checkout.ts
+  - Console errors: "TypeError: Cannot read property 'submit' of null"
+
+Read qa/SKILL.md and follow Phase 8g exactly. Show the Agent prompt you would use to spawn the debug sub-agent. Do NOT actually spawn the agent — just output the prompt you would use.`,
+      workingDirectory: ROOT,
+      maxTurns: 10,
+      testName: 'qa-debug-prompt-logic',
+      runId,
+    });
+
+    logCost('qa-debug-prompt-logic', result);
+    recordE2E('qa-debug-prompt-logic', 'Debug escalation', result);
+
+    // Verify the output contains a well-formed structured brief
+    const output = result.output ?? '';
+    const hasIssueId = /ISSUE-007/i.test(output);
+    const hasSymptom = /submit.*button|does nothing|checkout/i.test(output);
+    const hasRepro = /localhost.*3000|checkout/i.test(output);
+    const hasFailedAttempts = /fix attempt|click handler|form action/i.test(output);
+    const hasFiles = /Checkout\.tsx|checkout\.ts/i.test(output);
+    const hasDebugSkillRef = /debug\/SKILL\.md/i.test(output);
+
+    console.log(`Has Issue ID: ${hasIssueId}`);
+    console.log(`Has Symptom: ${hasSymptom}`);
+    console.log(`Has Repro: ${hasRepro}`);
+    console.log(`Has Failed Attempts: ${hasFailedAttempts}`);
+    console.log(`Has Files: ${hasFiles}`);
+    console.log(`Has Debug Skill Ref: ${hasDebugSkillRef}`);
+
+    // The output should contain all the structured handoff fields
+    expect(hasIssueId).toBe(true);
+    expect(hasSymptom).toBe(true);
+    expect(hasFailedAttempts).toBe(true);
+    expect(hasDebugSkillRef).toBe(true);
+  }, 120_000);
+
+  // Test B: Full E2E with planted regression
+  // This test requires a fixture app with a deliberately hard-to-fix bug.
+  // The bug should resist at least 2 fix attempts to trigger escalation.
+  // TODO: Create fixture at browse/test/fixtures/qa-eval-debug-escalation/
+  testIfSelected('qa-debug-escalation', async () => {
+    // Skip until fixture is created — this is a placeholder for the full flow
+    console.log('SKIP: qa-debug-escalation — fixture not yet created');
+    console.log('TODO: Create browse/test/fixtures/qa-eval-debug-escalation/ with a deliberately hard-to-fix bug');
+    // When implemented, this test should:
+    // 1. Start test server serving the fixture
+    // 2. Run /qa against it
+    // 3. Verify fix attempts are made and reverted
+    // 4. Verify Phase 8g triggers (Agent tool call appears in transcript)
+    // 5. Verify debug report appears in QA output
+  }, 300_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {

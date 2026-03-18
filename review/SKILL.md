@@ -409,6 +409,18 @@ If no documentation files exist, skip this step silently.
 
 ---
 
+## Step 5.7: Pre-existing bug detection
+
+If during the two-pass review you identified findings that appear to be bugs in the **base branch** (not introduced by this PR's diff):
+
+1. Classify them as INFORMATIONAL in your output
+2. Note: "This appears to be a pre-existing issue, not introduced by this PR."
+3. Recommend: "Run `/debug` to investigate this systematically — it traces root cause before applying fixes."
+
+Do not spawn agents or investigate further — /review's scope is the diff. Pre-existing bugs are out of scope for this review.
+
+---
+
 ## Important Rules
 
 - **Read the FULL diff before commenting.** Do not flag issues already addressed in the diff.

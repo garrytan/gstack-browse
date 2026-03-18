@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.6.5.0] - 2026-03-18
+
+### Added
+
+- **`/qa` now escalates stubborn bugs to `/debug` automatically.** When a bug resists 2+ fix attempts (each reverted due to regressions), `/qa` spawns a debug sub-agent with a structured bug brief — symptoms, reproduction steps, failed fixes, file paths. The debug agent investigates root cause systematically while you wait. Results appear in the QA report's new Debug Escalation Summary.
+- **`/review` recommends `/debug` for pre-existing bugs.** When code review spots a bug in the base branch (not introduced by your PR), it now classifies it as informational and recommends `/debug` for root-cause investigation instead of leaving you guessing.
+- **`/ship` detects reverted QA fixes in your branch.** If your branch history has reverted `fix(qa):` commits, `/ship` warns you the underlying bugs may still be present and suggests running `/debug`. Informational — doesn't block shipping.
+- **`/debug` can now reproduce bugs visually.** The debug skill has access to the headless browser — it takes screenshots during investigation, checks console errors, and visually verifies fixes before reporting.
+
 ## [0.6.4.1] - 2026-03-18
 
 ### Added

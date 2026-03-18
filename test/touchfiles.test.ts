@@ -122,7 +122,8 @@ describe('selectTests', () => {
     const result = selectTests(['qa/SKILL.md'], LLM_JUDGE_TOUCHFILES);
     expect(result.selected).toContain('qa/SKILL.md workflow');
     expect(result.selected).toContain('qa/SKILL.md health rubric');
-    expect(result.selected.length).toBe(2);
+    expect(result.selected).toContain('qa/SKILL.md debug escalation');
+    expect(result.selected.length).toBe(3);
   });
 
   test('SKILL.md.tmpl root template only selects root-dependent tests', () => {

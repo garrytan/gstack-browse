@@ -727,6 +727,14 @@ Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "is
 
 Save the review output — it goes into the PR body in Step 8.
 
+**Reverted QA fix detection:** Check if the branch history contains reverted QA commits:
+```bash
+git log origin/<base>..HEAD --oneline | grep -i 'revert.*fix(qa)'
+```
+If reverted QA commits are found, note in review output:
+"This branch has reverted QA fixes — the underlying bugs may still be present. Consider running `/debug` on the affected areas before shipping."
+This is INFORMATIONAL only — does not block shipping.
+
 ---
 
 ## Step 3.75: Address Greptile review comments (if PR exists)

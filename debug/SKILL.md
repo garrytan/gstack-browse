@@ -145,6 +145,25 @@ ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
 ```
 
+## SETUP (run this check BEFORE any browse command)
+
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
+  echo "READY: $B"
+else
+  echo "NEEDS_SETUP"
+fi
+```
+
+If `NEEDS_SETUP`:
+1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: `cd <SKILL_DIR> && ./setup`
+3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
 # Systematic Debugging
 
 ## Iron Law
@@ -170,6 +189,14 @@ Gather context before forming any hypothesis.
    Was this working before? What changed? A regression means the root cause is in the diff.
 
 4. **Reproduce:** Can you trigger the bug deterministically? If not, gather more evidence before proceeding.
+
+5. **Visual reproduction (if browser-testable bug):** Use the browse binary to reproduce the bug:
+   ```bash
+   $B goto <affected-url>
+   $B screenshot screenshots/debug-ISSUE-NNN-repro.png
+   $B console --errors
+   ```
+   Compare what you see against the reported symptom. If the bug is not reproducible visually, that's useful evidence too — the root cause may be in data flow, not rendering.
 
 Output: **"Root cause hypothesis: ..."** — a specific, testable claim about what is wrong and why.
 
@@ -248,6 +275,14 @@ Once root cause is confirmed:
 **Fresh verification:** Reproduce the original bug scenario and confirm it's fixed. This is not optional.
 
 Run the test suite and paste the output.
+
+**Visual verification (if browser-testable bug):**
+```bash
+$B goto <affected-url>
+$B screenshot screenshots/debug-ISSUE-NNN-fixed.png
+$B console --errors
+```
+Compare against the original reproduction screenshot. The bug should no longer be present.
 
 Output a structured debug report:
 ```

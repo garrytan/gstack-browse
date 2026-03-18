@@ -422,6 +422,20 @@
 **Priority:** P2
 **Depends on:** `garrytan/team-supabase-store` branch landing on main
 
+## Debug
+
+### Worktree-based parallel debug sub-agents
+
+**What:** When /qa hits multiple stubborn bugs, spawn parallel debug agents each in their own git worktree (`isolation: "worktree"` on the Agent call). They investigate simultaneously while /qa continues other work. Results cherry-picked back.
+
+**Why:** Sequential debug investigations add ~2-5 min per bug. With 3-4 hard bugs, that's 10-20 min of sequential waiting. Parallel worktree agents could investigate all simultaneously, with zero working-tree conflicts.
+
+**Context:** v1 ships sequential (debug-subagent-escalation PR). The Agent tool supports `isolation: "worktree"` which creates a temporary git worktree — each agent gets its own copy of the repo. Especially powerful in plan mode where /qa might find multiple hard bugs across different subsystems.
+
+**Effort:** M (human: ~1 week / CC: ~30min)
+**Priority:** P2
+**Depends on:** Sequential debug escalation (debug-subagent-escalation PR)
+
 ## Design Review
 
 ### /plan-design-review + /qa-design-review + /design-consultation — SHIPPED

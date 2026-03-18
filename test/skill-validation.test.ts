@@ -620,6 +620,74 @@ describe('debug skill structure', () => {
                           'DEBUG REPORT', '3-strike', 'BLOCKED']) {
     test(`contains ${section}`, () => expect(content).toContain(section));
   }
+
+  test('has browse setup for visual reproduction', () => {
+    expect(content).toContain('Visual reproduction');
+    expect(content).toContain('$B goto');
+    expect(content).toContain('$B screenshot');
+  });
+
+  test('has visual verification in Phase 5', () => {
+    expect(content).toContain('Visual verification');
+    expect(content).toContain('debug-ISSUE-NNN-fixed');
+  });
+});
+
+// --- Debug sub-agent escalation validation ---
+
+describe('Debug sub-agent escalation', () => {
+  test('qa/SKILL.md has Agent in allowed-tools', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    // Check frontmatter allowed-tools section contains Agent
+    const frontmatter = content.split('---')[1];
+    expect(frontmatter).toContain('Agent');
+  });
+
+  test('qa/SKILL.md has Phase 8g Debug Escalation', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('8g. Debug Escalation');
+    expect(content).toContain('reverted at least twice');
+    expect(content).toContain('Bug Brief');
+    expect(content).toContain('debug/SKILL.md');
+  });
+
+  test('qa/SKILL.md has structured handoff in debug prompt', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Issue ID');
+    expect(content).toContain('Symptom');
+    expect(content).toContain('Reproduction');
+    expect(content).toContain('Failed fix attempts');
+    expect(content).toContain('Files investigated');
+  });
+
+  test('qa/SKILL.md has all four agent result handlers', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('DONE status');
+    expect(content).toContain('DONE_WITH_CONCERNS');
+    expect(content).toContain('git checkout .');
+    expect(content).toContain('deferred (debug unavailable)');
+  });
+
+  test('qa/SKILL.md has debug escalation summary in Phase 10', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('DEBUG ESCALATION');
+    expect(content).toContain('Issues escalated');
+    expect(content).toContain('Per-issue details');
+  });
+
+  test('review/SKILL.md has Step 5.7 pre-existing bug detection', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('5.7: Pre-existing bug detection');
+    expect(content).toContain('/debug');
+    expect(content).toContain('pre-existing issue');
+  });
+
+  test('ship/SKILL.md has reverted QA commit detection', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Reverted QA fix detection');
+    expect(content).toContain('revert.*fix(qa)');
+    expect(content).toContain('/debug');
+  });
 });
 
 // --- Contributor mode preamble structure validation ---

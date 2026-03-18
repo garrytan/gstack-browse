@@ -17,6 +17,7 @@ allowed-tools:
   - Grep
   - AskUserQuestion
   - WebSearch
+  - Agent
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -832,6 +833,41 @@ WTF-LIKELIHOOD:
 
 **Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
 
+### 8g. Debug Escalation
+
+After the fix loop completes (all issues processed through 8a-8f), check for issues that were **reverted at least twice** (two or more separate fix attempts each caused regressions and were reverted).
+
+If no issues match, skip this phase entirely.
+
+For each matching issue, sequentially spawn a debug sub-agent using the Agent tool:
+
+**Agent prompt — structured handoff:**
+
+> Read `~/.claude/skills/gstack/debug/SKILL.md` (fallback: `.claude/skills/debug/SKILL.md`) and follow the systematic debugging methodology.
+>
+> **Bug Brief:**
+> - Issue ID: ISSUE-NNN
+> - Symptom: [what was observed during QA testing]
+> - Severity: [critical/high/medium/low]
+> - Affected URL: [page URL where bug was found]
+> - Reproduction: [step-by-step repro from QA testing]
+> - Screenshot evidence: [paths to before/after screenshots from QA]
+> - Failed fix attempts:
+>   1. [what was changed] → [what regression it caused] (reverted)
+>   2. [what was changed] → [what regression it caused] (reverted)
+> - Files investigated: [list of source files already examined during fix attempts]
+> - Console errors: [relevant JS errors if any]
+>
+> Investigate this bug. You have full access to AskUserQuestion if you need user input. Output the DEBUG REPORT when done.
+
+**When the debug agent returns:**
+- **DONE status:** The fix is in the working tree. Re-test the affected page via browse. If verified, commit with `fix(qa/debug): ISSUE-NNN — [description]`. If regression detected, revert and mark as "deferred (debug-investigated, fix regressed)."
+- **DONE_WITH_CONCERNS:** Apply the fix, note concerns in report. Re-test.
+- **BLOCKED:** Run `git checkout .` to discard any uncommitted debug artifacts (temp logs, assertions). Mark as "deferred (debug-investigated, root cause unclear)." Include the debug report in Phase 10 output.
+- **Agent call fails:** Mark as "deferred (debug unavailable)." Continue to Phase 9.
+
+**Sequencing:** Process one debug issue at a time. Wait for each agent to complete before spawning the next. The working tree must be clean between debug investigations.
+
 ---
 
 ## Phase 9: Final QA
@@ -871,6 +907,20 @@ Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
 
 **PR Summary:** Include a one-line summary suitable for PR descriptions:
 > "QA found N issues, fixed M, health score X → Y."
+
+**Debug Escalation Summary** (include only if any issues were escalated in Phase 8g):
+```
+DEBUG ESCALATION
+  Issues escalated:    N
+  Resolved (DONE):     X (commit SHAs)
+  Concerns:            Y
+  Blocked:             Z (root cause unclear)
+  Unavailable:         W (agent call failed)
+
+  Per-issue details:
+  ISSUE-NNN: [symptom] → [root cause found / BLOCKED]
+    Debug report: [inline summary or full report]
+```
 
 ---
 
