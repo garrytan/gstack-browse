@@ -14,13 +14,9 @@
  */
 
 import { BrowserManager } from './browser-manager';
-import { handleReadCommand } from './read-commands';
-import { handleWriteCommand } from './write-commands';
-import { handleMetaCommand } from './meta-commands';
 import { handleCookiePickerRoute } from './cookie-picker-routes';
-import { COMMAND_DESCRIPTIONS } from './commands';
-import { SNAPSHOT_FLAGS } from './snapshot';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
+import { generateHelpText, wrapError, dispatchCommand } from './server-shared';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -37,47 +33,6 @@ const IDLE_TIMEOUT_MS = parseInt(process.env.BROWSE_IDLE_TIMEOUT || '1800000', 1
 function validateAuth(req: Request): boolean {
   const header = req.headers.get('authorization');
   return header === `Bearer ${AUTH_TOKEN}`;
-}
-
-// ─── Help text (auto-generated from COMMAND_DESCRIPTIONS) ────────
-function generateHelpText(): string {
-  // Group commands by category
-  const groups = new Map<string, string[]>();
-  for (const [cmd, meta] of Object.entries(COMMAND_DESCRIPTIONS)) {
-    const display = meta.usage || cmd;
-    const list = groups.get(meta.category) || [];
-    list.push(display);
-    groups.set(meta.category, list);
-  }
-
-  const categoryOrder = [
-    'Navigation', 'Reading', 'Interaction', 'Inspection',
-    'Visual', 'Snapshot', 'Meta', 'Tabs', 'Server',
-  ];
-
-  const lines = ['gstack browse — headless browser for AI agents', '', 'Commands:'];
-  for (const cat of categoryOrder) {
-    const cmds = groups.get(cat);
-    if (!cmds) continue;
-    lines.push(`  ${(cat + ':').padEnd(15)}${cmds.join(', ')}`);
-  }
-
-  // Snapshot flags from source of truth
-  lines.push('');
-  lines.push('Snapshot flags:');
-  const flagPairs: string[] = [];
-  for (const flag of SNAPSHOT_FLAGS) {
-    const label = flag.valueHint ? `${flag.short} ${flag.valueHint}` : flag.short;
-    flagPairs.push(`${label}  ${flag.long}`);
-  }
-  // Print two flags per line for compact display
-  for (let i = 0; i < flagPairs.length; i += 2) {
-    const left = flagPairs[i].padEnd(28);
-    const right = flagPairs[i + 1] || '';
-    lines.push(`  ${left}${right}`);
-  }
-
-  return lines.join('\n');
 }
 
 // ─── Buffer (from buffers.ts) ────────────────────────────────────
@@ -191,74 +146,12 @@ async function findPort(): Promise<number> {
   throw new Error(`[browse] No available port after ${MAX_RETRIES} attempts in range ${MIN_PORT}-${MAX_PORT}`);
 }
 
-/**
- * Translate Playwright errors into actionable messages for AI agents.
- */
-function wrapError(err: any): string {
-  const msg = err.message || String(err);
-  // Timeout errors
-  if (err.name === 'TimeoutError' || msg.includes('Timeout') || msg.includes('timeout')) {
-    if (msg.includes('locator.click') || msg.includes('locator.fill') || msg.includes('locator.hover')) {
-      return `Element not found or not interactable within timeout. Check your selector or run 'snapshot' for fresh refs.`;
-    }
-    if (msg.includes('page.goto') || msg.includes('Navigation')) {
-      return `Page navigation timed out. The URL may be unreachable or the page may be loading slowly.`;
-    }
-    return `Operation timed out: ${msg.split('\n')[0]}`;
-  }
-  // Multiple elements matched
-  if (msg.includes('resolved to') && msg.includes('elements')) {
-    return `Selector matched multiple elements. Be more specific or use @refs from 'snapshot'.`;
-  }
-  // Pass through other errors
-  return msg;
-}
-
 async function handleCommand(body: any): Promise<Response> {
-  const { command, args = [] } = body;
-
-  if (!command) {
-    return new Response(JSON.stringify({ error: 'Missing "command" field' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    let result: string;
-
-    if (READ_COMMANDS.has(command)) {
-      result = await handleReadCommand(command, args, browserManager);
-    } else if (WRITE_COMMANDS.has(command)) {
-      result = await handleWriteCommand(command, args, browserManager);
-    } else if (META_COMMANDS.has(command)) {
-      result = await handleMetaCommand(command, args, browserManager, shutdown);
-    } else if (command === 'help') {
-      const helpText = generateHelpText();
-      return new Response(helpText, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' },
-      });
-    } else {
-      return new Response(JSON.stringify({
-        error: `Unknown command: ${command}`,
-        hint: `Available commands: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(result, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ error: wrapError(err) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  const result = await dispatchCommand(body, browserManager, shutdown);
+  return new Response(result.body, {
+    status: result.status,
+    headers: { 'Content-Type': result.contentType },
+  });
 }
 
 async function shutdown() {
