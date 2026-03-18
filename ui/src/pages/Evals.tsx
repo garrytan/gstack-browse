@@ -31,11 +31,11 @@ export default function Evals() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">Eval Results</h2>
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
+        <h2 className="text-2xl font-bold text-white">評価結果</h2>
         <p className="text-sm text-gstack-muted mt-1">
-          E2E and LLM-as-judge evaluation runs
+          E2E および LLM-as-judge 評価実行
         </p>
       </div>
 
@@ -47,29 +47,29 @@ export default function Evals() {
 
       {/* Summary cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
           <Card>
-            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">Total Runs</div>
+            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">合計実行</div>
             <div className="text-2xl font-bold text-white">{summary.totalRuns}</div>
             <div className="text-xs text-gstack-dim mt-1">
               {summary.e2eRuns} E2E &middot; {summary.judgeRuns} Judge
             </div>
           </Card>
           <Card>
-            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">Total Spend</div>
+            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">合計費用</div>
             <div className="text-2xl font-bold text-white">${summary.totalCost.toFixed(2)}</div>
             <div className="text-xs text-gstack-dim mt-1">
               avg E2E: ${summary.avgE2ECost.toFixed(2)}
             </div>
           </Card>
           <Card>
-            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">Avg Duration</div>
+            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">平均時間</div>
             <div className="text-2xl font-bold text-white">
               {Math.round(summary.avgE2EDuration / 1000)}s
             </div>
           </Card>
           <Card>
-            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">Avg Detection</div>
+            <div className="text-xs text-gstack-muted uppercase tracking-wide mb-1">平均検出</div>
             <div className="text-2xl font-bold text-white">
               {summary.avgDetection !== null ? summary.avgDetection.toFixed(1) : 'N/A'}
             </div>
@@ -79,7 +79,7 @@ export default function Evals() {
 
       {/* Flaky tests */}
       {summary && summary.flakyTests.length > 0 && (
-        <Card title={`Flaky Tests (${summary.flakyTests.length})`} className="mb-8">
+        <Card title={`不安定テスト (${summary.flakyTests.length})`} className="mb-6 md:mb-8">
           <div className="space-y-1">
             {summary.flakyTests.map((test) => (
               <div key={test} className="flex items-center gap-2 text-sm">
@@ -95,23 +95,22 @@ export default function Evals() {
       {runs.length === 0 ? (
         <Card>
           <div className="text-center py-12 text-gstack-dim">
-            <p className="text-lg mb-2">No eval runs yet</p>
+            <p className="text-lg mb-2">評価実行がまだありません</p>
             <p className="text-sm">
-              Run{' '}
               <code className="font-mono bg-gstack-border px-1.5 py-0.5 rounded">
                 EVALS=1 bun run test:evals
               </code>{' '}
-              to generate evaluation data
+              を実行して評価データを生成
             </p>
           </div>
         </Card>
       ) : (
-        <Card title={`Eval Runs (${runs.length})`}>
+        <Card title={`評価実行 (${runs.length})`}>
           <div className="divide-y divide-gstack-border">
             {runs.map((run) => (
               <div key={run.file}>
                 <button
-                  className="w-full flex items-center justify-between py-3 text-left hover:bg-white/5 transition-colors px-2 rounded"
+                  className="w-full flex items-center justify-between py-3 text-left hover:bg-white/5 transition-colors px-1 md:px-2 rounded"
                   onClick={() =>
                     setExpandedRun(expandedRun === run.file ? null : run.file)
                   }

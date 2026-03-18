@@ -64,11 +64,11 @@ export default function Browse() {
   const isRunning = status?.health?.status === 'healthy';
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">Browse</h2>
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
+        <h2 className="text-2xl font-bold text-white">ブラウズ</h2>
         <p className="text-sm text-gstack-muted mt-1">
-          Headless browser control panel
+          ヘッドレスブラウザコントロールパネル
         </p>
       </div>
 
@@ -79,13 +79,13 @@ export default function Browse() {
       )}
 
       {/* Server status */}
-      <Card title="Server Status" className="mb-6">
+      <Card title="サーバーステータス" className="mb-6">
         {status ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <StatusBadge
                 status={isRunning ? 'running' : 'warning'}
-                label={isRunning ? 'Running' : 'Unhealthy'}
+                label={isRunning ? '稼働中' : '異常'}
               />
               <span className="text-sm text-gstack-dim font-mono">
                 PID {status.pid} &middot; port {status.port}
@@ -94,15 +94,15 @@ export default function Browse() {
             {status.health && (
               <div className="grid grid-cols-3 gap-4 text-sm">
                 <div>
-                  <span className="text-gstack-muted">Uptime</span>
+                  <span className="text-gstack-muted">稼働時間</span>
                   <p className="font-mono text-white">{formatUptime(status.health.uptime)}</p>
                 </div>
                 <div>
-                  <span className="text-gstack-muted">Tabs</span>
+                  <span className="text-gstack-muted">タブ数</span>
                   <p className="font-mono text-white">{status.health.tabs}</p>
                 </div>
                 <div>
-                  <span className="text-gstack-muted">Current URL</span>
+                  <span className="text-gstack-muted">現在のURL</span>
                   <p className="font-mono text-gstack-info truncate">{status.health.currentUrl}</p>
                 </div>
               </div>
@@ -110,22 +110,22 @@ export default function Browse() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <StatusBadge status="stopped" label="Not running" />
+            <StatusBadge status="stopped" label="停止中" />
             <span className="text-sm text-gstack-dim">
-              Browse server is not running. Start it by running a browse command.
+              ブラウズサーバーは停止中。ブラウズコマンドを実行して開始。
             </span>
           </div>
         )}
       </Card>
 
       {/* Command panel */}
-      <Card title="Command Console" className="mb-6">
+      <Card title="コマンドコンソール" className="mb-6">
         <div className="space-y-4">
           {/* Output area */}
-          <div className="h-80 overflow-y-auto rounded border border-gstack-border bg-gstack-bg p-3 font-mono text-xs leading-relaxed">
+          <div className="h-48 md:h-80 overflow-y-auto rounded border border-gstack-border bg-gstack-bg p-3 font-mono text-xs leading-relaxed">
             {output.length === 0 ? (
               <div className="text-gstack-dim">
-                Enter a browse command below. Examples:
+                以下にブラウズコマンドを入力。例:
                 <br />
                 <span className="text-gstack-accent">goto</span> https://example.com
                 <br />
@@ -180,12 +180,12 @@ export default function Browse() {
               onClick={handleExecute}
               disabled={!isRunning || executing || !command.trim()}
             >
-              {executing ? <Spinner className="w-4 h-4 border-black border-t-transparent" /> : 'Run'}
+              {executing ? <Spinner className="w-4 h-4 border-black border-t-transparent" /> : '実行'}
             </button>
           </div>
           {!isRunning && (
             <p className="text-xs text-gstack-dim">
-              Start the browse server first to run commands.
+              コマンドを実行するには、まずブラウズサーバーを起動してください。
             </p>
           )}
         </div>
