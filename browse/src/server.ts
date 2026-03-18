@@ -28,6 +28,7 @@ import * as crypto from 'crypto';
 // ─── Config ─────────────────────────────────────────────────────
 const config = resolveConfig();
 ensureStateDir(config);
+const DEBUG = process.env.BROWSE_DEBUG === '1';
 
 // ─── Auth ───────────────────────────────────────────────────────
 const AUTH_TOKEN = crypto.randomUUID();
@@ -284,15 +285,19 @@ process.on('SIGINT', shutdown);
 
 // ─── Start ─────────────────────────────────────────────────────
 async function start() {
+  if (DEBUG) console.error('[browse][debug] server start begin');
   // Clear old log files
   try { fs.unlinkSync(CONSOLE_LOG_PATH); } catch {}
   try { fs.unlinkSync(NETWORK_LOG_PATH); } catch {}
   try { fs.unlinkSync(DIALOG_LOG_PATH); } catch {}
 
   const port = await findPort();
+  if (DEBUG) console.error(`[browse][debug] port chosen ${port}`);
 
   // Launch browser
+  if (DEBUG) console.error('[browse][debug] launching browser');
   await browserManager.launch();
+  if (DEBUG) console.error('[browse][debug] browser launched');
 
   const startTime = Date.now();
   const server = Bun.serve({
@@ -349,8 +354,10 @@ async function start() {
     binaryVersion: readVersionHash() || undefined,
   };
   const tmpFile = config.stateFile + '.tmp';
+  if (DEBUG) console.error(`[browse][debug] writing state tmp ${tmpFile}`);
   fs.writeFileSync(tmpFile, JSON.stringify(state, null, 2), { mode: 0o600 });
   fs.renameSync(tmpFile, config.stateFile);
+  if (DEBUG) console.error(`[browse][debug] state written ${config.stateFile}`);
 
   browserManager.serverPort = port;
   console.log(`[browse] Server running on http://127.0.0.1:${port} (PID: ${process.pid})`);

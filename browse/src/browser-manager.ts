@@ -47,8 +47,12 @@ export class BrowserManager {
   private dialogAutoAccept: boolean = true;
   private dialogPromptText: string | null = null;
 
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async launch() {
-    this.browser = await chromium.launch({ headless: true });
+    this.browser = await this.launchWithFallback();
 
     // Chromium crash → exit with clear message
     this.browser.on('disconnected', () => {
@@ -71,6 +75,33 @@ export class BrowserManager {
 
     // Create first tab
     await this.newTab();
+  }
+
+  private async launchWithFallback(): Promise<Browser> {
+    const ATTEMPT_TIMEOUT_MS = 8000;
+    const attempts: Array<{ label: string; options: Parameters<typeof chromium.launch>[0] }> = [
+      { label: 'bundled chromium', options: { headless: true, timeout: ATTEMPT_TIMEOUT_MS } },
+      { label: 'msedge channel', options: { headless: true, channel: 'msedge', timeout: ATTEMPT_TIMEOUT_MS } },
+      { label: 'chrome channel', options: { headless: true, channel: 'chrome', timeout: ATTEMPT_TIMEOUT_MS } },
+    ];
+
+    const errors: string[] = [];
+    for (const attempt of attempts) {
+      try {
+        const browser = await Promise.race([
+          chromium.launch(attempt.options),
+          this.sleep(ATTEMPT_TIMEOUT_MS).then(() => {
+            throw new Error(`launch timeout after ${ATTEMPT_TIMEOUT_MS}ms`);
+          }),
+        ]) as Browser;
+        return browser;
+      } catch (err: any) {
+        const msg = err?.message || String(err);
+        errors.push(`${attempt.label}: ${msg.split('\n')[0]}`);
+      }
+    }
+
+    throw new Error(`Failed to launch browser. Attempts: ${errors.join(' | ')}`);
   }
 
   async close() {
@@ -102,7 +133,12 @@ export class BrowserManager {
   async newTab(url?: string): Promise<number> {
     if (!this.context) throw new Error('Browser not launched');
 
-    const page = await this.context.newPage();
+    const page = await Promise.race([
+      this.context.newPage(),
+      this.sleep(15000).then(() => {
+        throw new Error('Timed out creating a new browser page');
+      }),
+    ]) as Page;
     const id = this.nextTabId++;
     this.pages.set(id, page);
     this.activeTabId = id;

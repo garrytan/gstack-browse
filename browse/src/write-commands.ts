@@ -6,9 +6,9 @@
  */
 
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import * as fs from 'fs';
 import * as path from 'path';
+import { spawn } from 'child_process';
 
 export async function handleWriteCommand(
   command: string,
@@ -16,6 +16,22 @@ export async function handleWriteCommand(
   bm: BrowserManager
 ): Promise<string> {
   const page = bm.getPage();
+  let cookieImportModule: null | {
+    findInstalledBrowsers: () => Array<{ name: string }>;
+    importCookies: (browserName: string, domains: string[], profile?: string) => Promise<{ cookies: any[]; count: number; failed: number }>;
+  } = null;
+
+  async function getCookieImportModule() {
+    if (cookieImportModule) return cookieImportModule;
+    try {
+      // Use runtime dynamic import to avoid bundling bun:sqlite into node-target builds.
+      const dynamicImport = new Function('p', 'return import(p)') as (p: string) => Promise<any>;
+      cookieImportModule = await dynamicImport('./cookie-import-browser');
+      return cookieImportModule;
+    } catch (err: any) {
+      throw new Error(`cookie-import-browser is unavailable in this runtime: ${err?.message || String(err)}`);
+    }
+  }
 
   switch (command) {
     case 'goto': {
@@ -315,7 +331,8 @@ export async function handleWriteCommand(
         // Direct import mode — no UI
         const domain = args[domainIdx + 1];
         const browser = browserArg || 'comet';
-        const result = await importCookies(browser, [domain]);
+        const cookieModule = await getCookieImportModule();
+        const result = await cookieModule.importCookies(browser, [domain]);
         if (result.cookies.length > 0) {
           await page.context().addCookies(result.cookies);
         }
@@ -328,14 +345,21 @@ export async function handleWriteCommand(
       const port = bm.serverPort;
       if (!port) throw new Error('Server port not available');
 
-      const browsers = findInstalledBrowsers();
+      const cookieModule = await getCookieImportModule();
+      const browsers = cookieModule.findInstalledBrowsers();
       if (browsers.length === 0) {
         throw new Error('No Chromium browsers found. Supported: Comet, Chrome, Arc, Brave, Edge');
       }
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
       try {
-        Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
+        if (process.platform === 'win32') {
+          spawn('cmd', ['/c', 'start', '', pickerUrl], { detached: true, stdio: 'ignore' }).unref();
+        } else if (process.platform === 'darwin') {
+          spawn('open', [pickerUrl], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+          spawn('xdg-open', [pickerUrl], { detached: true, stdio: 'ignore' }).unref();
+        }
       } catch {
         // open may fail silently — URL is in the message below
       }

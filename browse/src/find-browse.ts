@@ -27,16 +27,27 @@ function getGitRoot(): string | null {
 export function locateBinary(): string | null {
   const root = getGitRoot();
   const home = homedir();
+  const codexHome = process.env.CODEX_HOME || join(home, '.codex');
 
   // Workspace-local takes priority (for development)
   if (root) {
-    const local = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-    if (existsSync(local)) return local;
+    const localClaude = join(root, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+    if (existsSync(localClaude)) return localClaude;
+    if (existsSync(`${localClaude}.exe`)) return `${localClaude}.exe`;
+
+    const localCodex = join(root, '.codex', 'skills', 'gstack', 'browse', 'dist', 'browse');
+    if (existsSync(localCodex)) return localCodex;
+    if (existsSync(`${localCodex}.exe`)) return `${localCodex}.exe`;
   }
 
   // Global fallback
-  const global = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
-  if (existsSync(global)) return global;
+  const globalClaude = join(home, '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse');
+  if (existsSync(globalClaude)) return globalClaude;
+  if (existsSync(`${globalClaude}.exe`)) return `${globalClaude}.exe`;
+
+  const globalCodex = join(codexHome, 'skills', 'gstack', 'browse', 'dist', 'browse');
+  if (existsSync(globalCodex)) return globalCodex;
+  if (existsSync(`${globalCodex}.exe`)) return `${globalCodex}.exe`;
 
   return null;
 }

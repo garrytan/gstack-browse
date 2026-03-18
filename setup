@@ -5,6 +5,7 @@ set -e
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
 BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
 
 ensure_playwright_browser() {
   (
@@ -60,7 +61,21 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
+ensure_compat_link() {
+  target="$1"
+  source="$2"
+  label="$3"
+
+  if [ -L "$target" ] || [ ! -e "$target" ]; then
+    mkdir -p "$(dirname "$target")"
+    ln -snf "$source" "$target"
+    echo "  linked $label: $target -> $source"
+  elif [ -d "$target" ] || [ -f "$target" ]; then
+    echo "  skipped $label: $target exists and is not a symlink"
+  fi
+}
+
+# 4. Only create skill symlinks if we're inside a */skills directory
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$SKILLS_BASENAME" = "skills" ]; then
   linked=()
@@ -89,7 +104,14 @@ else
   echo "  (skipped skill symlinks — not inside .claude/skills/)"
 fi
 
-# 4. First-time welcome + legacy cleanup
+# 5. Claude/Codex cross-runtime compatibility shims
+if [ "$SKILLS_DIR" = "$CODEX_HOME_DIR/skills" ]; then
+  ensure_compat_link "$HOME/.claude/skills/gstack" "$GSTACK_DIR" "claude-compat"
+elif [ "$SKILLS_DIR" = "$HOME/.claude/skills" ]; then
+  ensure_compat_link "$CODEX_HOME_DIR/skills/gstack" "$GSTACK_DIR" "codex-compat"
+fi
+
+# 6. First-time welcome + legacy cleanup
 if [ ! -d "$HOME/.gstack" ]; then
   mkdir -p "$HOME/.gstack"
   echo "  Welcome! Run /gstack-upgrade anytime to stay current."

@@ -14,39 +14,62 @@ import * as path from 'path';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
 const config = resolveConfig();
-const MAX_START_WAIT = 8000; // 8 seconds to start
+const MAX_START_WAIT = 45000; // Windows cold starts + channel fallback may need longer
+const DEBUG = process.env.BROWSE_DEBUG === '1';
 
-export function resolveServerScript(
+type ServerTarget =
+  | { kind: 'script'; path: string }
+  | { kind: 'binary'; path: string }
+  | { kind: 'node_script'; path: string };
+
+export function resolveServerTarget(
   env: Record<string, string | undefined> = process.env,
   metaDir: string = import.meta.dir,
   execPath: string = process.execPath
-): string {
+): ServerTarget {
+  if (env.BROWSE_SERVER_BINARY) {
+    return { kind: 'binary', path: env.BROWSE_SERVER_BINARY };
+  }
   if (env.BROWSE_SERVER_SCRIPT) {
-    return env.BROWSE_SERVER_SCRIPT;
+    return { kind: 'script', path: env.BROWSE_SERVER_SCRIPT };
   }
 
   // Dev mode: cli.ts runs directly from browse/src
   if (metaDir.startsWith('/') && !metaDir.includes('$bunfs')) {
     const direct = path.resolve(metaDir, 'server.ts');
     if (fs.existsSync(direct)) {
-      return direct;
+      return { kind: 'script', path: direct };
     }
   }
 
-  // Compiled binary: derive the source tree from browse/dist/browse
+  // Compiled binary: prefer sibling server binary (browse-server or browse-server.exe)
   if (execPath) {
+    const nodeServer = path.resolve(path.dirname(execPath), 'browse-server-node.mjs');
+    if (process.platform === 'win32' && fs.existsSync(nodeServer)) {
+      return { kind: 'node_script', path: nodeServer };
+    }
+
+    const serverBinBase = path.resolve(path.dirname(execPath), 'browse-server');
+    if (fs.existsSync(serverBinBase)) {
+      return { kind: 'binary', path: serverBinBase };
+    }
+    if (fs.existsSync(`${serverBinBase}.exe`)) {
+      return { kind: 'binary', path: `${serverBinBase}.exe` };
+    }
+
+    // Fallback to source server.ts
     const adjacent = path.resolve(path.dirname(execPath), '..', 'src', 'server.ts');
     if (fs.existsSync(adjacent)) {
-      return adjacent;
+      return { kind: 'script', path: adjacent };
     }
   }
 
   throw new Error(
-    'Cannot find server.ts. Set BROWSE_SERVER_SCRIPT env or run from the browse source tree.'
+    'Cannot find browse server target. Set BROWSE_SERVER_BINARY or BROWSE_SERVER_SCRIPT.'
   );
 }
 
-const SERVER_SCRIPT = resolveServerScript();
+const SERVER_TARGET = resolveServerTarget();
 
 interface ServerState {
   pid: number;
@@ -140,10 +163,19 @@ async function startServer(): Promise<ServerState> {
   try { fs.unlinkSync(config.stateFile); } catch {}
 
   // Start server as detached background process
-  const proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
+  const proc = Bun.spawn((SERVER_TARGET.kind === 'binary'
+    ? [SERVER_TARGET.path]
+    : SERVER_TARGET.kind === 'node_script'
+      ? ['node', SERVER_TARGET.path]
+    : ['bun', 'run', SERVER_TARGET.path]), {
+    detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
   });
+  if (DEBUG) {
+    console.error(`[browse][debug] target=${SERVER_TARGET.kind}:${SERVER_TARGET.path}`);
+    console.error(`[browse][debug] stateFile=${config.stateFile}`);
+  }
 
   // Don't hold the CLI open
   proc.unref();
@@ -151,8 +183,12 @@ async function startServer(): Promise<ServerState> {
   // Wait for state file to appear
   const start = Date.now();
   while (Date.now() - start < MAX_START_WAIT) {
+    if (DEBUG && proc.exitCode !== null) {
+      console.error(`[browse][debug] server process exited early: ${proc.exitCode}`);
+    }
     const state = readState();
     if (state && isProcessAlive(state.pid)) {
+      if (DEBUG) console.error(`[browse][debug] state file detected pid=${state.pid} port=${state.port}`);
       return state;
     }
     await Bun.sleep(100);
@@ -184,10 +220,10 @@ async function ensureServer(): Promise<ServerState> {
       return startServer();
     }
 
-    // Server appears alive — do a health check
+    // Server appears alive — do a best-effort health check
     try {
       const resp = await fetch(`http://127.0.0.1:${state.port}/health`, {
-        signal: AbortSignal.timeout(2000),
+        signal: AbortSignal.timeout(5000),
       });
       if (resp.ok) {
         const health = await resp.json() as any;
@@ -196,8 +232,10 @@ async function ensureServer(): Promise<ServerState> {
         }
       }
     } catch {
-      // Health check failed — server is dead or unhealthy
+      // Ignore transient health check issues; sendCommand will restart on connection errors.
     }
+
+    return state;
   }
 
   // Need to (re)start
