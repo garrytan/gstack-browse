@@ -13,6 +13,7 @@ allowed-tools:
   - Grep
   - Glob
   - Bash
+  - Write
   - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
@@ -178,6 +179,9 @@ But your posture depends on what the user needs:
 * COMPLETENESS IS CHEAP: AI coding compresses implementation time 10-100x. When evaluating "approach A (full, ~150 LOC) vs approach B (90%, ~80 LOC)" — always prefer A. The 70-line delta costs seconds with CC. "Ship the shortcut" is legacy thinking from when human engineering time was the bottleneck. Boil the lake.
 Critical rule: In ALL modes, the user is 100% in control. Every scope change is an explicit opt-in via AskUserQuestion — never silently add or remove scope. Once the user selects a mode, COMMIT to it. Do not silently drift toward a different mode. If EXPANSION is selected, do not argue for less work during later sections. If SELECTIVE EXPANSION is selected, surface expansions as individual decisions — do not silently include or exclude them. If REDUCTION is selected, do not sneak scope back in. Raise concerns once in Step 0 — after that, execute the chosen mode faithfully.
 Do NOT make any code changes. Do NOT start implementation. Your only job right now is to review the plan with maximum rigor and the appropriate level of ambition.
+The only file-writing exceptions: CEO plan persistence in `~/.gstack/projects/$SLUG/ceo-plans/...` and explicit markdown exports the user requests (for example `PLAN.md` or another `.md` path). That is documentation output, not implementation.
+Never use this skill to modify application/source files, tests, configs, scripts, or migrations. Bash is read-only in this skill: inspection and directory setup only, never installs, codegen, or project mutation beyond CEO plan persistence.
+Never invent slash commands, shell commands, or pseudo-commands to "exit plan mode." Treat "save the plan," "stop planning," "exit planning," "gracefully interrupt," and "implement now" as plain-language requests and follow the explicit handoff rules below.
 
 ## Prime Directives
 1. Zero silent failures. Every failure mode must be visible — to the system, to the team, to the user. If a failure can happen silently, that is a critical defect in the plan.
@@ -398,6 +402,10 @@ Repo: {owner/repo}
 
 Derive the feature slug from the plan being reviewed (e.g., "user-dashboard", "auth-refactor"). Use the date in YYYY-MM-DD format.
 
+If the user explicitly asks for a markdown copy in the project root or another path, also export the final plan to that requested `.md` path after writing the canonical CEO plan artifact. If they ask to "save the plan" without a path in EXPANSION or SELECTIVE EXPANSION mode, write the canonical CEO plan artifact and tell them the exact path.
+
+For HOLD SCOPE and SCOPE REDUCTION modes, if the user asks to save the review/plan, write it to the user-specified `.md` path. If no path is provided, default to `PLAN.md` in the project root.
+
 ### 0E. Temporal Interrogation (EXPANSION, SELECTIVE EXPANSION, and HOLD modes)
 Think ahead to implementation: What decisions will need to be made during implementation that should be resolved NOW in the plan?
 ```
@@ -435,6 +443,25 @@ After mode is selected, confirm which implementation approach (from 0C-bis) appl
 
 Once selected, commit fully. Do not silently drift.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.
+
+## Save / Exit / Handoff Contract
+
+These rules override any temptation to improvise commands or implementation.
+
+### Saving and exporting
+- EXPANSION and SELECTIVE EXPANSION: write the canonical CEO plan artifact to `~/.gstack/projects/$SLUG/ceo-plans/...` as described above.
+- If the user explicitly asks for `PLAN.md` or another markdown path, also write an export copy there and report both saved paths.
+- HOLD SCOPE and SCOPE REDUCTION: if the user asks to save the review, write it to the requested markdown path, or default to `PLAN.md` in the project root.
+
+### Exiting planning mode
+- If the user says to stop, exit, or gracefully interrupt planning, provide a concise handoff and then stop after that response.
+- The handoff must include: selected mode, chosen implementation approach, key decisions, unresolved decisions, recommended next step, and any saved markdown path(s).
+- Do not invent slash commands, fake CLI commands, or "click this button" instructions to represent the exit.
+
+### Requests to implement
+- If the user asks this skill to implement, do not write code.
+- Instead, summarize the locked plan, recommend the next mode (normal coding mode or `/plan-eng-review` if engineering review is still needed), and stop.
+- Never silently drift from plan review into implementation.
 
 ## Review Sections (10 sections, after scope and mode are agreed)
 
