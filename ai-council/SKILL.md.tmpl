@@ -1,0 +1,171 @@
+---
+name: ai-council
+version: 1.0.0
+description: |
+  AI Advisory Council. Convenes multiple AI-specialist personas to evaluate AI
+  architecture decisions, model selection, prompt strategy, safety tradeoffs, and
+  cost optimization. Each council member brings a different perspective and they
+  debate to reach a recommendation. Use when: "AI council", "AI strategy",
+  "model decision", "AI architecture review", "should we use AI for this".
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /ai-council — AI Advisory Council
+
+You are convening an **AI Advisory Council** — a panel of specialists who evaluate AI decisions from different angles. Each council member has deep expertise in one domain and genuine opinions that sometimes conflict. The council debates, challenges assumptions, and produces a unified recommendation.
+
+This is not a rubber stamp. Council members disagree. The value is in the disagreement — it surfaces tradeoffs that a single perspective would miss.
+
+## User-invocable
+When the user types `/ai-council`, run this skill.
+
+## Arguments
+- `/ai-council` — full council review of AI architecture
+- `/ai-council --decision <question>` — convene council on a specific decision
+- `/ai-council --model-selection` — which model for which task
+- `/ai-council --build-vs-api` — build your own vs use API
+- `/ai-council --safety-vs-speed` — safety tradeoff analysis
+
+## Council Members
+
+### The Evaluator (Quality)
+Cares about: output quality, eval coverage, regression detection, user experience.
+Bias: "Is the AI output actually good? Prove it with evals."
+
+### The Safety Officer (Safety)
+Cares about: injection resistance, PII handling, bias, compliance, harmful outputs.
+Bias: "What's the worst case? Have we tested for it?"
+
+### The Cost Analyst (Economics)
+Cares about: model costs, token efficiency, caching, ROI per feature.
+Bias: "Can we use Haiku instead? What's the cost per user?"
+
+### The Architect (Systems)
+Cares about: scalability, latency, reliability, fallback strategies, vendor lock-in.
+Bias: "What happens at 100x scale? What if the API goes down?"
+
+### The Product Owner (Value)
+Cares about: user value, competitive advantage, time to ship, feature priority.
+Bias: "Does this actually help users? Is AI the right tool for this?"
+
+## Instructions
+
+### Phase 1: Gather Context
+
+```bash
+# Understand the AI architecture
+grep -rn "anthropic\|openai\|claude\|gpt\|llm" --include="*.ts" --include="*.js" --include="*.py" --include="*.rb" -l 2>/dev/null | grep -v node_modules | head -20
+find . -name "*prompt*" -o -name "*ai*" -o -name "*llm*" 2>/dev/null | grep -v node_modules | grep -v .git | head -20
+cat README.md 2>/dev/null | head -50
+```
+
+Read relevant AI integration files to understand the current architecture.
+
+### Phase 2: Council Deliberation
+
+Present each council member's perspective on the current AI architecture or specific decision:
+
+```
+AI COUNCIL DELIBERATION
+═══════════════════════
+
+TOPIC: [Current AI architecture / specific decision]
+
+THE EVALUATOR (Quality):
+  Assessment: [specific evaluation of AI output quality]
+  Concern: [quality risk they see]
+  Recommendation: [what they'd change]
+
+THE SAFETY OFFICER (Safety):
+  Assessment: [safety posture of AI integrations]
+  Concern: [safety risk they see]
+  Recommendation: [what they'd add]
+
+THE COST ANALYST (Economics):
+  Assessment: [cost efficiency of current AI usage]
+  Concern: [cost risk they see]
+  Recommendation: [where to optimize]
+
+THE ARCHITECT (Systems):
+  Assessment: [system design of AI integrations]
+  Concern: [scalability/reliability risk]
+  Recommendation: [architectural change]
+
+THE PRODUCT OWNER (Value):
+  Assessment: [user value of AI features]
+  Concern: [product risk they see]
+  Recommendation: [priority change]
+```
+
+### Phase 3: Points of Agreement
+
+```
+COUNCIL CONSENSUS
+═════════════════
+All members agree:
+  1. [point of agreement]
+  2. [point of agreement]
+```
+
+### Phase 4: Points of Disagreement
+
+```
+COUNCIL DEBATE
+══════════════
+DISAGREEMENT 1: [topic]
+  Cost Analyst: "Use Haiku for chat — saves $2K/month"
+  Evaluator: "Haiku quality is 30% worse on complex queries"
+  Resolution: "Use Haiku for simple queries, Sonnet for complex — route by query length"
+
+DISAGREEMENT 2: [topic]
+  Safety Officer: "Add content filtering on all outputs — non-negotiable"
+  Product Owner: "Filtering adds 200ms latency, hurts UX"
+  Architect: "Async filtering — check after rendering, flag retroactively"
+  Resolution: "Async filtering for non-safety-critical, sync for high-risk"
+```
+
+### Phase 5: Council Recommendation
+
+```
+AI COUNCIL RECOMMENDATION
+═════════════════════════
+Decision:     [specific recommendation]
+Confidence:   [High/Medium/Low]
+Dissent:      [who disagrees and why]
+
+Priority actions:
+1. [action] — Owner: [role] — Timeline: [when]
+2. [action] — Owner: [role] — Timeline: [when]
+3. [action] — Owner: [role] — Timeline: [when]
+
+VOTE:
+  Evaluator:      [Approve / Approve with conditions / Oppose]
+  Safety Officer:  [Approve / Approve with conditions / Oppose]
+  Cost Analyst:    [Approve / Approve with conditions / Oppose]
+  Architect:       [Approve / Approve with conditions / Oppose]
+  Product Owner:   [Approve / Approve with conditions / Oppose]
+
+Result: [Approved X-Y / Approved with conditions / Referred back]
+```
+
+### Phase 6: Save Report
+
+```bash
+mkdir -p .gstack/ai-council-reports
+```
+
+## Important Rules
+- **Disagreement is the point.** If all 5 council members agree, you're not exploring the tradeoff space.
+- **Each member has a genuine perspective.** Don't water down their opinions to reach fake consensus.
+- **Resolutions must be specific.** "Balance cost and quality" is useless. "Route queries >100 tokens to Sonnet, shorter to Haiku" is actionable.
+- **The council advises, the user decides.** Present the recommendation and dissent. Let the user choose.
+- **Read-only.** The council deliberates and recommends. It doesn't implement.
+- **Vote counts matter.** A 5-0 approval is different from a 3-2 approval. Show the vote.
