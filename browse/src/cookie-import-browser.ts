@@ -45,6 +45,7 @@ export interface BrowserInfo {
   dataDir: string;        // relative to ~/Library/Application Support/
   keychainService: string;
   aliases: string[];
+  appPath: string;        // macOS .app bundle path in /Applications/
 }
 
 export interface DomainEntry {
@@ -85,11 +86,11 @@ export class CookieImportError extends Error {
 // Hardcoded — NEVER interpolate user input into shell commands.
 
 const BROWSER_REGISTRY: BrowserInfo[] = [
-  { name: 'Comet',  dataDir: 'Comet/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
-  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
-  { name: 'Arc',    dataDir: 'Arc/User Data/',                keychainService: 'Arc Safe Storage',            aliases: ['arc'] },
-  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'] },
-  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
+  { name: 'Comet',  dataDir: 'Comet/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'], appPath: '/Applications/Comet.app' },
+  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'], appPath: '/Applications/Google Chrome.app' },
+  { name: 'Arc',    dataDir: 'Arc/User Data/',                keychainService: 'Arc Safe Storage',            aliases: ['arc'], appPath: '/Applications/Arc.app' },
+  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'], appPath: '/Applications/Brave Browser.app' },
+  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'], appPath: '/Applications/Microsoft Edge.app' },
 ];
 
 // ─── Key Cache ──────────────────────────────────────────────────
@@ -101,22 +102,47 @@ const keyCache = new Map<string, Buffer>();
 // ─── Public API ─────────────────────────────────────────────────
 
 /**
- * Find which browsers are installed (have a cookie DB on disk).
+ * Find the first profile directory that has a Cookies DB.
+ * Chromium browsers may use "Default" or "Profile N" directories.
+ */
+function findCookieProfile(browserDataDir: string): string | null {
+  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  const browserDir = path.join(appSupport, browserDataDir);
+  try {
+    if (!fs.existsSync(browserDir)) return null;
+    // Check "Default" first, then "Profile N" directories
+    const defaultCookies = path.join(browserDir, 'Default', 'Cookies');
+    if (fs.existsSync(defaultCookies)) return 'Default';
+    const entries = fs.readdirSync(browserDir);
+    for (const entry of entries) {
+      if (entry.startsWith('Profile ')) {
+        const profileCookies = path.join(browserDir, entry, 'Cookies');
+        if (fs.existsSync(profileCookies)) return entry;
+      }
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+/**
+ * Find which browsers are installed (app bundle exists AND have a cookie DB on disk).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
-    try { return fs.existsSync(dbPath); } catch { return false; }
+    try {
+      if (!fs.existsSync(b.appPath)) return false;
+      return findCookieProfile(b.dataDir) !== null;
+    } catch { return false; }
   });
 }
 
 /**
  * List unique cookie domains + counts from a browser's DB. No decryption.
  */
-export function listDomains(browserName: string, profile = 'Default'): { domains: DomainEntry[]; browser: string } {
+export function listDomains(browserName: string, profile?: string): { domains: DomainEntry[]; browser: string } {
   const browser = resolveBrowser(browserName);
-  const dbPath = getCookieDbPath(browser, profile);
+  const resolvedProfile = profile || findCookieProfile(browser.dataDir) || 'Default';
+  const dbPath = getCookieDbPath(browser, resolvedProfile);
   const db = openDb(dbPath, browser.name);
   try {
     const now = chromiumNow();
@@ -139,13 +165,14 @@ export function listDomains(browserName: string, profile = 'Default'): { domains
 export async function importCookies(
   browserName: string,
   domains: string[],
-  profile = 'Default',
+  profile?: string,
 ): Promise<ImportResult> {
   if (domains.length === 0) return { cookies: [], count: 0, failed: 0, domainCounts: {} };
 
   const browser = resolveBrowser(browserName);
+  const resolvedProfile = profile || findCookieProfile(browser.dataDir) || 'Default';
   const derivedKey = await getDerivedKey(browser);
-  const dbPath = getCookieDbPath(browser, profile);
+  const dbPath = getCookieDbPath(browser, resolvedProfile);
   const db = openDb(dbPath, browser.name);
 
   try {
