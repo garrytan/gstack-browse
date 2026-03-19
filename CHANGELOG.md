@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.6] - 2026-03-19
+
+### Fixed
+
+- **Update checker no longer misses new versions after an upgrade.** When gstack detected a "just upgraded" marker, it used to write "up to date" to its cache and exit — never checking if an even newer version was already available on remote. Now it prints the upgrade confirmation and continues to check for newer versions, so you find out about 0.9.0 right after upgrading to 0.8.6.
+- **`--force` now fully resets update state.** Previously, `--force` cleared the version cache but left the "just upgraded" marker intact, causing forced checks to short-circuit. Now it clears both, so `--force` always does a fresh remote check.
+- **Fresh cache no longer suppresses post-upgrade remote check.** The marker handler now clears the cache file alongside the snooze file, ensuring the remote version check always runs after an upgrade — even if a recent cache entry would have otherwise suppressed it.
+
 ## [0.8.5] - 2026-03-19
 
 ### Fixed
