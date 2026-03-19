@@ -6,12 +6,10 @@ SKILL_DIR="$HOME/.claude/skills"
 
 mkdir -p "$SKILL_DIR"
 
-project_name="$(basename "$REPO_ROOT")"
-target="$SKILL_DIR/$project_name"
+target="$SKILL_DIR"
 
-# Ensure target exists, then copy repo contents over it without deleting extras.
-mkdir -p "$target"
+# Copy repo contents into ~/.claude/skills without deleting existing files.
 cp -a "$REPO_ROOT"/. "$target"/
 
 echo "Skill directory: $SKILL_DIR"
-echo "Copied project: $project_name -> $target"
+echo "Copied project root into: $target"
