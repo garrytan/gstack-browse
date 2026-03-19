@@ -1206,6 +1206,7 @@ function findTemplates(): string[] {
     path.join(ROOT, 'design-review', 'SKILL.md.tmpl'),
     path.join(ROOT, 'design-consultation', 'SKILL.md.tmpl'),
     path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'build', 'SKILL.md.tmpl'),
     path.join(ROOT, 'codex', 'SKILL.md.tmpl'),
     path.join(ROOT, 'careful', 'SKILL.md.tmpl'),
     path.join(ROOT, 'freeze', 'SKILL.md.tmpl'),
