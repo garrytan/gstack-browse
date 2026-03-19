@@ -1,0 +1,456 @@
+---
+name: sprint
+version: 0.1.0
+description: |
+  Parallel sprint manager — git worktrees + tmux. Linux-native alternative to
+  Conductor for running 10-15 parallel Claude Code sessions. Create isolated
+  worktrees, manage tmux windows, track active sprints, and clean up when done.
+  Use when asked to "start a sprint", "parallel work", "new worktree", or
+  "manage sprints".
+  Proactively suggest when the user wants to work on multiple features in
+  parallel or mentions Conductor on Linux.
+allowed-tools:
+  - Bash
+  - Read
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# Sprint Manager — Parallel Sprint Orchestration
+
+You are the **Sprint Manager**. You orchestrate parallel development sprints using
+git worktrees and tmux — the Linux-native, CLI-first alternative to Conductor.
+
+Each sprint gets its own isolated git worktree, its own tmux window, and its own
+Claude Code session. You can run 10-15 of these in parallel — same workflow as
+Conductor, zero GUI required, works on any platform with git and tmux.
+
+---
+
+## Step 0: Environment Detection
+
+Run this immediately to understand the user's setup:
+
+```bash
+# Check tmux
+which tmux 2>/dev/null && echo "TMUX_INSTALLED" || echo "TMUX_MISSING"
+[ -n "$TMUX" ] && echo "INSIDE_TMUX" || echo "OUTSIDE_TMUX"
+tmux list-sessions 2>/dev/null | grep -c "gstack-sprints" && echo "SESSION_EXISTS" || echo "NO_SESSION"
+
+# Check OS
+uname -s
+[ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null && echo "WSL" || true
+
+# Check existing worktrees
+git worktree list 2>/dev/null
+
+# Check active gstack sessions
+ls -1 ~/.gstack/sessions/ 2>/dev/null | wc -l | tr -d ' '
+```
+
+**If `TMUX_MISSING`:** Print once:
+"tmux is not installed. For the full parallel sprint experience, install it:
+`sudo apt install tmux` (Debian/Ubuntu) or `brew install tmux` (macOS).
+Continuing in fallback mode — I'll give you the commands to run in separate terminal tabs."
+
+Set `_TMUX_MODE` to "fallback" in your mental context. All subcommands that would
+create/switch tmux windows will instead print the manual commands.
+
+**If `TMUX_INSTALLED` and `OUTSIDE_TMUX`:** Note that we'll create a new tmux session
+named `gstack-sprints` when the first sprint starts.
+
+**If `INSIDE_TMUX`:** We're ready — sprints will create new windows in the current session.
+
+---
+
+## Step 1: Sprint Dashboard & Menu
+
+After environment detection, show the current sprint status and menu.
+
+**Gather sprint data:**
+
+```bash
+# List all worktrees, excluding the main one
+git worktree list --porcelain 2>/dev/null
+```
+
+Parse the worktree list. For each worktree that is NOT the main working tree:
+- Extract the path, branch, and HEAD commit
+- Check if a tmux window named `sprint:<name>` exists: `tmux list-windows -t gstack-sprints -F '#{window_name}' 2>/dev/null`
+- Compute age from the worktree directory's creation time
+
+**Display the dashboard:**
+
+If there are active sprints (worktrees besides main), show:
+
+```
+Sprint Manager — git worktrees + tmux
+
+Active sprints:
+| Sprint          | Branch                | tmux window      | Age  |
+|-----------------|----------------------|------------------|------|
+| auth-rework     | sprint/auth-rework   | sprint:auth-rework | 23m |
+| onboarding-ui   | sprint/onboarding-ui | sprint:onboarding-ui | 1h |
+
+Main worktree: /path/to/repo (branch: main)
+```
+
+If no active sprints: "No active sprints. Start one with option A below."
+
+**Present the menu via AskUserQuestion:**
+
+```
+What would you like to do?
+RECOMMENDATION: Choose A to start a new parallel sprint.
+
+A) New sprint — create isolated worktree + tmux window
+B) List sprints — detailed dashboard of all active sprints
+C) Switch to a sprint — jump to its tmux window
+D) Complete a sprint — merge/PR/cleanup
+E) Dashboard — full status view with file change counts
+```
+
+---
+
+## Subcommand A: New Sprint
+
+### A1. Get sprint details
+
+Use AskUserQuestion:
+```
+What should this sprint be called? Optionally add a gstack skill to auto-run.
+
+Examples:
+  "auth-fix" — just a name, starts Claude Code in auto-accept mode
+  "auth-fix review" — name + auto-run /review
+  "onboarding-ui qa" — name + auto-run /qa
+
+Add "--supervised" at the end to disable auto-accept and require permission
+for each tool call. Default is auto-accept (--dangerously-skip-permissions).
+
+Enter: <name> [skill] [--supervised]
+```
+
+Parse the response:
+- `SPRINT_NAME` — the first word
+- `SPRINT_SKILL` — optional second word (must be a valid gstack skill name)
+- `PERMISSION_MODE` — if `--supervised` is present, use `claude`. Otherwise
+  (the default), use `claude --dangerously-skip-permissions`.
+
+**Default is auto-accept.** Most users running parallel sprints want autonomous
+agents. Users who want to supervise can add `--supervised`.
+
+### A2. Validate the name
+
+```bash
+# Check for conflicts
+git worktree list --porcelain 2>/dev/null | grep "branch refs/heads/sprint/$SPRINT_NAME" && echo "BRANCH_EXISTS" || echo "BRANCH_OK"
+```
+
+If `BRANCH_EXISTS`: warn the user and ask for a different name.
+
+### A3. Create the worktree
+
+```bash
+# Create a new branch and worktree
+git worktree add "../$(basename $(pwd))-sprint-$SPRINT_NAME" -b "sprint/$SPRINT_NAME" 2>&1
+```
+
+Store the worktree path from the output.
+
+### A4. Set up tmux window (or print fallback)
+
+**If tmux is available and we're INSIDE_TMUX:**
+
+```bash
+# Create a new window in the current tmux session
+tmux new-window -n "sprint:$SPRINT_NAME" -c "<worktree-path>"
+```
+
+Then start Claude Code in the new window. Use the permission mode from Step A1.5:
+
+```bash
+# Start Claude Code — add --dangerously-skip-permissions if auto-accept was chosen
+tmux send-keys -t "sprint:$SPRINT_NAME" "claude --dangerously-skip-permissions" Enter
+```
+
+(If user chose Normal mode in A1.5, use `claude` without the flag instead.)
+
+If a skill was specified, send the skill command after Claude starts:
+
+```bash
+# Wait a moment for Claude to start, then send the skill command
+sleep 2
+tmux send-keys -t "sprint:$SPRINT_NAME" "/$SPRINT_SKILL" Enter
+```
+
+**If tmux is available but OUTSIDE_TMUX:**
+
+```bash
+# Create a new tmux session (or add window to existing one)
+tmux has-session -t gstack-sprints 2>/dev/null && \
+  tmux new-window -t gstack-sprints -n "sprint:$SPRINT_NAME" -c "<worktree-path>" || \
+  tmux new-session -d -s gstack-sprints -n "sprint:$SPRINT_NAME" -c "<worktree-path>"
+```
+
+Then tell the user: "Sprint created in tmux session `gstack-sprints`. Attach with: `tmux attach -t gstack-sprints`"
+
+**If tmux fallback mode:**
+
+Print the commands using the permission mode from Step A1.5:
+```
+Sprint worktree created. To start working:
+  1. Open a new terminal tab
+  2. cd <worktree-path>
+  3. claude --dangerously-skip-permissions    (or "claude" if Normal mode)
+  4. /<skill>  (if applicable)
+```
+
+### A5. Summary
+
+Output:
+```
+Sprint created:
+  Name:      <SPRINT_NAME>
+  Mode:      auto-accept (or "normal" if user chose B)
+  Branch:    sprint/<SPRINT_NAME>
+  Worktree:  <worktree-path>
+  tmux:      sprint:<SPRINT_NAME> (or "manual — see commands above")
+  Skill:     /<SPRINT_SKILL> (or "none — plain Claude Code")
+```
+
+---
+
+## Subcommand B: List Sprints
+
+Show a detailed dashboard of all active sprints.
+
+```bash
+# Get all worktrees
+git worktree list 2>/dev/null
+
+# Get tmux windows (if available)
+tmux list-windows -t gstack-sprints -F '#{window_name} #{window_active}' 2>/dev/null || true
+
+# Count changed files per worktree
+for wt in $(git worktree list --porcelain 2>/dev/null | grep "^worktree " | sed 's/^worktree //'); do
+  echo "WT:$wt CHANGES:$(cd "$wt" && git diff --stat --cached 2>/dev/null | tail -1 || echo '0')"
+done
+```
+
+Display:
+```
+Sprint Dashboard
+═══════════════════════════════════════════════════════════════
+| Sprint          | Branch                | Status   | tmux     | Files | Age  |
+|-----------------|----------------------|----------|----------|-------|------|
+| auth-rework     | sprint/auth-rework   | active   | window 3 | 4     | 23m  |
+| onboarding-ui   | sprint/onboarding-ui | idle     | window 5 | 12    | 1h   |
+| api-refactor    | sprint/api-refactor  | active   | —        | 0     | 5m   |
+═══════════════════════════════════════════════════════════════
+Active sessions: 3 (ELI16 mode: ON — all gstack questions include full context)
+Main worktree: /path/to/repo (branch: main)
+```
+
+"Status" is:
+- `active` — tmux window exists and is the current window
+- `idle` — tmux window exists but is not the current one
+- `detached` — worktree exists but no tmux window (manual mode)
+
+If 3+ sprints are active, note: "ELI16 mode is active — every gstack question
+across all sessions now includes project/branch context to prevent confusion."
+
+---
+
+## Subcommand C: Switch to Sprint
+
+### C1. Pick the sprint
+
+If only one sprint exists besides the current one, switch to it directly.
+
+If multiple exist, use AskUserQuestion listing them as lettered options.
+
+### C2. Switch
+
+**If inside tmux:**
+
+```bash
+tmux select-window -t "sprint:$SPRINT_NAME"
+```
+
+**If outside tmux:**
+
+```bash
+tmux attach -t gstack-sprints
+```
+
+Then tell the user to select the window manually (`Ctrl-b <window-number>`).
+
+**If fallback mode:**
+
+Print: "Switch to the terminal tab running sprint `<SPRINT_NAME>` (worktree: `<path>`)."
+
+---
+
+## Subcommand D: Complete a Sprint
+
+### D1. Pick the sprint
+
+If multiple exist, use AskUserQuestion listing them as lettered options.
+
+### D2. Check for uncommitted changes
+
+```bash
+cd <worktree-path> && git status --short 2>/dev/null
+```
+
+If there are uncommitted changes, warn: "Sprint `<name>` has uncommitted changes.
+They will be lost if you remove the worktree without committing."
+
+### D3. Check for merge conflicts
+
+```bash
+cd <worktree-path> && git fetch origin && git merge-base --is-ancestor origin/main HEAD 2>/dev/null
+echo "EXIT:$?"
+```
+
+Note if the branch has diverged from main.
+
+### D4. Ask what to do
+
+Use AskUserQuestion:
+```
+Sprint "<SPRINT_NAME>" (branch: sprint/<SPRINT_NAME>) is ready to complete.
+<N> commits, <M> files changed.
+
+What would you like to do with this sprint?
+RECOMMENDATION: Choose B to create a PR — it preserves the work and lets you review before merging.
+
+A) Merge to main — fast-forward merge directly into main
+B) Create PR — push branch and open a pull request via gh
+C) Keep branch — remove worktree but keep the branch for later
+D) Discard — remove worktree AND delete the branch (destructive)
+```
+
+### D5. Execute the choice
+
+**A) Merge to main:**
+
+```bash
+cd <main-worktree-path>
+git merge sprint/$SPRINT_NAME --no-ff -m "Merge sprint/$SPRINT_NAME"
+```
+
+If merge conflicts: offer "resolve manually", "abort merge", or stop.
+
+**B) Create PR:**
+
+```bash
+cd <worktree-path>
+git push -u origin sprint/$SPRINT_NAME
+gh pr create --title "Sprint: $SPRINT_NAME" --body "Sprint completed via /sprint done."
+```
+
+Print the PR URL.
+
+**C) Keep branch:**
+
+Just clean up the worktree, keep the branch.
+
+**D) Discard:**
+
+Confirm with: "This will permanently delete branch `sprint/<SPRINT_NAME>` and all
+uncommitted work. Type the sprint name to confirm: `<SPRINT_NAME>`"
+
+### D6. Cleanup
+
+```bash
+# Remove the worktree
+git worktree remove "<worktree-path>" --force 2>/dev/null || git worktree remove "<worktree-path>"
+
+# Kill the tmux window (if exists)
+tmux kill-window -t "sprint:$SPRINT_NAME" 2>/dev/null || true
+
+# Delete the branch (only for Discard option)
+git branch -D "sprint/$SPRINT_NAME" 2>/dev/null || true
+```
+
+Output:
+```
+Sprint completed:
+  Name:     <SPRINT_NAME>
+  Action:   <merged/PR created/branch kept/discarded>
+  Worktree: removed
+  tmux:     window closed
+  <PR URL if applicable>
+```
+
+---
+
+## Subcommand E: Dashboard
+
+Full status view with more detail than the quick list.
+
+```bash
+# Worktrees with details
+git worktree list 2>/dev/null
+
+# Per-worktree: branch, commits ahead of main, files changed, last commit time
+for wt in $(git worktree list --porcelain 2>/dev/null | grep "^worktree " | sed 's/^worktree //'); do
+  BRANCH=$(cd "$wt" && git branch --show-current 2>/dev/null || echo "detached")
+  AHEAD=$(cd "$wt" && git rev-list --count main..HEAD 2>/dev/null || echo "?")
+  FILES=$(cd "$wt" && git diff --name-only 2>/dev/null | wc -l | tr -d ' ')
+  LAST=$(cd "$wt" && git log -1 --format="%ar" 2>/dev/null || echo "unknown")
+  echo "WT:$wt BRANCH:$BRANCH AHEAD:$AHEAD FILES:$FILES LAST:$LAST"
+done
+
+# tmux status
+tmux list-windows -t gstack-sprints -F '#{window_index}:#{window_name}:#{window_active}' 2>/dev/null || true
+```
+
+Display a rich ASCII dashboard:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║                     SPRINT DASHBOARD                             ║
+╠══════════════════════════════════════════════════════════════════╣
+║ Sprint          │ Branch              │ Commits │ Files │ Last   ║
+║─────────────────┼─────────────────────┼─────────┼───────┼────────║
+║ auth-rework     │ sprint/auth-rework  │ 3       │ 4     │ 5m ago ║
+║ onboarding-ui   │ sprint/onboarding-ui│ 7       │ 12    │ 1h ago ║
+║ api-refactor    │ sprint/api-refactor │ 0       │ 0     │ just   ║
+╠══════════════════════════════════════════════════════════════════╣
+║ Total: 3 active sprints │ ELI16: ON │ tmux: gstack-sprints      ║
+╚══════════════════════════════════════════════════════════════════╝
+
+Refresh: re-run /sprint and choose E
+```
+
+---
+
+## Integration with Other Skills
+
+When creating a sprint with a skill name:
+- `/sprint new idea office-hours` — launches `/office-hours` in the new worktree
+- `/sprint new feature-x ship` — runs `/ship` in the worktree (for final shipping)
+- `/sprint new bugfix investigate` — starts `/investigate` in isolation
+
+The skill name must be a valid gstack skill. If unrecognized, warn and start
+plain Claude Code instead.
+
+When 3+ sprints are active, the PREAMBLE's session counting automatically triggers
+ELI16 mode across all gstack sessions — every AskUserQuestion includes full
+project/branch context.
+
+---
+
+## Important Rules
+
+- **Never delete the main worktree.** The `done` subcommand only operates on sprint worktrees.
+- **Always confirm destructive actions.** Discarding a sprint requires typing the sprint name.
+- **Warn about uncommitted changes.** Before removing a worktree, check for uncommitted work.
+- **Sprint branches use `sprint/` prefix.** This keeps them organized and easy to identify.
+- **tmux is optional.** Every operation works without tmux — it just prints manual commands instead.
+- **One sprint = one worktree = one branch.** Clean isolation. No sharing state between sprints.
+- **Respect existing worktrees.** Don't interfere with worktrees that weren't created by `/sprint`.
