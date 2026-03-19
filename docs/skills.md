@@ -23,6 +23,10 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | **Multi-AI** | | |
 | [`/codex`](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
 | | | |
+| | | |
+| **Parallel Orchestration** | | |
+| [`/sprint`](#sprint) | **Sprint Manager** | Parallel sprint orchestration via git worktrees + tmux. Create isolated worktrees, manage tmux windows, and clean up when done. Linux-native alternative to Conductor. |
+| | | |
 | **Safety & Utility** | | |
 | [`/careful`](#safety--guardrails) | **Safety Guardrails** | Warns before destructive commands (rm -rf, DROP TABLE, force-push, git reset --hard). Override any warning. Common build cleanups whitelisted. |
 | [`/freeze`](#safety--guardrails) | **Edit Lock** | Restrict all file edits to a single directory. Blocks Edit and Write outside the boundary. Accident prevention for debugging. |
@@ -720,6 +724,83 @@ Claude: Running independent Codex review...
         UNIQUE TO CODEX: Token comparison timing attack
         UNIQUE TO CLAUDE: N+1 query in listing photos
 ```
+
+---
+
+## `/sprint`
+
+This is my **parallel sprint manager mode**.
+
+Conductor is great on Mac. On Linux (and for CLI-purists on any platform), git worktrees + tmux is already the answer. `/sprint` makes that workflow first-class in gstack.
+
+### Philosophy
+
+The sprint structure is what makes parallelism work. Without a process, ten agents is ten sources of chaos. With a process — think, plan, build, review, test, ship — each agent knows exactly what to do. `/sprint` manages the infrastructure so you manage the work:
+
+- **One sprint = one worktree = one branch.** Clean isolation. No state leaks between sprints.
+- **tmux is optional but recommended.** Everything works without tmux — it just prints the manual commands instead. But with tmux, switching between sprints is instant.
+- **Sprint branches use `sprint/` prefix.** Easy to identify, easy to clean up, easy to filter in `git branch`.
+
+### Example: 5 parallel sprints
+
+```
+You:   /sprint
+
+Claude: Sprint Manager — git worktrees + tmux
+
+        Active sprints:
+        | Sprint          | Branch                | tmux window       | Age  |
+        |-----------------|----------------------|-------------------|------|
+        | auth-rework     | sprint/auth-rework   | sprint:auth-rework | 23m |
+        | onboarding-ui   | sprint/onboarding-ui | sprint:onboarding-ui | 1h |
+
+        What would you like to do?
+        A) New sprint  B) List  C) Switch  D) Complete  E) Dashboard
+
+You:    A
+
+Claude: What should this sprint be called? (e.g. "api-cache" or "api-cache review")
+
+You:    payment-flow qa
+
+Claude: Sprint created:
+          Name:      payment-flow
+          Branch:    sprint/payment-flow
+          Worktree:  ../myapp-sprint-payment-flow
+          tmux:      sprint:payment-flow
+          Skill:     /qa (auto-running)
+
+You:    /sprint
+        D
+
+Claude: Which sprint to complete?
+        A) auth-rework  B) onboarding-ui  C) payment-flow
+
+You:    A
+
+Claude: Sprint "auth-rework" — 5 commits, 8 files changed.
+        What would you like to do?
+        A) Merge to main  B) Create PR  C) Keep branch  D) Discard
+
+You:    B
+
+Claude: PR created: github.com/you/app/pull/42
+        Sprint completed:
+          Worktree: removed
+          tmux: window closed
+```
+
+Five sprints, three minutes of management. The rest of the time is spent doing actual work.
+
+### Troubleshooting
+
+**tmux not found:** Install with `sudo apt install tmux` (Debian/Ubuntu), `brew install tmux` (macOS), or your package manager. `/sprint` works without tmux but you lose the ability to auto-switch between sprints.
+
+**Worktree conflicts:** If `git worktree add` fails because the branch already exists, you may have a stale worktree. Run `git worktree prune` to clean up references to deleted directories, then try again.
+
+**Merge conflicts on `done`:** When completing a sprint, if the target branch has diverged, you'll be offered three choices: resolve manually, abort, or keep the branch and handle it later.
+
+**Can't delete worktree:** If `git worktree remove` fails, it usually means there are uncommitted changes. Commit or stash them first, or use the `--force` option (the skill will warn you).
 
 ---
 

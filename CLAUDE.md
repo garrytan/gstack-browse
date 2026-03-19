@@ -71,6 +71,7 @@ gstack/
 ├── plan-eng-review/ # /plan-eng-review skill
 ├── office-hours/    # /office-hours skill (YC Office Hours — startup diagnostic + builder brainstorm)
 ├── investigate/     # /investigate skill (systematic root-cause debugging)
+├── sprint/          # /sprint skill (parallel sprints via git worktrees + tmux)
 ├── retro/           # Retrospective skill
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── setup            # One-time setup: build binary + symlink skills
