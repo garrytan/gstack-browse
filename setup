@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gstack setup — build browser binary + register all skills with Claude Code
+# gstack-codex setup — build browser binary + register all skills with Codex
 set -e
 
 if ! command -v bun >/dev/null 2>&1; then
@@ -9,6 +9,7 @@ if ! command -v bun >/dev/null 2>&1; then
 fi
 
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
+STACK_NAME="$(basename "$GSTACK_DIR")"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
 BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
 
@@ -66,7 +67,7 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
+# 4. Only create skill symlinks if we're inside a .codex/skills directory
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$SKILLS_BASENAME" = "skills" ]; then
   linked=()
@@ -75,29 +76,30 @@ if [ "$SKILLS_BASENAME" = "skills" ]; then
       skill_name="$(basename "$skill_dir")"
       # Skip node_modules
       [ "$skill_name" = "node_modules" ] && continue
+      [ "$skill_name" = ".git" ] && continue
       target="$SKILLS_DIR/$skill_name"
       # Create or update symlink; skip if a real file/directory exists
       if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
+        ln -snf "$STACK_NAME/$skill_name" "$target"
         linked+=("$skill_name")
       fi
     fi
   done
 
-  echo "gstack ready."
+  echo "gstack-codex ready."
   echo "  browse: $BROWSE_BIN"
   if [ ${#linked[@]} -gt 0 ]; then
     echo "  linked skills: ${linked[*]}"
   fi
 else
-  echo "gstack ready."
+  echo "gstack-codex ready."
   echo "  browse: $BROWSE_BIN"
-  echo "  (skipped skill symlinks — not inside .claude/skills/)"
+  echo "  (skipped skill symlinks — not inside .codex/skills/)"
 fi
 
 # 4. First-time welcome + legacy cleanup
 if [ ! -d "$HOME/.gstack" ]; then
   mkdir -p "$HOME/.gstack"
-  echo "  Welcome! Run /gstack-upgrade anytime to stay current."
+  echo "  Welcome! Use gstack-upgrade anytime to stay current."
 fi
 rm -f /tmp/gstack-latest-version

@@ -141,49 +141,20 @@ describe('gen-skill-docs', () => {
     expect(browseTmpl).toContain('{{PREAMBLE}}');
   });
 
-  test('generated SKILL.md contains contributor mode check', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Contributor Mode');
-    expect(content).toContain('gstack_contributor');
-    expect(content).toContain('contributor-logs');
+  test('generated AGENTS.md is present and lists Codex skill usage', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'AGENTS.md'), 'utf-8');
+    expect(content).toContain('These are Codex skills, not slash commands.');
+    expect(content).toContain('`browse`');
+    expect(content).toContain('`review`');
+    expect(content).toContain('`ship`');
   });
 
-  test('generated SKILL.md contains session awareness', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('_SESSIONS');
-    expect(content).toContain('RECOMMENDATION');
-  });
-
-  test('generated SKILL.md contains branch detection', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('_BRANCH');
-    expect(content).toContain('git branch --show-current');
-  });
-
-  test('generated SKILL.md contains ELI16 simplification rules', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('No raw function names');
-    expect(content).toContain('plain English');
-  });
-
-  test('generated SKILL.md contains telemetry line', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('skill-usage.jsonl');
-    expect(content).toContain('~/.gstack/analytics');
-  });
-
-  test('preamble-using skills have correct skill name in telemetry', () => {
-    const PREAMBLE_SKILLS = [
-      { dir: '.', name: 'gstack' },
-      { dir: 'ship', name: 'ship' },
-      { dir: 'review', name: 'review' },
-      { dir: 'qa', name: 'qa' },
-      { dir: 'retro', name: 'retro' },
-    ];
-    for (const skill of PREAMBLE_SKILLS) {
-      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
-      expect(content).toContain(`"skill":"${skill.name}"`);
-    }
+  test('generated skills use Codex install paths', () => {
+    const rootContent = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    const browseContent = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    expect(rootContent).toContain('.codex/skills/gstack-codex');
+    expect(browseContent).toContain('.codex/skills/gstack-codex');
+    expect(rootContent).not.toContain('.claude/skills/gstack');
   });
 
   test('qa and qa-only templates use QA_METHODOLOGY placeholder', () => {
@@ -229,10 +200,6 @@ describe('gen-skill-docs', () => {
 
   test('qa has fix-loop tools and phases', () => {
     const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    // Should have Edit, Glob, Grep in allowed-tools
-    expect(qaContent).toContain('Edit');
-    expect(qaContent).toContain('Glob');
-    expect(qaContent).toContain('Grep');
     // Should have fix-loop phases
     expect(qaContent).toContain('Phase 7');
     expect(qaContent).toContain('Phase 8');
