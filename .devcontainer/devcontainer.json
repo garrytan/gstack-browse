@@ -9,6 +9,6 @@
       "extensions": ["oven.bun-vscode"]
     }
   },
-  "postCreateCommand": "chmod +x .devcontainer/setup.sh && bun install --frozen-lockfile && .devcontainer/setup.sh",
+  "postCreateCommand": "bun install --frozen-lockfile && setup",
   "remoteUser": "node"
 }
