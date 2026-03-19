@@ -447,6 +447,68 @@ describe('gstack-update-check', () => {
     expect(cache).toContain('UP_TO_DATE');
   });
 
+  test('--force clears marker file so remote check runs', () => {
+    writeFileSync(join(gstackDir, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.5.0\n');
+    writeFileSync(join(stateDir, 'just-upgraded-from'), '0.3.3\n');
+
+    // With --force: marker cleared before script runs, goes straight to remote
+    const { exitCode, stdout } = run({}, ['--force']);
+    expect(exitCode).toBe(0);
+    expect(stdout).toBe('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+    // Marker should be gone
+    expect(existsSync(join(stateDir, 'just-upgraded-from'))).toBe(false);
+  });
+
+  // ─── Marker + remote check fall-through tests ────────────────
+
+  test('marker falls through to remote check when newer version exists', () => {
+    writeFileSync(join(gstackDir, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.5.0\n');
+    writeFileSync(join(stateDir, 'just-upgraded-from'), '0.3.3\n');
+
+    const { exitCode, stdout } = run();
+    expect(exitCode).toBe(0);
+    // Both lines should appear: upgraded notification + new version available
+    expect(stdout).toContain('JUST_UPGRADED 0.3.3 0.4.0');
+    expect(stdout).toContain('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+    // Marker should be deleted
+    expect(existsSync(join(stateDir, 'just-upgraded-from'))).toBe(false);
+    // Cache should reflect the available upgrade, not UP_TO_DATE
+    const cache = readFileSync(join(stateDir, 'last-update-check'), 'utf-8');
+    expect(cache).toContain('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+  });
+
+  test('marker falls through to remote check when up to date', () => {
+    writeFileSync(join(gstackDir, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.4.0\n');
+    writeFileSync(join(stateDir, 'just-upgraded-from'), '0.3.3\n');
+
+    const { exitCode, stdout } = run();
+    expect(exitCode).toBe(0);
+    // Only JUST_UPGRADED, no UPGRADE_AVAILABLE since remote == local
+    expect(stdout).toBe('JUST_UPGRADED 0.3.3 0.4.0');
+    const cache = readFileSync(join(stateDir, 'last-update-check'), 'utf-8');
+    expect(cache).toContain('UP_TO_DATE');
+  });
+
+  test('marker clears fresh cache so remote check always runs', () => {
+    writeFileSync(join(gstackDir, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.5.0\n');
+    writeFileSync(join(stateDir, 'just-upgraded-from'), '0.3.3\n');
+    // Fresh UP_TO_DATE cache that would normally suppress remote check
+    writeFileSync(join(stateDir, 'last-update-check'), 'UP_TO_DATE 0.4.0');
+
+    const { exitCode, stdout } = run();
+    expect(exitCode).toBe(0);
+    // Marker should bust the cache — remote check finds 0.5.0
+    expect(stdout).toContain('JUST_UPGRADED 0.3.3 0.4.0');
+    expect(stdout).toContain('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+    // Cache overwritten with new result
+    const cache = readFileSync(join(stateDir, 'last-update-check'), 'utf-8');
+    expect(cache).toContain('UPGRADE_AVAILABLE 0.4.0 0.5.0');
+  });
+
   // ─── Split TTL tests ─────────────────────────────────────────
 
   test('UP_TO_DATE cache expires after 60 min (not 720)', () => {

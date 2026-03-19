@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # gstack-update-check — periodic version check for all skills.
 #
-# Output (one line, or nothing):
+# Output (zero, one, or two lines):
 #   JUST_UPGRADED <old> <new>       — marker found from recent upgrade
 #   UPGRADE_AVAILABLE <old> <new>   — remote VERSION differs from local
 #   (nothing)                       — up to date, snoozed, disabled, or check skipped
+#
+# Both lines may appear together when the user just upgraded but an even
+# newer version is already available on remote.
 #
 # Env overrides (for testing):
 #   GSTACK_DIR          — override auto-detected gstack root
@@ -23,6 +26,7 @@ REMOTE_URL="${GSTACK_REMOTE_URL:-https://raw.githubusercontent.com/garrytan/gsta
 # ─── Force flag (busts cache for standalone /gstack-upgrade) ──
 if [ "${1:-}" = "--force" ]; then
   rm -f "$CACHE_FILE"
+  rm -f "$MARKER_FILE"
 fi
 
 # ─── Step 0: Check if updates are disabled ────────────────────
@@ -90,16 +94,16 @@ if [ -z "$LOCAL" ]; then
 fi
 
 # ─── Step 2: Check "just upgraded" marker ─────────────────────
+# Print JUST_UPGRADED but don't exit — fall through to remote check
+# so we can also detect if a newer version is already available.
 if [ -f "$MARKER_FILE" ]; then
   OLD="$(cat "$MARKER_FILE" 2>/dev/null | tr -d '[:space:]')"
   rm -f "$MARKER_FILE"
   rm -f "$SNOOZE_FILE"
-  mkdir -p "$STATE_DIR"
-  echo "UP_TO_DATE $LOCAL" > "$CACHE_FILE"
+  rm -f "$CACHE_FILE"
   if [ -n "$OLD" ]; then
     echo "JUST_UPGRADED $OLD $LOCAL"
   fi
-  exit 0
 fi
 
 # ─── Step 3: Check cache freshness ──────────────────────────
