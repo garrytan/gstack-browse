@@ -1,0 +1,23 @@
+{
+  "name": "Gstack (Bun)",
+  "image": "oven/bun:1.3.10",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "version": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": ["oven.bun-vscode", "ms-vscode.vscode-typescript-next"],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib",
+        "typescript.enablePromptUseWorkspaceTsdk": true
+      }
+    }
+  },
+  "postCreateCommand": "bun install",
+  "remoteUser": "bun"
+}
