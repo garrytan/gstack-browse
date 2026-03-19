@@ -251,39 +251,19 @@ E) Dashboard — full status view with file change counts
 
 ## Subcommand A: New Sprint
 
-### A1. Get sprint details
+### A1. Get sprint details and permission mode
 
-Use AskUserQuestion:
-```
-What should this sprint be called? And optionally, which gstack skill to auto-run?
+Use AskUserQuestion with TWO questions in a single call:
 
-Examples:
-  "auth-fix" — just a name, starts plain Claude Code
-  "auth-fix review" — name + auto-run /review after Claude starts
-  "onboarding-ui qa" — name + auto-run /qa
+**Question 1:** "What should this sprint be called? Optionally add a gstack skill to auto-run (e.g. 'auth-fix review', 'onboarding-ui qa', or just 'auth-fix')."
+- This is a free-text input. Parse the response into `SPRINT_NAME` and optional `SPRINT_SKILL`.
 
-Enter: <name> [skill]
-```
-
-Parse the response into `SPRINT_NAME` and optional `SPRINT_SKILL`.
-
-### A1.5. Permission mode
-
-Use AskUserQuestion:
-```
-How should Claude Code run in this sprint?
-
-RECOMMENDATION: Choose A for autonomous parallel work — the whole point of
-sprints is to let agents work independently without constant permission prompts.
-
-A) Auto-accept (recommended) — run with --dangerously-skip-permissions so Claude
-   works autonomously. Best for parallel sprints where you're not watching every window.
-B) Normal mode — Claude asks permission for each tool call. Use if you want to
-   supervise this sprint closely.
-```
-
-Store the choice as `PERMISSION_MODE`. If A: the claude launch command is
-`claude --dangerously-skip-permissions`. If B: just `claude`.
+**Question 2:** "How should Claude Code run in this sprint?"
+- Options:
+  - A) Auto-accept (recommended) — Claude works autonomously, no permission prompts
+  - B) Normal mode — Claude asks permission for each tool call
+- Default to A. If user picks A, the launch command is `claude --dangerously-skip-permissions`.
+  If B, just `claude`.
 
 ### A2. Validate the name
 
