@@ -354,14 +354,14 @@ describe('REVIEW_DASHBOARD resolver', () => {
   for (const skill of REVIEW_SKILLS) {
     test(`review dashboard appears in ${skill} generated file`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('reviews.jsonl');
+      expect(content).toContain('gstack-review-read');
       expect(content).toContain('REVIEW READINESS DASHBOARD');
     });
   }
 
   test('review dashboard appears in ship generated file', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('reviews.jsonl');
+    expect(content).toContain('gstack-review-read');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
   });
 
@@ -375,10 +375,18 @@ describe('REVIEW_DASHBOARD resolver', () => {
     expect(content).toContain('skip_eng_review');
   });
 
-  test('dashboard bash block includes git HEAD for staleness detection', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('git rev-parse --short HEAD');
-    expect(content).toContain('---HEAD---');
+  test('review dashboard uses gstack-review-read (not multi-line eval+cat pattern)', () => {
+    for (const skill of [...REVIEW_SKILLS, 'ship']) {
+      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('gstack-review-read');
+    }
+  });
+
+  test('review log uses gstack-review-log (not multi-line eval+mkdir+echo pattern)', () => {
+    for (const skill of REVIEW_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('gstack-review-log');
+    }
   });
 
   test('dashboard includes staleness detection prose', () => {

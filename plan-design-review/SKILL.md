@@ -422,9 +422,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default to 
 After producing the Completion Summary above, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","overall_score":N,"unresolved":N,"decisions_made":N,"commit":"COMMIT"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","overall_score":N,"unresolved":N,"decisions_made":N,"commit":"COMMIT"}'
 ```
 
 Substitute values from the Completion Summary:
@@ -440,12 +438,7 @@ Substitute values from the Completion Summary:
 After completing the review, read the review log and config to display the dashboard.
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-cat ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
-echo "---CONFIG---"
-~/.claude/skills/gstack/bin/gstack-config get skip_eng_review 2>/dev/null || echo "false"
-echo "---HEAD---"
-git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+~/.claude/skills/gstack/bin/gstack-review-read
 ```
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review, design-review-lite, codex-review). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between `plan-design-review` (full visual audit) and `design-review-lite` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:

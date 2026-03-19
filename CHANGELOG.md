@@ -86,7 +86,6 @@ When both `/review` (Claude) and `/codex review` have run, you get a cross-model
 ### Fixed
 
 - `/debug` and `/office-hours` were completely invisible to natural language — no trigger phrases at all. Now both have full reactive + proactive triggers.
->>>>>>> origin/main
 
 ## [0.7.0] - 2026-03-18 — YC Office Hours
 

@@ -275,7 +275,7 @@ Then show a **per-author leaderboard** immediately below:
 ```
 Contributor         Commits   +/-          Top area
 You (garry)              32   +2400/-300   browse/
-alice                    12   +800/-150    app/services/
+alice                    12   +800/-150    src/services/
 bob                       3   +120/-40     tests/
 ```
 
@@ -368,7 +368,7 @@ From commit diffs, estimate PR sizes and bucket them:
 
 ### Step 8: Focus Score + Ship of the Week
 
-**Focus score:** Calculate the percentage of commits touching the single most-changed top-level directory (e.g., `app/services/`, `app/views/`). Higher score = deeper focused work. Lower score = scattered context-switching. Report as: "Focus score: 62% (app/services/)"
+**Focus score:** Calculate the percentage of commits touching the single most-changed top-level directory (e.g., `src/`, `lib/`, `components/`). Higher score = deeper focused work. Lower score = scattered context-switching. Report as: "Focus score: 62% (src/services/)"
 
 **Ship of the week:** Auto-identify the single highest-LOC PR in the window. Highlight it:
 - PR number and title
@@ -486,7 +486,7 @@ Use the Write tool to save the JSON file with this schema:
   },
   "authors": {
     "Garry Tan": { "commits": 32, "insertions": 2400, "deletions": 300, "test_ratio": 0.41, "top_area": "browse/" },
-    "Alice": { "commits": 12, "insertions": 800, "deletions": 150, "test_ratio": 0.35, "top_area": "app/services/" }
+    "Alice": { "commits": 12, "insertions": 800, "deletions": 150, "test_ratio": 0.35, "top_area": "src/services/" }
   },
   "version_range": ["1.16.0.0", "1.16.1.0"],
   "streak_days": 47,

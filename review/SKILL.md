@@ -294,9 +294,7 @@ eval $(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 6. **Log the result** for the Review Readiness Dashboard:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}'
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count, COMMIT = output of `git rev-parse --short HEAD`.
@@ -334,11 +332,11 @@ Example format:
 ```
 I auto-fixed 5 issues. 2 need your input:
 
-1. [CRITICAL] app/models/post.rb:42 — Race condition in status transition
+1. [CRITICAL] src/models/post.ts:42 — Race condition in status transition
    Fix: Add `WHERE status = 'draft'` to the UPDATE
    → A) Fix  B) Skip
 
-2. [INFORMATIONAL] app/services/generator.rb:88 — LLM output not type-checked before DB write
+2. [INFORMATIONAL] src/services/generator.py:88 — LLM output not type-checked before DB write
    Fix: Add JSON schema validation
    → A) Fix  B) Skip
 

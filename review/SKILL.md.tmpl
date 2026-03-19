@@ -148,11 +148,11 @@ Example format:
 ```
 I auto-fixed 5 issues. 2 need your input:
 
-1. [CRITICAL] app/models/post.rb:42 — Race condition in status transition
+1. [CRITICAL] src/models/post.ts:42 — Race condition in status transition
    Fix: Add `WHERE status = 'draft'` to the UPDATE
    → A) Fix  B) Skip
 
-2. [INFORMATIONAL] app/services/generator.rb:88 — LLM output not type-checked before DB write
+2. [INFORMATIONAL] src/services/generator.py:88 — LLM output not type-checked before DB write
    Fix: Add JSON schema validation
    → A) Fix  B) Skip
 

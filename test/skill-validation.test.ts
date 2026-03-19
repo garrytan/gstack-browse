@@ -900,6 +900,132 @@ describe('gstack-slug', () => {
   });
 });
 
+// --- gstack-review-log helper ---
+
+describe('gstack-review-log', () => {
+  const REVIEW_LOG_BIN = path.join(ROOT, 'bin', 'gstack-review-log');
+
+  test('binary exists and is executable', () => {
+    expect(fs.existsSync(REVIEW_LOG_BIN)).toBe(true);
+    const stat = fs.statSync(REVIEW_LOG_BIN);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+
+  test('creates review log file and appends JSON payload', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-review-log-'));
+    const payload = '{"skill":"test","timestamp":"2026-03-17T00:00:00Z","status":"clean"}';
+    const result = Bun.spawnSync([REVIEW_LOG_BIN, payload], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+
+    // Determine the written file path via gstack-slug
+    const slugResult = Bun.spawnSync([path.join(ROOT, 'bin', 'gstack-slug')], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const slug = slugResult.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
+    const branch = slugResult.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
+    const filePath = path.join(tmpDir, 'projects', slug, `${branch}-reviews.jsonl`);
+
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(fs.readFileSync(filePath, 'utf-8').trim()).toBe(payload);
+
+    // File path should not contain forward slashes in slug or branch segments
+    expect(slug).not.toContain('/');
+    expect(branch).not.toContain('/');
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  test('appending a second entry adds to same file (not overwrites)', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-review-log-'));
+    const payload1 = '{"skill":"test","entry":1}';
+    const payload2 = '{"skill":"test","entry":2}';
+
+    Bun.spawnSync([REVIEW_LOG_BIN, payload1], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    Bun.spawnSync([REVIEW_LOG_BIN, payload2], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const slugResult = Bun.spawnSync([path.join(ROOT, 'bin', 'gstack-slug')], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const slug = slugResult.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
+    const branch = slugResult.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
+    const filePath = path.join(tmpDir, 'projects', slug, `${branch}-reviews.jsonl`);
+
+    const lines = fs.readFileSync(filePath, 'utf-8').trim().split('\n');
+    expect(lines.length).toBe(2);
+    expect(lines[0]).toBe(payload1);
+    expect(lines[1]).toBe(payload2);
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
+// --- gstack-review-read helper ---
+
+describe('gstack-review-read', () => {
+  const REVIEW_READ_BIN = path.join(ROOT, 'bin', 'gstack-review-read');
+
+  test('binary exists and is executable', () => {
+    expect(fs.existsSync(REVIEW_READ_BIN)).toBe(true);
+    const stat = fs.statSync(REVIEW_READ_BIN);
+    expect(stat.mode & 0o111).toBeGreaterThan(0);
+  });
+
+  test('outputs NO_REVIEWS when no log file exists', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-review-read-'));
+    const result = Bun.spawnSync([REVIEW_READ_BIN], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    expect(output).toContain('NO_REVIEWS');
+    expect(output).toContain('---CONFIG---');
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+
+  test('outputs review content when log file exists', () => {
+    const tmpDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-review-read-'));
+    const logBin = path.join(ROOT, 'bin', 'gstack-review-log');
+    const payload = '{"skill":"plan-eng-review","status":"clean"}';
+
+    // Write a review first
+    Bun.spawnSync([logBin, payload], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    // Now read
+    const result = Bun.spawnSync([REVIEW_READ_BIN], {
+      cwd: ROOT,
+      env: { ...process.env, GSTACK_HOME: tmpDir },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    expect(output).toContain(payload);
+    expect(output).toContain('---CONFIG---');
+
+    fs.rmSync(tmpDir, { recursive: true });
+  });
+});
+
 // --- Test Bootstrap validation ---
 
 describe('Test Bootstrap ({{TEST_BOOTSTRAP}}) integration', () => {
@@ -1119,6 +1245,54 @@ describe('QA report template', () => {
     expect(content).toContain('committed / deferred / skipped');
     expect(content).toContain('### Deferred Tests');
     expect(content).toContain('**Precondition:**');
+  });
+});
+
+// --- Platform-agnostic blocklist regression tests ---
+
+describe('Platform-agnostic: no Rails-isms in templates or generated files', () => {
+  const skillDirs = fs.readdirSync(ROOT).filter(d => {
+    const fullPath = path.join(ROOT, d);
+    return fs.statSync(fullPath).isDirectory() && fs.existsSync(path.join(fullPath, 'SKILL.md'));
+  });
+  const allSkillFiles = [
+    path.join(ROOT, 'SKILL.md'),
+    ...skillDirs.map(d => path.join(ROOT, d, 'SKILL.md')),
+  ];
+  const allTemplateFiles = [
+    ...fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl')) ? [path.join(ROOT, 'SKILL.md.tmpl')] : [],
+    ...skillDirs
+      .filter(d => fs.existsSync(path.join(ROOT, d, 'SKILL.md.tmpl')))
+      .map(d => path.join(ROOT, d, 'SKILL.md.tmpl')),
+  ];
+  const allFiles = [...allSkillFiles, ...allTemplateFiles];
+
+  const BLOCKLIST = [
+    { pattern: /bin\/test-lane/, label: 'bin/test-lane' },
+    { pattern: /RAILS_ENV/, label: 'RAILS_ENV' },
+    { pattern: /_prompt_builder\.rb/, label: '_prompt_builder.rb' },
+    { pattern: /--include="\*\.rb"/, label: '--include="*.rb"' },
+  ];
+
+  for (const { pattern, label } of BLOCKLIST) {
+    test(`no "${label}" in any generated SKILL.md or template`, () => {
+      const matches: string[] = [];
+      for (const file of allFiles) {
+        const content = fs.readFileSync(file, 'utf-8');
+        if (pattern.test(content)) {
+          matches.push(path.relative(ROOT, file));
+        }
+      }
+      expect(matches).toEqual([]);
+    });
+  }
+
+  test('review/checklist.md mentions multiple frameworks', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'checklist.md'), 'utf-8');
+    expect(content).toContain('Rails:');
+    expect(content).toContain('React:');
+    expect(content).toContain('Django:');
+    expect(content).toContain('Prisma:');
   });
 });
 
