@@ -24,6 +24,11 @@ interface TemplateContext {
   tmplPath: string;
 }
 
+interface GeneratedFile {
+  outputPath: string;
+  content: string;
+}
+
 // ─── Placeholder Resolvers ──────────────────────────────────
 
 function generateCommandReference(_ctx: TemplateContext): string {
@@ -1148,6 +1153,130 @@ const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
 
 const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit directly -->\n<!-- Regenerate: bun run gen:skill-docs -->\n`;
 
+function stripPreamble(content: string): string {
+  return content
+    .replace(/## Preamble \(run first\)[\s\S]*?(?=^## AskUserQuestion Format)/m, '')
+    .replace(/## AskUserQuestion Format[\s\S]*?(?=^## Completeness Principle — Boil the Lake)/m, '')
+    .replace(/## Completeness Principle — Boil the Lake[\s\S]*?(?=^## Contributor Mode)/m, '')
+    .replace(/## Contributor Mode[\s\S]*?(?=^## Completion Status Protocol)/m, '')
+    .replace(/## Completion Status Protocol[\s\S]*?(?=^## Step 0: Detect base branch|^# )/m, '');
+}
+
+function normalizeQuestionLanguage(content: string): string {
+  const replacements: Array<[RegExp, string]> = [
+    [/Use AskUserQuestion:/g, 'Ask the user directly:'],
+    [/use AskUserQuestion:/g, 'ask the user directly:'],
+    [/via AskUserQuestion/g, 'by asking the user directly'],
+    [/with AskUserQuestion:/g, 'by asking the user directly:'],
+    [/AskUserQuestion Q([0-9-]+)/g, 'Question $1'],
+    [/AskUserQuestion/g, 'ask the user directly'],
+    [/Read tool/g, 'view_image tool'],
+    [/Read all three/g, 'view all three images'],
+  ];
+
+  let next = content;
+  for (const [pattern, replacement] of replacements) {
+    next = next.replace(pattern, replacement);
+  }
+  return next;
+}
+
+function transformForCodex(content: string): string {
+  let next = stripPreamble(content);
+
+  next = next.replaceAll('~/.claude/skills/gstack', '~/.codex/skills/gstack-codex');
+  next = next.replaceAll('.claude/skills/gstack', '.codex/skills/gstack-codex');
+  next = next.replaceAll('~/.claude/skills/', '~/.codex/skills/');
+  next = next.replaceAll('.claude/skills/', '.codex/skills/');
+  next = next.replaceAll('Claude Code', 'Codex');
+  next = next.replaceAll('CLAUDE.md', 'AGENTS.md');
+  next = next.replaceAll('${CLAUDE_SKILL_DIR}', '${CODEX_SKILL_DIR}');
+  next = next.replaceAll('CLAUDE_SKILL_DIR', 'CODEX_SKILL_DIR');
+  next = next.replaceAll('CLAUDE_PLUGIN_DATA', 'CODEX_PLUGIN_DATA');
+  next = normalizeQuestionLanguage(next);
+  next = next.replace(/^allowed-tools:\n(?:  - .*\n)+/m, '');
+
+  return next;
+}
+
+function extractDescription(content: string): string {
+  const blockMatch = content.match(/^description:\s*\|\n((?:  .*\n?)*)/m);
+  if (blockMatch) {
+    return blockMatch[1]
+      .split('\n')
+      .map(line => line.replace(/^  /, '').trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  const inlineMatch = content.match(/^description:\s*(.+)$/m);
+  return inlineMatch ? inlineMatch[1].trim().replace(/^"|"$/g, '') : '';
+}
+
+function summarizeDescription(description: string): string {
+  const firstSentence = description.split(/(?<=[.!?])\s+/)[0]?.trim();
+  return (firstSentence || description).replace(/\s+/g, ' ');
+}
+
+function generateAgentsMd(files: GeneratedFile[]): string {
+  const skillOrder = [
+    'browse',
+    'office-hours',
+    'plan-ceo-review',
+    'plan-eng-review',
+    'plan-design-review',
+    'design-consultation',
+    'design-review',
+    'investigate',
+    'review',
+    'qa',
+    'qa-only',
+    'ship',
+    'document-release',
+    'retro',
+    'setup-browser-cookies',
+    'careful',
+    'freeze',
+    'guard',
+    'unfreeze',
+    'gstack-upgrade',
+    'codex',
+  ];
+
+  const byName = new Map<string, { summary: string }>();
+  for (const file of files) {
+    if (path.basename(file.outputPath) !== 'SKILL.md') continue;
+    const relDir = path.relative(ROOT, path.dirname(file.outputPath));
+    if (!relDir) continue;
+    const dir = path.basename(relDir);
+    byName.set(dir, {
+      summary: summarizeDescription(extractDescription(file.content)),
+    });
+  }
+
+  const lines = [
+    '## Skills',
+    'A skill is a folder with a `SKILL.md` file that Codex can load on demand. This repo ships these local skills:',
+    '',
+  ];
+
+  for (const dir of skillOrder) {
+    const entry = byName.get(dir);
+    if (!entry) continue;
+    lines.push(`- \`${dir}\`: ${entry.summary} File: \`./${dir}/SKILL.md\``);
+  }
+
+  lines.push('');
+  lines.push('### How To Use Skills');
+  lines.push('- Use a skill when the user names it or when the task clearly matches the description above.');
+  lines.push('- These are Codex skills, not slash commands. Invoke them by name, for example: `use browse`, `run review`, `use plan-eng-review`.');
+  lines.push('- Open only the relevant `SKILL.md` and any files it explicitly references.');
+  lines.push('- Prefer project-local installs in `.codex/skills/` when you want the team to share the same skill pack.');
+  lines.push('- If `browse` is missing or stale, run `./setup` in the installed `gstack-codex` directory to rebuild the binary and refresh symlinks.');
+
+  return `${lines.join('\n')}\n`;
+}
+
 function processTemplate(tmplPath: string): { outputPath: string; content: string } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
   const relTmplPath = path.relative(ROOT, tmplPath);
@@ -1180,6 +1309,8 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
   } else {
     content = header + content;
   }
+
+  content = transformForCodex(content);
 
   return { outputPath, content };
 }
@@ -1219,10 +1350,12 @@ function findTemplates(): string[] {
 }
 
 let hasChanges = false;
+const generatedFiles: GeneratedFile[] = [];
 
 for (const tmplPath of findTemplates()) {
   const { outputPath, content } = processTemplate(tmplPath);
   const relOutput = path.relative(ROOT, outputPath);
+  generatedFiles.push({ outputPath, content });
 
   if (DRY_RUN) {
     const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
@@ -1236,6 +1369,23 @@ for (const tmplPath of findTemplates()) {
     fs.writeFileSync(outputPath, content);
     console.log(`GENERATED: ${relOutput}`);
   }
+}
+
+const agentsPath = path.join(ROOT, 'AGENTS.md');
+const agentsContent = generateAgentsMd(generatedFiles);
+const relAgents = path.relative(ROOT, agentsPath);
+
+if (DRY_RUN) {
+  const existing = fs.existsSync(agentsPath) ? fs.readFileSync(agentsPath, 'utf-8') : '';
+  if (existing !== agentsContent) {
+    console.log(`STALE: ${relAgents}`);
+    hasChanges = true;
+  } else {
+    console.log(`FRESH: ${relAgents}`);
+  }
+} else {
+  fs.writeFileSync(agentsPath, agentsContent);
+  console.log(`GENERATED: ${relAgents}`);
 }
 
 if (DRY_RUN && hasChanges) {
