@@ -1564,6 +1564,24 @@ const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
 
 // ─── Codex Helpers ───────────────────────────────────────────
 
+/** Codex CLI rejects skill descriptions longer than this (garrytan/gstack#230). */
+const CODEX_DESCRIPTION_MAX_LEN = 1024;
+
+/**
+ * Truncate description so Codex accepts the skill. Prefers a word boundary near the end.
+ */
+function truncateForCodexDescription(description: string): string {
+  if (description.length <= CODEX_DESCRIPTION_MAX_LEN) return description;
+  const ellipsis = '…';
+  const budget = CODEX_DESCRIPTION_MAX_LEN - ellipsis.length;
+  let cut = description.slice(0, budget);
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > budget * 0.85) {
+    cut = cut.slice(0, lastSpace);
+  }
+  return cut + ellipsis;
+}
+
 function codexSkillName(skillDir: string): string {
   if (skillDir === '.' || skillDir === '') return 'gstack';
   // Don't double-prefix: gstack-upgrade → gstack-upgrade (not gstack-gstack-upgrade)
@@ -1621,6 +1639,8 @@ function transformFrontmatter(content: string, host: Host): string {
   if (descLines.length > 0) {
     description = descLines.join('\n').trim();
   }
+
+  description = truncateForCodexDescription(description);
 
   // Re-emit Codex frontmatter (name + description only)
   const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
