@@ -9,7 +9,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  workflows: write
 
 jobs:
   sync:
@@ -18,7 +17,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT_TOKEN required to push branches that include workflow file changes
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Configure git
         run: |
@@ -195,7 +195,7 @@ jobs:
       - name: Create PR for auto-resolved merge
         if: steps.merge.outputs.result == 'conflict' && steps.resolution.outputs.status == 'resolved'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           # Get list of files that had conflicts
           CONFLICTED=$(git diff --name-only HEAD~1 HEAD)
@@ -227,7 +227,7 @@ jobs:
       - name: Fallback — unresolvable conflicts
         if: steps.merge.outputs.result == 'conflict' && steps.resolution.outputs.status == 'failed'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
         run: |
           # Abort the bad merge and create a branch with the raw conflict
           git reset --hard HEAD
