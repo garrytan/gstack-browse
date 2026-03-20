@@ -142,6 +142,9 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'journey-retro':          ['*/SKILL.md.tmpl', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'journey-design-system':  ['*/SKILL.md.tmpl', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'journey-visual-qa':      ['*/SKILL.md.tmpl', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
+
+  // Codebase audit
+  'codebase-audit-quick': ['codebase-audit/**', 'scripts/gen-skill-docs.ts'],
 };
 
 /**
@@ -186,6 +189,9 @@ export const LLM_JUDGE_TOUCHFILES: Record<string, string[]> = {
   'retro/SKILL.md instructions':          ['retro/SKILL.md', 'retro/SKILL.md.tmpl'],
   'qa-only/SKILL.md workflow':            ['qa-only/SKILL.md', 'qa-only/SKILL.md.tmpl'],
   'gstack-upgrade/SKILL.md upgrade flow': ['gstack-upgrade/SKILL.md', 'gstack-upgrade/SKILL.md.tmpl'],
+
+  // Codebase audit
+  'codebase-audit/SKILL.md workflow': ['codebase-audit/SKILL.md', 'codebase-audit/SKILL.md.tmpl', 'codebase-audit/checklist.md', 'codebase-audit/report-template.md', 'codebase-audit/references/patterns.md'],
 };
 
 /**
