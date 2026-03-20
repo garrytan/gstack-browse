@@ -473,6 +473,38 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
+  test('Codex description fits CLI limit (1024 chars)', () => {
+    const MAX = 1024;
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
+      const fmEnd = content.indexOf('\n---', 4);
+      expect(fmEnd).toBeGreaterThan(0);
+      const frontmatter = content.slice(4, fmEnd);
+      const lines = frontmatter.split('\n');
+      let inDescription = false;
+      const descLines: string[] = [];
+      for (const line of lines) {
+        if (line.match(/^description:\s*\|?\s*$/)) {
+          inDescription = true;
+          continue;
+        }
+        if (line.match(/^description:\s*\S/)) {
+          break;
+        }
+        if (inDescription) {
+          if (line === '' || line.match(/^\s/)) {
+            descLines.push(line.replace(/^  /, ''));
+          } else {
+            break;
+          }
+        }
+      }
+      const descText = descLines.length > 0 ? descLines.join('\n').trim() : '';
+      expect(descText.length).toBeGreaterThan(0);
+      expect(descText.length).toBeLessThanOrEqual(MAX);
+    }
+  });
+
   test('no .claude/skills/ in Codex output', () => {
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
