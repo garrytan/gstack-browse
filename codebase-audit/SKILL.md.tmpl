@@ -1,0 +1,379 @@
+---
+name: codebase-audit
+version: 1.0.0
+description: |
+  Full codebase audit. Analyzes an entire project cold — no diff, no branch context —
+  producing a structured report covering bugs, security issues, architectural problems,
+  tech debt, test gaps, and improvement opportunities. Read-only — never modifies code.
+  Use when asked to "audit this codebase", "codebase health", "tech debt assessment",
+  "code quality review", "what's wrong with this code", or "analyze this codebase".
+  NOT for reviewing a diff or PR — use /review for that.
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /codebase-audit — Cold-Start Codebase Audit
+
+Performs a full read-only audit of a codebase from scratch. No diff, no branch context — just the code as it exists right now. Produces a structured report with health score, findings by severity, and actionable recommendations.
+
+You MUST NOT modify any source code. Your only Write operations are the report and baseline files in `~/.gstack/`.
+
+## Modes
+
+Detect the mode from arguments:
+
+- **Full** (default, no flags): Run all 4 phases. Produces a complete report. Typically 10-30 minutes depending on codebase size.
+- **Quick** (`--quick`): Phase 1 only, plus the top 10 checklist patterns tagged `[QUICK]`. Produces a slim report: project profile, health score, top 5 findings. Target: under 2 minutes.
+- **Regression** (automatic): If a previous `baseline.json` exists in `~/.gstack/projects/$SLUG/audits/`, run the full audit and diff against the previous baseline. No flag needed — detected automatically.
+
+## Arguments
+
+- `/codebase-audit` — full audit of the current project
+- `/codebase-audit --quick` — quick smoke audit (2-min health check)
+
+---
+
+## Phase 1: Orientation
+
+Goal: understand what this project is, how big it is, what it's built with, and its recent health signals.
+
+### 1.1 Project identity
+
+Resolve the project slug for output paths:
+
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+echo "SLUG=$SLUG"
+```
+
+If `gstack-slug` fails (not a git repo, no remote), use the current directory name as the slug.
+
+### 1.2 Language and framework detection
+
+Scan for build files, configs, and entry points to detect the tech stack:
+
+```bash
+ls -la package.json Cargo.toml go.mod pyproject.toml Gemfile build.gradle pom.xml Makefile CMakeLists.txt *.csproj *.sln composer.json mix.exs 2>/dev/null
+```
+
+Read whichever build/config files exist to determine: primary language, framework, build tool, test runner, package manager.
+
+### 1.3 Codebase stats
+
+Count lines of code, excluding vendored and build directories:
+
+```bash
+find . -type f -not -path '*/node_modules/*' -not -path '*/vendor/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/build/*' -not -path '*/.next/*' -not -path '*/target/*' -not -path '*/__pycache__/*' -not -path '*/venv/*' | head -5000 | xargs wc -l 2>/dev/null | tail -1
+```
+
+If `cloc` is available, prefer it for a more accurate breakdown by language.
+
+Classify the codebase size:
+- **Small**: <10K LOC
+- **Medium**: 10K–50K LOC
+- **Large**: >50K LOC
+
+### 1.4 Read orientation docs
+
+Read these files if they exist: `README.md`, `CLAUDE.md`, `ARCHITECTURE.md`, `CONTRIBUTING.md`, `docs/ARCHITECTURE.md`. Skip any that don't exist — do not error.
+
+### 1.5 Git state
+
+If this is a git repo, gather recent activity:
+
+```bash
+git log --oneline -10
+git log --format='%aN' | sort | uniq -c | sort -rn | head -10
+```
+
+If this is not a git repo, note that and skip all git-dependent steps gracefully.
+
+### 1.6 Git churn analysis
+
+Identify hotspot files (most frequently changed in the last 90 days):
+
+```bash
+git log --since=90.days --name-only --format="" | sort | uniq -c | sort -rn | head -20
+```
+
+Estimate bus factor for the top 5 hotspot files — how many unique authors have touched each:
+
+```bash
+git log --format='%aN' -- <file> | sort -u | wc -l
+```
+
+Skip this step if the repo is not a git repo or is a shallow clone.
+
+### 1.7 Dependency vulnerability check
+
+Detect the package manager and run the appropriate audit command if available:
+
+- **npm/yarn**: `npm audit --json 2>/dev/null`
+- **Ruby**: `bundle audit --format json 2>/dev/null`
+- **Python**: `pip-audit --format json 2>/dev/null`
+- **Rust**: `cargo audit --json 2>/dev/null`
+- **Go**: `govulncheck ./... 2>/dev/null`
+
+If the audit tool is not installed or the command fails, skip gracefully and note "dependency audit tool not available" in the report.
+
+### 1.8 Size-based strategy decision
+
+Based on codebase size from step 1.3:
+- **Small** (<10K LOC): Read everything. Full coverage is feasible.
+- **Medium** (10K–50K LOC): Read high-risk files fully (entry points, auth, payment, data access, configs). Sample the rest using Grep pattern matches.
+- **Large** (>50K LOC): Use AskUserQuestion to ask the user which areas to focus on. Suggest the top 3 areas based on churn hotspots and framework-specific risk areas. Do not proceed until the user responds.
+
+If in quick mode, stop after this phase. Jump to the Phase 3 quick-mode subset (top 10 `[QUICK]` patterns only), then skip to Phase 4 for the slim report.
+
+---
+
+## Phase 2: Architecture Scan
+
+Skip this phase entirely in quick mode.
+
+### 2.1 Map entry points and boundaries
+
+Read the main entry points: app bootstrap files, routers, API handlers, CLI entry points. Identify:
+- What the application does (web server, CLI, library, service, monorepo)
+- Major components and their boundaries
+- External dependencies and integrations (databases, APIs, queues, caches)
+- Data flow: how requests/data enter, transform, and exit
+
+### 2.2 Identify layers
+
+Map the architectural layers: presentation, business logic, data access, infrastructure. Note which layers exist and which are missing or blurred.
+
+### 2.3 Configuration and environment
+
+Read configuration files, environment variable usage, and secrets management. Look for:
+- Hardcoded credentials or secrets
+- Environment-specific configuration
+- Feature flags
+- Build/deploy configuration
+
+### 2.4 Output architecture diagram
+
+Produce an ASCII architecture diagram showing components, their relationships, data flow, and external dependencies. Keep it to 20-30 lines maximum. This goes in the report.
+
+---
+
+## Phase 3: Targeted Deep Dives
+
+In quick mode, run only the top 10 patterns tagged `[QUICK]` from the checklist, then skip to Phase 4.
+
+In full mode, run the complete checklist.
+
+### 3.1 Load checklists
+
+Use the **Read tool** (not Bash cat) to load the primary checklist:
+
+`~/.claude/skills/gstack/codebase-audit/checklist.md`
+
+If the checklist file is unreadable or missing, STOP and report an error: "Audit checklist not found at ~/.claude/skills/gstack/codebase-audit/checklist.md — cannot continue." Do not proceed without it.
+
+Then use the **Read tool** to load the supplemental patterns reference:
+
+`~/.claude/skills/gstack/codebase-audit/references/patterns.md`
+
+### 3.2 Load custom checklist
+
+If the target project contains `.gstack/audit-checklist.md`, read it and append its items to the checklist. This allows projects to define custom audit rules.
+
+### 3.3 Execute checklist
+
+Work through the checklist in priority order:
+
+1. **Security** — injection, auth bypass, secrets exposure, SSRF, path traversal
+2. **Correctness** — logic errors, race conditions, null safety, error handling
+3. **Reliability** — crash paths, resource leaks, timeout handling, retry logic
+4. **Tests** — coverage gaps, test quality, missing edge cases, flaky patterns
+5. **Architecture** — coupling, abstraction leaks, circular dependencies, god classes
+6. **Tech Debt** — dead code, TODO/FIXME/HACK comments, deprecated APIs, copy-paste
+7. **Performance** — N+1 queries, unbounded collections, missing indexes, large payloads
+
+For each checklist item: use Grep to find matching patterns across the codebase, then use Read to examine surrounding context for confirmation. Do not report a pattern match as a finding without reading the context — many patterns have legitimate uses.
+
+### 3.4 Finding limits
+
+Cap detailed findings at 50. If more than 50 findings are identified, keep the top 50 by severity and provide a summary table for the rest (category, count, example file).
+
+### 3.5 Finding format
+
+Every finding MUST include:
+- **Severity**: Critical, Important, Worth noting, or Opportunity
+- **Category**: Security, Correctness, Reliability, Tests, Architecture, Tech Debt, or Performance
+- **Title**: One-line description
+- **Location**: `file:line` for code findings. For non-code findings (missing tests, dependency vulnerabilities, architectural patterns), reference the most relevant file or component.
+- **Evidence**: The specific code or pattern found
+- **Recommendation**: What to do about it
+
+No hallucinating findings. Every finding must reference a specific file and line (or component for non-code findings). If you cannot point to it in the codebase, do not report it.
+
+### 3.6 Severity calibration
+
+Use these exact definitions:
+
+- **Critical**: Exploitable security vulnerability, data loss risk, correctness bug that produces wrong results in production. Would block a release.
+- **Important**: Significant reliability risk, missing error handling on critical paths, test gaps on core business logic, architectural problems that will compound. Worth scheduling promptly.
+- **Worth noting**: Code smells, minor tech debt, style inconsistencies, non-critical performance issues. Address during normal development when touching nearby code.
+- **Opportunity**: Not a problem — a concrete improvement that would make the codebase better. New patterns, better abstractions, tooling upgrades.
+
+---
+
+## Phase 4: Report Generation
+
+### 4.1 Load report template
+
+Read the report template:
+
+```bash
+cat ~/.claude/skills/gstack/codebase-audit/report-template.md
+```
+
+Use this template to structure the final report. If the template is missing, use the structure described below as a fallback.
+
+### 4.2 Calculate health score
+
+Start at 100 and deduct per finding:
+- Critical: -25 points each
+- Important: -10 points each
+- Worth noting: -3 points each
+- Opportunity: no deduction
+
+Floor at 0. No score exceeds 100. The model is deliberately simple — use regression mode to track relative improvement rather than fixating on the absolute number.
+
+### 4.3 Write the report
+
+Resolve the project slug and create the output directory:
+
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+mkdir -p ~/.gstack/projects/$SLUG/audits
+```
+
+Generate a datetime stamp and write the report to `~/.gstack/projects/$SLUG/audits/{datetime}-audit.md`. Use format `YYYY-MM-DD-HHMMSS` for the datetime (e.g., `2026-03-20-143022`).
+
+The report should contain:
+1. **Header**: Project name, date, mode, health score
+2. **Executive Summary**: 3-5 sentence overview of codebase health
+3. **Project Profile**: Language, framework, size, test coverage estimate, git activity
+4. **Architecture Diagram**: ASCII diagram from Phase 2 (skip in quick mode)
+5. **Findings by Severity**: Grouped by severity, then by category within each severity level
+6. **Dependency Vulnerabilities**: Summary from Phase 1 CVE check (if any found)
+7. **Churn Hotspots**: Top files by change frequency and bus factor
+8. **Summary Table**: Category × severity matrix with counts
+9. **Top 5 Priorities**: The 5 most impactful things to fix, in order
+10. **Recommendations**: Strategic suggestions beyond individual findings
+
+For quick mode, the slim report contains only: Header, Executive Summary, Project Profile, Health Score, Top 5 Findings.
+
+### 4.4 Write baseline JSON
+
+Write a companion `{datetime}-baseline.json` file in the same directory. This is used for regression comparison on future runs.
+
+Schema:
+
+```json
+{
+  "version": "1.0.0",
+  "datetime": "2026-03-20T14:30:22Z",
+  "mode": "full",
+  "slug": "org-project",
+  "health_score": 72,
+  "codebase": {
+    "loc": 24500,
+    "languages": ["TypeScript", "Python"],
+    "framework": "Next.js",
+    "test_files": 47,
+    "dependency_vulns": 3
+  },
+  "findings": [
+    {
+      "id": "<sha256 hash of file + category + title>",
+      "severity": "critical",
+      "category": "security",
+      "title": "SQL injection in user search",
+      "file": "src/api/users.ts",
+      "line": 42
+    }
+  ],
+  "summary": {
+    "critical": 1,
+    "important": 5,
+    "notable": 12,
+    "opportunity": 8,
+    "total": 26
+  }
+}
+```
+
+Each finding gets a content-based ID: a hash of `file + category + title`. This enables stable comparison across runs.
+
+### 4.5 Regression comparison
+
+If a previous `baseline.json` exists in the same audits directory AND the current mode is full (not quick):
+
+1. Load the most recent previous baseline
+2. Compare findings by their content-based IDs
+3. Compute:
+   - **Fixed**: findings in previous baseline not present in current run
+   - **New**: findings in current run not present in previous baseline
+   - **Persistent**: findings present in both
+   - **Score delta**: current score minus previous score
+4. Add a "Regression Summary" section to the report showing these deltas
+
+If no previous baseline exists, skip regression comparison.
+
+### 4.6 Conversation summary
+
+After writing the report file, print a summary directly to the conversation. This is what the user sees immediately:
+
+1. **Health Score**: The number and a one-line interpretation (e.g., "72/100 — solid foundation with some important gaps")
+2. **Executive Summary**: 3-5 sentences
+3. **Top 5 Priorities**: Numbered list with severity, title, and file reference
+4. **Summary Table**: Category × severity counts
+5. **Report location**: Full path to the written report
+6. **Regression delta** (if applicable): Score change, count of fixed/new findings
+
+### 4.7 Presentation preference
+
+After printing the conversation summary, use AskUserQuestion to ask: "Full findings are in the report file. Would you like me to display all findings inline here, or is the top-5 summary sufficient?"
+
+If the user wants inline findings, print all findings grouped by severity.
+
+---
+
+## Edge Cases
+
+- **Empty or binary-only project**: If the codebase has fewer than 10 text files or fewer than 100 LOC, write a brief report noting this and exit gracefully. Do not force findings.
+- **Not a git repo**: Skip all git-dependent steps (churn analysis, bus factor, recent activity). Note in the report that git history was unavailable.
+- **Zero findings**: If the audit produces zero findings, note this in the report with a caveat: "Zero findings is unusual — this may indicate the checklist patterns don't match this tech stack. Consider running with a custom checklist."
+- **500+ raw pattern matches**: If Grep returns an overwhelming number of matches for a pattern, sample the first 20 and note the total count. Do not read all 500+.
+- **Large codebase scoping**: For codebases >50K LOC, AskUserQuestion fires in Phase 1 to scope the audit. Do not attempt to read the entire codebase.
+- **Missing checklist**: If the checklist file at `~/.claude/skills/gstack/codebase-audit/checklist.md` is unreadable, STOP with an error message. The audit cannot run without it.
+- **Network failures**: If dependency audit commands fail due to network issues, skip gracefully and note the skip in the report.
+
+---
+
+## Key Rules
+
+1. You MUST NOT modify any source code. Your only Write operations are the report and baseline files in `~/.gstack/`.
+2. Findings that reference specific code MUST include `file:line`. Findings about missing functionality (missing tests, missing error handling), dependency vulnerabilities, or architectural patterns should reference the most relevant file or component instead. Never report a finding you cannot anchor to something concrete in the codebase.
+3. Reports are saved to your home directory (`~/.gstack/`), not the project directory. They may contain security findings — do not commit them to public repos.
+4. No hallucinating findings. Every finding must reference a specific file and line (or component for non-code findings). If you can't point to it, don't report it.
+5. Use the severity calibration definitions exactly as specified. Do not inflate or deflate severity.
+6. In quick mode, respect the 2-minute target. Do not run Phase 2 or the full Phase 3 checklist.
+7. AskUserQuestion fires in two places: (1) Phase 1 if >50K LOC, to scope the audit; (2) end of Phase 4, for presentation preference. Do not use it elsewhere.
+8. All bash blocks are self-contained. Do not rely on shell variables persisting between code blocks.
+9. When reading files for context, read enough surrounding lines to understand the code — do not make judgments from a single line in isolation.
+10. Cap detailed findings at 50. Summarize overflow in a table.
+11. Be aware of your knowledge cutoff. Do not flag dependency versions, language versions, or API usage as "deprecated" or "nonexistent" based solely on your training data. If uncertain whether a version exists, state the uncertainty rather than asserting it as a finding.
+12. Always use the Read tool to read files — never use `cat` via Bash. The Read tool provides better context and is the expected convention.
+13. Do NOT write to plan files or enter plan mode. This skill produces a report, not an implementation plan. Write only to `~/.gstack/projects/$SLUG/audits/`. If the session is in plan mode, exit plan mode after writing the report — the audit is complete, not a proposal for future work.

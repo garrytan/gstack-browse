@@ -193,7 +193,7 @@
 - **Claude now has an adversarial mode.** A fresh Claude subagent with no checklist bias reviews your code like an attacker — finding edge cases, race conditions, security holes, and silent data corruption that the structured review might miss. Findings are classified as FIXABLE (auto-fixed) or INVESTIGATE (your call).
 - **Review dashboard shows "Adversarial" instead of "Codex Review."** The dashboard row reflects the new multi-model reality — it tracks whichever adversarial passes actually ran, not just Codex.
 
-## [0.9.5.0] - 2026-03-21 — Builder Ethos
+## [0.9.5.0] - 2026-03-21 — Builder Ethos + Codebase Audit
 
 ### Added
 
@@ -205,6 +205,7 @@
 - **`/investigate` searches on hypothesis failure.** When your first debugging hypothesis is wrong, gstack searches for the exact error message and known framework issues before guessing again.
 - **`/design-consultation` three-layer synthesis.** Competitive research now uses the structured Layer 1/2/3 framework to find where your product should deliberately break from category norms.
 - **CEO review saves context when handing off to `/office-hours`.** When `/plan-ceo-review` suggests running `/office-hours` first, it now saves a handoff note with your system audit findings and any discussion so far. When you come back and re-invoke `/plan-ceo-review`, it picks up that context automatically — no more starting from scratch.
+- **`/codebase-audit` — your principal engineer for cold-start code review.** Point it at any project you've never seen before and get a structured report: bugs, security issues, architecture problems, tech debt, test gaps, and improvement opportunities. Three modes: full audit, quick smoke test (2 min), and regression (diff against previous audit with score tracking). Includes health scoring, dependency CVE scanning, git churn analysis, custom project checklists, and machine-readable baseline output. Read-only — it finds issues, you decide what to fix.
 
 ## [0.9.4.1] - 2026-03-20
 
