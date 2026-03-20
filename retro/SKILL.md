@@ -263,6 +263,21 @@ Usage: /retro [window]
   /retro compare 14d  — compare with explicit window
 ```
 
+### Step 0: Memory-Informed Context
+
+If `.gstack/findings.md` exists, read it for the complete findings history across skills.
+If `.gstack/decisions.log` exists, read it for decision patterns.
+If `.gstack/checkpoints/` has files, note the session durations and phase patterns.
+
+Include these in your analysis:
+- Total findings by severity and type (patterns across sessions)
+- Average findings per review session
+- Most common finding types (indicates systemic issues)
+- Decision patterns (what keeps getting deferred?)
+- Session durations by skill (which skills run longest?)
+
+If `.gstack/` doesn't exist, skip this step silently — the retro works without it.
+
 ### Step 1: Gather Raw Data
 
 First, fetch origin and identify the current user:
@@ -636,6 +651,13 @@ Narrative covering:
 - Hotspot analysis (are the same files churning?)
 - Any XL PRs that should have been split
 - Greptile signal ratio and trend (if history exists): "Greptile: X% signal (Y valid catches, Z false positives)"
+
+### Synthetic Memory Insights
+(from Step 0, if `.gstack/` exists — skip this section if not)
+- Findings summary: N total (X P0, Y P1, Z P2) across skill sessions
+- Most common finding types (e.g., "4 SQL injection findings — systemic pattern")
+- Decision log patterns (e.g., "CSS lint skipped 3 times — consider permanent suppression")
+- Skill session durations from checkpoint files
 
 ### Test Health
 - Total test files: N (from command 10)

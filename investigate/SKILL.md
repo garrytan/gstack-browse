@@ -238,6 +238,69 @@ never blocks the user.
 
 # Systematic Debugging
 
+## Session Memory
+
+Before starting the investigation, initialize synthetic memory:
+1. Run `bash ~/.claude/skills/gstack/scripts/init-memory.sh` if `.gstack/` doesn't exist
+2. Read `.gstack/session.json` — if a previous skill left unresolved findings, note them
+3. Read `.gstack/handoff.md` if it exists — incorporate prior context
+4. Set `session.json`: skill="investigate", phase="collecting_symptoms", turn_count=0
+
+Follow the Synthetic Memory Protocol from `lib/memory.md` throughout this investigation.
+Specifically:
+- Write EVERY finding to `.gstack/findings.md` IMMEDIATELY upon discovery
+- Run a CHECKPOINT every 5 tool calls
+- Log EVERY user decision to `.gstack/decisions.log`
+- On completion, write `.gstack/handoff.md` for the next skill
+
+### Hypothesis Tracking
+
+Maintain a hypothesis log in `.gstack/session.json` under a `hypotheses` field:
+
+```json
+"hypotheses": [
+  {
+    "id": "H1",
+    "description": "Race condition in payment queue",
+    "status": "disproven",
+    "evidence": "Added mutex, bug still reproduces",
+    "tested_at": "2026-03-20T14:40:00Z"
+  },
+  {
+    "id": "H2",
+    "description": "Stale cache in auth token validation",
+    "status": "testing",
+    "evidence": null,
+    "tested_at": null
+  }
+]
+```
+
+Before proposing a fix, read `.gstack/session.json` hypotheses — do NOT
+re-test a hypothesis that was already disproven. This is critical because
+after compaction you may forget you already tried something.
+
+### Fix Attempt Log
+
+The Iron Law says stop after 3 failed fixes. Track them in session.json:
+
+```json
+"fix_attempts": [
+  {
+    "attempt": 1,
+    "hypothesis": "H1",
+    "action": "Added mutex to payment_queue.process()",
+    "result": "FAILED — bug still reproduces",
+    "timestamp": "2026-03-20T14:42:00Z"
+  }
+]
+```
+
+Before each fix attempt, read session.json to count previous attempts.
+After compaction, you WILL forget how many fixes you've tried. The file knows.
+
+---
+
 ## Iron Law
 
 **NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST.**
@@ -381,9 +444,22 @@ Status:          DONE | DONE_WITH_CONCERNS | BLOCKED
 
 ---
 
+## Investigation Completion
+
+Before presenting the debug report:
+1. Read `.gstack/findings.md` to get the complete findings list
+2. Read `.gstack/session.json` to verify hypothesis log and fix attempts
+3. Write `.gstack/handoff.md` with the investigation summary, root cause, and fix details
+4. Present the report based on the FILES, not your memory
+
+The debug report MUST match what's in `.gstack/session.json`. If your memory
+of hypotheses tested or fix attempts differs from the file, the file is correct.
+
+---
+
 ## Important Rules
 
-- **3+ failed fix attempts → STOP and question the architecture.** Wrong architecture, not failed hypothesis.
+- **3+ failed fix attempts → STOP and question the architecture.** Wrong architecture, not failed hypothesis. Read `.gstack/session.json` `fix_attempts` to verify the count — do NOT rely on memory.
 - **Never apply a fix you cannot verify.** If you can't reproduce and confirm, don't ship it.
 - **Never say "this should fix it."** Verify and prove it. Run the tests.
 - **If fix touches >5 files → AskUserQuestion** about blast radius before proceeding.

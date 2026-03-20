@@ -247,6 +247,24 @@ You are running the `/review` workflow. Analyze the current branch's diff agains
 
 ---
 
+## Session Memory
+
+Before starting the review, initialize synthetic memory:
+1. Run `bash ~/.claude/skills/gstack/scripts/init-memory.sh` if `.gstack/` doesn't exist
+2. Read `.gstack/session.json` — if a previous skill left unresolved findings, note them
+3. Read `.gstack/handoff.md` if it exists — incorporate prior context
+4. Set `session.json`: skill="review", phase="initializing", turn_count=0
+5. Populate `pending_checks` with the full review checklist for this codebase
+
+Follow the Synthetic Memory Protocol from `lib/memory.md` throughout this review.
+Specifically:
+- Write EVERY finding to `.gstack/findings.md` IMMEDIATELY upon discovery
+- Run a CHECKPOINT every 5 tool calls
+- Log EVERY user decision to `.gstack/decisions.log`
+- On completion, write `.gstack/handoff.md` for the next skill
+
+---
+
 ## Step 1: Check branch
 
 1. Run `git branch --show-current` to get the current branch.
@@ -368,6 +386,24 @@ source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count, COMMIT = output of `git rev-parse --short HEAD`.
 
 Include any design findings alongside the findings from Step 4. They follow the same Fix-First flow in Step 5 — AUTO-FIX for mechanical CSS fixes, ASK for everything else.
+
+---
+
+## Finding Persistence
+
+When you find an issue during the review passes:
+1. FIRST write it to `.gstack/findings.md` (this is the permanent record)
+2. THEN update `.gstack/session.json` critical_findings
+3. THEN report it in conversation
+4. THEN decide whether to auto-fix or flag for user
+
+After completing each review phase, update `.gstack/session.json`:
+- Move the completed check to `completed_checks`
+- Update `phase` to the next check
+- If turn_count is a multiple of 5, run a full checkpoint (see Synthetic Memory Protocol)
+
+If you're unsure whether you already reported a finding, read `.gstack/findings.md` —
+that is the source of truth, not your memory of the conversation.
 
 ---
 
@@ -605,6 +641,19 @@ CROSS-MODEL ANALYSIS:
 ```
 
 **Cleanup:** Run `rm -f "$TMPERR" "$TMPERR_ADV"` after processing.
+
+---
+
+## Review Completion
+
+Before presenting the final review summary:
+1. Read `.gstack/findings.md` to get the complete findings list
+2. Read `.gstack/session.json` to verify all checks completed
+3. Write `.gstack/handoff.md` with the full review summary
+4. Present the summary to the user based on the FILES, not your memory
+
+The final summary MUST match what's in `.gstack/findings.md`. If your memory
+of the findings differs from the file, the file is correct.
 
 ---
 
