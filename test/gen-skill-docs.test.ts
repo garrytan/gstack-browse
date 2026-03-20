@@ -742,7 +742,8 @@ describe('telemetry', () => {
   test('generated SKILL.md contains telemetry opt-in prompt', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('.telemetry-prompted');
-    expect(content).toContain('anonymous usage data');
+    expect(content).toContain('Help gstack get better');
+    expect(content).toContain('gstack-config set telemetry community');
     expect(content).toContain('gstack-config set telemetry anonymous');
     expect(content).toContain('gstack-config set telemetry off');
   });
@@ -755,6 +756,7 @@ describe('telemetry', () => {
     expect(content).toContain('_TEL_DUR');
     expect(content).toContain('SKILL_NAME');
     expect(content).toContain('OUTCOME');
+    expect(content).toContain('PLAN MODE EXCEPTION');
   });
 
   test('generated SKILL.md contains pending marker handling', () => {
