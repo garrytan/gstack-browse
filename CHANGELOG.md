@@ -1,623 +1,614 @@
-# Changelog
+# 更新日誌
 
-## [0.9.0] - 2026-03-19 — Works on Codex, Gemini CLI, and Cursor
+## [0.9.0] - 2026-03-19 — 支援 Codex、Gemini CLI 與 Cursor
 
-**gstack now works on any AI agent that supports the open SKILL.md standard.** Install once, use from Claude Code, OpenAI Codex CLI, Google Gemini CLI, or Cursor. All 21 skills are available in `.agents/skills/` -- just run `./setup --host codex` or `./setup --host auto` and your agent discovers them automatically.
+**gstack 現在可在任何支援開放 SKILL.md 標準的 AI 代理上運作。** 只需安裝一次，即可從 Claude Code、OpenAI Codex CLI、Google Gemini CLI 或 Cursor 使用。全部 21 個技能已提供於 `.agents/skills/` — 只需執行 `./setup --host codex` 或 `./setup --host auto`，您的代理即可自動探索它們。
 
-- **One install, four agents.** Claude Code reads from `.claude/skills/`, everything else reads from `.agents/skills/`. Same skills, same prompts, adapted for each host. Hook-based safety skills (careful, freeze, guard) get inline safety advisory prose instead of hooks -- they work everywhere.
-- **Auto-detection.** `./setup --host auto` detects which agents you have installed and sets up both. Already have Claude Code? It still works exactly the same.
-- **Codex-adapted output.** Frontmatter is stripped to just name + description (Codex doesn't need allowed-tools or hooks). Paths are rewritten from `~/.claude/` to `~/.codex/`. The `/codex` skill itself is excluded from Codex output -- it's a Claude wrapper around `codex exec`, which would be self-referential.
-- **CI checks both hosts.** The freshness check now validates Claude and Codex output independently. Stale Codex docs break the build just like stale Claude docs.
+- **一次安裝，四種代理。** Claude Code 從 `.claude/skills/` 讀取，其他代理則從 `.agents/skills/` 讀取。相同的技能、相同的提示詞，針對每個主機進行調整。基於 Hook 的安全技能（careful、freeze、guard）改為使用內嵌安全建議文字而非 Hook — 可在所有環境中運作。
+- **自動偵測。** `./setup --host auto` 會偵測您已安裝的代理並一併設定。已使用 Claude Code？它仍然完全照常運作。
+- **Codex 最佳化輸出。** Frontmatter 精簡為僅包含名稱與描述（Codex 不需要 allowed-tools 或 hooks）。路徑從 `~/.claude/` 改寫為 `~/.codex/`。`/codex` 技能本身被排除在 Codex 輸出之外 — 它是 Claude 對 `codex exec` 的封裝，若納入將形成自我參照。
+- **CI 同時檢查兩個主機。** 新鮮度檢查現在會獨立驗證 Claude 和 Codex 的輸出。Codex 文件過時會和 Claude 文件過時一樣使建置失敗。
 
 ## [0.8.6] - 2026-03-19
 
-### Added
+### 新增
 
-- **You can now see how you use gstack.** Run `gstack-analytics` to see a personal usage dashboard — which skills you use most, how long they take, your success rate. All data stays local on your machine.
-- **Opt-in community telemetry.** On first run, gstack asks if you want to share anonymous usage data (skill names, duration, crash info — never code or file paths). Choose "yes" and you're part of the community pulse. Change anytime with `gstack-config set telemetry off`.
-- **Community health dashboard.** Run `gstack-community-dashboard` to see what the gstack community is building — most popular skills, crash clusters, version distribution. All powered by Supabase.
-- **Install base tracking via update check.** When telemetry is enabled, gstack fires a parallel ping to Supabase during update checks — giving us an install-base count without adding any latency. Respects your telemetry setting (default off). GitHub remains the primary version source.
-- **Crash clustering.** Errors are automatically grouped by type and version in the Supabase backend, so the most impactful bugs surface first.
-- **Upgrade funnel tracking.** We can now see how many people see upgrade prompts vs actually upgrade — helps us ship better releases.
-- **/retro now shows your gstack usage.** Weekly retrospectives include skill usage stats (which skills you used, how often, success rate) alongside your commit history.
-- **Session-specific pending markers.** If a skill crashes mid-run, the next invocation correctly finalizes only that session — no more race conditions between concurrent gstack sessions.
+- **您現在可以查看自己如何使用 gstack。** 執行 `gstack-analytics` 查看個人使用儀表板 — 最常使用哪些技能、花費多少時間、成功率如何。所有資料保留在您的本機上。
+- **選擇加入的社群遙測。** 首次執行時，gstack 會詢問您是否願意分享匿名使用資料（技能名稱、持續時間、當機資訊 — 絕不包含程式碼或檔案路徑）。選擇「是」即成為社群脈動的一部分。隨時可透過 `gstack-config set telemetry off` 變更設定。
+- **社群健康儀表板。** 執行 `gstack-community-dashboard` 查看 gstack 社群正在建構的內容 — 最熱門技能、當機叢集、版本分佈。全部由 Supabase 驅動。
+- **透過更新檢查追蹤安裝基數。** 啟用遙測後，gstack 在更新檢查期間會並行發送一個 Ping 至 Supabase — 提供安裝基數統計而不增加任何延遲。遵守您的遙測設定（預設關閉）。GitHub 仍為主要版本來源。
+- **當機叢集化。** 錯誤會在 Supabase 後端依類型和版本自動分組，讓影響最大的問題優先浮現。
+- **升級漏斗追蹤。** 我們現在可以看到有多少人看到升級提示與實際升級的比例 — 幫助我們發布更好的版本。
+- **/retro 現在顯示您的 gstack 使用情況。** 每週回顧報告包含技能使用統計（使用了哪些技能、使用頻率、成功率），與您的提交記錄並列呈現。
+- **工作階段專屬的待處理標記。** 若技能在執行中途當機，下次啟動時只會正確結束該工作階段 — 不再出現並發 gstack 工作階段之間的競態條件。
 
 ## [0.8.5] - 2026-03-19
 
-### Fixed
+### 修復
 
-- **`/retro` now counts full calendar days.** Running a retro late at night no longer silently misses commits from earlier in the day. Git treats bare dates like `--since="2026-03-11"` as "11pm on March 11" if you run it at 11pm — now we pass `--since="2026-03-11T00:00:00"` so it always starts from midnight. Compare mode windows get the same fix.
-- **Review log no longer breaks on branch names with `/`.** Branch names like `garrytan/design-system` caused review log writes to fail because Claude Code runs multi-line bash blocks as separate shell invocations, losing variables between commands. New `gstack-review-log` and `gstack-review-read` atomic helpers encapsulate the entire operation in a single command.
-- **All skill templates are now platform-agnostic.** Removed Rails-specific patterns (`bin/test-lane`, `RAILS_ENV`, `.includes()`, `rescue StandardError`, etc.) from `/ship`, `/review`, `/plan-ceo-review`, and `/plan-eng-review`. The review checklist now shows examples for Rails, Node, Python, and Django side-by-side.
-- **`/ship` reads CLAUDE.md to discover test commands** instead of hardcoding `bin/test-lane` and `npm run test`. If no test commands are found, it asks the user and persists the answer to CLAUDE.md.
+- **`/retro` 現在計算完整的日曆天數。** 在深夜執行回顧不再靜默遺漏當天早些時候的提交。Git 將裸日期（如 `--since="2026-03-11"`）在晚上 11 點執行時視為「3 月 11 日晚上 11 點」 — 現在我們改用 `--since="2026-03-11T00:00:00"`，確保始終從午夜開始計算。比較模式的時間窗口也獲得相同修復。
+- **Review log 不再因帶有 `/` 的分支名稱而中斷。** 像 `garrytan/design-system` 這樣的分支名稱會導致 review log 寫入失敗，因為 Claude Code 將多行 bash 區塊作為獨立的 shell 呼叫執行，在命令之間遺失變數。新的 `gstack-review-log` 和 `gstack-review-read` 原子性輔助工具將整個操作封裝在單一命令中。
+- **所有技能模板現在都是平台無關的。** 從 `/ship`、`/review`、`/plan-ceo-review` 和 `/plan-eng-review` 中移除 Rails 特定的模式（`bin/test-lane`、`RAILS_ENV`、`.includes()`、`rescue StandardError` 等）。Review 清單現在並排顯示 Rails、Node、Python 和 Django 的範例。
+- **`/ship` 讀取 CLAUDE.md 來探索測試命令**，而不是硬編碼 `bin/test-lane` 和 `npm run test`。若找不到測試命令，會詢問使用者並將答案儲存到 CLAUDE.md。
 
-### Added
+### 新增
 
-- **Platform-agnostic design principle** codified in CLAUDE.md — skills must read project config, never hardcode framework commands.
-- **`## Testing` section** in CLAUDE.md for `/ship` test command discovery.
+- **平台無關設計原則**已在 CLAUDE.md 中明文規定 — 技能必須讀取專案設定，絕不能硬編碼框架命令。
+- **`## Testing` 章節**已加入 CLAUDE.md，供 `/ship` 測試命令探索使用。
 
 ## [0.8.4] - 2026-03-19
 
-### Added
+### 新增
 
-- **`/ship` now automatically syncs your docs.** After creating the PR, `/ship` runs `/document-release` as Step 8.5 — README, ARCHITECTURE, CONTRIBUTING, and CLAUDE.md all stay current without an extra command. No more stale docs after shipping.
-- **Six new skills in the docs.** README, docs/skills.md, and BROWSER.md now cover `/codex` (multi-AI second opinion), `/careful` (destructive command warnings), `/freeze` (directory-scoped edit lock), `/guard` (full safety mode), `/unfreeze`, and `/gstack-upgrade`. The sprint skill table keeps its 15 specialists; a new "Power tools" section covers the rest.
-- **Browse handoff documented everywhere.** BROWSER.md command table, docs/skills.md deep-dive, and README "What's new" all explain `$B handoff` and `$B resume` for CAPTCHA/MFA/auth walls.
-- **Proactive suggestions know about all skills.** Root SKILL.md.tmpl now suggests `/codex`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, and `/gstack-upgrade` at the right workflow stages.
+- **`/ship` 現在自動同步您的文件。** 建立 PR 後，`/ship` 在步驟 8.5 執行 `/document-release` — README、ARCHITECTURE、CONTRIBUTING 和 CLAUDE.md 全部保持最新，無需額外命令。出貨後不再有過時的文件。
+- **文件中新增六個技能。** README、docs/skills.md 和 BROWSER.md 現在涵蓋 `/codex`（多 AI 第二意見）、`/careful`（破壞性命令警告）、`/freeze`（目錄範圍編輯鎖定）、`/guard`（完整安全模式）、`/unfreeze` 和 `/gstack-upgrade`。衝刺技能表保留其 15 個專業工具；新的「Power tools」章節涵蓋其餘工具。
+- **瀏覽器交接已記錄在各處。** BROWSER.md 命令表、docs/skills.md 深度說明以及 README「新功能」均說明 `$B handoff` 和 `$B resume` 在面對 CAPTCHA/MFA/認證牆時的用法。
+- **主動建議功能了解所有技能。** 根層 SKILL.md.tmpl 現在在適當的工作流程階段建議 `/codex`、`/careful`、`/freeze`、`/guard`、`/unfreeze` 和 `/gstack-upgrade`。
 
 ## [0.8.3] - 2026-03-19
 
-### Added
+### 新增
 
-- **Plan reviews now guide you to the next step.** After running `/plan-ceo-review`, `/plan-eng-review`, or `/plan-design-review`, you get a recommendation for what to run next — eng review is always suggested as the required shipping gate, design review is suggested when UI changes are detected, and CEO review is softly mentioned for big product changes. No more remembering the workflow yourself.
-- **Reviews know when they're stale.** Each review now records the commit it was run at. The dashboard compares that against your current HEAD and tells you exactly how many commits have elapsed — "eng review may be stale — 13 commits since review" instead of guessing.
-- **`skip_eng_review` respected everywhere.** If you've opted out of eng review globally, the chaining recommendations won't nag you about it.
-- **Design review lite now tracks commits too.** The lightweight design check that runs inside `/review` and `/ship` gets the same staleness tracking as full reviews.
+- **計劃審查現在引導您進行下一步。** 執行 `/plan-ceo-review`、`/plan-eng-review` 或 `/plan-design-review` 後，您會獲得下一步操作的建議 — 始終建議將工程審查作為必要的出貨關卡，當偵測到 UI 變更時建議設計審查，大型產品變更則輕度提示 CEO 審查。不再需要自己記住工作流程。
+- **審查功能現在知道自己是否過時。** 每次審查現在都會記錄執行時的提交。儀表板將其與您目前的 HEAD 比較，並精確告知已過了多少次提交 — 「工程審查可能已過時 — 自審查以來已有 13 次提交」，而非靠猜測。
+- **`skip_eng_review` 在所有地方都得到尊重。** 若您已全域選擇退出工程審查，串鏈建議不會再因此打擾您。
+- **簡易設計審查現在也追蹤提交。** 在 `/review` 和 `/ship` 中執行的輕量設計檢查獲得與完整審查相同的過時追蹤功能。
 
-### Fixed
+### 修復
 
-- **Browse no longer navigates to dangerous URLs.** `goto`, `diff`, and `newtab` now block `file://`, `javascript:`, `data:` schemes and cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`). Localhost and private IPs are still allowed for local QA testing. (Closes #17)
-- **Setup script tells you what's missing.** Running `./setup` without `bun` installed now shows a clear error with install instructions instead of a cryptic "command not found." (Closes #147)
-- **`/debug` renamed to `/investigate`.** Claude Code has a built-in `/debug` command that shadowed the gstack skill. The systematic root-cause debugging workflow now lives at `/investigate`. (Closes #190)
-- **Shell injection surface removed.** All skill templates now use `source <(gstack-slug)` instead of `eval $(gstack-slug)`. Same behavior, no `eval`. (Closes #133)
-- **25 new security tests.** URL validation (16 tests) and path traversal validation (14 tests) now have dedicated unit test suites covering scheme blocking, metadata IP blocking, directory escapes, and prefix collision edge cases.
+- **瀏覽器不再導航至危險的 URL。** `goto`、`diff` 和 `newtab` 現在封鎖 `file://`、`javascript:`、`data:` 協定和雲端中繼資料端點（`169.254.169.254`、`metadata.google.internal`）。本機 QA 測試仍允許 localhost 和私有 IP。（修復 #17）
+- **Setup 腳本現在告知缺少什麼。** 未安裝 `bun` 就執行 `./setup` 現在會顯示清晰的錯誤訊息與安裝說明，而非令人費解的「command not found」。（修復 #147）
+- **`/debug` 更名為 `/investigate`。** Claude Code 有內建的 `/debug` 命令遮蔽了 gstack 技能。系統性根因除錯工作流程現在位於 `/investigate`。（修復 #190）
+- **移除 Shell 注入攻擊面。** 所有技能模板現在使用 `source <(gstack-slug)` 而非 `eval $(gstack-slug)`。行為相同，沒有 `eval`。（修復 #133）
+- **25 個新安全測試。** URL 驗證（16 個測試）和路徑遍歷驗證（14 個測試）現在有專用的單元測試套件，涵蓋協定封鎖、中繼資料 IP 封鎖、目錄逃脫和前綴衝突邊緣情況。
 
 ## [0.8.2] - 2026-03-19
 
-### Added
+### 新增
 
-- **Hand off to a real Chrome when the headless browser gets stuck.** Hit a CAPTCHA, auth wall, or MFA prompt? Run `$B handoff "reason"` and a visible Chrome opens at the exact same page with all your cookies and tabs intact. Solve the problem, tell Claude you're done, and `$B resume` picks up right where you left off with a fresh snapshot.
-- **Auto-handoff hint after 3 consecutive failures.** If the browse tool fails 3 times in a row, it suggests using `handoff` — so you don't waste time watching the AI retry a CAPTCHA.
-- **15 new tests for the handoff feature.** Unit tests for state save/restore, failure tracking, edge cases, plus integration tests for the full headless-to-headed flow with cookie and tab preservation.
+- **當無頭瀏覽器卡住時，交接給真實的 Chrome。** 遇到 CAPTCHA、認證牆或 MFA 提示？執行 `$B handoff "reason"`，一個可見的 Chrome 視窗會在完全相同的頁面開啟，並保留所有 Cookie 和分頁。解決問題後，告訴 Claude 您已完成，`$B resume` 會從您離開的地方繼續，並提供全新的快照。
+- **連續 3 次失敗後自動提示交接。** 若瀏覽工具連續失敗 3 次，它會建議使用 `handoff` — 讓您不必浪費時間看著 AI 重試 CAPTCHA。
+- **15 個針對交接功能的新測試。** 涵蓋狀態儲存/還原的單元測試、邊緣情況，以及完整的無頭到有頭流程（含 Cookie 和分頁保存）的整合測試。
 
-### Changed
+### 變更
 
-- `recreateContext()` refactored to use shared `saveState()`/`restoreState()` helpers — same behavior, less code, ready for future state persistence features.
-- `browser.close()` now has a 5-second timeout to prevent hangs when closing headed browsers on macOS.
+- `recreateContext()` 重構為使用共享的 `saveState()`/`restoreState()` 輔助函式 — 行為相同，程式碼更少，為未來的狀態持久化功能做好準備。
+- `browser.close()` 現在有 5 秒逾時，防止在 macOS 上關閉有頭瀏覽器時發生掛起。
 
 ## [0.8.1] - 2026-03-19
 
-### Fixed
+### 修復
 
-- **`/qa` no longer refuses to use the browser on backend-only changes.** Previously, if your branch only changed prompt templates, config files, or service logic, `/qa` would analyze the diff, conclude "no UI to test," and suggest running evals instead. Now it always opens the browser -- falling back to a Quick mode smoke test (homepage + top 5 navigation targets) when no specific pages are identified from the diff.
+- **`/qa` 不再拒絕在僅後端變更時使用瀏覽器。** 以前，若您的分支只更改了提示詞模板、設定檔案或服務邏輯，`/qa` 會分析 diff，得出「沒有 UI 需要測試」的結論，並建議改跑 eval。現在它始終打開瀏覽器 — 當從 diff 中無法識別特定頁面時，退而採用快速模式煙霧測試（首頁 + 前 5 個導航目標）。
 
-## [0.8.0] - 2026-03-19 — Multi-AI Second Opinion
+## [0.8.0] - 2026-03-19 — 多 AI 第二意見
 
-**`/codex` — get an independent second opinion from a completely different AI.**
+**`/codex` — 從完全不同的 AI 獲取獨立的第二意見。**
 
-Three modes. `/codex review` runs OpenAI's Codex CLI against your diff and gives a pass/fail gate — if Codex finds critical issues (`[P1]`), it fails. `/codex challenge` goes adversarial: it tries to find ways your code will fail in production, thinking like an attacker and a chaos engineer. `/codex <anything>` opens a conversation with Codex about your codebase, with session continuity so follow-ups remember context.
+三種模式。`/codex review` 對您的 diff 執行 OpenAI 的 Codex CLI 並給出通過/失敗判定 — 若 Codex 發現嚴重問題（`[P1]`），則失敗。`/codex challenge` 採取對抗性方式：它試圖找出您的程式碼在生產環境中失敗的方式，像攻擊者和混沌工程師那樣思考。`/codex <anything>` 與 Codex 開啟關於您程式碼庫的對話，工作階段連續性讓後續問題能記住上下文。
 
-When both `/review` (Claude) and `/codex review` have run, you get a cross-model analysis showing which findings overlap and which are unique to each AI — building intuition for when to trust which system.
+當 `/review`（Claude）和 `/codex review` 都執行後，您會獲得跨模型分析，顯示哪些發現重疊、哪些是各 AI 獨有的 — 培養您對何時信任哪個系統的直覺。
 
-**Integrated everywhere.** After `/review` finishes, it offers a Codex second opinion. During `/ship`, you can run Codex review as an optional gate before pushing. In `/plan-eng-review`, Codex can independently critique your plan before the engineering review begins. All Codex results show up in the Review Readiness Dashboard.
+**整合至各處。** `/review` 完成後，它提供 Codex 第二意見。在 `/ship` 期間，您可以在推送前執行 Codex 審查作為可選關卡。在 `/plan-eng-review` 中，Codex 可以在工程審查開始前獨立批評您的計劃。所有 Codex 結果都顯示在 Review Readiness Dashboard 中。
 
-**Also in this release:** Proactive skill suggestions — gstack now notices what stage of development you're in and suggests the right skill. Don't like it? Say "stop suggesting" and it remembers across sessions.
+**此版本同時新增：** 主動技能建議 — gstack 現在會注意您所在的開發階段並建議正確的技能。不喜歡？說「stop suggesting」，它會跨工作階段記住。
 
 ## [0.7.4] - 2026-03-18
 
-### Changed
+### 變更
 
-- **`/qa` and `/design-review` now ask what to do with uncommitted changes** instead of refusing to start. When your working tree is dirty, you get an interactive prompt with three options: commit your changes, stash them, or abort. No more cryptic "ERROR: Working tree is dirty" followed by a wall of text.
+- **`/qa` 和 `/design-review` 現在詢問如何處理未提交的變更**，而不是拒絕啟動。當您的工作目錄有未提交內容時，您會獲得三個互動選項：提交變更、暫存或中止。不再有神秘的「ERROR: Working tree is dirty」後跟著大量說明文字。
 
 ## [0.7.3] - 2026-03-18
 
-### Added
+### 新增
 
-- **Safety guardrails you can turn on with one command.** Say "be careful" or "safety mode" and `/careful` will warn you before any destructive command — `rm -rf`, `DROP TABLE`, force-push, `kubectl delete`, and more. You can override every warning. Common build artifact cleanups (`rm -rf node_modules`, `dist`, `.next`) are whitelisted.
-- **Lock edits to one folder with `/freeze`.** Debugging something and don't want Claude to "fix" unrelated code? `/freeze` blocks all file edits outside a directory you choose. Hard block, not just a warning. Run `/unfreeze` to remove the restriction without ending your session.
-- **`/guard` activates both at once.** One command for maximum safety when touching prod or live systems — destructive command warnings plus directory-scoped edit restrictions.
-- **`/debug` now auto-freezes edits to the module being debugged.** After forming a root cause hypothesis, `/debug` locks edits to the narrowest affected directory. No more accidental "fixes" to unrelated code during debugging.
-- **You can now see which skills you use and how often.** Every skill invocation is logged locally to `~/.gstack/analytics/skill-usage.jsonl`. Run `bun run analytics` to see your top skills, per-repo breakdown, and how often safety hooks actually catch something. Data stays on your machine.
-- **Weekly retros now include skill usage.** `/retro` shows which skills you used during the retro window alongside your usual commit analysis and metrics.
+- **一個命令即可開啟安全防護措施。** 說「be careful」或「safety mode」，`/careful` 就會在任何破壞性命令前警告您 — `rm -rf`、`DROP TABLE`、force-push、`kubectl delete` 等。您可以覆蓋每個警告。常見的建構產物清理（`rm -rf node_modules`、`dist`、`.next`）已列入白名單。
+- **用 `/freeze` 將編輯鎖定在一個資料夾。** 正在除錯但不想讓 Claude「修復」無關的程式碼？`/freeze` 封鎖您選擇目錄之外的所有檔案編輯。是硬性封鎖，不只是警告。執行 `/unfreeze` 即可移除限制而無需結束工作階段。
+- **`/guard` 一次啟動兩者。** 當接觸生產環境或即時系統時，一個命令提供最大安全保障 — 破壞性命令警告加上目錄範圍編輯限制。
+- **`/debug` 現在自動凍結正在除錯模組的編輯。** 形成根因假設後，`/debug` 將編輯鎖定在受影響的最窄目錄。除錯期間不再意外「修復」無關的程式碼。
+- **您現在可以查看使用哪些技能及使用頻率。** 每次技能調用都在本機記錄至 `~/.gstack/analytics/skill-usage.jsonl`。執行 `bun run analytics` 查看您的頂級技能、各專案分類，以及安全 Hook 實際攔截的頻率。資料保留在您的機器上。
+- **每週回顧現在包含技能使用情況。** `/retro` 在回顧時間窗口內顯示您使用的技能，與您平常的提交分析和指標並排呈現。
 
 ## [0.7.2] - 2026-03-18
 
-### Fixed
+### 修復
 
-- `/retro` date ranges now align to midnight instead of the current time. Running `/retro` at 9pm no longer silently drops the morning of the start date — you get full calendar days.
-- `/retro` timestamps now use your local timezone instead of hardcoded Pacific time. Users outside the US-West coast get correct local hours in histograms, session detection, and streak tracking.
+- `/retro` 日期範圍現在對齊午夜而非當前時間。下午 9 點執行 `/retro` 不再靜默遺漏開始日期的上午時段 — 您獲得完整的日曆天。
+- `/retro` 時間戳記現在使用您的本地時區而非硬編碼的太平洋時間。美西海岸以外的用戶在直方圖、工作階段偵測和連續記錄中可獲得正確的本地時間。
 
 ## [0.7.1] - 2026-03-19
 
-### Added
+### 新增
 
-- **gstack now suggests skills at natural moments.** You don't need to know slash commands — just talk about what you're doing. Brainstorming an idea? gstack suggests `/office-hours`. Something's broken? It suggests `/debug`. Ready to deploy? It suggests `/ship`. Every workflow skill now has proactive triggers that fire when the moment is right.
-- **Lifecycle map.** gstack's root skill description now includes a developer workflow guide mapping 12 stages (brainstorm → plan → review → code → debug → test → ship → docs → retro) to the right skill. Claude sees this in every session.
-- **Opt-out with natural language.** If proactive suggestions feel too aggressive, just say "stop suggesting things" — gstack remembers across sessions. Say "be proactive again" to re-enable.
-- **11 journey-stage E2E tests.** Each test simulates a real moment in the developer lifecycle with realistic project context (plan.md, error logs, git history, code) and verifies the right skill fires from natural language alone. 11/11 pass.
-- **Trigger phrase validation.** Static tests verify every workflow skill has "Use when" and "Proactively suggest" phrases — catches regressions for free.
+- **gstack 現在在自然時機建議技能。** 您不需要知道斜線命令 — 只需談論您在做什麼。腦力激盪一個想法？gstack 建議 `/office-hours`。有東西壞了？它建議 `/debug`。準備部署？它建議 `/ship`。每個工作流程技能現在都有主動觸發器，在時機成熟時啟動。
+- **生命週期地圖。** gstack 的根技能描述現在包含一個開發者工作流程指南，將 12 個階段（腦力激盪 → 計劃 → 審查 → 程式碼 → 除錯 → 測試 → 出貨 → 文件 → 回顧）對應到正確的技能。Claude 在每次工作階段中都能看到這個。
+- **用自然語言退出。** 若主動建議感覺太積極，只需說「stop suggesting things」 — gstack 跨工作階段記住。說「be proactive again」重新啟用。
+- **11 個旅程階段 E2E 測試。** 每個測試模擬開發者生命週期中的真實時刻，包含實際的專案上下文（plan.md、錯誤日誌、git 歷史、程式碼），並驗證正確的技能僅從自然語言就能觸發。11/11 通過。
+- **觸發短語驗證。** 靜態測試驗證每個工作流程技能都有「Use when」和「Proactively suggest」短語 — 免費攔截退化。
 
-### Fixed
+### 修復
 
-- `/debug` and `/office-hours` were completely invisible to natural language — no trigger phrases at all. Now both have full reactive + proactive triggers.
+- `/debug` 和 `/office-hours` 對自然語言完全不可見 — 根本沒有觸發短語。現在兩者都有完整的被動 + 主動觸發器。
 
 ## [0.7.0] - 2026-03-18 — YC Office Hours
 
-**`/office-hours` — sit down with a YC partner before you write a line of code.**
+**`/office-hours` — 在寫第一行程式碼之前，與 YC 合夥人坐下來談。**
 
-Two modes. If you're building a startup, you get six forcing questions distilled from how YC evaluates products: demand reality, status quo, desperate specificity, narrowest wedge, observation & surprise, and future-fit. If you're hacking on a side project, learning to code, or at a hackathon, you get an enthusiastic brainstorming partner who helps you find the coolest version of your idea.
+兩種模式。若您在建立新創公司，您會獲得六個從 YC 評估產品方式提煉出的強制性問題：需求現實、現狀、迫切的具體性、最窄的切入點、觀察與驚喜，以及未來適配性。若您在黑客馬拉松、學習寫程式或開發副業專案，您會獲得一個熱情的腦力激盪夥伴，幫助您找到想法最酷的版本。
 
-Both modes write a design doc that feeds directly into `/plan-ceo-review` and `/plan-eng-review`. After the session, the skill reflects back what it noticed about how you think — specific observations, not generic praise.
+兩種模式都會撰寫一份設計文件，直接供 `/plan-ceo-review` 和 `/plan-eng-review` 使用。工作階段結束後，技能會反映它對您思考方式的觀察 — 具體的觀察，而非泛泛的稱讚。
 
-**`/debug` — find the root cause, not the symptom.**
+**`/debug` — 找到根本原因，而非症狀。**
 
-When something is broken and you don't know why, `/debug` is your systematic debugger. It follows the Iron Law: no fixes without root cause investigation first. Traces data flow, matches against known bug patterns (race conditions, nil propagation, stale cache, config drift), and tests hypotheses one at a time. If 3 fixes fail, it stops and questions the architecture instead of thrashing.
+當有東西壞了而您不知道原因時，`/debug` 是您的系統性除錯工具。它遵循鐵律：在根因調查之前不進行修復。追蹤資料流，與已知的錯誤模式（競態條件、nil 傳播、過時快取、設定漂移）比對，並逐一測試假設。若 3 次修復失敗，它會停下來質疑架構，而不是繼續嘗試。
 
 ## [0.6.4.1] - 2026-03-18
 
-### Added
+### 新增
 
-- **Skills now discoverable via natural language.** All 12 skills that were missing explicit trigger phrases now have them — say "deploy this" and Claude finds `/ship`, say "check my diff" and it finds `/review`. Following Anthropic's best practice: "the description field is not a summary — it's when to trigger."
+- **技能現在可透過自然語言探索。** 所有 12 個缺少明確觸發短語的技能現在都已補充 — 說「deploy this」Claude 就能找到 `/ship`，說「check my diff」它就能找到 `/review`。遵循 Anthropic 的最佳實踐：「description 欄位不是摘要 — 而是觸發時機。」
 
 ## [0.6.4.0] - 2026-03-17
 
-### Added
+### 新增
 
-- **`/plan-design-review` is now interactive — rates 0-10, fixes the plan.** Instead of producing a report with letter grades, the designer now works like CEO and Eng review: rates each design dimension 0-10, explains what a 10 looks like, then edits the plan to get there. One AskUserQuestion per design choice. The output is a better plan, not a document about the plan.
-- **CEO review now calls in the designer.** When `/plan-ceo-review` detects UI scope in a plan, it activates a Design & UX section (Section 11) covering information architecture, interaction state coverage, AI slop risk, and responsive intention. For deep design work, it recommends `/plan-design-review`.
-- **14 of 15 skills now have full test coverage (E2E + LLM-judge + validation).** Added LLM-judge quality evals for 10 skills that were missing them: ship, retro, qa-only, plan-ceo-review, plan-eng-review, plan-design-review, design-review, design-consultation, document-release, gstack-upgrade. Added real E2E test for gstack-upgrade (was a `.todo`). Added design-consultation to command validation.
-- **Bisect commit style.** CLAUDE.md now requires every commit to be a single logical change — renames separate from rewrites, test infrastructure separate from test implementations.
+- **`/plan-design-review` 現在是互動式的 — 評分 0-10，並修復計劃。** 設計師不再產生帶有字母評級的報告，而是像 CEO 和工程審查一樣運作：對每個設計維度評分 0-10，說明 10 分是什麼樣子，然後編輯計劃以達到該分數。每個設計選擇一個 AskUserQuestion。輸出是一個更好的計劃，而不是關於計劃的文件。
+- **CEO 審查現在會召喚設計師。** 當 `/plan-ceo-review` 在計劃中偵測到 UI 範疇時，它會啟動設計與 UX 章節（第 11 節），涵蓋資訊架構、互動狀態覆蓋率、AI 陳腔濫調風險和響應式設計意圖。對於深度設計工作，它建議使用 `/plan-design-review`。
+- **15 個技能中有 14 個現在有完整測試覆蓋率（E2E + LLM 評判 + 驗證）。** 為 10 個缺少它們的技能新增了 LLM 評判品質評估：ship、retro、qa-only、plan-ceo-review、plan-eng-review、plan-design-review、design-review、design-consultation、document-release、gstack-upgrade。為 gstack-upgrade 新增了真實的 E2E 測試（原為 `.todo`）。將 design-consultation 加入命令驗證。
+- **Bisect 提交風格。** CLAUDE.md 現在要求每次提交都是單一邏輯變更 — 重新命名與改寫分開，測試基礎設施與測試實作分開。
 
-### Changed
+### 變更
 
-- `/qa-design-review` renamed to `/design-review` — the "qa-" prefix was confusing now that `/plan-design-review` is plan-mode. Updated across all 22 files.
+- `/qa-design-review` 重命名為 `/design-review` — 「qa-」前綴在 `/plan-design-review` 是計劃模式的情況下令人困惑。已在所有 22 個檔案中更新。
 
 ## [0.6.3.0] - 2026-03-17
 
-### Added
+### 新增
 
-- **Every PR touching frontend code now gets a design review automatically.** `/review` and `/ship` apply a 20-item design checklist against changed CSS, HTML, JSX, and view files. Catches AI slop patterns (purple gradients, 3-column icon grids, generic hero copy), typography issues (body text < 16px, blacklisted fonts), accessibility gaps (`outline: none`), and `!important` abuse. Mechanical CSS fixes are auto-applied; design judgment calls ask you first.
-- **`gstack-diff-scope` categorizes what changed in your branch.** Run `source <(gstack-diff-scope main)` and get `SCOPE_FRONTEND=true/false`, `SCOPE_BACKEND`, `SCOPE_PROMPTS`, `SCOPE_TESTS`, `SCOPE_DOCS`, `SCOPE_CONFIG`. Design review uses it to skip silently on backend-only PRs. Ship pre-flight uses it to recommend design review when frontend files are touched.
-- **Design review shows up in the Review Readiness Dashboard.** The dashboard now distinguishes between "LITE" (code-level, runs automatically in /review and /ship) and "FULL" (visual audit via /plan-design-review with browse binary). Both show up as Design Review entries.
-- **E2E eval for design review detection.** Planted CSS/HTML fixtures with 7 known anti-patterns (Papyrus font, 14px body text, `outline: none`, `!important`, purple gradient, generic hero copy, 3-column feature grid). The eval verifies `/review` catches at least 4 of 7.
+- **每個觸及前端程式碼的 PR 現在都自動獲得設計審查。** `/review` 和 `/ship` 針對已變更的 CSS、HTML、JSX 和視圖檔案應用 20 項設計清單。攔截 AI 陳腔濫調模式（紫色漸層、三欄圖示網格、泛泛的 hero 文案）、排版問題（body 文字 < 16px、黑名單字型）、無障礙設計缺口（`outline: none`）和 `!important` 濫用。機械性 CSS 修復自動應用；設計判斷呼叫會先詢問您。
+- **`gstack-diff-scope` 分類您分支中的變更內容。** 執行 `source <(gstack-diff-scope main)` 並獲得 `SCOPE_FRONTEND=true/false`、`SCOPE_BACKEND`、`SCOPE_PROMPTS`、`SCOPE_TESTS`、`SCOPE_DOCS`、`SCOPE_CONFIG`。設計審查使用它在後端專屬 PR 上靜默跳過。出貨前檢查使用它在觸及前端檔案時建議設計審查。
+- **設計審查顯示在 Review Readiness Dashboard 中。** 儀表板現在區分「LITE」（程式碼層級，在 /review 和 /ship 中自動執行）和「FULL」（透過 /plan-design-review 與 browse binary 的視覺審核）。兩者都以設計審查條目顯示。
+- **設計審查偵測的 E2E eval。** 包含 7 個已知反模式的 CSS/HTML 測試固件（Papyrus 字型、14px body 文字、`outline: none`、`!important`、紫色漸層、泛泛的 hero 文案、三欄功能網格）。eval 驗證 `/review` 至少攔截 7 個中的 4 個。
 
 ## [0.6.2.0] - 2026-03-17
 
-### Added
+### 新增
 
-- **Plan reviews now think like the best in the world.** `/plan-ceo-review` applies 14 cognitive patterns from Bezos (one-way doors, Day 1 proxy skepticism), Grove (paranoid scanning), Munger (inversion), Horowitz (wartime awareness), Chesky/Graham (founder mode), and Altman (leverage obsession). `/plan-eng-review` applies 15 patterns from Larson (team state diagnosis), McKinley (boring by default), Brooks (essential vs accidental complexity), Beck (make the change easy), Majors (own your code in production), and Google SRE (error budgets). `/plan-design-review` applies 12 patterns from Rams (subtraction default), Norman (time-horizon design), Zhuo (principled taste), Gebbia (design for trust, storyboard the journey), and Ive (care is visible).
-- **Latent space activation, not checklists.** The cognitive patterns name-drop frameworks and people so the LLM draws on its deep knowledge of how they actually think. The instruction is "internalize these, don't enumerate them" — making each review a genuine perspective shift, not a longer checklist.
+- **計劃審查現在像世界頂尖人士那樣思考。** `/plan-ceo-review` 應用來自 Bezos（單行道門、第一天代理人懷疑論）、Grove（偏執掃描）、Munger（反轉）、Horowitz（戰時意識）、Chesky/Graham（創辦人模式）和 Altman（槓桿迷戀）的 14 種認知模式。`/plan-eng-review` 應用來自 Larson（團隊狀態診斷）、McKinley（預設無趣）、Brooks（本質 vs 偶然複雜性）、Beck（讓變更變得容易）、Majors（在生產中擁有您的程式碼）和 Google SRE（錯誤預算）的 15 種模式。`/plan-design-review` 應用來自 Rams（減法預設）、Norman（時間跨度設計）、Zhuo（有原則的品味）、Gebbia（為信任而設計、故事板旅程）和 Ive（關懷是可見的）的 12 種模式。
+- **潛在空間啟動，而非清單。** 認知模式透過提及框架和人物，讓 LLM 能汲取其對他們實際思維方式的深刻知識。指令是「內化這些，不要列舉它們」— 使每次審查都成為真正的視角轉換，而非更長的清單。
 
 ## [0.6.1.0] - 2026-03-17
 
-### Added
+### 新增
 
-- **E2E and LLM-judge tests now only run what you changed.** Each test declares which source files it depends on. When you run `bun run test:e2e`, it checks your diff and skips tests whose dependencies weren't touched. A branch that only changes `/retro` now runs 2 tests instead of 31. Use `bun run test:e2e:all` to force everything.
-- **`bun run eval:select` previews which tests would run.** See exactly which tests your diff triggers before spending API credits. Supports `--json` for scripting and `--base <branch>` to override the base branch.
-- **Completeness guardrail catches forgotten test entries.** A free unit test validates that every `testName` in the E2E and LLM-judge test files has a corresponding entry in the TOUCHFILES map. New tests without entries fail `bun test` immediately — no silent always-run degradation.
+- **E2E 和 LLM 評判測試現在只執行您變更的部分。** 每個測試聲明其依賴的來源檔案。當您執行 `bun run test:e2e` 時，它會檢查您的 diff 並跳過依賴項未被觸及的測試。只更改 `/retro` 的分支現在執行 2 個測試而非 31 個。使用 `bun run test:e2e:all` 強制執行所有測試。
+- **`bun run eval:select` 預覽哪些測試會執行。** 在花費 API 額度之前，查看您的 diff 會觸發哪些測試。支援 `--json` 進行腳本編寫，以及 `--base <branch>` 覆蓋基礎分支。
+- **完整性防護措施攔截遺忘的測試條目。** 一個免費的單元測試驗證 E2E 和 LLM 評判測試檔案中的每個 `testName` 在 TOUCHFILES 映射中都有對應條目。沒有條目的新測試立即使 `bun test` 失敗 — 沒有靜默的始終執行退化。
 
-### Changed
+### 變更
 
-- `test:evals` and `test:e2e` now auto-select based on diff (was: all-or-nothing)
-- New `test:evals:all` and `test:e2e:all` scripts for explicit full runs
+- `test:evals` 和 `test:e2e` 現在根據 diff 自動選擇（原為：全部或全不）
+- 新增 `test:evals:all` 和 `test:e2e:all` 腳本以明確執行完整測試
 
-## 0.6.1 — 2026-03-17 — Boil the Lake
+## 0.6.1 — 2026-03-17 — 煮沸整個湖
 
-Every gstack skill now follows the **Completeness Principle**: always recommend the
-full implementation when AI makes the marginal cost near-zero. No more "Choose B
-because it's 90% of the value" when option A is 70 lines more code.
+每個 gstack 技能現在都遵循**完整性原則**：當 AI 使邊際成本接近零時，始終建議完整實作。當選項 A 只多 70 行程式碼時，不再建議「選 B，因為它有 90% 的價值」。
 
-Read the philosophy: https://garryslist.org/posts/boil-the-ocean
+閱讀哲學理念：https://garryslist.org/posts/boil-the-ocean
 
-- **Completeness scoring**: every AskUserQuestion option now shows a completeness
-  score (1-10), biasing toward the complete solution
-- **Dual time estimates**: effort estimates show both human-team and CC+gstack time
-  (e.g., "human: ~2 weeks / CC: ~1 hour") with a task-type compression reference table
-- **Anti-pattern examples**: concrete "don't do this" gallery in the preamble so the
-  principle isn't abstract
-- **First-time onboarding**: new users see a one-time introduction linking to the
-  essay, with option to open in browser
-- **Review completeness gaps**: `/review` now flags shortcut implementations where the
-  complete version costs <30 min CC time
-- **Lake Score**: CEO and Eng review completion summaries show how many recommendations
-  chose the complete option vs shortcuts
-- **CEO + Eng review dual-time**: temporal interrogation, effort estimates, and delight
-  opportunities all show both human and CC time scales
+- **完整性評分**：每個 AskUserQuestion 選項現在顯示完整性評分（1-10），偏向完整解決方案
+- **雙時間估算**：工作量估算同時顯示人類團隊和 CC+gstack 時間（例如：「人類：約 2 週 / CC：約 1 小時」），附帶任務類型壓縮參考表
+- **反模式範例**：前言中具體的「不要這樣做」示例庫，使原則不再抽象
+- **首次使用者導覽**：新用戶看到一次性介紹，連結到文章，可選擇在瀏覽器中開啟
+- **審查完整性缺口**：`/review` 現在標記捷徑實作，其中完整版本的 CC 時間成本不到 30 分鐘
+- **Lake Score**：CEO 和工程審查完成摘要顯示有多少建議選擇了完整選項 vs 捷徑
+- **CEO + 工程審查雙重時間**：時間審訊、工作量估算和令人愉悅的機會均顯示人類和 CC 兩種時間尺度
 
 ## 0.6.0.1 — 2026-03-17
 
-- **`/gstack-upgrade` now catches stale vendored copies automatically.** If your global gstack is up to date but the vendored copy in your project is behind, `/gstack-upgrade` detects the mismatch and syncs it. No more manually asking "did we vendor it?" — it just tells you and offers to update.
-- **Upgrade sync is safer.** If `./setup` fails while syncing a vendored copy, gstack restores the previous version from backup instead of leaving a broken install.
+- **`/gstack-upgrade` 現在自動攔截過時的供應商副本。** 若您的全域 gstack 是最新的，但專案中的供應商副本已落後，`/gstack-upgrade` 會偵測不一致並同步。不再需要手動詢問「我們有供應商化嗎？」— 它直接告訴您並提供更新。
+- **升級同步更安全。** 若在同步供應商副本時 `./setup` 失敗，gstack 會從備份還原之前的版本，而不是留下損壞的安裝。
 
-### For contributors
+### 貢獻者須知
 
-- Standalone usage section in `gstack-upgrade/SKILL.md.tmpl` now references Steps 2 and 4.5 (DRY) instead of duplicating detection/sync bash blocks. Added one new version-comparison bash block.
-- Update check fallback in standalone mode now matches the preamble pattern (global path → local path → `|| true`).
+- `gstack-upgrade/SKILL.md.tmpl` 中的獨立使用章節現在參照步驟 2 和 4.5（DRY），而非複製偵測/同步 bash 區塊。新增了一個版本比較 bash 區塊。
+- 獨立模式中的更新檢查回退現在與前言模式（全域路徑 → 本地路徑 → `|| true`）匹配。
 
 ## 0.6.0 — 2026-03-17
 
-- **100% test coverage is the key to great vibe coding.** gstack now bootstraps test frameworks from scratch when your project doesn't have one. Detects your runtime, researches the best framework, asks you to pick, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), creates TESTING.md, and adds test culture instructions to CLAUDE.md. Every Claude Code session after that writes tests naturally.
-- **Every bug fix now gets a regression test.** When `/qa` fixes a bug and verifies it, Phase 8e.5 automatically generates a regression test that catches the exact scenario that broke. Tests include full attribution tracing back to the QA report. Auto-incrementing filenames prevent collisions across sessions.
-- **Ship with confidence — coverage audit shows what's tested and what's not.** `/ship` Step 3.4 builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with quality stars (★★★ = edge cases + errors, ★★ = happy path, ★ = smoke test). Gaps get tests auto-generated. PR body shows "Tests: 42 → 47 (+5 new)".
-- **Your retro tracks test health.** `/retro` now shows total test files, tests added this period, regression test commits, and trend deltas. If test ratio drops below 20%, it flags it as a growth area.
-- **Design reviews generate regression tests too.** `/qa-design-review` Phase 8e.5 skips CSS-only fixes (those are caught by re-running the design audit) but writes tests for JavaScript behavior changes like broken dropdowns or animation failures.
+- **100% 測試覆蓋率是優質 vibe coding 的關鍵。** gstack 現在在您的專案沒有測試框架時從頭建立。偵測您的執行環境、研究最佳框架、請您選擇、安裝它、為您的實際程式碼撰寫 3-5 個真實測試、設定 CI/CD（GitHub Actions）、建立 TESTING.md，並在 CLAUDE.md 中加入測試文化指令。之後每個 Claude Code 工作階段都會自然地撰寫測試。
+- **每個錯誤修復現在都獲得一個迴歸測試。** 當 `/qa` 修復一個錯誤並驗證後，步驟 8e.5 自動產生一個捕獲確切損壞場景的迴歸測試。測試包含完整的追蹤歸因，連結回 QA 報告。自動遞增的檔案名稱防止工作階段間的衝突。
+- **有信心地出貨 — 覆蓋率審計顯示什麼已測試、什麼未測試。** `/ship` 步驟 3.4 從您的 diff 建立程式碼路徑映射，搜尋對應的測試，並產生帶有品質星級的 ASCII 覆蓋率圖（★★★ = 邊緣情況 + 錯誤，★★ = 快樂路徑，★ = 煙霧測試）。缺口自動產生測試。PR 說明顯示「Tests: 42 → 47 (+5 new)」。
+- **您的回顧追蹤測試健康狀況。** `/retro` 現在顯示測試檔案總數、本期新增的測試、迴歸測試提交和趨勢差異。若測試比例降至 20% 以下，它將其標記為成長領域。
+- **設計審查也產生迴歸測試。** `/qa-design-review` 步驟 8e.5 跳過僅 CSS 的修復（這些由重新執行設計審計捕獲），但為 JavaScript 行為變更（如損壞的下拉選單或動畫失敗）撰寫測試。
 
-### For contributors
+### 貢獻者須知
 
-- Added `generateTestBootstrap()` resolver to `gen-skill-docs.ts` (~155 lines). Registered as `{{TEST_BOOTSTRAP}}` in the RESOLVERS map. Inserted into qa, ship (Step 2.5), and qa-design-review templates.
-- Phase 8e.5 regression test generation added to `qa/SKILL.md.tmpl` (46 lines) and CSS-aware variant to `qa-design-review/SKILL.md.tmpl` (12 lines). Rule 13 amended to allow creating new test files.
-- Step 3.4 test coverage audit added to `ship/SKILL.md.tmpl` (88 lines) with quality scoring rubric and ASCII diagram format.
-- Test health tracking added to `retro/SKILL.md.tmpl`: 3 new data gathering commands, metrics row, narrative section, JSON schema field.
-- `qa-only/SKILL.md.tmpl` gets recommendation note when no test framework detected.
-- `qa-report-template.md` gains Regression Tests section with deferred test specs.
-- ARCHITECTURE.md placeholder table updated with `{{TEST_BOOTSTRAP}}` and `{{REVIEW_DASHBOARD}}`.
-- WebSearch added to allowed-tools for qa, ship, qa-design-review.
-- 26 new validation tests, 2 new E2E evals (bootstrap + coverage audit).
-- 2 new P3 TODOs: CI/CD for non-GitHub providers, auto-upgrade weak tests.
+- 在 `gen-skill-docs.ts` 中新增 `generateTestBootstrap()` 解析器（約 155 行）。在 RESOLVERS 映射中註冊為 `{{TEST_BOOTSTRAP}}`。插入 qa、ship（步驟 2.5）和 qa-design-review 模板中。
+- 步驟 8e.5 迴歸測試產生新增至 `qa/SKILL.md.tmpl`（46 行）和 `qa-design-review/SKILL.md.tmpl` 的 CSS 感知變體（12 行）。規則 13 修訂為允許建立新的測試檔案。
+- 步驟 3.4 測試覆蓋率審計新增至 `ship/SKILL.md.tmpl`（88 行），附帶品質評分標準和 ASCII 圖表格式。
+- 測試健康追蹤新增至 `retro/SKILL.md.tmpl`：3 個新的資料收集命令、指標列、敘述章節、JSON 結構描述欄位。
+- `qa-only/SKILL.md.tmpl` 在未偵測到測試框架時獲得建議備注。
+- `qa-report-template.md` 新增含延遲測試規格的迴歸測試章節。
+- ARCHITECTURE.md 佔位符表格以 `{{TEST_BOOTSTRAP}}` 和 `{{REVIEW_DASHBOARD}}` 更新。
+- WebSearch 新增至 qa、ship、qa-design-review 的 allowed-tools。
+- 26 個新驗證測試，2 個新 E2E eval（bootstrap + 覆蓋率審計）。
+- 2 個新 P3 TODO：非 GitHub 提供商的 CI/CD、自動升級弱測試。
 
 ## 0.5.4 — 2026-03-17
 
-- **Engineering review is always the full review now.** `/plan-eng-review` no longer asks you to choose between "big change" and "small change" modes. Every plan gets the full interactive walkthrough (architecture, code quality, tests, performance). Scope reduction is only suggested when the complexity check actually triggers — not as a standing menu option.
-- **Ship stops asking about reviews once you've answered.** When `/ship` asks about missing reviews and you say "ship anyway" or "not relevant," that decision is saved for the branch. No more getting re-asked every time you re-run `/ship` after a pre-landing fix.
+- **工程審查現在始終是完整審查。** `/plan-eng-review` 不再要求您在「大型變更」和「小型變更」模式之間選擇。每個計劃都獲得完整的互動式逐步審查（架構、程式碼品質、測試、效能）。只有當複雜度檢查實際觸發時才建議縮減範疇 — 而非作為固定的選單選項。
+- **出貨停止在您回答後詢問審查事宜。** 當 `/ship` 詢問缺失的審查而您說「ship anyway」或「not relevant」時，該決定會為該分支儲存。不再在預登陸修復後重新執行 `/ship` 時被再次詢問。
 
-### For contributors
+### 貢獻者須知
 
-- Removed SMALL_CHANGE / BIG_CHANGE / SCOPE_REDUCTION menu from `plan-eng-review/SKILL.md.tmpl`. Scope reduction is now proactive (triggered by complexity check) rather than a menu item.
-- Added review gate override persistence to `ship/SKILL.md.tmpl` — writes `ship-review-override` entries to `$BRANCH-reviews.jsonl` so subsequent `/ship` runs skip the gate.
-- Updated 2 E2E test prompts to match new flow.
+- 從 `plan-eng-review/SKILL.md.tmpl` 中移除 SMALL_CHANGE / BIG_CHANGE / SCOPE_REDUCTION 選單。範疇縮減現在是主動性的（由複雜度檢查觸發），而非選單項目。
+- 在 `ship/SKILL.md.tmpl` 中新增 review gate 覆蓋持久性 — 將 `ship-review-override` 條目寫入 `$BRANCH-reviews.jsonl`，讓後續 `/ship` 執行跳過該關卡。
+- 更新 2 個 E2E 測試提示以符合新流程。
 
 ## 0.5.3 — 2026-03-17
 
-- **You're always in control — even when dreaming big.** `/plan-ceo-review` now presents every scope expansion as an individual decision you opt into. EXPANSION mode recommends enthusiastically, but you say yes or no to each idea. No more "the agent went wild and added 5 features I didn't ask for."
-- **New mode: SELECTIVE EXPANSION.** Hold your current scope as the baseline, but see what else is possible. The agent surfaces expansion opportunities one by one with neutral recommendations — you cherry-pick the ones worth doing. Perfect for iterating on existing features where you want rigor but also want to be tempted by adjacent improvements.
-- **Your CEO review visions are saved, not lost.** Expansion ideas, cherry-pick decisions, and 10x visions are now persisted to `~/.gstack/projects/{repo}/ceo-plans/` as structured design documents. Stale plans get archived automatically. If a vision is exceptional, you can promote it to `docs/designs/` in your repo for the team.
+- **您始終在掌控中 — 即使在大膽構想時。** `/plan-ceo-review` 現在將每個範疇擴展作為您選擇加入的個別決定呈現。EXPANSION 模式熱情地建議，但您對每個想法說是或否。不再有「代理瘋狂地添加了我沒有要求的 5 個功能」。
+- **新模式：SELECTIVE EXPANSION。** 將您目前的範疇作為基準，但看看還有什麼可能。代理逐一提出擴展機會並給予中性建議 — 您挑選值得做的那些。非常適合在現有功能上迭代，您希望嚴格把關但也想被相鄰改進所吸引的情況。
+- **您的 CEO 審查願景被儲存，而非遺失。** 擴展想法、挑選決定和 10 倍願景現在以結構化設計文件的形式持久保存至 `~/.gstack/projects/{repo}/ceo-plans/`。過時的計劃會自動歸檔。若某個願景特別出色，您可以將其推廣至您的專案中的 `docs/designs/` 供團隊參考。
 
-- **Smarter ship gates.** `/ship` no longer nags you about CEO and Design reviews when they're not relevant. Eng Review is the only required gate (and you can disable even that with `gstack-config set skip_eng_review true`). CEO Review is recommended for big product changes; Design Review for UI work. The dashboard still shows all three — it just won't block you for the optional ones.
+- **更智慧的出貨關卡。** `/ship` 不再在 CEO 和設計審查不相關時煩擾您。工程審查是唯一必要的關卡（甚至可以用 `gstack-config set skip_eng_review true` 停用）。CEO 審查建議用於大型產品變更；設計審查用於 UI 工作。儀表板仍然顯示所有三個 — 只是不會因為可選項目而阻擋您。
 
-### For contributors
+### 貢獻者須知
 
-- Added SELECTIVE EXPANSION mode to `plan-ceo-review/SKILL.md.tmpl` with cherry-pick ceremony, neutral recommendation posture, and HOLD SCOPE baseline.
-- Rewrote EXPANSION mode's Step 0D to include opt-in ceremony — distill vision into discrete proposals, present each as AskUserQuestion.
-- Added CEO plan persistence (0D-POST step): structured markdown with YAML frontmatter (`status: ACTIVE/ARCHIVED/PROMOTED`), scope decisions table, archival flow.
-- Added `docs/designs` promotion step after Review Log.
-- Mode Quick Reference table expanded to 4 columns.
-- Review Readiness Dashboard: Eng Review required (overridable via `skip_eng_review` config), CEO/Design optional with agent judgment.
-- New tests: CEO review mode validation (4 modes, persistence, promotion), SELECTIVE EXPANSION E2E test.
+- 在 `plan-ceo-review/SKILL.md.tmpl` 中新增 SELECTIVE EXPANSION 模式，包含挑選儀式、中性建議姿態和 HOLD SCOPE 基準。
+- 改寫 EXPANSION 模式的步驟 0D，加入選擇加入儀式 — 將願景提煉為離散提案，每個作為 AskUserQuestion 呈現。
+- 新增 CEO 計劃持久性（0D-POST 步驟）：帶有 YAML frontmatter 的結構化 Markdown（`status: ACTIVE/ARCHIVED/PROMOTED`）、範疇決定表、歸檔流程。
+- 在 Review Log 後新增 `docs/designs` 推廣步驟。
+- 模式快速參考表擴展為 4 欄。
+- Review Readiness Dashboard：工程審查為必要（可透過 `skip_eng_review` 設定覆蓋），CEO/設計為可選，由代理判斷。
+- 新測試：CEO 審查模式驗證（4 種模式、持久性、推廣）、SELECTIVE EXPANSION E2E 測試。
 
 ## 0.5.2 — 2026-03-17
 
-- **Your design consultant now takes creative risks.** `/design-consultation` doesn't just propose a safe, coherent system — it explicitly breaks down SAFE CHOICES (category baseline) vs. RISKS (where your product stands out). You pick which rules to break. Every risk comes with a rationale for why it works and what it costs.
-- **See the landscape before you choose.** When you opt into research, the agent browses real sites in your space with screenshots and accessibility tree analysis — not just web search results. You see what's out there before making design decisions.
-- **Preview pages that look like your product.** The preview page now renders realistic product mockups — dashboards with sidebar nav and data tables, marketing pages with hero sections, settings pages with forms — not just font swatches and color palettes.
+- **您的設計顧問現在承擔創意風險。** `/design-consultation` 不只是提出安全、連貫的系統 — 它明確列出安全選擇（類別基準）與風險（您的產品如何脫穎而出）。您選擇要打破哪些規則。每個風險都附帶為何有效的理由和代價。
+- **在選擇之前看清全貌。** 當您選擇研究時，代理會瀏覽您所在領域的真實網站並提供截圖和無障礙樹狀分析 — 而非僅靠網路搜尋結果。在做設計決定之前，您能看到外面有什麼。
+- **預覽看起來像您產品的頁面。** 預覽頁面現在呈現逼真的產品模型 — 帶有側邊欄導航和資料表格的儀表板、帶有 hero 區段的行銷頁面、帶有表單的設定頁面 — 而非只是字型樣本和色板。
 
 ## 0.5.1 — 2026-03-17
-- **Know where you stand before you ship.** Every `/plan-ceo-review`, `/plan-eng-review`, and `/plan-design-review` now logs its result to a review tracker. At the end of each review, you see a **Review Readiness Dashboard** showing which reviews are done, when they ran, and whether they're clean — with a clear CLEARED TO SHIP or NOT READY verdict.
-- **`/ship` checks your reviews before creating the PR.** Pre-flight now reads the dashboard and asks if you want to continue when reviews are missing. Informational only — it won't block you, but you'll know what you skipped.
-- **One less thing to copy-paste.** The SLUG computation (that opaque sed pipeline for computing `owner-repo` from git remote) is now a shared `bin/gstack-slug` helper. All 14 inline copies across templates replaced with `source <(gstack-slug)`. If the format ever changes, fix it once.
-- **Screenshots are now visible during QA and browse sessions.** When gstack takes screenshots, they now show up as clickable image elements in your output — no more invisible `/tmp/browse-screenshot.png` paths you can't see. Works in `/qa`, `/qa-only`, `/plan-design-review`, `/qa-design-review`, `/browse`, and `/gstack`.
+- **出貨前掌握您的進度。** 每個 `/plan-ceo-review`、`/plan-eng-review` 和 `/plan-design-review` 現在都將結果記錄到審查追蹤器。每次審查結束時，您會看到一個**Review Readiness Dashboard**，顯示哪些審查已完成、何時執行，以及是否通過 — 附有清晰的「已準備好出貨」或「尚未準備好」判定。
+- **`/ship` 在建立 PR 之前檢查您的審查。** 起飛前檢查現在讀取儀表板，並在審查缺失時詢問您是否要繼續。僅供參考 — 它不會阻擋您，但您會知道跳過了什麼。
+- **少一件需要複製貼上的事。** SLUG 計算（那個用於從 git remote 計算 `owner-repo` 的神秘 sed pipeline）現在是一個共享的 `bin/gstack-slug` 輔助工具。所有 14 個跨模板的內嵌副本替換為 `source <(gstack-slug)`。如果格式改變，只需修復一處。
+- **截圖現在在 QA 和瀏覽工作階段中可見。** 當 gstack 截圖時，它們現在以可點擊的圖片元素顯示在您的輸出中 — 不再有看不到的 `/tmp/browse-screenshot.png` 路徑。適用於 `/qa`、`/qa-only`、`/plan-design-review`、`/qa-design-review`、`/browse` 和 `/gstack`。
 
-### For contributors
+### 貢獻者須知
 
-- Added `{{REVIEW_DASHBOARD}}` resolver to `gen-skill-docs.ts` — shared dashboard reader injected into 4 templates (3 review skills + ship).
-- Added `bin/gstack-slug` helper (5-line bash) with unit tests. Outputs `SLUG=` and `BRANCH=` lines, sanitizes `/` to `-`.
-- New TODOs: smart review relevance detection (P3), `/merge` skill for review-gated PR merge (P2).
+- 在 `gen-skill-docs.ts` 中新增 `{{REVIEW_DASHBOARD}}` 解析器 — 共享儀表板讀取器注入 4 個模板（3 個審查技能 + ship）。
+- 新增 `bin/gstack-slug` 輔助工具（5 行 bash），附帶單元測試。輸出 `SLUG=` 和 `BRANCH=` 行，將 `/` 替換為 `-`。
+- 新 TODO：智慧審查相關性偵測（P3）、`/merge` 技能用於審查門控的 PR 合併（P2）。
 
 ## 0.5.0 — 2026-03-16
 
-- **Your site just got a design review.** `/plan-design-review` opens your site and reviews it like a senior product designer — typography, spacing, hierarchy, color, responsive, interactions, and AI slop detection. Get letter grades (A-F) per category, a dual headline "Design Score" + "AI Slop Score", and a structured first impression that doesn't pull punches.
-- **It can fix what it finds, too.** `/qa-design-review` runs the same designer's eye audit, then iteratively fixes design issues in your source code with atomic `style(design):` commits and before/after screenshots. CSS-safe by default, with a stricter self-regulation heuristic tuned for styling changes.
-- **Know your actual design system.** Both skills extract your live site's fonts, colors, heading scale, and spacing patterns via JS — then offer to save the inferred system as a `DESIGN.md` baseline. Finally know how many fonts you're actually using.
-- **AI Slop detection is a headline metric.** Every report opens with two scores: Design Score and AI Slop Score. The AI slop checklist catches the 10 most recognizable AI-generated patterns — the 3-column feature grid, purple gradients, decorative blobs, emoji bullets, generic hero copy.
-- **Design regression tracking.** Reports write a `design-baseline.json`. Next run auto-compares: per-category grade deltas, new findings, resolved findings. Watch your design score improve over time.
-- **80-item design audit checklist** across 10 categories: visual hierarchy, typography, color/contrast, spacing/layout, interaction states, responsive, motion, content/microcopy, AI slop, and performance-as-design. Distilled from Vercel's 100+ rules, Anthropic's frontend design skill, and 6 other design frameworks.
+- **您的網站剛剛獲得了設計審查。** `/plan-design-review` 打開您的網站，像資深產品設計師一樣審查它 — 排版、間距、層次結構、色彩、響應式、互動設計和 AI 陳腔濫調偵測。按類別獲得字母評級（A-F）、「Design Score」+「AI Slop Score」雙重標題，以及不拐彎抹角的結構化第一印象。
+- **它也能修復發現的問題。** `/qa-design-review` 執行相同的設計師視角審計，然後在您的原始碼中以原子式 `style(design):` 提交和前後截圖迭代修復設計問題。預設 CSS 安全，附帶針對樣式變更調整的更嚴格自我調節啟發式。
+- **了解您實際的設計系統。** 兩個技能都通過 JS 提取您即時網站的字型、顏色、標題比例和間距模式 — 然後提供將推斷的系統儲存為 `DESIGN.md` 基準的選項。終於知道您實際使用了多少字型。
+- **AI 陳腔濫調偵測是標題指標。** 每份報告都以兩個分數開頭：設計分數和 AI 陳腔濫調分數。AI 陳腔濫調清單攔截 10 個最容易辨識的 AI 生成模式 — 三欄功能網格、紫色漸層、裝飾性 blob、表情符號項目符號、泛泛的 hero 文案。
+- **設計迴歸追蹤。** 報告寫入 `design-baseline.json`。下次執行自動比較：各類別評級差異、新發現、已解決的發現。隨時間觀察您的設計分數提升。
+- **80 項設計審計清單**，涵蓋 10 個類別：視覺層次結構、排版、色彩/對比度、間距/佈局、互動狀態、響應式、動態效果、內容/文案、AI 陳腔濫調和效能即設計。提煉自 Vercel 的 100+ 條規則、Anthropic 的前端設計技能和其他 6 個設計框架。
 
-### For contributors
+### 貢獻者須知
 
-- Added `{{DESIGN_METHODOLOGY}}` resolver to `gen-skill-docs.ts` — shared design audit methodology injected into both `/plan-design-review` and `/qa-design-review` templates, following the `{{QA_METHODOLOGY}}` pattern.
-- Added `~/.gstack-dev/plans/` as a local plans directory for long-range vision docs (not checked in). CLAUDE.md and TODOS.md updated.
-- Added `/setup-design-md` to TODOS.md (P2) for interactive DESIGN.md creation from scratch.
+- 在 `gen-skill-docs.ts` 中新增 `{{DESIGN_METHODOLOGY}}` 解析器 — 共享設計審計方法論注入 `/plan-design-review` 和 `/qa-design-review` 兩個模板，遵循 `{{QA_METHODOLOGY}}` 模式。
+- 將 `~/.gstack-dev/plans/` 新增為長期願景文件的本地計劃目錄（不納入版本控制）。CLAUDE.md 和 TODOS.md 已更新。
+- 在 TODOS.md 中新增 `/setup-design-md`（P2），用於從頭開始互動式建立 DESIGN.md。
 
 ## 0.4.5 — 2026-03-16
 
-- **Review findings now actually get fixed, not just listed.** `/review` and `/ship` used to print informational findings (dead code, test gaps, N+1 queries) and then ignore them. Now every finding gets action: obvious mechanical fixes are applied automatically, and genuinely ambiguous issues are batched into a single question instead of 8 separate prompts. You see `[AUTO-FIXED] file:line Problem → what was done` for each auto-fix.
-- **You control the line between "just fix it" and "ask me first."** Dead code, stale comments, N+1 queries get auto-fixed. Security issues, race conditions, design decisions get surfaced for your call. The classification lives in one place (`review/checklist.md`) so both `/review` and `/ship` stay in sync.
+- **Review 發現現在真正被修復，而不只是被列出。** `/review` 和 `/ship` 以前會印出資訊性發現（死程式碼、測試缺口、N+1 查詢），然後忽略它們。現在每個發現都採取行動：明顯的機械性修復自動應用，真正模糊的問題批量成一個問題而非 8 個單獨的提示。您會為每個自動修復看到 `[AUTO-FIXED] file:line Problem → what was done`。
+- **您控制「直接修復」和「先問我」之間的界線。** 死程式碼、過時的注釋、N+1 查詢自動修復。安全問題、競態條件、設計決策則提交給您判斷。分類存在於一個地方（`review/checklist.md`），讓 `/review` 和 `/ship` 保持同步。
 
-### Fixed
+### 修復
 
-- **`$B js "const x = await fetch(...); return x.status"` now works.** The `js` command used to wrap everything as an expression — so `const`, semicolons, and multi-line code all broke. It now detects statements and uses a block wrapper, just like `eval` already did.
-- **Clicking a dropdown option no longer hangs forever.** If an agent sees `@e3 [option] "Admin"` in a snapshot and runs `click @e3`, gstack now auto-selects that option instead of hanging on an impossible Playwright click. The right thing just happens.
-- **When click is the wrong tool, gstack tells you.** Clicking an `<option>` via CSS selector used to time out with a cryptic Playwright error. Now you get: `"Use 'browse select' instead of 'click' for dropdown options."`
+- **`$B js "const x = await fetch(...); return x.status"` 現在可以運作。** `js` 命令以前將所有內容包裝為表達式 — 因此 `const`、分號和多行程式碼都會損壞。現在它偵測語句並使用區塊包裝器，就像 `eval` 已經在做的那樣。
+- **點擊下拉選項不再永久掛起。** 若代理在快照中看到 `@e3 [option] "Admin"` 並執行 `click @e3`，gstack 現在自動選擇該選項而非在不可能的 Playwright 點擊上掛起。正確的事情就這樣發生了。
+- **當點擊是錯誤的工具時，gstack 告訴您。** 通過 CSS 選擇器點擊 `<option>` 以前會以神秘的 Playwright 錯誤超時。現在您獲得：`"Use 'browse select' instead of 'click' for dropdown options."`
 
-### For contributors
+### 貢獻者須知
 
-- Gate Classification → Severity Classification rename (severity determines presentation order, not whether you see a prompt).
-- Fix-First Heuristic section added to `review/checklist.md` — the canonical AUTO-FIX vs ASK classification.
-- New validation test: `Fix-First Heuristic exists in checklist and is referenced by review + ship`.
-- Extracted `needsBlockWrapper()` and `wrapForEvaluate()` helpers in `read-commands.ts` — shared by both `js` and `eval` commands (DRY).
-- Added `getRefRole()` to `BrowserManager` — exposes ARIA role for ref selectors without changing `resolveRef` return type.
-- Click handler auto-routes `[role=option]` refs to `selectOption()` via parent `<select>`, with DOM `tagName` check to avoid blocking custom listbox components.
-- 6 new tests: multi-line js, semicolons, statement keywords, simple expressions, option auto-routing, CSS option error guidance.
+- Gate Classification → Severity Classification 重新命名（嚴重性決定呈現順序，而非是否顯示提示）。
+- 在 `review/checklist.md` 中新增 Fix-First Heuristic 章節 — 典範 AUTO-FIX vs ASK 分類。
+- 新驗證測試：`Fix-First Heuristic 存在於清單中並被 review + ship 參照`。
+- 在 `read-commands.ts` 中提取 `needsBlockWrapper()` 和 `wrapForEvaluate()` 輔助函式 — 由 `js` 和 `eval` 命令共享（DRY）。
+- 在 `BrowserManager` 中新增 `getRefRole()` — 為 ref 選擇器公開 ARIA 角色，而不改變 `resolveRef` 返回類型。
+- 點擊處理器通過父 `<select>` 自動將 `[role=option]` refs 路由至 `selectOption()`，附帶 DOM `tagName` 檢查以避免阻擋自訂 listbox 元件。
+- 6 個新測試：多行 js、分號、語句關鍵字、簡單表達式、選項自動路由、CSS 選項錯誤指導。
 
 ## 0.4.4 — 2026-03-16
 
-- **New releases detected in under an hour, not half a day.** The update check cache was set to 12 hours, which meant you could be stuck on an old version all day while new releases dropped. Now "you're up to date" expires after 60 minutes, so you'll see upgrades within the hour. "Upgrade available" still nags for 12 hours (that's the point).
-- **`/gstack-upgrade` always checks for real.** Running `/gstack-upgrade` directly now bypasses the cache and does a fresh check against GitHub. No more "you're already on the latest" when you're not.
+- **新版本在不到一小時內偵測到，而非半天。** 更新檢查快取設定為 12 小時，這意味著您整天都可能停留在舊版本而新版本已發布。現在「您是最新的」在 60 分鐘後過期，所以您會在一小時內看到升級。「升級可用」仍然持續 12 小時提示（這才是重點）。
+- **`/gstack-upgrade` 始終進行真實檢查。** 直接執行 `/gstack-upgrade` 現在繞過快取並對 GitHub 進行全新檢查。不再有「您已是最新版本」而實際上並不是的情況。
 
-### For contributors
+### 貢獻者須知
 
-- Split `last-update-check` cache TTL: 60 min for `UP_TO_DATE`, 720 min for `UPGRADE_AVAILABLE`.
-- Added `--force` flag to `bin/gstack-update-check` (deletes cache file before checking).
-- 3 new tests: `--force` busts UP_TO_DATE cache, `--force` busts UPGRADE_AVAILABLE cache, 60-min TTL boundary test with `utimesSync`.
+- 分割 `last-update-check` 快取 TTL：`UP_TO_DATE` 為 60 分鐘，`UPGRADE_AVAILABLE` 為 720 分鐘。
+- 為 `bin/gstack-update-check` 新增 `--force` 標記（在檢查前刪除快取檔案）。
+- 3 個新測試：`--force` 清除 UP_TO_DATE 快取、`--force` 清除 UPGRADE_AVAILABLE 快取、使用 `utimesSync` 的 60 分鐘 TTL 邊界測試。
 
 ## 0.4.3 — 2026-03-16
 
-- **New `/document-release` skill.** Run it after `/ship` but before merging — it reads every doc file in your project, cross-references the diff, and updates README, ARCHITECTURE, CONTRIBUTING, CHANGELOG, and TODOS to match what you actually shipped. Risky changes get surfaced as questions; everything else is automatic.
-- **Every question is now crystal clear, every time.** You used to need 3+ sessions running before gstack would give you full context and plain English explanations. Now every question — even in a single session — tells you the project, branch, and what's happening, explained simply enough to understand mid-context-switch. No more "sorry, explain it to me more simply."
-- **Branch name is always correct.** gstack now detects your current branch at runtime instead of relying on the snapshot from when the conversation started. Switch branches mid-session? gstack keeps up.
+- **新的 `/document-release` 技能。** 在 `/ship` 之後、合併之前執行它 — 它讀取您專案中的每個文件檔案，交叉參照 diff，並更新 README、ARCHITECTURE、CONTRIBUTING、CHANGELOG 和 TODOS 以符合您實際出貨的內容。有風險的變更以問題形式提交；其他一切都是自動的。
+- **每個問題現在都清晰明瞭，每次都是。** 您以前需要 3 次以上的工作階段才能讓 gstack 給您完整的上下文和簡單的英文解釋。現在每個問題 — 即使在單一工作階段中 — 都告訴您專案、分支和正在發生的事情，說明簡單到足以在上下文切換中理解。不再有「對不起，請更簡單地解釋給我聽」。
+- **分支名稱始終正確。** gstack 現在在執行時偵測您目前的分支，而非依賴對話開始時的快照。在工作階段中間切換分支？gstack 跟上。
 
-### For contributors
+### 貢獻者須知
 
-- Merged ELI16 rules into base AskUserQuestion format — one format instead of two, no `_SESSIONS >= 3` conditional.
-- Added `_BRANCH` detection to preamble bash block (`git branch --show-current` with fallback).
-- Added regression guard tests for branch detection and simplification rules.
+- 將 ELI16 規則合併到基礎 AskUserQuestion 格式 — 一種格式而非兩種，沒有 `_SESSIONS >= 3` 條件式。
+- 在前言 bash 區塊中新增 `_BRANCH` 偵測（帶有回退的 `git branch --show-current`）。
+- 新增分支偵測和簡化規則的迴歸防護測試。
 
 ## 0.4.2 — 2026-03-16
 
-- **`$B js "await fetch(...)"` now just works.** Any `await` expression in `$B js` or `$B eval` is automatically wrapped in an async context. No more `SyntaxError: await is only valid in async functions`. Single-line eval files return values directly; multi-line files use explicit `return`.
-- **Contributor mode now reflects, not just reacts.** Instead of only filing reports when something breaks, contributor mode now prompts periodic reflection: "Rate your gstack experience 0-10. Not a 10? Think about why." Catches quality-of-life issues and friction that passive detection misses. Reports now include a 0-10 rating and "What would make this a 10" to focus on actionable improvements.
-- **Skills now respect your branch target.** `/ship`, `/review`, `/qa`, and `/plan-ceo-review` detect which branch your PR actually targets instead of assuming `main`. Stacked branches, Conductor workspaces targeting feature branches, and repos using `master` all just work now.
-- **`/retro` works on any default branch.** Repos using `master`, `develop`, or other default branch names are detected automatically — no more empty retros because the branch name was wrong.
-- **New `{{BASE_BRANCH_DETECT}}` placeholder** for skill authors — drop it into any template and get 3-step branch detection (PR base → repo default → fallback) for free.
-- **3 new E2E smoke tests** validate base branch detection works end-to-end across ship, review, and retro skills.
+- **`$B js "await fetch(...)"` 現在可以直接運作。** `$B js` 或 `$B eval` 中的任何 `await` 表達式都會自動包裝在非同步上下文中。不再有 `SyntaxError: await is only valid in async functions`。單行 eval 檔案直接返回值；多行檔案使用明確的 `return`。
+- **貢獻者模式現在反思，而不只是反應。** 不只是在出問題時提交報告，貢獻者模式現在提示定期反思：「給您的 gstack 體驗評分 0-10。不是 10 分？想想為什麼。」攔截被動偵測遺漏的生活品質問題和摩擦。報告現在包含 0-10 評分和「什麼能讓這個成為 10 分」以聚焦於可行的改進。
+- **技能現在尊重您的分支目標。** `/ship`、`/review`、`/qa` 和 `/plan-ceo-review` 偵測您的 PR 實際目標的分支，而非假設是 `main`。堆疊分支、Conductor 工作區指向功能分支，以及使用 `master` 的儲存庫現在都可以正常運作。
+- **`/retro` 在任何預設分支上都能運作。** 使用 `master`、`develop` 或其他預設分支名稱的儲存庫被自動偵測 — 不再因分支名稱錯誤而有空白的回顧。
+- **新的 `{{BASE_BRANCH_DETECT}}` 佔位符**，供技能作者使用 — 將其放入任何模板，免費獲得 3 步驟分支偵測（PR base → repo default → fallback）。
+- **3 個新的 E2E 煙霧測試**，驗證 base branch 偵測在 ship、review 和 retro 技能中端到端正確運作。
 
-### For contributors
+### 貢獻者須知
 
-- Added `hasAwait()` helper with comment-stripping to avoid false positives on `// await` in eval files.
-- Smart eval wrapping: single-line → expression `(...)`, multi-line → block `{...}` with explicit `return`.
-- 6 new async wrapping unit tests, 40 new contributor mode preamble validation tests.
-- Calibration example framed as historical ("used to fail") to avoid implying a live bug post-fix.
-- Added "Writing SKILL templates" section to CLAUDE.md — rules for natural language over bash-isms, dynamic branch detection, self-contained code blocks.
-- Hardcoded-main regression test scans all `.tmpl` files for git commands with hardcoded `main`.
-- QA template cleaned up: removed `REPORT_DIR` shell variable, simplified port detection to prose.
-- gstack-upgrade template: explicit cross-step prose for variable references between bash blocks.
+- 新增帶有注釋去除的 `hasAwait()` 輔助函式，以避免 `// await` 中的誤判。
+- 智慧 eval 包裝：單行 → 表達式 `(...)`，多行 → 區塊 `{...}` 含明確 `return`。
+- 6 個新非同步包裝單元測試，40 個新貢獻者模式前言驗證測試。
+- 校準範例框架為歷史（「以前失敗」）以避免在修復後暗示存在即時錯誤。
+- 在 CLAUDE.md 中新增「撰寫 SKILL 模板」章節 — 自然語言優先於 bash-ism、動態分支偵測、自含式程式碼區塊的規則。
+- 硬編碼 main 迴歸測試掃描所有 `.tmpl` 檔案中帶有硬編碼 `main` 的 git 命令。
+- QA 模板清理：移除 `REPORT_DIR` shell 變數，將端口偵測簡化為文字說明。
+- gstack-upgrade 模板：bash 區塊之間變數引用的明確跨步驟文字說明。
 
 ## 0.4.1 — 2026-03-16
 
-- **gstack now notices when it screws up.** Turn on contributor mode (`gstack-config set gstack_contributor true`) and gstack automatically writes up what went wrong — what you were doing, what broke, repro steps. Next time something annoys you, the bug report is already written. Fork gstack and fix it yourself.
-- **Juggling multiple sessions? gstack keeps up.** When you have 3+ gstack windows open, every question now tells you which project, which branch, and what you were working on. No more staring at a question thinking "wait, which window is this?"
-- **Every question now comes with a recommendation.** Instead of dumping options on you and making you think, gstack tells you what it would pick and why. Same clear format across every skill.
-- **/review now catches forgotten enum handlers.** Add a new status, tier, or type constant? /review traces it through every switch statement, allowlist, and filter in your codebase — not just the files you changed. Catches the "added the value but forgot to handle it" class of bugs before they ship.
+- **gstack 現在注意到自己出錯。** 開啟貢獻者模式（`gstack-config set gstack_contributor true`），gstack 自動記錄發生了什麼問題 — 您在做什麼、什麼損壞了、重現步驟。下次有什麼讓您惱火的，錯誤報告已經寫好了。Fork gstack 自己修復它。
+- **同時處理多個工作階段？gstack 跟上。** 當您有 3 個以上的 gstack 視窗開啟時，每個問題現在都告訴您是哪個專案、哪個分支，以及您在做什麼。不再盯著問題想「等等，這是哪個視窗？」
+- **每個問題現在都帶有建議。** gstack 不再把選項傾倒在您身上讓您思考，而是告訴您它會選什麼以及為什麼。在所有技能中使用相同的清晰格式。
+- **/review 現在攔截遺忘的 enum 處理器。** 新增一個新的狀態、層級或類型常數？/review 通過您程式碼庫中的每個 switch 語句、白名單和過濾器追蹤它 — 不只是您變更的檔案。在出貨之前攔截「新增了值但忘記處理它」這類錯誤。
 
-### For contributors
+### 貢獻者須知
 
-- Renamed `{{UPDATE_CHECK}}` to `{{PREAMBLE}}` across all 11 skill templates — one startup block now handles update check, session tracking, contributor mode, and question formatting.
-- DRY'd plan-ceo-review and plan-eng-review question formatting to reference the preamble baseline instead of duplicating rules.
-- Added CHANGELOG style guide and vendored symlink awareness docs to CLAUDE.md.
+- 在所有 11 個技能模板中將 `{{UPDATE_CHECK}}` 重命名為 `{{PREAMBLE}}` — 現在一個啟動區塊處理更新檢查、工作階段追蹤、貢獻者模式和問題格式化。
+- 將 plan-ceo-review 和 plan-eng-review 問題格式化進行 DRY 處理，參照前言基準而非複製規則。
+- 在 CLAUDE.md 中新增 CHANGELOG 風格指南和供應商符號連結意識文件。
 
 ## 0.4.0 — 2026-03-16
 
-### Added
-- **QA-only skill** (`/qa-only`) — report-only QA mode that finds and documents bugs without making fixes. Hand off a clean bug report to your team without the agent touching your code.
-- **QA fix loop** — `/qa` now runs a find-fix-verify cycle: discover bugs, fix them, commit, re-navigate to confirm the fix took. One command to go from broken to shipped.
-- **Plan-to-QA artifact flow** — `/plan-eng-review` writes test-plan artifacts that `/qa` picks up automatically. Your engineering review now feeds directly into QA testing with no manual copy-paste.
-- **`{{QA_METHODOLOGY}}` DRY placeholder** — shared QA methodology block injected into both `/qa` and `/qa-only` templates. Keeps both skills in sync when you update testing standards.
-- **Eval efficiency metrics** — turns, duration, and cost now displayed across all eval surfaces with natural-language **Takeaway** commentary. See at a glance whether your prompt changes made the agent faster or slower.
-- **`generateCommentary()` engine** — interprets comparison deltas so you don't have to: flags regressions, notes improvements, and produces an overall efficiency summary.
-- **Eval list columns** — `bun run eval:list` now shows Turns and Duration per run. Spot expensive or slow runs instantly.
-- **Eval summary per-test efficiency** — `bun run eval:summary` shows average turns/duration/cost per test across runs. Identify which tests are costing you the most over time.
-- **`judgePassed()` unit tests** — extracted and tested the pass/fail judgment logic.
-- **3 new E2E tests** — qa-only no-fix guardrail, qa fix loop with commit verification, plan-eng-review test-plan artifact.
-- **Browser ref staleness detection** — `resolveRef()` now checks element count to detect stale refs after page mutations. SPA navigation no longer causes 30-second timeouts on missing elements.
-- 3 new snapshot tests for ref staleness.
+### 新增
+- **QA-only 技能**（`/qa-only`）— 僅報告 QA 模式，找到並記錄錯誤而不進行修復。將乾淨的錯誤報告交給您的團隊，代理不會碰您的程式碼。
+- **QA 修復循環** — `/qa` 現在執行發現-修復-驗證循環：發現錯誤、修復它們、提交、重新導航以確認修復已生效。一個命令從損壞到出貨。
+- **計劃到 QA 的構件流** — `/plan-eng-review` 寫入測試計劃構件，`/qa` 自動取用。您的工程審查現在直接供 QA 測試使用，無需手動複製貼上。
+- **`{{QA_METHODOLOGY}}` DRY 佔位符** — 共享 QA 方法論區塊注入 `/qa` 和 `/qa-only` 兩個模板。當您更新測試標準時，兩個技能保持同步。
+- **Eval 效率指標** — 迴合次數、持續時間和成本現在顯示在所有 eval 介面中，附帶自然語言**Takeaway**評論。一眼看出您的提示詞變更是否讓代理更快或更慢。
+- **`generateCommentary()` 引擎** — 解讀比較差異，讓您不必：標記退化、記錄改進，並產生整體效率摘要。
+- **Eval 清單欄位** — `bun run eval:list` 現在顯示每次執行的迴合次數和持續時間。立即發現昂貴或緩慢的執行。
+- **Eval 摘要每測試效率** — `bun run eval:summary` 顯示各執行中每個測試的平均迴合次數/持續時間/成本。識別哪些測試長期花費您最多。
+- **`judgePassed()` 單元測試** — 提取並測試通過/失敗判斷邏輯。
+- **3 個新 E2E 測試** — qa-only 無修復防護措施、qa 修復循環含提交驗證、plan-eng-review 測試計劃構件。
+- **瀏覽器 ref 過時偵測** — `resolveRef()` 現在檢查元素計數以偵測頁面突變後的過時 ref。SPA 導航不再在缺失元素上導致 30 秒逾時。
+- ref 過時的 3 個新快照測試。
 
-### Changed
-- QA skill prompt restructured with explicit two-cycle workflow (find → fix → verify).
-- `formatComparison()` now shows per-test turns and duration deltas alongside cost.
-- `printSummary()` shows turns and duration columns.
-- `eval-store.test.ts` fixed pre-existing `_partial` file assertion bug.
+### 變更
+- QA 技能提示詞重構，包含明確的兩階段工作流程（發現 → 修復 → 驗證）。
+- `formatComparison()` 現在顯示每個測試的迴合次數和持續時間差異以及成本。
+- `printSummary()` 顯示迴合次數和持續時間欄位。
+- `eval-store.test.ts` 修復了預先存在的 `_partial` 檔案斷言錯誤。
 
-### Fixed
-- Browser ref staleness — refs collected before page mutation (e.g. SPA navigation) are now detected and re-collected. Eliminates a class of flaky QA failures on dynamic sites.
+### 修復
+- 瀏覽器 ref 過時 — 在頁面突變（如 SPA 導航）之前收集的 ref 現在被偵測並重新收集。消除動態網站上一類不穩定的 QA 失敗。
 
 ## 0.3.9 — 2026-03-15
 
-### Added
-- **`bin/gstack-config` CLI** — simple get/set/list interface for `~/.gstack/config.yaml`. Used by update-check and upgrade skill for persistent settings (auto_upgrade, update_check).
-- **Smart update check** — 12h cache TTL (was 24h), exponential snooze backoff (24h → 48h → 1 week) when user declines upgrades, `update_check: false` config option to disable checks entirely. Snooze resets when a new version is released.
-- **Auto-upgrade mode** — set `auto_upgrade: true` in config or `GSTACK_AUTO_UPGRADE=1` env var to skip the upgrade prompt and update automatically.
-- **4-option upgrade prompt** — "Yes, upgrade now", "Always keep me up to date", "Not now" (snooze), "Never ask again" (disable).
-- **Vendored copy sync** — `/gstack-upgrade` now detects and updates local vendored copies in the current project after upgrading the primary install.
-- 25 new tests: 11 for gstack-config CLI, 14 for snooze/config paths in update-check.
+### 新增
+- **`bin/gstack-config` CLI** — 用於 `~/.gstack/config.yaml` 的簡單 get/set/list 介面。被更新檢查和升級技能用於持久設定（auto_upgrade、update_check）。
+- **智慧更新檢查** — 12 小時快取 TTL（原為 24 小時），當用戶拒絕升級時指數級暫停退避（24 小時 → 48 小時 → 1 週），`update_check: false` 設定選項可完全停用檢查。發布新版本時暫停重置。
+- **自動升級模式** — 在設定中設定 `auto_upgrade: true` 或設定 `GSTACK_AUTO_UPGRADE=1` 環境變數，以跳過升級提示並自動更新。
+- **4 選項升級提示** — 「是，立即升級」、「始終保持最新」、「現在不要」（暫停）、「不再詢問」（停用）。
+- **供應商副本同步** — `/gstack-upgrade` 現在在升級主要安裝後偵測並更新當前專案中的本地供應商副本。
+- 25 個新測試：11 個用於 gstack-config CLI，14 個用於更新檢查中的暫停/設定路徑。
 
-### Changed
-- README upgrade/troubleshooting sections simplified to reference `/gstack-upgrade` instead of long paste commands.
-- Upgrade skill template bumped to v1.1.0 with `Write` tool permission for config editing.
-- All SKILL.md preambles updated with new upgrade flow description.
+### 變更
+- README 升級/疑難排解章節簡化，改為參照 `/gstack-upgrade` 而非長段貼上命令。
+- 升級技能模板升級至 v1.1.0，附帶 `Write` 工具權限用於設定編輯。
+- 所有 SKILL.md 前言以新的升級流程描述更新。
 
 ## 0.3.8 — 2026-03-14
 
-### Added
-- **TODOS.md as single source of truth** — merged `TODO.md` (roadmap) and `TODOS.md` (near-term) into one file organized by skill/component with P0-P4 priority ordering and a Completed section.
-- **`/ship` Step 5.5: TODOS.md management** — auto-detects completed items from the diff, marks them done with version annotations, offers to create/reorganize TODOS.md if missing or unstructured.
-- **Cross-skill TODOS awareness** — `/plan-ceo-review`, `/plan-eng-review`, `/retro`, `/review`, and `/qa` now read TODOS.md for project context. `/retro` adds Backlog Health metric (open counts, P0/P1 items, churn).
-- **Shared `review/TODOS-format.md`** — canonical TODO item format referenced by `/ship` and `/plan-ceo-review` to prevent format drift (DRY).
-- **Greptile 2-tier reply system** — Tier 1 (friendly, inline diff + explanation) for first responses; Tier 2 (firm, full evidence chain + re-rank request) when Greptile re-flags after a prior reply.
-- **Greptile reply templates** — structured templates in `greptile-triage.md` for fixes (inline diff), already-fixed (what was done), and false positives (evidence + suggested re-rank). Replaces vague one-line replies.
-- **Greptile escalation detection** — explicit algorithm to detect prior GStack replies on comment threads and auto-escalate to Tier 2.
-- **Greptile severity re-ranking** — replies now include `**Suggested re-rank:**` when Greptile miscategorizes issue severity.
-- Static validation tests for `TODOS-format.md` references across skills.
+### 新增
+- **TODOS.md 作為單一真實來源** — 將 `TODO.md`（路線圖）和 `TODOS.md`（近期）合併為一個按技能/元件組織的檔案，附帶 P0-P4 優先級排序和已完成章節。
+- **`/ship` 步驟 5.5：TODOS.md 管理** — 從 diff 自動偵測已完成的項目，用版本標注標記為完成，若 TODOS.md 缺失或未結構化則提供建立/重組。
+- **跨技能 TODOS 意識** — `/plan-ceo-review`、`/plan-eng-review`、`/retro`、`/review` 和 `/qa` 現在讀取 TODOS.md 作為專案上下文。`/retro` 新增 Backlog Health 指標（開放計數、P0/P1 項目、流失率）。
+- **共享 `review/TODOS-format.md`** — 被 `/ship` 和 `/plan-ceo-review` 參照的典範 TODO 項目格式，防止格式漂移（DRY）。
+- **Greptile 2 層回覆系統** — 第 1 層（友好、內嵌 diff + 解釋）用於首次回覆；第 2 層（堅定、完整證據鏈 + 重新排序請求）當 Greptile 在之前回覆後重新標記時。
+- **Greptile 回覆模板** — `greptile-triage.md` 中用於修復（內嵌 diff）、已修復（所做的事情）和誤報（證據 + 建議重新排序）的結構化模板。取代模糊的單行回覆。
+- **Greptile 升級偵測** — 明確算法偵測評論串上的先前 GStack 回覆並自動升級至第 2 層。
+- **Greptile 嚴重性重新排序** — 回覆現在在 Greptile 錯誤分類問題嚴重性時包含 `**Suggested re-rank:**`。
+- 跨技能的 `TODOS-format.md` 參照靜態驗證測試。
 
-### Fixed
-- **`.gitignore` append failures silently swallowed** — `ensureStateDir()` bare `catch {}` replaced with ENOENT-only silence; non-ENOENT errors (EACCES, ENOSPC) logged to `.gstack/browse-server.log`.
+### 修復
+- **`.gitignore` 附加失敗被靜默吞噬** — `ensureStateDir()` 的裸 `catch {}` 替換為僅 ENOENT 靜默；非 ENOENT 錯誤（EACCES、ENOSPC）記錄至 `.gstack/browse-server.log`。
 
-### Changed
-- `TODO.md` deleted — all items merged into `TODOS.md`.
-- `/ship` Step 3.75 and `/review` Step 5 now reference reply templates and escalation detection from `greptile-triage.md`.
-- `/ship` Step 6 commit ordering includes TODOS.md in the final commit alongside VERSION + CHANGELOG.
-- `/ship` Step 8 PR body includes TODOS section.
+### 變更
+- `TODO.md` 刪除 — 所有項目合併至 `TODOS.md`。
+- `/ship` 步驟 3.75 和 `/review` 步驟 5 現在參照 `greptile-triage.md` 中的回覆模板和升級偵測。
+- `/ship` 步驟 6 提交順序在最終提交中包含 TODOS.md，與 VERSION + CHANGELOG 並列。
+- `/ship` 步驟 8 PR 說明包含 TODOS 章節。
 
 ## 0.3.7 — 2026-03-14
 
-### Added
-- **Screenshot element/region clipping** — `screenshot` command now supports element crop via CSS selector or @ref (`screenshot "#hero" out.png`, `screenshot @e3 out.png`), region clip (`screenshot --clip x,y,w,h out.png`), and viewport-only mode (`screenshot --viewport out.png`). Uses Playwright's native `locator.screenshot()` and `page.screenshot({ clip })`. Full page remains the default.
-- 10 new tests covering all screenshot modes (viewport, CSS, @ref, clip) and error paths (unknown flag, mutual exclusion, invalid coords, path validation, nonexistent selector).
+### 新增
+- **截圖元素/區域裁剪** — `screenshot` 命令現在支援通過 CSS 選擇器或 @ref 進行元素裁剪（`screenshot "#hero" out.png`、`screenshot @e3 out.png`）、區域裁剪（`screenshot --clip x,y,w,h out.png`）和僅視口模式（`screenshot --viewport out.png`）。使用 Playwright 原生的 `locator.screenshot()` 和 `page.screenshot({ clip })`。全頁面仍為預設值。
+- 10 個新測試，涵蓋所有截圖模式（視口、CSS、@ref、裁剪）和錯誤路徑（未知標記、互斥、無效座標、路徑驗證、不存在的選擇器）。
 
 ## 0.3.6 — 2026-03-14
 
-### Added
-- **E2E observability** — heartbeat file (`~/.gstack-dev/e2e-live.json`), per-run log directory (`~/.gstack-dev/e2e-runs/{runId}/`), progress.log, per-test NDJSON transcripts, persistent failure transcripts. All I/O non-fatal.
-- **`bun run eval:watch`** — live terminal dashboard reads heartbeat + partial eval file every 1s. Shows completed tests, current test with turn/tool info, stale detection (>10min), `--tail` for progress.log.
-- **Incremental eval saves** — `savePartial()` writes `_partial-e2e.json` after each test completes. Crash-resilient: partial results survive killed runs. Never cleaned up.
-- **Machine-readable diagnostics** — `exit_reason`, `timeout_at_turn`, `last_tool_call` fields in eval JSON. Enables `jq` queries for automated fix loops.
-- **API connectivity pre-check** — E2E suite throws immediately on ConnectionRefused before burning test budget.
-- **`is_error` detection** — `claude -p` can return `subtype: "success"` with `is_error: true` on API failures. Now correctly classified as `error_api`.
-- **Stream-json NDJSON parser** — `parseNDJSON()` pure function for real-time E2E progress from `claude -p --output-format stream-json --verbose`.
-- **Eval persistence** — results saved to `~/.gstack-dev/evals/` with auto-comparison against previous run.
-- **Eval CLI tools** — `eval:list`, `eval:compare`, `eval:summary` for inspecting eval history.
-- **All 9 skills converted to `.tmpl` templates** — plan-ceo-review, plan-eng-review, retro, review, ship now use `{{UPDATE_CHECK}}` placeholder. Single source of truth for update check preamble.
-- **3-tier eval suite** — Tier 1: static validation (free), Tier 2: E2E via `claude -p` (~$3.85/run), Tier 3: LLM-as-judge (~$0.15/run). Gated by `EVALS=1`.
-- **Planted-bug outcome testing** — eval fixtures with known bugs, LLM judge scores detection.
-- 15 observability unit tests covering heartbeat schema, progress.log format, NDJSON naming, savePartial, finalize, watcher rendering, stale detection, non-fatal I/O.
-- E2E tests for plan-ceo-review, plan-eng-review, retro skills.
-- Update-check exit code regression tests.
-- `test/helpers/skill-parser.ts` — `getRemoteSlug()` for git remote detection.
+### 新增
+- **E2E 可觀測性** — 心跳檔案（`~/.gstack-dev/e2e-live.json`）、每次執行的日誌目錄（`~/.gstack-dev/e2e-runs/{runId}/`）、progress.log、每測試 NDJSON 記錄、持久性失敗記錄。所有 I/O 非致命性。
+- **`bun run eval:watch`** — 即時終端儀表板每 1 秒讀取心跳 + 部分 eval 檔案。顯示已完成的測試、帶有迴合/工具資訊的當前測試、過時偵測（>10 分鐘）、progress.log 的 `--tail`。
+- **增量 eval 儲存** — `savePartial()` 在每個測試完成後寫入 `_partial-e2e.json`。抵抗崩潰：部分結果在執行被殺死後仍存在。永不清理。
+- **機器可讀診斷** — eval JSON 中的 `exit_reason`、`timeout_at_turn`、`last_tool_call` 欄位。啟用 `jq` 查詢用於自動化修復循環。
+- **API 連通性預檢** — E2E 套件在燒掉測試預算之前立即在 ConnectionRefused 時拋出。
+- **`is_error` 偵測** — `claude -p` 在 API 失敗時可能回傳 `subtype: "success"` 帶 `is_error: true`。現在正確分類為 `error_api`。
+- **Stream-json NDJSON 解析器** — 用於 `claude -p --output-format stream-json --verbose` 即時 E2E 進度的 `parseNDJSON()` 純函式。
+- **Eval 持久性** — 結果儲存至 `~/.gstack-dev/evals/`，與上次執行自動比較。
+- **Eval CLI 工具** — `eval:list`、`eval:compare`、`eval:summary` 用於檢查 eval 歷史。
+- **所有 9 個技能轉換為 `.tmpl` 模板** — plan-ceo-review、plan-eng-review、retro、review、ship 現在使用 `{{UPDATE_CHECK}}` 佔位符。更新檢查前言的單一真實來源。
+- **3 層 eval 套件** — 第 1 層：靜態驗證（免費），第 2 層：通過 `claude -p` 的 E2E（約 $3.85/次），第 3 層：LLM 評判（約 $0.15/次）。由 `EVALS=1` 控制。
+- **植入錯誤的結果測試** — 包含已知錯誤的 eval 固件，LLM 評判分數偵測。
+- 15 個可觀測性單元測試，涵蓋心跳結構、progress.log 格式、NDJSON 命名、savePartial、finalize、watcher 渲染、過時偵測、非致命性 I/O。
+- plan-ceo-review、plan-eng-review、retro 技能的 E2E 測試。
+- 更新檢查退出碼迴歸測試。
+- `test/helpers/skill-parser.ts` — 用於 git remote 偵測的 `getRemoteSlug()`。
 
-### Fixed
-- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md setup blocks.
-- **Update check exit code 1 misleading agents** — added `|| true` to prevent non-zero exit when no update available.
-- **browse/SKILL.md missing setup block** — added `{{BROWSE_SETUP}}` placeholder.
-- **plan-ceo-review timeout** — init git repo in test dir, skip codebase exploration, bump timeout to 420s.
-- Planted-bug eval reliability — simplified prompts, lowered detection baselines, resilient to max_turns flakes.
+### 修復
+- **代理的瀏覽器二進位發現損壞** — 以明確的 `browse/dist/browse` 路徑取代 SKILL.md 設定區塊中的 `find-browse` 間接層。
+- **更新檢查退出碼 1 誤導代理** — 新增 `|| true` 以防止在無更新可用時退出代碼非零。
+- **browse/SKILL.md 缺少設定區塊** — 新增 `{{BROWSE_SETUP}}` 佔位符。
+- **plan-ceo-review 逾時** — 在測試目錄中初始化 git 儲存庫、跳過程式碼庫探索、將逾時增加至 420 秒。
+- 植入錯誤的 eval 可靠性 — 簡化提示詞、降低偵測基準、對 max_turns 閃爍有韌性。
 
-### Changed
-- **Template system expanded** — `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders in `gen-skill-docs.ts`. All browse-using skills generate from single source of truth.
-- Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types.
-- Setup block checks workspace-local path first (for development), falls back to global install.
-- LLM eval judge upgraded from Haiku to Sonnet 4.6.
-- `generateHelpText()` auto-generated from COMMAND_DESCRIPTIONS (replaces hand-maintained help text).
+### 變更
+- **模板系統擴展** — `gen-skill-docs.ts` 中的 `{{UPDATE_CHECK}}` 和 `{{BROWSE_SETUP}}` 佔位符。所有使用瀏覽器的技能從單一真實來源生成。
+- 以特定的參數格式、有效值、錯誤行為和返回類型豐富了 14 個命令描述。
+- 設定區塊先檢查工作區本地路徑（用於開發），回退至全域安裝。
+- LLM eval 評判從 Haiku 升級至 Sonnet 4.6。
+- `generateHelpText()` 從 COMMAND_DESCRIPTIONS 自動生成（取代手動維護的說明文字）。
 
 ## 0.3.3 — 2026-03-13
 
-### Added
-- **SKILL.md template system** — `.tmpl` files with `{{COMMAND_REFERENCE}}` and `{{SNAPSHOT_FLAGS}}` placeholders, auto-generated from source code at build time. Structurally prevents command drift between docs and code.
-- **Command registry** (`browse/src/commands.ts`) — single source of truth for all browse commands with categories and enriched descriptions. Zero side effects, safe to import from build scripts and tests.
-- **Snapshot flags metadata** (`SNAPSHOT_FLAGS` array in `browse/src/snapshot.ts`) — metadata-driven parser replaces hand-coded switch/case. Adding a flag in one place updates the parser, docs, and tests.
-- **Tier 1 static validation** — 43 tests: parses `$B` commands from SKILL.md code blocks, validates against command registry and snapshot flag metadata
-- **Tier 2 E2E tests** via Agent SDK — spawns real Claude sessions, runs skills, scans for browse errors. Gated by `SKILL_E2E=1` env var (~$0.50/run)
-- **Tier 3 LLM-as-judge evals** — Haiku scores generated docs on clarity/completeness/actionability (threshold ≥4/5), plus regression test vs hand-maintained baseline. Gated by `ANTHROPIC_API_KEY`
-- **`bun run skill:check`** — health dashboard showing all skills, command counts, validation status, template freshness
-- **`bun run dev:skill`** — watch mode that regenerates and validates SKILL.md on every template or source file change
-- **CI workflow** (`.github/workflows/skill-docs.yml`) — runs `gen:skill-docs` on push/PR, fails if generated output differs from committed files
-- `bun run gen:skill-docs` script for manual regeneration
-- `bun run test:eval` for LLM-as-judge evals
-- `test/helpers/skill-parser.ts` — extracts and validates `$B` commands from Markdown
-- `test/helpers/session-runner.ts` — Agent SDK wrapper with error pattern scanning and transcript saving
-- **ARCHITECTURE.md** — design decisions document covering daemon model, security, ref system, logging, crash recovery
-- **Conductor integration** (`conductor.json`) — lifecycle hooks for workspace setup/teardown
-- **`.env` propagation** — `bin/dev-setup` copies `.env` from main worktree into Conductor workspaces automatically
-- `.env.example` template for API key configuration
+### 新增
+- **SKILL.md 模板系統** — 帶有 `{{COMMAND_REFERENCE}}` 和 `{{SNAPSHOT_FLAGS}}` 佔位符的 `.tmpl` 檔案，在建置時從原始碼自動生成。結構性防止文件和程式碼之間的命令漂移。
+- **命令登錄檔**（`browse/src/commands.ts`）— 所有 browse 命令的單一真實來源，附帶類別和豐富描述。無副作用，可從建置腳本和測試安全導入。
+- **快照標記元數據**（`browse/src/snapshot.ts` 中的 `SNAPSHOT_FLAGS` 陣列）— 元數據驅動的解析器取代手工編碼的 switch/case。在一處新增標記更新解析器、文件和測試。
+- **第 1 層靜態驗證** — 43 個測試：從 SKILL.md 程式碼區塊解析 `$B` 命令，對命令登錄檔和快照標記元數據進行驗證
+- **第 2 層 E2E 測試**，通過 Agent SDK — 生成真實的 Claude 工作階段、執行技能、掃描 browse 錯誤。由 `SKILL_E2E=1` 環境變數控制（約 $0.50/次）
+- **第 3 層 LLM 評判 eval** — Haiku 在清晰度/完整性/可行性上為生成的文件評分（閾值 ≥4/5），加上對手動維護基準的迴歸測試。由 `ANTHROPIC_API_KEY` 控制
+- **`bun run skill:check`** — 顯示所有技能、命令計數、驗證狀態、模板新鮮度的健康儀表板
+- **`bun run dev:skill`** — 監視模式，在每次模板或原始碼檔案變更時重新生成並驗證 SKILL.md
+- **CI 工作流程**（`.github/workflows/skill-docs.yml`）— 在 push/PR 時執行 `gen:skill-docs`，若生成輸出與已提交檔案不同則失敗
+- `bun run gen:skill-docs` 腳本用於手動重新生成
+- `bun run test:eval` 用於 LLM 評判 eval
+- `test/helpers/skill-parser.ts` — 從 Markdown 提取並驗證 `$B` 命令
+- `test/helpers/session-runner.ts` — 帶有錯誤模式掃描和記錄儲存的 Agent SDK 包裝器
+- **ARCHITECTURE.md** — 設計決策文件，涵蓋 daemon 模型、安全性、ref 系統、日誌、崩潰恢復
+- **Conductor 整合**（`conductor.json`）— 工作區設定/拆除的生命週期 Hook
+- **`.env` 傳播** — `bin/dev-setup` 自動從主工作樹複製 `.env` 到 Conductor 工作區
+- 用於 API 金鑰設定的 `.env.example` 模板
 
-### Changed
-- Build now runs `gen:skill-docs` before compiling binaries
-- `parseSnapshotArgs` is metadata-driven (iterates `SNAPSHOT_FLAGS` instead of switch/case)
-- `server.ts` imports command sets from `commands.ts` instead of declaring inline
-- SKILL.md and browse/SKILL.md are now generated files (edit the `.tmpl` instead)
+### 變更
+- 建置現在在編譯二進位之前執行 `gen:skill-docs`
+- `parseSnapshotArgs` 由元數據驅動（迭代 `SNAPSHOT_FLAGS` 而非 switch/case）
+- `server.ts` 從 `commands.ts` 導入命令集，而非內聯聲明
+- SKILL.md 和 browse/SKILL.md 現在是生成的檔案（請編輯 `.tmpl` 而非直接編輯）
 
 ## 0.3.2 — 2026-03-13
 
-### Fixed
-- Cookie import picker now returns JSON instead of HTML — `jsonResponse()` referenced `url` out of scope, crashing every API call
-- `help` command routed correctly (was unreachable due to META_COMMANDS dispatch ordering)
-- Stale servers from global install no longer shadow local changes — removed legacy `~/.claude/skills/gstack` fallback from `resolveServerScript()`
-- Crash log path references updated from `/tmp/` to `.gstack/`
+### 修復
+- Cookie 導入選擇器現在返回 JSON 而非 HTML — `jsonResponse()` 引用了超出範圍的 `url`，導致每個 API 呼叫崩潰
+- `help` 命令正確路由（由於 META_COMMANDS 分派排序而無法到達）
+- 來自全域安裝的過時伺服器不再遮蔽本地變更 — 從 `resolveServerScript()` 中移除了舊的 `~/.claude/skills/gstack` 回退
+- 崩潰日誌路徑參照從 `/tmp/` 更新至 `.gstack/`
 
-### Added
-- **Diff-aware QA mode** — `/qa` on a feature branch auto-analyzes `git diff`, identifies affected pages/routes, detects the running app on localhost, and tests only what changed. No URL needed.
-- **Project-local browse state** — state file, logs, and all server state now live in `.gstack/` inside the project root (detected via `git rev-parse --show-toplevel`). No more `/tmp` state files.
-- **Shared config module** (`browse/src/config.ts`) — centralizes path resolution for CLI and server, eliminates duplicated port/state logic
-- **Random port selection** — server picks a random port 10000-60000 instead of scanning 9400-9409. No more CONDUCTOR_PORT magic offset. No more port collisions across workspaces.
-- **Binary version tracking** — state file includes `binaryVersion` SHA; CLI auto-restarts the server when the binary is rebuilt
-- **Legacy /tmp cleanup** — CLI scans for and removes old `/tmp/browse-server*.json` files, verifying PID ownership before sending signals
-- **Greptile integration** — `/review` and `/ship` fetch and triage Greptile bot comments; `/retro` tracks Greptile batting average across weeks
-- **Local dev mode** — `bin/dev-setup` symlinks skills from the repo for in-place development; `bin/dev-teardown` restores global install
-- `help` command — agents can self-discover all commands and snapshot flags
-- Version-aware `find-browse` with META signal protocol — detects stale binaries and prompts agents to update
-- `browse/dist/find-browse` compiled binary with git SHA comparison against origin/main (4hr cached)
-- `.version` file written at build time for binary version tracking
-- Route-level tests for cookie picker (13 tests) and find-browse version check (10 tests)
-- Config resolution tests (14 tests) covering git root detection, BROWSE_STATE_FILE override, ensureStateDir, readVersionHash, resolveServerScript, and version mismatch detection
-- Browser interaction guidance in CLAUDE.md — prevents Claude from using mcp\_\_claude-in-chrome\_\_\* tools
-- CONTRIBUTING.md with quick start, dev mode explanation, and instructions for testing branches in other repos
+### 新增
+- **差異感知 QA 模式** — 功能分支上的 `/qa` 自動分析 `git diff`、識別受影響的頁面/路由、偵測 localhost 上的執行中應用程式，並只測試變更的內容。不需要 URL。
+- **專案本地 browse 狀態** — 狀態檔案、日誌和所有伺服器狀態現在存在於專案根目錄的 `.gstack/` 中（通過 `git rev-parse --show-toplevel` 偵測）。不再有 `/tmp` 狀態檔案。
+- **共享設定模組**（`browse/src/config.ts`）— 集中 CLI 和伺服器的路徑解析，消除重複的端口/狀態邏輯
+- **隨機端口選擇** — 伺服器選取 10000-60000 的隨機端口，而非掃描 9400-9409。不再有 CONDUCTOR_PORT 魔術偏移量。不再有跨工作區的端口衝突。
+- **二進位版本追蹤** — 狀態檔案包含 `binaryVersion` SHA；CLI 在二進位重建時自動重啟伺服器
+- **舊版 /tmp 清理** — CLI 掃描並移除舊的 `/tmp/browse-server*.json` 檔案，在發送信號前驗證 PID 所有權
+- **Greptile 整合** — `/review` 和 `/ship` 獲取並分類 Greptile bot 評論；`/retro` 跨週追蹤 Greptile 打擊率
+- **本地開發模式** — `bin/dev-setup` 從儲存庫符號連結技能用於就地開發；`bin/dev-teardown` 還原全域安裝
+- `help` 命令 — 代理可自我探索所有命令和快照標記
+- 帶有 META 信號協議的版本感知 `find-browse` — 偵測過時的二進位並提示代理更新
+- `browse/dist/find-browse` 編譯二進位，帶有 git SHA 與 origin/main 的比較（4 小時快取）
+- 建置時寫入的 `.version` 檔案，用於二進位版本追蹤
+- cookie 選擇器（13 個測試）和 find-browse 版本檢查（10 個測試）的路由層級測試
+- 設定解析測試（14 個測試），涵蓋 git root 偵測、BROWSE_STATE_FILE 覆蓋、ensureStateDir、readVersionHash、resolveServerScript 和版本不符偵測
+- CLAUDE.md 中的瀏覽器互動指南 — 防止 Claude 使用 mcp\_\_claude-in-chrome\_\_\* 工具
+- CONTRIBUTING.md，附帶快速開始、開發模式說明以及在其他儲存庫中測試分支的指令
 
-### Changed
-- State file location: `.gstack/browse.json` (was `/tmp/browse-server.json`)
-- Log files location: `.gstack/browse-{console,network,dialog}.log` (was `/tmp/browse-*.log`)
-- Atomic state file writes: `.json.tmp` → rename (prevents partial reads)
-- CLI passes `BROWSE_STATE_FILE` to spawned server (server derives all paths from it)
-- SKILL.md setup checks parse META signals and handle `META:UPDATE_AVAILABLE`
-- `/qa` SKILL.md now describes four modes (diff-aware, full, quick, regression) with diff-aware as the default on feature branches
-- `jsonResponse`/`errorResponse` use options objects to prevent positional parameter confusion
-- Build script compiles both `browse` and `find-browse` binaries, cleans up `.bun-build` temp files
-- README updated with Greptile setup instructions, diff-aware QA examples, and revised demo transcript
+### 變更
+- 狀態檔案位置：`.gstack/browse.json`（原為 `/tmp/browse-server.json`）
+- 日誌檔案位置：`.gstack/browse-{console,network,dialog}.log`（原為 `/tmp/browse-*.log`）
+- 原子性狀態檔案寫入：`.json.tmp` → 重命名（防止部分讀取）
+- CLI 將 `BROWSE_STATE_FILE` 傳遞給生成的伺服器（伺服器從中衍生所有路徑）
+- SKILL.md 設定檢查解析 META 信號並處理 `META:UPDATE_AVAILABLE`
+- `/qa` SKILL.md 現在描述四種模式（差異感知、完整、快速、迴歸），以差異感知作為功能分支的預設值
+- `jsonResponse`/`errorResponse` 使用選項物件以防止位置參數混淆
+- 建置腳本編譯 `browse` 和 `find-browse` 兩個二進位，清理 `.bun-build` 臨時檔案
+- README 以 Greptile 設定說明、差異感知 QA 範例和修訂的演示記錄更新
 
-### Removed
-- `CONDUCTOR_PORT` magic offset (`browse_port = CONDUCTOR_PORT - 45600`)
-- Port scan range 9400-9409
-- Legacy fallback to `~/.claude/skills/gstack/browse/src/server.ts`
-- `DEVELOPING_GSTACK.md` (renamed to CONTRIBUTING.md)
+### 移除
+- `CONDUCTOR_PORT` 魔術偏移量（`browse_port = CONDUCTOR_PORT - 45600`）
+- 端口掃描範圍 9400-9409
+- 舊版回退至 `~/.claude/skills/gstack/browse/src/server.ts`
+- `DEVELOPING_GSTACK.md`（重命名為 CONTRIBUTING.md）
 
 ## 0.3.1 — 2026-03-12
 
-### Phase 3.5: Browser cookie import
+### 第 3.5 階段：瀏覽器 Cookie 導入
 
-- `cookie-import-browser` command — decrypt and import cookies from real Chromium browsers (Comet, Chrome, Arc, Brave, Edge)
-- Interactive cookie picker web UI served from the browse server (dark theme, two-panel layout, domain search, import/remove)
-- Direct CLI import with `--domain` flag for non-interactive use
-- `/setup-browser-cookies` skill for Claude Code integration
-- macOS Keychain access with async 10s timeout (no event loop blocking)
-- Per-browser AES key caching (one Keychain prompt per browser per session)
-- DB lock fallback: copies locked cookie DB to /tmp for safe reads
-- 18 unit tests with encrypted cookie fixtures
+- `cookie-import-browser` 命令 — 解密並從真實 Chromium 瀏覽器（Comet、Chrome、Arc、Brave、Edge）導入 Cookie
+- 從 browse 伺服器提供的互動式 Cookie 選擇器 Web UI（深色主題、兩欄佈局、域名搜尋、導入/移除）
+- 使用 `--domain` 標記的直接 CLI 導入，用於非互動式使用
+- Claude Code 整合的 `/setup-browser-cookies` 技能
+- macOS 鑰匙圈存取，附帶 10 秒非同步逾時（無事件循環阻塞）
+- 每個瀏覽器的 AES 金鑰快取（每個工作階段每個瀏覽器一次鑰匙圈提示）
+- 資料庫鎖定回退：複製已鎖定的 Cookie 資料庫至 /tmp 以安全讀取
+- 18 個帶有加密 Cookie 固件的單元測試
 
 ## 0.3.0 — 2026-03-12
 
-### Phase 3: /qa skill — systematic QA testing
+### 第 3 階段：/qa 技能 — 系統性 QA 測試
 
-- New `/qa` skill with 6-phase workflow (Initialize, Authenticate, Orient, Explore, Document, Wrap up)
-- Three modes: full (systematic, 5-10 issues), quick (30-second smoke test), regression (compare against baseline)
-- Issue taxonomy: 7 categories, 4 severity levels, per-page exploration checklist
-- Structured report template with health score (0-100, weighted across 7 categories)
-- Framework detection guidance for Next.js, Rails, WordPress, and SPAs
-- `browse/bin/find-browse` — DRY binary discovery using `git rev-parse --show-toplevel`
+- 新的 `/qa` 技能，帶有 6 階段工作流程（初始化、認證、定向、探索、記錄、收尾）
+- 三種模式：完整（系統性，5-10 個問題）、快速（30 秒煙霧測試）、迴歸（與基準比較）
+- 問題分類：7 個類別、4 個嚴重性級別、每頁探索清單
+- 帶有健康分數的結構化報告模板（0-100，跨 7 個類別加權）
+- Next.js、Rails、WordPress 和 SPA 的框架偵測指南
+- `browse/bin/find-browse` — 使用 `git rev-parse --show-toplevel` 的 DRY 二進位探索
 
-### Phase 2: Enhanced browser
+### 第 2 階段：增強型瀏覽器
 
-- Dialog handling: auto-accept/dismiss, dialog buffer, prompt text support
-- File upload: `upload <sel> <file1> [file2...]`
-- Element state checks: `is visible|hidden|enabled|disabled|checked|editable|focused <sel>`
-- Annotated screenshots with ref labels overlaid (`snapshot -a`)
-- Snapshot diffing against previous snapshot (`snapshot -D`)
-- Cursor-interactive element scan for non-ARIA clickables (`snapshot -C`)
-- `wait --networkidle` / `--load` / `--domcontentloaded` flags
-- `console --errors` filter (error + warning only)
-- `cookie-import <json-file>` with auto-fill domain from page URL
-- CircularBuffer O(1) ring buffer for console/network/dialog buffers
-- Async buffer flush with Bun.write()
-- Health check with page.evaluate + 2s timeout
-- Playwright error wrapping — actionable messages for AI agents
-- Context recreation preserves cookies/storage/URLs (useragent fix)
-- SKILL.md rewritten as QA-oriented playbook with 10 workflow patterns
-- 166 integration tests (was ~63)
+- 對話框處理：自動接受/關閉、對話框緩衝區、提示文字支援
+- 檔案上傳：`upload <sel> <file1> [file2...]`
+- 元素狀態檢查：`is visible|hidden|enabled|disabled|checked|editable|focused <sel>`
+- 帶有 ref 標籤覆蓋的標注截圖（`snapshot -a`）
+- 與前一個快照的快照差異比較（`snapshot -D`）
+- 游標互動元素掃描，用於非 ARIA 可點擊元素（`snapshot -C`）
+- `wait --networkidle` / `--load` / `--domcontentloaded` 標記
+- `console --errors` 過濾器（僅錯誤 + 警告）
+- `cookie-import <json-file>`，帶有從頁面 URL 自動填入域名
+- CircularBuffer O(1) 環形緩衝區，用於控制台/網路/對話框緩衝區
+- 使用 Bun.write() 的非同步緩衝區刷新
+- 帶有 page.evaluate + 2 秒逾時的健康檢查
+- Playwright 錯誤包裝 — 為 AI 代理提供可行的訊息
+- 上下文重建保留 Cookie/儲存/URL（使用者代理修復）
+- SKILL.md 改寫為以 QA 為導向的操作手冊，包含 10 個工作流程模式
+- 166 個整合測試（原為約 63 個）
 
 ## 0.0.2 — 2026-03-12
 
-- Fix project-local `/browse` installs — compiled binary now resolves `server.ts` from its own directory instead of assuming a global install exists
-- `setup` rebuilds stale binaries (not just missing ones) and exits non-zero if the build fails
-- Fix `chain` command swallowing real errors from write commands (e.g. navigation timeout reported as "Unknown meta command")
-- Fix unbounded restart loop in CLI when server crashes repeatedly on the same command
-- Cap console/network buffers at 50k entries (ring buffer) instead of growing without bound
-- Fix disk flush stopping silently after buffer hits the 50k cap
-- Fix `ln -snf` in setup to avoid creating nested symlinks on upgrade
-- Use `git fetch && git reset --hard` instead of `git pull` for upgrades (handles force-pushes)
-- Simplify install: global-first with optional project copy (replaces submodule approach)
-- Restructured README: hero, before/after, demo transcript, troubleshooting section
-- Six skills (added `/retro`)
+- 修復專案本地 `/browse` 安裝 — 編譯後的二進位現在從其自身目錄解析 `server.ts`，而非假設存在全域安裝
+- `setup` 重建過時的二進位（不只是缺失的）並在建置失敗時以非零退出
+- 修復 `chain` 命令吞噬寫入命令的真實錯誤（例如：導航逾時被報告為「Unknown meta command」）
+- 修復 CLI 在同一命令上伺服器反覆崩潰時的無界重啟循環
+- 將控制台/網路緩衝區上限設為 50k 條目（環形緩衝區），而非無限增長
+- 修復在緩衝區達到 50k 上限後磁碟刷新靜默停止的問題
+- 修復設定中的 `ln -snf` 以避免在升級時建立巢狀符號連結
+- 使用 `git fetch && git reset --hard` 而非 `git pull` 進行升級（處理 force-push）
+- 簡化安裝：全域優先，附帶可選的專案副本（取代 submodule 方法）
+- 重構 README：hero、前後對比、演示記錄、疑難排解章節
+- 六個技能（新增 `/retro`）
 
 ## 0.0.1 — 2026-03-11
 
-Initial release.
+初始版本。
 
-- Five skills: `/plan-ceo-review`, `/plan-eng-review`, `/review`, `/ship`, `/browse`
-- Headless browser CLI with 40+ commands, ref-based interaction, persistent Chromium daemon
-- One-command install as Claude Code skills (submodule or global clone)
-- `setup` script for binary compilation and skill symlinking
+- 五個技能：`/plan-ceo-review`、`/plan-eng-review`、`/review`、`/ship`、`/browse`
+- 無頭瀏覽器 CLI，帶有 40+ 命令、基於 ref 的互動、持久性 Chromium daemon
+- 以 Claude Code 技能形式一鍵安裝（submodule 或全域 clone）
+- 用於二進位編譯和技能符號連結的 `setup` 腳本

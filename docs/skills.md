@@ -1,204 +1,204 @@
-# Skill Deep Dives
+# 技能深入說明
 
-Detailed guides for every gstack skill — philosophy, workflow, and examples.
+每個 gstack 技能的詳細指南——設計理念、工作流程與使用範例。
 
-| Skill | Your specialist | What they do |
+| 技能 | 你的專家 | 他們的職責 |
 |-------|----------------|--------------|
-| [`/office-hours`](#office-hours) | **YC Office Hours** | Start here. Six forcing questions that reframe your product before you write code. Pushes back on your framing, challenges premises, generates implementation alternatives. Design doc feeds into every downstream skill. |
-| [`/plan-ceo-review`](#plan-ceo-review) | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
-| [`/plan-eng-review`](#plan-eng-review) | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
-| [`/plan-design-review`](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
-| [`/design-consultation`](#design-consultation) | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic product mockups. Design at the heart of all other phases. |
-| [`/review`](#review) | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
-| [`/investigate`](#investigate) | **Debugger** | Systematic root-cause debugging. Iron Law: no fixes without investigation. Traces data flow, tests hypotheses, stops after 3 failed fixes. |
-| [`/design-review`](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
-| [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
-| [`/qa-only`](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
-| [`/ship`](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
-| [`/document-release`](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
-| [`/retro`](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
-| [`/browse`](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
-| [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
+| [`/office-hours`](#office-hours) | **YC Office Hours** | 從這裡開始。六個逼出真相的問題，在你寫程式碼之前重新框架你的產品。挑戰你的前提假設，質疑思維框架，產生實作替代方案。設計文件直接串接每個下游技能。 |
+| [`/plan-ceo-review`](#plan-ceo-review) | **CEO / 創辦人** | 重新思考問題。找出藏在需求背後的十星級產品。四種模式：擴展、選擇性擴展、維持範疇、縮減。 |
+| [`/plan-eng-review`](#plan-eng-review) | **工程經理** | 確立架構、資料流、流程圖、邊緣情況與測試。把隱藏的假設逼到檯面上。 |
+| [`/plan-design-review`](#plan-design-review) | **資深設計師** | 互動式計畫模式設計審查。對每個維度評分 0-10，說明 10 分長什麼樣，然後修正計畫。在計畫模式下運作。 |
+| [`/design-consultation`](#design-consultation) | **設計夥伴** | 從零開始建立完整的設計系統。了解全貌，提出有創意的冒險，生成逼真的產品原型。讓設計成為所有其他階段的核心。 |
+| [`/review`](#review) | **Staff 工程師** | 找出通過 CI 卻在生產環境爆炸的 bug。自動修復顯而易見的問題。標記完整性缺口。 |
+| [`/investigate`](#investigate) | **除錯專家** | 系統化的根本原因除錯。鐵律：沒有調查就不修復。追蹤資料流，測試假設，三次修復失敗後停手。 |
+| [`/design-review`](#design-review) | **會寫程式的設計師** | 線上網站視覺審計與修復迴圈。80 項審計，然後修復發現的問題。原子提交，附前後對比截圖。 |
+| [`/qa`](#qa) | **QA 負責人** | 測試你的應用程式，找出 bug，用原子提交修復，再驗證。為每個修復自動生成回歸測試。 |
+| [`/qa-only`](#qa) | **QA 報告員** | 方法論與 /qa 相同，但僅輸出報告。當你只想要純粹的 bug 報告而不希望變更程式碼時使用。 |
+| [`/ship`](#ship) | **發佈工程師** | 同步 main、執行測試、審計覆蓋率、推送、開啟 PR。如果你沒有測試框架，它會幫你建立。一個指令搞定。 |
+| [`/document-release`](#document-release) | **技術作家** | 更新所有專案文件，使其符合你剛剛發佈的內容。自動捕捉過時的 README。 |
+| [`/retro`](#retro) | **工程經理** | 具備團隊意識的每週回顧。逐人分析、出貨連勝紀錄、測試健康趨勢、成長機會。 |
+| [`/browse`](#browse) | **QA 工程師** | 給 AI 代理裝上眼睛。真實的 Chromium 瀏覽器、真實的點擊、真實的截圖。每個指令約 100ms。 |
+| [`/setup-browser-cookies`](#setup-browser-cookies) | **Session 管理員** | 從你的真實瀏覽器（Chrome、Arc、Brave、Edge）匯入 cookies 到無頭 session。測試需要登入的頁面。 |
 | | | |
-| **Multi-AI** | | |
-| [`/codex`](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
+| **多 AI** | | |
+| [`/codex`](#codex) | **第二意見** | 來自 OpenAI Codex CLI 的獨立審查。三種模式：程式碼審查（通過/失敗關卡）、對抗性挑戰，以及具有 session 連續性的開放諮詢。當 `/review` 與 `/codex` 都執行過後，進行跨模型分析。 |
 | | | |
-| **Safety & Utility** | | |
-| [`/careful`](#safety--guardrails) | **Safety Guardrails** | Warns before destructive commands (rm -rf, DROP TABLE, force-push, git reset --hard). Override any warning. Common build cleanups whitelisted. |
-| [`/freeze`](#safety--guardrails) | **Edit Lock** | Restrict all file edits to a single directory. Blocks Edit and Write outside the boundary. Accident prevention for debugging. |
-| [`/guard`](#safety--guardrails) | **Full Safety** | Combines /careful + /freeze in one command. Maximum safety for prod work. |
-| [`/unfreeze`](#safety--guardrails) | **Unlock** | Remove the /freeze boundary, allowing edits everywhere again. |
-| [`/gstack-upgrade`](#gstack-upgrade) | **Self-Updater** | Upgrade gstack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
+| **安全性與實用工具** | | |
+| [`/careful`](#safety--guardrails) | **安全護欄** | 在執行破壞性指令前發出警告（rm -rf、DROP TABLE、force-push、git reset --hard）。可覆蓋任何警告。常見的建置清理操作已列入白名單。 |
+| [`/freeze`](#safety--guardrails) | **編輯鎖定** | 將所有檔案編輯限制在單一目錄內。阻止在邊界外執行 Edit 和 Write。用於除錯時防止意外修改。 |
+| [`/guard`](#safety--guardrails) | **完整安全模式** | 一個指令結合 /careful + /freeze。用於生產環境作業的最高安全等級。 |
+| [`/unfreeze`](#safety--guardrails) | **解除鎖定** | 移除 /freeze 邊界，再次允許在任何地方進行編輯。 |
+| [`/gstack-upgrade`](#gstack-upgrade) | **自我更新器** | 將 gstack 升級至最新版本。偵測全域安裝與 vendored 安裝，同步兩者，顯示變更內容。 |
 
 ---
 
 ## `/office-hours`
 
-This is where every project should start.
+這是每個專案應該開始的地方。
 
-Before you plan, before you review, before you write code — sit down with a YC-style partner and think about what you're actually building. Not what you think you're building. What you're *actually* building.
+在你規劃、審查或寫程式碼之前——先坐下來，與 YC 風格的夥伴一起思考你究竟在打造什麼。不是你以為自己在打造的東西。而是你*實際上*在打造的東西。
 
-### The reframe
+### 重新框架
 
-Here's what happened on a real project. The user said: "I want to build a daily briefing app for my calendar." Reasonable request. Then it asked about the pain — specific examples, not hypotheticals. They described an assistant missing things, calendar items across multiple Google accounts with stale info, prep docs that were AI slop, events with wrong locations that took forever to track down.
+以下是一個真實專案的案例。使用者說：「我想建立一個每日行事曆簡報應用程式。」這是個合理的需求。然後它詢問了痛點——具體的例子，而非假設情境。使用者描述了助理遺漏事項的問題、多個 Google 帳號中的行事曆資訊過時、AI 產出的準備文件品質低落、活動地點錯誤導致花了很長時間確認的情況。
 
-It came back with: *"I'm going to push back on the framing, because I think you've outgrown it. You said 'daily briefing app for multi-Google-Calendar management.' But what you actually described is a personal chief of staff AI."*
+它的回應是：*「我要對這個框架提出質疑，因為我認為你已經超越它了。你說的是『多 Google 行事曆管理的每日簡報應用程式』。但你實際描述的是一個個人首席幕僚 AI。」*
 
-Then it extracted five capabilities the user didn't realize they were describing:
+然後它提取了使用者未曾意識到自己在描述的五項能力：
 
-1. **Watches your calendar** across all accounts and detects stale info, missing locations, permission gaps
-2. **Generates real prep work** — not logistics summaries, but *the intellectual work* of preparing for a board meeting, a podcast, a fundraiser
-3. **Manages your CRM** — who are you meeting, what's the relationship, what do they want, what's the history
-4. **Prioritizes your time** — flags when prep needs to start early, blocks time proactively, ranks events by importance
-5. **Trades money for leverage** — actively looks for ways to delegate or automate
+1. **監看你的行事曆**——跨所有帳號，偵測過時資訊、遺漏地點、權限缺口
+2. **產生真正的準備工作**——不是後勤摘要，而是*智識上的工作*——為董事會會議、播客、募資活動做準備
+3. **管理你的 CRM**——你在見誰、關係如何、他們想要什麼、過去的歷史
+4. **優先排序你的時間**——標記何時需要提前準備、主動封鎖時間、按重要性排列活動
+5. **用金錢換取槓桿**——主動尋找委外或自動化的方式
 
-That reframe changed the entire project. They were about to build a calendar app. Now they're building something ten times more valuable — because the skill listened to their pain instead of their feature request.
+這個重新框架改變了整個專案。他們原本要建立一個行事曆應用程式。現在他們在建立一個價值高出十倍的東西——因為這個技能傾聽的是他們的痛點，而非他們的功能需求。
 
-### Premise challenge
+### 前提挑戰
 
-After the reframe, it presents premises for you to validate. Not "does this sound good?" — actual falsifiable claims about the product:
+重新框架之後，它會呈現前提讓你驗證。不是「這聽起來好嗎？」——而是關於產品的可驗證主張：
 
-1. The calendar is the anchor data source, but the value is in the intelligence layer on top
-2. The assistant doesn't get replaced — they get superpowered
-3. The narrowest wedge is a daily briefing that actually works
-4. CRM integration is a must-have, not a nice-to-have
+1. 行事曆是錨定資料來源，但價值在於其上的智慧層
+2. 助理不會被取代——他們會被賦予超能力
+3. 最窄的切入點是一個真正有效的每日簡報
+4. CRM 整合是必備功能，而非錦上添花
 
-You agree, disagree, or adjust. Every premise you accept becomes load-bearing in the design doc.
+你同意、不同意或調整。你接受的每個前提都會成為設計文件的支柱。
 
-### Implementation alternatives
+### 實作替代方案
 
-Then it generates 2-3 concrete implementation approaches with honest effort estimates:
+然後它會生成 2-3 個具體的實作方案，附上誠實的工時估計：
 
-- **Approach A: Daily Briefing First** — narrowest wedge, ships tomorrow, M effort (human: ~3 weeks / CC: ~2 days)
-- **Approach B: CRM-First** — build the relationship graph first, L effort (human: ~6 weeks / CC: ~4 days)
-- **Approach C: Full Vision** — everything at once, XL effort (human: ~3 months / CC: ~1.5 weeks)
+- **方案 A：每日簡報優先**——最窄切入點，明天就能出貨，M 規模（人工團隊：約 3 週 / CC：約 2 天）
+- **方案 B：CRM 優先**——先建立關係圖譜，L 規模（人工團隊：約 6 週 / CC：約 4 天）
+- **方案 C：完整願景**——一次到位，XL 規模（人工團隊：約 3 個月 / CC：約 1.5 週）
 
-Recommends A because you learn from real usage. CRM data comes naturally in week two.
+推薦方案 A，因為你可以從真實使用中學習。CRM 資料在第二週自然呈現。
 
-### Two modes
+### 兩種模式
 
-**Startup mode** — for founders and intrapreneurs building a business. You get six forcing questions distilled from how YC partners evaluate products: demand reality, status quo, desperate specificity, narrowest wedge, observation & surprise, and future-fit. These questions are uncomfortable on purpose. If you can't name a specific human who needs your product, that's the most important thing to learn before writing any code.
+**新創模式**——適合創辦人和內部創業者，正在打造一門生意。你會得到六個逼出真相的問題，這些問題是從 YC 夥伴評估產品的方式中提煉出來的：需求現實、現狀、迫切的具體性、最窄切入點、觀察與意外、以及未來適配性。這些問題刻意讓你感到不舒服。如果你說不出哪個具體的人需要你的產品，那就是你在寫任何程式碼之前最重要的事情。
 
-**Builder mode** — for hackathons, side projects, open source, learning, and having fun. You get an enthusiastic collaborator who helps you find the coolest version of your idea. What would make someone say "whoa"? What's the fastest path to something you can share? The questions are generative, not interrogative.
+**打造者模式**——適合黑客松、側專案、開源、學習和享受樂趣。你會得到一個熱情的協作夥伴，幫你找出想法中最酷的版本。什麼樣的東西會讓人說「哇」？最快能分享出去的路徑是什麼？這些問題是生成式的，而非審問式的。
 
-### The design doc
+### 設計文件
 
-Both modes end with a design doc written to `~/.gstack/projects/` — and that doc feeds directly into `/plan-ceo-review` and `/plan-eng-review`. The full lifecycle is now: `office-hours → plan → implement → review → QA → ship → retro`.
+兩種模式都以寫入 `~/.gstack/projects/` 的設計文件作結——而那份文件會直接串接到 `/plan-ceo-review` 和 `/plan-eng-review`。完整的生命週期現在是：`office-hours → plan → implement → review → QA → ship → retro`。
 
-After the design doc is approved, `/office-hours` reflects on what it noticed about how you think — not generic praise, but specific callbacks to things you said during the session. The observations appear in the design doc too, so you re-encounter them when you re-read later.
+設計文件獲得批准後，`/office-hours` 會反思它注意到的關於你思維方式的觀察——不是空泛的讚美，而是針對你在 session 中說過的話的具體回饋。這些觀察也會出現在設計文件中，讓你日後重新閱讀時再次遇見它們。
 
 ---
 
 ## `/plan-ceo-review`
 
-This is my **founder mode**.
+這是我的**創辦人模式**。
 
-This is where I want the model to think with taste, ambition, user empathy, and a long time horizon. I do not want it taking the request literally. I want it asking a more important question first:
+這是我希望模型以品味、雄心、使用者同理心和長遠視野來思考的地方。我不希望它照字面接受需求。我希望它先問一個更重要的問題：
 
-**What is this product actually for?**
+**這個產品究竟是為了什麼？**
 
-I think of this as **Brian Chesky mode**.
+我把這稱為 **Brian Chesky 模式**。
 
-The point is not to implement the obvious ticket. The point is to rethink the problem from the user's point of view and find the version that feels inevitable, delightful, and maybe even a little magical.
+重點不在於實作顯而易見的任務。重點在於從使用者的角度重新思考問題，找到那個感覺是必然的、令人愉悅的、甚至有點神奇的版本。
 
-### Example
+### 範例
 
-Say I am building a Craigslist-style listing app and I say:
+假設我在建立一個類似 Craigslist 的分類廣告應用程式，我說：
 
-> "Let sellers upload a photo for their item."
+> 「讓賣家上傳商品照片。」
 
-A weak assistant will add a file picker and save an image.
+一個弱的助理會新增一個檔案選擇器並儲存圖片。
 
-That is not the real product.
+這不是真正的產品。
 
-In `/plan-ceo-review`, I want the model to ask whether "photo upload" is even the feature. Maybe the real feature is helping someone create a listing that actually sells.
+在 `/plan-ceo-review` 中，我希望模型質疑「照片上傳」是否真的是這個功能。也許真正的功能是幫助某人建立一個真正能賣出去的商品清單。
 
-If that is the real job, the whole plan changes.
+如果那才是真正的工作，整個計畫就會改變。
 
-Now the model should ask:
+現在模型應該問：
 
-* Can we identify the product from the photo?
-* Can we infer the SKU or model number?
-* Can we search the web and draft the title and description automatically?
-* Can we pull specs, category, and pricing comps?
-* Can we suggest which photo will convert best as the hero image?
-* Can we detect when the uploaded photo is ugly, dark, cluttered, or low-trust?
-* Can we make the experience feel premium instead of like a dead form from 2007?
+* 我們能從照片中辨識商品嗎？
+* 我們能推斷 SKU 或型號嗎？
+* 我們能搜尋網路並自動起草標題和描述嗎？
+* 我們能抓取規格、分類和競品定價嗎？
+* 我們能建議哪張照片最適合作為主圖嗎？
+* 我們能偵測上傳的照片是否醜陋、昏暗、雜亂或缺乏信任感嗎？
+* 我們能讓這個體驗感覺高端，而不是像 2007 年死氣沉沉的表單嗎？
 
-That is what `/plan-ceo-review` does for me.
+這就是 `/plan-ceo-review` 為我做的事。
 
-It does not just ask, "how do I add this feature?"
-It asks, **"what is the 10-star product hiding inside this request?"**
+它不只是問「我如何新增這個功能？」
+它問的是，**「這個需求背後藏著什麼樣的十星級產品？」**
 
-### Four modes
+### 四種模式
 
-- **SCOPE EXPANSION** — dream big. The agent proposes the ambitious version. Every expansion is presented as an individual decision you opt into. Recommends enthusiastically.
-- **SELECTIVE EXPANSION** — hold your current scope as the baseline, but see what else is possible. The agent surfaces opportunities one by one with neutral recommendations — you cherry-pick the ones worth doing.
-- **HOLD SCOPE** — maximum rigor on the existing plan. No expansions surfaced.
-- **SCOPE REDUCTION** — find the minimum viable version. Cut everything else.
+- **範疇擴展**——大膽夢想。AI 代理提出野心勃勃的版本。每個擴展都作為個別決策呈現，讓你選擇是否加入。充滿熱情地推薦。
+- **選擇性擴展**——以你目前的範疇作為基準，但看看還有什麼可能。AI 代理逐一呈現機會，並給出中立建議——你自己挑選值得做的。
+- **維持範疇**——對現有計畫進行最嚴格的審查。不呈現任何擴展。
+- **範疇縮減**——找到最小可行版本。砍掉其他一切。
 
-Visions and decisions are persisted to `~/.gstack/projects/` so they survive beyond the conversation. Exceptional visions can be promoted to `docs/designs/` in your repo for the team.
+願景和決策會持久保存到 `~/.gstack/projects/`，超越對話存活。傑出的願景可以升格到你的 repo 中的 `docs/designs/`，供團隊共用。
 
 ---
 
 ## `/plan-eng-review`
 
-This is my **eng manager mode**.
+這是我的**工程經理模式**。
 
-Once the product direction is right, I want a different kind of intelligence entirely. I do not want more sprawling ideation. I do not want more "wouldn't it be cool if." I want the model to become my best technical lead.
+一旦產品方向正確，我需要一種完全不同的智慧。我不需要更多天馬行空的創意發散。我不需要更多「如果……那就太酷了」。我希望模型成為我最好的技術負責人。
 
-This mode should nail:
+這個模式應該精準處理：
 
-* architecture
-* system boundaries
-* data flow
-* state transitions
-* failure modes
-* edge cases
-* trust boundaries
-* test coverage
+* 架構
+* 系統邊界
+* 資料流
+* 狀態轉換
+* 失敗模式
+* 邊緣情況
+* 信任邊界
+* 測試覆蓋率
 
-And one surprisingly big unlock for me: **diagrams**.
+還有一個對我來說意想不到的重大突破：**流程圖**。
 
-LLMs get way more complete when you force them to draw the system. Sequence diagrams, state diagrams, component diagrams, data-flow diagrams, even test matrices. Diagrams force hidden assumptions into the open. They make hand-wavy planning much harder.
+強迫 LLM 畫出系統時，它們的完整性會大幅提升。時序圖、狀態圖、元件圖、資料流圖，甚至測試矩陣。流程圖把隱藏的假設逼到檯面上。它們讓含糊的規劃更難發生。
 
-So `/plan-eng-review` is where I want the model to build the technical spine that can carry the product vision.
+所以 `/plan-eng-review` 是我希望模型建立技術支柱的地方，能夠承載產品願景。
 
-### Example
+### 範例
 
-Take the same listing app example.
+以同一個分類廣告應用程式為例。
 
-Let's say `/plan-ceo-review` already did its job. We decided the real feature is not just photo upload. It is a smart listing flow that:
+假設 `/plan-ceo-review` 已經完成了它的工作。我們決定真正的功能不只是照片上傳。而是一個智慧商品清單流程，它能：
 
-* uploads photos
-* identifies the product
-* enriches the listing from the web
-* drafts a strong title and description
-* suggests the best hero image
+* 上傳照片
+* 辨識商品
+* 從網路豐富化商品清單
+* 起草強而有力的標題和描述
+* 建議最佳主圖
 
-Now `/plan-eng-review` takes over.
+現在 `/plan-eng-review` 接手。
 
-Now I want the model to answer questions like:
+現在我希望模型回答以下問題：
 
-* What is the architecture for upload, classification, enrichment, and draft generation?
-* Which steps happen synchronously, and which go to background jobs?
-* Where are the boundaries between app server, object storage, vision model, search/enrichment APIs, and the listing database?
-* What happens if upload succeeds but enrichment fails?
-* What happens if product identification is low-confidence?
-* How do retries work?
-* How do we prevent duplicate jobs?
-* What gets persisted when, and what can be safely recomputed?
+* 上傳、分類、豐富化和起草生成的架構是什麼？
+* 哪些步驟同步執行，哪些進入背景工作？
+* 應用伺服器、物件儲存、視覺模型、搜尋/豐富化 API 和商品清單資料庫之間的邊界在哪裡？
+* 如果上傳成功但豐富化失敗，會發生什麼？
+* 如果商品辨識信心度很低，會發生什麼？
+* 重試機制如何運作？
+* 我們如何防止重複工作？
+* 什麼時候持久化什麼，哪些可以安全地重新計算？
 
-And this is where I want diagrams — architecture diagrams, state models, data-flow diagrams, test matrices. Diagrams force hidden assumptions into the open. They make hand-wavy planning much harder.
+這就是我需要流程圖的地方——架構圖、狀態模型、資料流圖、測試矩陣。流程圖把隱藏的假設逼到檯面上。它們讓含糊的規劃更難發生。
 
-That is `/plan-eng-review`.
+這就是 `/plan-eng-review`。
 
-Not "make the idea smaller."
-**Make the idea buildable.**
+不是「讓想法變小」。
+而是**「讓想法變得可以建造」**。
 
-### Review Readiness Dashboard
+### 審查就緒儀表板
 
-Every review (CEO, Eng, Design) logs its result. At the end of each review, you see a dashboard:
+每次審查（CEO、Eng、Design）都會記錄其結果。在每次審查結束時，你會看到一個儀表板：
 
 ```
 +====================================================================+
@@ -214,27 +214,27 @@ Every review (CEO, Eng, Design) logs its result. At the end of each review, you 
 +====================================================================+
 ```
 
-Eng Review is the only required gate (disable with `gstack-config set skip_eng_review true`). CEO and Design are informational — recommended for product and UI changes respectively.
+Eng Review 是唯一的必要關卡（使用 `gstack-config set skip_eng_review true` 停用）。CEO 和 Design 是資訊性的——分別建議用於產品和 UI 變更。
 
-### Plan-to-QA flow
+### 計畫到 QA 的流程
 
-When `/plan-eng-review` finishes the test review section, it writes a test plan artifact to `~/.gstack/projects/`. When you later run `/qa`, it picks up that test plan automatically — your engineering review feeds directly into QA testing with no manual copy-paste.
+當 `/plan-eng-review` 完成測試審查部分後，它會將測試計畫工件寫入 `~/.gstack/projects/`。之後當你執行 `/qa` 時，它會自動取用那個測試計畫——你的工程審查直接串接到 QA 測試，無需手動複製貼上。
 
 ---
 
 ## `/plan-design-review`
 
-This is my **senior designer reviewing your plan** — before you write a single line of code.
+這是我的**資深設計師在你寫任何一行程式碼之前審查你的計畫**的模式。
 
-Most plans describe what the backend does but never specify what the user actually sees. Empty states? Error states? Loading states? Mobile layout? AI slop risk? These decisions get deferred to "figure it out during implementation" — and then an engineer ships "No items found." as the empty state because nobody specified anything better.
+大多數計畫描述了後端要做什麼，卻從未具體說明使用者實際上看到什麼。空白狀態？錯誤狀態？載入狀態？行動版面？AI 濫用風險？這些決策都被推遲到「實作時再想辦法」——然後工程師把「No items found.」當作空白狀態出貨，因為沒有人指定更好的版本。
 
-`/plan-design-review` catches all of this during planning, when it's cheap to fix.
+`/plan-design-review` 在規劃階段就捕捉這一切，這時修正的成本是最低的。
 
-It works like `/plan-ceo-review` and `/plan-eng-review` — interactive, one issue at a time, with the **STOP + AskUserQuestion** pattern. It rates each design dimension 0-10, explains what a 10 looks like, then edits the plan to get there. The rating drives the work: rate low = lots of fixes, rate high = quick pass.
+它的運作方式與 `/plan-ceo-review` 和 `/plan-eng-review` 相同——互動式、一次處理一個問題，採用 **STOP + AskUserQuestion** 模式。它對每個設計維度評分 0-10，說明 10 分長什麼樣，然後編輯計畫使其達標。評分驅動工作量：分數低 = 大量修復，分數高 = 快速通過。
 
-Seven passes over the plan: information architecture, interaction state coverage, user journey, AI slop risk, design system alignment, responsive/accessibility, and unresolved design decisions. For each pass, it finds gaps and either fixes them directly (obvious ones) or asks you to make a design choice (genuine tradeoffs).
+對計畫進行七個輪次的審查：資訊架構、互動狀態覆蓋率、使用者旅程、AI 濫用風險、設計系統一致性、響應式/無障礙性，以及未解決的設計決策。對於每個輪次，它會找出缺口，然後直接修復（明顯的問題）或請你做出設計選擇（真正的取捨）。
 
-### Example
+### 範例
 
 ```
 You:   /plan-design-review
@@ -267,29 +267,29 @@ Claude: Initial Design Rating: 4/10
          implementation for visual QA."
 ```
 
-When you re-run it, sections already at 8+ get a quick pass. Sections below 8 get full treatment. For live-site visual audits post-implementation, use `/design-review`.
+重新執行時，已達 8 分以上的部分會快速通過。低於 8 分的部分會得到完整處理。針對實作後的線上網站視覺審計，請使用 `/design-review`。
 
 ---
 
 ## `/design-consultation`
 
-This is my **design partner mode**.
+這是我的**設計夥伴模式**。
 
-`/plan-design-review` audits a site that already exists. `/design-consultation` is for when you have nothing yet — no design system, no font choices, no color palette. You are starting from zero and you want a senior designer to sit down with you and build the whole visual identity together.
+`/plan-design-review` 審計已經存在的網站。`/design-consultation` 適用於你完全沒有任何東西的時候——沒有設計系統、沒有字型選擇、沒有色彩調色盤。你從零開始，你希望一位資深設計師坐下來與你一起建立整個視覺識別。
 
-It is a conversation, not a form. The agent asks about your product, your users, and your audience. It thinks about what your product needs to communicate — trust, speed, craft, warmth, whatever fits — and works backward from that to concrete choices. Then it proposes a complete, coherent design system: aesthetic direction, typography (3+ fonts with specific roles), color palette with hex values, spacing scale, layout approach, and motion strategy. Every recommendation comes with a rationale. Every choice reinforces every other choice.
+這是一段對話，而非一張表單。AI 代理詢問你的產品、使用者和受眾。它思考你的產品需要傳達什麼——信任、速度、工藝、溫暖，或任何合適的東西——並從中推導出具體的選擇。然後它提出一個完整、連貫的設計系統：美學方向、字型排版（3 種以上字型，各自有明確角色）、附 hex 值的色彩調色盤、間距比例、版面配置方式以及動態策略。每個建議都附有理由。每個選擇都強化其他選擇。
 
-But coherence is table stakes. Every dev tool dashboard looks the same — clean sans-serif, muted grays, a blue accent. They are all coherent. They are all forgettable. The difference between a product that looks "nice" and one that people actually recognize is the **deliberate creative risks**: the unexpected serif for headings, the bold accent nobody else in your category uses, the tighter spacing that makes your data feel authoritative instead of airy.
+但連貫性只是基本要求。每個開發工具儀表板看起來都一樣——乾淨的無襯線字型、柔和的灰色、藍色強調色。它們都是連貫的。它們都令人忘懷。讓產品看起來「不錯」和讓人真正記住的差異在於**刻意的創意冒險**：出人意料的標題襯線字型、你所在類別中沒有人使用的大膽強調色、讓你的資料感覺更有權威而非空曠飄渺的緊湊間距。
 
-That is what `/design-consultation` is really about. It does not just propose a safe system. It proposes safe choices AND risks — and tells you which is which. "Here are the choices that keep you literate in your category. And here is where I think you should break from convention, and why." You pick which risks to take. The agent checks that the whole system still coheres either way.
+這才是 `/design-consultation` 真正關於的事。它不只是提出一個安全的系統。它提出安全選擇與冒險選擇——並告訴你哪個是哪個。「這些是讓你在你的類別中保持可讀性的選擇。這是我認為你應該打破慣例的地方，以及原因。」你挑選要承擔哪些風險。AI 代理確保無論如何整個系統仍然保持連貫。
 
-If you want, the agent will research what's already out there in your space — take screenshots of real sites, analyze their fonts and colors and spacing — so you can see the landscape before you make choices. This is not about copying. It is about getting in the ballpark so you know what the conventions are, and then deciding which ones are worth breaking.
+如果你想要，AI 代理會研究你的領域中已有什麼——截取真實網站的截圖，分析它們的字型、顏色和間距——讓你在做選擇之前能看到全局。這不是為了模仿。而是為了進入那個範圍，讓你知道慣例是什麼，然後決定哪些值得打破。
 
-After you agree on the system, it generates an interactive HTML preview page — not just swatches and font samples, but realistic product pages. If you are building a dashboard, you see a dashboard with a sidebar, data tables, and stat cards. If you are building a marketing site, you see a hero section with real copy and a CTA. Everything rendered in your design system, with your product name, in light and dark mode. You see what your product could feel like before a single line of production code is written.
+你們對設計系統達成共識後，它會生成一個互動式 HTML 預覽頁面——不只是色票和字型樣本，而是逼真的產品頁面。如果你在建立儀表板，你會看到一個有側邊欄、資料表和統計卡的儀表板。如果你在建立行銷網站，你會看到一個有真實文案和 CTA 的英雄區塊。所有內容都以你的設計系統呈現，使用你的產品名稱，並附有淺色和深色模式。你在寫下任何一行生產程式碼之前，就能感受到你的產品的樣貌。
 
-Then it writes `DESIGN.md` to your repo root — your project's design source of truth — and updates `CLAUDE.md` so every future Claude Code session respects the system. From that point on, `/design-review` can audit against it, and any agent working on your frontend knows the rules.
+然後它會將 `DESIGN.md` 寫入你的 repo 根目錄——你的專案設計真相來源——並更新 `CLAUDE.md`，讓每個未來的 Claude Code session 都遵守這個系統。從那時起，`/design-review` 可以對其進行審計，任何處理你前端的 AI 代理都知道規則。
 
-### Example
+### 範例
 
 ```
 You:   /design-consultation
@@ -358,15 +358,15 @@ Claude: Wrote DESIGN.md (typography, color, spacing, layout, motion).
 
 ## `/design-review`
 
-This is my **designer who codes mode**.
+這是我的**會寫程式的設計師模式**。
 
-`/plan-design-review` reviews your plan before implementation. `/design-review` audits and fixes the live site after.
+`/plan-design-review` 在實作前審查你的計畫。`/design-review` 則是在實作後審計和修復線上網站。
 
-It runs an 80-item visual audit on your live site, then enters a fix loop: for each design finding, it locates the source file, makes the minimal CSS/styling change, commits with `style(design): FINDING-NNN`, re-navigates to verify, and takes before/after screenshots. One commit per fix, fully bisectable.
+它對你的線上網站執行 80 項視覺審計，然後進入修復迴圈：對於每個設計發現，它定位源碼檔案，進行最小化的 CSS/樣式變更，以 `style(design): FINDING-NNN` 提交，重新導航以驗證，並拍攝前後對比截圖。每次修復一個提交，完全可二分法。
 
-The self-regulation heuristic is tuned for design work — CSS-only changes get a free pass (they are inherently safe and reversible), but changes to component JSX/TSX files count against the risk budget. Hard cap at 30 fixes. If the risk score exceeds 20%, it stops and asks.
+自我調節啟發法專為設計工作調整——僅 CSS 的變更可以免費通過（它們本質上是安全且可逆的），但對元件 JSX/TSX 檔案的變更會計入風險預算。修復上限為 30 個。如果風險分數超過 20%，它會停下來詢問。
 
-### Example
+### 範例
 
 ```
 You:   /design-review https://myapp.com
@@ -394,90 +394,90 @@ Claude: [Runs full 80-item visual audit on the live site]
         [Report with before/after screenshots saved to .gstack/design-reports/]
 ```
 
-Nine commits, each touching one concern. The AI Slop score went from D to A because the three most recognizable patterns (gradient hero, 3-column grid, uniform radius) are gone.
+九個提交，每個處理一個問題。AI 濫用分數從 D 升到 A，因為三個最易識別的模式（漸層英雄區塊、三欄格線、統一圓角）都消失了。
 
 ---
 
 ## `/review`
 
-This is my **paranoid staff engineer mode**.
+這是我的**偏執 Staff 工程師模式**。
 
-Passing tests do not mean the branch is safe.
+通過測試不代表分支是安全的。
 
-`/review` exists because there is a whole class of bugs that can survive CI and still punch you in the face in production. This mode is not about dreaming bigger. It is not about making the plan prettier. It is about asking:
+`/review` 的存在是因為有一整類 bug 能夠通過 CI 卻仍然在生產環境爆炸。這個模式不是關於夢想更大的事。它不是關於讓計畫更漂亮。它是在問：
 
-**What can still break?**
+**還有什麼會壞掉？**
 
-This is a structural audit, not a style nitpick pass. I want the model to look for things like:
+這是一個結構性審計，而非風格挑剔式的審查。我希望模型尋找以下這類問題：
 
-* N+1 queries
-* stale reads
-* race conditions
-* bad trust boundaries
-* missing indexes
-* escaping bugs
-* broken invariants
-* bad retry logic
-* tests that pass while missing the real failure mode
-* forgotten enum handlers — add a new status or type constant, and `/review` traces it through every switch statement and allowlist in your codebase, not just the files you changed
+* N+1 查詢
+* 過期讀取
+* 競爭條件
+* 不良的信任邊界
+* 缺少索引
+* 跳脫 bug
+* 破壞的不變量
+* 不良的重試邏輯
+* 通過測試卻遺漏真正失敗模式的測試
+* 被遺忘的枚舉處理器——新增一個新的狀態或類型常數，`/review` 會追蹤它通過你程式碼庫中的每個 switch 語句和允許清單，而不只是你變更的檔案
 
-### Fix-First
+### 先修復
 
-Findings get action, not just listed. Obvious mechanical fixes (dead code, stale comments, N+1 queries) are applied automatically — you see `[AUTO-FIXED] file:line Problem → what was done` for each one. Genuinely ambiguous issues (security, race conditions, design decisions) get surfaced for your call.
+發現的問題會採取行動，而非只是列出清單。明顯的機械式修復（死程式碼、過時注解、N+1 查詢）會自動套用——你會看到每個修復的 `[AUTO-FIXED] file:line Problem → what was done`。真正有爭議的問題（安全性、競爭條件、設計決策）會提交給你做決定。
 
-### Completeness gaps
+### 完整性缺口
 
-`/review` now flags shortcut implementations where the complete version costs less than 30 minutes of CC time. If you chose the 80% solution and the 100% solution is a lake, not an ocean, the review will call it out.
+`/review` 現在會標記快捷實作，當完整版本所需的 CC 時間不到 30 分鐘時。如果你選擇了 80% 的解決方案，而 100% 的解決方案是一個湖泊而非海洋，審查會指出來。
 
-### Example
+### 範例
 
-Suppose the smart listing flow is implemented and the tests are green.
+假設智慧商品清單流程已實作，測試都是綠燈。
 
-`/review` should still ask:
+`/review` 還是應該問：
 
-* Did I introduce an N+1 query when rendering listing photos or draft suggestions?
-* Am I trusting client-provided file metadata instead of validating the actual file?
-* Can two tabs race and overwrite cover-photo selection or item details?
-* Do failed uploads leave orphaned files in storage forever?
-* Can the "exactly one hero image" rule break under concurrency?
-* If enrichment APIs partially fail, do I degrade gracefully or save garbage?
-* Did I accidentally create a prompt injection or trust-boundary problem by pulling web data into draft generation?
+* 當渲染商品清單照片或草稿建議時，我有引入 N+1 查詢嗎？
+* 我是在信任客戶端提供的檔案中繼資料，而非驗證實際檔案嗎？
+* 兩個分頁能競爭並覆寫封面照片選擇或商品詳情嗎？
+* 失敗的上傳會永遠在儲存空間留下孤兒檔案嗎？
+* 「恰好一張主圖」的規則在並發情況下會破壞嗎？
+* 如果豐富化 API 部分失敗，我能優雅降級還是保存垃圾資料？
+* 我是否透過將網路資料引入草稿生成，意外製造了提示注入或信任邊界問題？
 
-That is the point of `/review`.
+這就是 `/review` 的意義。
 
-I do not want flattery here.
-I want the model imagining the production incident before it happens.
+我在這裡不需要奉承。
+我希望模型在生產事故發生之前就想像它。
 
 ---
 
 ## `/investigate`
 
-When something is broken and you don't know why, `/investigate` is your systematic debugger. It follows the Iron Law: **no fixes without root cause investigation first.**
+當某些東西壞了而你不知道為什麼，`/investigate` 是你的系統化除錯員。它遵循鐵律：**沒有根本原因調查就不能修復。**
 
-Instead of guessing and patching, it traces data flow, matches against known bug patterns, and tests hypotheses one at a time. If three fix attempts fail, it stops and questions the architecture instead of thrashing. This prevents the "let me try one more thing" spiral that wastes hours.
+它不是猜測和修補，而是追蹤資料流，與已知的 bug 模式比對，一次測試一個假設。如果三次修復嘗試失敗，它會停下來質疑架構，而不是持續亂試。這防止了浪費數小時的「讓我再試一件事」螺旋。
 
 ---
 
 ## `/qa`
 
-This is my **QA lead mode**.
+這是我的 **QA 負責人模式**。
 
-`/browse` gives the agent eyes. `/qa` gives it a testing methodology.
+`/browse` 給了 AI 代理眼睛。`/qa` 給了它一套測試方法論。
 
-The most common use case: you're on a feature branch, you just finished coding, and you want to verify everything works. Just say `/qa` — it reads your git diff, identifies which pages and routes your changes affect, spins up the browser, and tests each one. No URL required. No manual test plan.
+最常見的使用情境：你在功能分支上，剛寫完程式碼，想驗證一切正常。只要說 `/qa`——它會讀取你的 git diff，識別你的變更影響哪些頁面和路由，啟動瀏覽器，然後逐一測試。不需要 URL。不需要手動測試計畫。
 
-Four modes:
+四種模式：
 
-- **Diff-aware** (automatic on feature branches) — reads `git diff main`, identifies affected pages, tests them specifically
-- **Full** — systematic exploration of the entire app. 5-15 minutes. Documents 5-10 well-evidenced issues.
-- **Quick** (`--quick`) — 30-second smoke test. Homepage + top 5 nav targets.
-- **Regression** (`--regression baseline.json`) — run full mode, then diff against a previous baseline.
+- **差異感知**（在功能分支上自動執行）——讀取 `git diff main`，識別受影響的頁面，針對性地測試它們
+- **完整**——系統性地探索整個應用程式。5-15 分鐘。記錄 5-10 個有充分依據的問題。
+- **快速**（`--quick`）——30 秒的冒煙測試。首頁 + 前 5 個導航目標。
+- **回歸**（`--regression baseline.json`）——執行完整模式，然後與之前的基準比對。
 
-### Automatic regression tests
+### 自動回歸測試
 
-When `/qa` fixes a bug and verifies it, it automatically generates a regression test that catches the exact scenario that broke. Tests include full attribution tracing back to the QA report.
+當 `/qa` 修復一個 bug 並驗證後，它會自動生成一個回歸測試，能夠捕捉導致問題的確切情境。測試包含完整的歸因追蹤，指向 QA 報告。
 
-### Example
+### 範例
 
 ```
 You:   /qa https://staging.myapp.com
@@ -494,41 +494,41 @@ Claude: [Explores 12 pages, fills 3 forms, tests 2 flows]
         [Full report with screenshots saved to .gstack/qa-reports/]
 ```
 
-**Testing authenticated pages:** Use `/setup-browser-cookies` first to import your real browser sessions, then `/qa` can test pages behind login.
+**測試需要登入的頁面：** 先使用 `/setup-browser-cookies` 匯入你的真實瀏覽器 session，然後 `/qa` 就能測試登入後的頁面。
 
 ---
 
 ## `/ship`
 
-This is my **release machine mode**.
+這是我的**發佈機器模式**。
 
-Once I have decided what to build, nailed the technical plan, and run a serious review, I do not want more talking. I want execution.
+一旦我決定了要建立什麼、確定了技術計畫、進行了嚴肅的審查，我就不想再多說廢話了。我要執行。
 
-`/ship` is for the final mile. It is for a ready branch, not for deciding what to build.
+`/ship` 是最後一哩路。它適用於已就緒的分支，而非決定要建立什麼。
 
-This is where the model should stop behaving like a brainstorm partner and start behaving like a disciplined release engineer: sync with main, run the right tests, make sure the branch state is sane, update changelog or versioning if the repo expects it, push, and create or update the PR.
+這是模型應該停止表現得像腦力激盪夥伴，開始表現得像紀律嚴明的發佈工程師的地方：與 main 同步、執行正確的測試、確保分支狀態正常、更新 changelog 或 versioning（如果 repo 有需要）、推送並建立或更新 PR。
 
-### Test bootstrap
+### 測試框架自動建立
 
-If your project doesn't have a test framework, `/ship` sets one up — detects your runtime, researches the best framework, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), and creates TESTING.md. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
+如果你的專案沒有測試框架，`/ship` 會幫你建立一個——偵測你的執行環境、研究最佳框架、安裝它、為你的實際程式碼編寫 3-5 個真實測試、設置 CI/CD（GitHub Actions），並建立 TESTING.md。100% 測試覆蓋率是目標——測試讓氛圍式撰碼變得安全，而非亂槍打鳥式撰碼。
 
-### Coverage audit
+### 覆蓋率審計
 
-Every `/ship` run builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with quality stars. Gaps get tests auto-generated. Your PR body shows the coverage: `Tests: 42 → 47 (+5 new)`.
+每次 `/ship` 執行都會從你的 diff 建立一個程式碼路徑圖，搜尋對應的測試，並產生附有品質星級的 ASCII 覆蓋率圖。缺口會自動生成測試。你的 PR 主體顯示覆蓋率：`Tests: 42 → 47 (+5 new)`。
 
-### Review gate
+### 審查關卡
 
-`/ship` checks the [Review Readiness Dashboard](#review-readiness-dashboard) before creating the PR. If the Eng Review is missing, it asks — but won't block you. Decisions are saved per-branch so you're never re-asked.
+`/ship` 在建立 PR 之前會檢查[審查就緒儀表板](#review-readiness-dashboard)。如果缺少 Eng Review，它會詢問——但不會阻止你。決策按分支儲存，所以你不會被重複詢問。
 
-A lot of branches die when the interesting work is done and only the boring release work is left. Humans procrastinate that part. AI should not.
+很多分支在有趣的工作完成後就死去了，因為只剩下無聊的發佈工作。人類會拖延那個部分。AI 不應該。
 
 ---
 
 ## `/document-release`
 
-This is my **technical writer mode**.
+這是我的**技術作家模式**。
 
-After `/ship` creates the PR but before it merges, `/document-release` reads every documentation file in the project and cross-references it against the diff. It updates file paths, command lists, project structure trees, and anything else that drifted. Risky or subjective changes get surfaced as questions — everything else is handled automatically.
+在 `/ship` 建立 PR 之後，但在合併之前，`/document-release` 會讀取專案中的每個文件檔案，並與 diff 進行交叉比對。它更新檔案路徑、指令列表、專案結構樹，以及任何其他出現偏差的內容。有風險或主觀的變更會作為問題提出——其他一切都自動處理。
 
 ```
 You:   /document-release
@@ -543,21 +543,21 @@ Claude: Analyzing 21 files changed across 3 commits. Found 8 documentation files
         All docs updated and committed. PR body updated with doc diff.
 ```
 
-It also polishes CHANGELOG voice (without ever overwriting entries), cleans up completed TODOS, checks cross-doc consistency, and asks about VERSION bumps only when appropriate.
+它也會潤色 CHANGELOG 的語氣（從不覆寫現有條目）、清理已完成的 TODOS、檢查跨文件一致性，並在適當時詢問 VERSION 升版的問題。
 
 ---
 
 ## `/retro`
 
-This is my **engineering manager mode**.
+這是我的**工程經理模式**。
 
-At the end of the week I want to know what actually happened. Not vibes — data. `/retro` analyzes commit history, work patterns, and shipping velocity and writes a candid retrospective.
+在週末我想知道實際發生了什麼。不是感覺——是資料。`/retro` 分析提交歷史、工作模式和出貨速度，並撰寫一份坦誠的回顧。
 
-It is team-aware. It identifies who is running the command, gives you the deepest treatment on your own work, then breaks down every contributor with specific praise and growth opportunities. It computes metrics like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
+它具有團隊意識。它識別執行指令的人，對你自己的工作給予最深入的處理，然後對每位貢獻者進行具體的讚美和成長機會分析。它計算提交數、程式碼行數、測試比率、PR 大小和修復比率等指標。它從提交時間戳記偵測撰碼 session，找出熱點檔案，追蹤出貨連勝，並識別當週最大的出貨。
 
-It also tracks test health: total test files, tests added this period, regression test commits, and trend deltas. If test ratio drops below 20%, it flags it as a growth area.
+它也追蹤測試健康狀況：測試檔案總數、本期新增的測試、回歸測試提交以及趨勢增減。如果測試比率低於 20%，它會標記為成長領域。
 
-### Example
+### 範例
 
 ```
 You:   /retro
@@ -583,19 +583,19 @@ Claude: Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs,
         [Top 3 team wins, 3 things to improve, 3 habits for next week]
 ```
 
-It saves a JSON snapshot to `.context/retros/` so the next run can show trends.
+它會將 JSON 快照儲存到 `.context/retros/`，讓下次執行時能顯示趨勢。
 
 ---
 
 ## `/browse`
 
-This is my **QA engineer mode**.
+這是我的 **QA 工程師模式**。
 
-`/browse` is the skill that closes the loop. Before it, the agent could think and code but was still half blind. It had to guess about UI state, auth flows, redirects, console errors, empty states, and broken layouts. Now it can just go look.
+`/browse` 是閉合迴圈的技能。在它出現之前，AI 代理能思考和撰寫程式碼，但仍是半盲的。它必須猜測 UI 狀態、身份驗證流程、重定向、主控台錯誤、空白狀態和破損版面。現在它可以直接去看。
 
-It is a compiled binary that talks to a persistent Chromium daemon — built on [Playwright](https://playwright.dev/) by Microsoft. First call starts the browser (~3s). Every call after that: ~100-200ms. The browser stays running between commands, so cookies, tabs, and localStorage carry over.
+它是一個與持久化 Chromium 常駐程式通訊的編譯二進位——建立在 Microsoft 的 [Playwright](https://playwright.dev/) 之上。第一次呼叫啟動瀏覽器（約 3 秒）。之後每次呼叫：約 100-200ms。瀏覽器在指令之間保持運行，因此 cookies、分頁和 localStorage 會延續。
 
-### Example
+### 範例
 
 ```
 You:   /browse staging.myapp.com — log in, test the signup flow, and check
@@ -624,11 +624,11 @@ Claude: [18 tool calls, ~60 seconds]
         Signup → onboarding → dashboard flow works end to end.
 ```
 
-18 tool calls, about a minute. Full QA pass. No browser opened.
+18 個工具呼叫，約一分鐘。完整的 QA 通過。沒有開啟瀏覽器。
 
-### Browser handoff
+### 瀏覽器交接
 
-When the headless browser gets stuck — CAPTCHA, MFA, complex auth — hand off to the user:
+當無頭瀏覽器卡住時——CAPTCHA、MFA、複雜的身份驗證——交接給使用者：
 
 ```
 Claude: I'm stuck on a CAPTCHA at the login page. Opening a visible
@@ -647,21 +647,21 @@ Claude: > browse resume
         Got a fresh snapshot. Logged in successfully. Continuing QA.
 ```
 
-The browser preserves all state (cookies, localStorage, tabs) across the handoff. After `resume`, the agent gets a fresh snapshot of wherever you left off. If the browse tool fails 3 times in a row, it automatically suggests using `handoff`.
+瀏覽器在交接過程中保留所有狀態（cookies、localStorage、分頁）。`resume` 之後，AI 代理會獲得你離開位置的最新快照。如果 browse 工具連續失敗 3 次，它會自動建議使用 `handoff`。
 
-**Security note:** `/browse` runs a persistent Chromium session. Cookies, localStorage, and session state carry over between commands. Do not use it against sensitive production environments unless you intend to — it is a real browser with real state. The session auto-shuts down after 30 minutes of idle time.
+**安全注意事項：** `/browse` 執行一個持久化的 Chromium session。Cookies、localStorage 和 session 狀態在指令之間會延續。除非你有意這樣做，否則不要針對敏感的生產環境使用它——它是一個有真實狀態的真實瀏覽器。Session 在閒置 30 分鐘後自動關閉。
 
-For the full command reference, see [BROWSER.md](../BROWSER.md).
+完整的指令參考，請參見 [BROWSER.md](../BROWSER.md)。
 
 ---
 
 ## `/setup-browser-cookies`
 
-This is my **session manager mode**.
+這是我的 **Session 管理員模式**。
 
-Before `/qa` or `/browse` can test authenticated pages, they need cookies. Instead of manually logging in through the headless browser every time, `/setup-browser-cookies` imports your real sessions directly from your daily browser.
+在 `/qa` 或 `/browse` 能測試需要登入的頁面之前，它們需要 cookies。`/setup-browser-cookies` 不需要每次都透過無頭瀏覽器手動登入，而是直接從你的日常瀏覽器匯入你的真實 session。
 
-It auto-detects installed Chromium browsers (Comet, Chrome, Arc, Brave, Edge), decrypts cookies via the macOS Keychain, and loads them into the Playwright session. An interactive picker UI lets you choose exactly which domains to import — no cookie values are ever displayed.
+它自動偵測已安裝的 Chromium 瀏覽器（Comet、Chrome、Arc、Brave、Edge），透過 macOS Keychain 解密 cookies，並將它們載入 Playwright session。互動式選擇器 UI 讓你精確選擇要匯入哪些網域——cookie 值永遠不會顯示。
 
 ```
 You:   /setup-browser-cookies
@@ -676,7 +676,7 @@ You:    done
 Claude: Imported 2 domains (47 cookies). Session is ready.
 ```
 
-Or skip the UI entirely:
+或完全跳過 UI：
 
 ```
 You:   /setup-browser-cookies github.com
@@ -688,21 +688,21 @@ Claude: Imported 12 cookies for github.com from Comet.
 
 ## `/codex`
 
-This is my **second opinion mode**.
+這是我的**第二意見模式**。
 
-When `/review` catches bugs from Claude's perspective, `/codex` brings a completely different AI — OpenAI's Codex CLI — to review the same diff. Different training, different blind spots, different strengths. The overlap tells you what's definitely real. The unique findings from each are where you find the bugs neither would catch alone.
+當 `/review` 從 Claude 的角度捕捉 bug 時，`/codex` 帶來一個完全不同的 AI——OpenAI 的 Codex CLI——來審查同一個 diff。不同的訓練、不同的盲點、不同的優勢。兩者的重疊告訴你什麼肯定是真實的。每個獨有的發現是你找到任何一方單獨都抓不到的 bug 的地方。
 
-### Three modes
+### 三種模式
 
-**Review** — run `codex review` against the current diff. Codex reads every changed file, classifies findings by severity (P1 critical, P2 high, P3 medium), and returns a PASS/FAIL verdict. Any P1 finding = FAIL. The review is fully independent — Codex doesn't see Claude's review.
+**審查**——對當前 diff 執行 `codex review`。Codex 讀取每個變更的檔案，按嚴重程度分類發現（P1 嚴重、P2 高、P3 中），並返回 PASS/FAIL 判決。任何 P1 發現 = FAIL。審查完全獨立——Codex 看不到 Claude 的審查。
 
-**Challenge** — adversarial mode. Codex actively tries to break your code. It looks for edge cases, race conditions, security holes, and assumptions that would fail under load. Uses maximum reasoning effort (`xhigh`). Think of it as a penetration test for your logic.
+**挑戰**——對抗模式。Codex 主動嘗試破壞你的程式碼。它尋找邊緣情況、競爭條件、安全漏洞，以及在負載下會失敗的假設。使用最大推理力度（`xhigh`）。把它想成是對你的邏輯進行滲透測試。
 
-**Consult** — open conversation with session continuity. Ask Codex anything about the codebase. Follow-up questions reuse the same session, so context carries over. Great for "am I thinking about this correctly?" moments.
+**諮詢**——具有 session 連續性的開放對話。詢問 Codex 任何關於程式碼庫的問題。後續問題重用同一個 session，因此上下文會延續。非常適合「我這樣想是對的嗎？」的時刻。
 
-### Cross-model analysis
+### 跨模型分析
 
-When both `/review` (Claude) and `/codex` (OpenAI) have reviewed the same branch, you get a cross-model comparison: which findings overlap (high confidence), which are unique to Codex (different perspective), and which are unique to Claude. This is the "two doctors, same patient" approach to code review.
+當 `/review`（Claude）和 `/codex`（OpenAI）都審查了同一個分支後，你會得到一個跨模型比較：哪些發現重疊（高信心度）、哪些是 Codex 獨有的（不同視角），以及哪些是 Claude 獨有的。這是對程式碼審查採取「兩位醫生，同一個病患」的方法。
 
 ```
 You:   /codex review
@@ -723,31 +723,31 @@ Claude: Running independent Codex review...
 
 ---
 
-## Safety & Guardrails
+## 安全性與護欄
 
-Four skills that add safety rails to any Claude Code session. They work via Claude Code's PreToolUse hooks — transparent, session-scoped, no configuration files.
+四個技能，為任何 Claude Code session 添加安全護欄。它們透過 Claude Code 的 PreToolUse hooks 運作——透明、session 範疇、無需配置檔案。
 
 ### `/careful`
 
-Say "be careful" or run `/careful` when you're working near production, running destructive commands, or just want a safety net. Every Bash command gets checked against known-dangerous patterns:
+當你在生產環境附近工作、執行破壞性指令，或只是想要一個安全網時，說「be careful」或執行 `/careful`。每個 Bash 指令都會根據已知的危險模式進行檢查：
 
-- `rm -rf` / `rm -r` — recursive delete
-- `DROP TABLE` / `DROP DATABASE` / `TRUNCATE` — data loss
-- `git push --force` / `git push -f` — history rewrite
-- `git reset --hard` — discard commits
-- `git checkout .` / `git restore .` — discard uncommitted work
-- `kubectl delete` — production resource deletion
-- `docker rm -f` / `docker system prune` — container/image loss
+- `rm -rf` / `rm -r`——遞迴刪除
+- `DROP TABLE` / `DROP DATABASE` / `TRUNCATE`——資料遺失
+- `git push --force` / `git push -f`——歷史覆寫
+- `git reset --hard`——丟棄提交
+- `git checkout .` / `git restore .`——丟棄未提交的工作
+- `kubectl delete`——生產資源刪除
+- `docker rm -f` / `docker system prune`——容器/映像遺失
 
-Common build artifact cleanups (`rm -rf node_modules`, `dist`, `.next`, `__pycache__`, `build`, `coverage`) are whitelisted — no false alarms on routine operations.
+常見的建置工件清理（`rm -rf node_modules`、`dist`、`.next`、`__pycache__`、`build`、`coverage`）已列入白名單——日常操作不會有誤報。
 
-You can override any warning. The guardrails are accident prevention, not access control.
+你可以覆蓋任何警告。護欄是防止意外，而非存取控制。
 
 ### `/freeze`
 
-Restrict all file edits to a single directory. When you're debugging a billing bug, you don't want Claude accidentally "fixing" unrelated code in `src/auth/`. `/freeze src/billing` blocks all Edit and Write operations outside that path.
+將所有檔案編輯限制在單一目錄內。當你在除錯帳單 bug 時，你不希望 Claude 意外地「修復」`src/auth/` 中不相關的程式碼。`/freeze src/billing` 阻止所有在該路徑外的 Edit 和 Write 操作。
 
-`/investigate` activates this automatically — it detects the module being debugged and freezes edits to that directory.
+`/investigate` 會自動啟動這個功能——它偵測被除錯的模組，並將編輯凍結在那個目錄。
 
 ```
 You:   /freeze src/billing
@@ -760,21 +760,21 @@ Claude: BLOCKED — Edit outside freeze boundary (src/billing/).
         Skipping this change.
 ```
 
-Note: this blocks Edit and Write tools only. Bash commands like `sed` can still modify files outside the boundary — it's accident prevention, not a security sandbox.
+注意：這只阻止 Edit 和 Write 工具。像 `sed` 這樣的 Bash 指令仍然可以修改邊界外的檔案——這是防止意外，而非安全沙箱。
 
 ### `/guard`
 
-Full safety mode — combines `/careful` + `/freeze` in one command. Destructive command warnings plus directory-scoped edits. Use when touching prod or debugging live systems.
+完整安全模式——一個指令結合 `/careful` + `/freeze`。破壞性指令警告加上目錄範疇的編輯。在接觸生產環境或除錯線上系統時使用。
 
 ### `/unfreeze`
 
-Remove the `/freeze` boundary, allowing edits everywhere again. The hooks stay registered for the session — they just allow everything. Run `/freeze` again to set a new boundary.
+移除 `/freeze` 邊界，再次允許在任何地方進行編輯。hooks 在 session 中保持已登錄狀態——它們只是允許一切。重新執行 `/freeze` 以設定新的邊界。
 
 ---
 
 ## `/gstack-upgrade`
 
-Keep gstack current with one command. It detects your install type (global at `~/.claude/skills/gstack` vs vendored in your project at `.claude/skills/gstack`), runs the upgrade, syncs both copies if you have dual installs, and shows you what changed.
+一個指令讓 gstack 保持最新。它偵測你的安裝類型（全域在 `~/.claude/skills/gstack` 還是 vendored 在你的專案的 `.claude/skills/gstack`），執行升級，如果你有雙重安裝則同步兩者，並顯示變更內容。
 
 ```
 You:   /gstack-upgrade
@@ -792,35 +792,35 @@ Claude: Current version: 0.7.4
         Upgraded to 0.8.2. Both global and project installs synced.
 ```
 
-Set `auto_upgrade: true` in `~/.gstack/config.yaml` to skip the prompt entirely — gstack upgrades silently at the start of each session when a new version is available.
+在 `~/.gstack/config.yaml` 中設定 `auto_upgrade: true` 可完全跳過提示——當新版本可用時，gstack 會在每個 session 開始時靜默升級。
 
 ---
 
-## Greptile integration
+## Greptile 整合
 
-[Greptile](https://greptile.com) is a YC company that reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production. It has genuinely saved my ass more than once. I love these guys.
+[Greptile](https://greptile.com) 是一家 YC 公司，能自動審查你的 PR。它捕捉真實的 bug——競爭條件、安全問題、通過 CI 卻在生產環境爆炸的事情。它確實不只一次救了我。我很喜歡這些人。
 
-### Setup
+### 設定
 
-Install Greptile on your GitHub repo at [greptile.com](https://greptile.com) — it takes about 30 seconds. Once it's reviewing your PRs, gstack picks up its comments automatically. No additional configuration.
+在 [greptile.com](https://greptile.com) 將 Greptile 安裝到你的 GitHub repo——大約需要 30 秒。一旦它在審查你的 PR，gstack 會自動取用它的評論。無需額外配置。
 
-### How it works
+### 運作方式
 
-The problem with any automated reviewer is triage. Greptile is good, but not every comment is a real issue. Some are false positives. Some flag things you already fixed three commits ago. Without a triage layer, the comments pile up and you start ignoring them — which defeats the purpose.
+任何自動化審查工具的問題在於分類。Greptile 很好，但不是每條評論都是真實問題。有些是誤報。有些標記了你三個提交前就已經修復的事情。沒有分類層，評論會堆積如山，你開始忽視它們——這違背了目的。
 
-gstack solves this. `/review` and `/ship` are now Greptile-aware. They read Greptile's comments, classify each one, and take action:
+gstack 解決了這個問題。`/review` 和 `/ship` 現在具有 Greptile 意識。它們讀取 Greptile 的評論，分類每一條，並採取行動：
 
-- **Valid issues** get added to the critical findings and fixed before shipping
-- **Already-fixed issues** get an auto-reply acknowledging the catch
-- **False positives** get pushed back — you confirm, and a reply goes out explaining why it's wrong
+- **有效問題**被加入嚴重發現清單，並在出貨前修復
+- **已修復的問題**得到自動回覆，確認捕捉到了
+- **誤報**被推回——你確認，然後一個解釋原因的回覆發出去
 
-The result is a two-layer review: Greptile catches things asynchronously on the PR, then `/review` and `/ship` triage those findings as part of the normal workflow. Nothing falls through the cracks.
+結果是兩層審查：Greptile 在 PR 上非同步捕捉問題，然後 `/review` 和 `/ship` 將這些發現作為正常工作流程的一部分進行分類。沒有任何東西會漏網。
 
-### Learning from history
+### 從歷史中學習
 
-Every false positive you confirm gets saved to `~/.gstack/greptile-history.md`. Future runs auto-skip known FP patterns for your codebase. And `/retro` tracks Greptile's batting average over time — so you can see whether the signal-to-noise ratio is improving.
+你確認的每個誤報都會儲存到 `~/.gstack/greptile-history.md`。未來的執行會自動跳過你程式碼庫的已知誤報模式。`/retro` 也會追蹤 Greptile 隨時間的命中率——讓你能看到信噪比是否在改善。
 
-### Example
+### 範例
 
 ```
 You:   /ship
@@ -852,4 +852,4 @@ Claude: Replied to Greptile. All tests pass.
         PR: github.com/you/app/pull/42
 ```
 
-Three Greptile comments. One real fix. One auto-acknowledged. One false positive pushed back with a reply. Total extra time: about 30 seconds.
+三條 Greptile 評論。一個真實修復。一個自動確認。一個誤報被推回並附上回覆。額外花費的總時間：約 30 秒。

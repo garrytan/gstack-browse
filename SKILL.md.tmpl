@@ -2,43 +2,43 @@
 name: gstack
 version: 1.1.0
 description: |
-  Fast headless browser for QA testing and site dogfooding. Navigate any URL, interact with
-  elements, verify page state, diff before/after actions, take annotated screenshots, check
-  responsive layouts, test forms and uploads, handle dialogs, and assert element states.
-  ~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
-  user flow, or file a bug with evidence.
+  快速無頭瀏覽器，用於 QA 測試和網站試用。可導航任何 URL、與元素互動、
+  驗證頁面狀態、比較操作前後差異、拍攝帶標注的截圖、測試響應式版面、
+  測試表單和上傳、處理對話框，以及斷言元素狀態。
+  每個指令約 100ms。當你需要測試功能、驗證部署、試用使用者流程
+  或附上證據提交 bug 時使用。
 
-  gstack also includes development workflow skills. When you notice the user is at
-  these stages, suggest the appropriate skill:
-  - Brainstorming a new idea → suggest /office-hours
-  - Reviewing a plan (strategy) → suggest /plan-ceo-review
-  - Reviewing a plan (architecture) → suggest /plan-eng-review
-  - Reviewing a plan (design) → suggest /plan-design-review
-  - Creating a design system → suggest /design-consultation
-  - Debugging errors → suggest /investigate
-  - Testing the app → suggest /qa
-  - Code review before merge → suggest /review
-  - Visual design audit → suggest /design-review
-  - Ready to deploy / create PR → suggest /ship
-  - Post-ship doc updates → suggest /document-release
-  - Weekly retrospective → suggest /retro
-  - Wanting a second opinion or adversarial code review → suggest /codex
-  - Working with production or live systems → suggest /careful
-  - Want to scope edits to one module/directory → suggest /freeze
-  - Maximum safety mode (destructive warnings + edit restrictions) → suggest /guard
-  - Removing edit restrictions → suggest /unfreeze
-  - Upgrading gstack to latest version → suggest /gstack-upgrade
+  gstack 也包含開發工作流程技能。當你注意到使用者正在這些階段時，
+  建議適合的技能：
+  - 腦力激盪新想法 → 建議 /office-hours
+  - 審查計畫（策略）→ 建議 /plan-ceo-review
+  - 審查計畫（架構）→ 建議 /plan-eng-review
+  - 審查計畫（設計）→ 建議 /plan-design-review
+  - 建立設計系統 → 建議 /design-consultation
+  - 除錯錯誤 → 建議 /investigate
+  - 測試 app → 建議 /qa
+  - 合併前的程式碼審查 → 建議 /review
+  - 視覺設計審查 → 建議 /design-review
+  - 準備部署/建立 PR → 建議 /ship
+  - 出貨後文件更新 → 建議 /document-release
+  - 每週回顧 → 建議 /retro
+  - 想要第二意見或對抗性程式碼審查 → 建議 /codex
+  - 在正式環境或線上系統工作 → 建議 /careful
+  - 想要將編輯範圍限制在一個模組/目錄 → 建議 /freeze
+  - 最高安全模式（破壞性警告 + 編輯限制）→ 建議 /guard
+  - 移除編輯限制 → 建議 /unfreeze
+  - 升級 gstack 到最新版本 → 建議 /gstack-upgrade
 
-  If the user pushes back on skill suggestions ("stop suggesting things",
-  "I don't need suggestions", "too aggressive"):
-  1. Stop suggesting for the rest of this session
-  2. Run: gstack-config set proactive false
-  3. Say: "Got it — I'll stop suggesting skills. Just tell me to be proactive
-     again if you change your mind."
+  如果使用者拒絕技能建議（「stop suggesting things」、
+  「I don't need suggestions」、「too aggressive」）：
+  1. 在本次工作階段停止建議
+  2. 執行：gstack-config set proactive false
+  3. 說：「Got it — I'll stop suggesting skills. Just tell me to be proactive
+     again if you change your mind.」
 
-  If the user says "be proactive again" or "turn on suggestions":
-  1. Run: gstack-config set proactive true
-  2. Say: "Proactive suggestions are back on."
+  如果使用者說「be proactive again」或「turn on suggestions」：
+  1. 執行：gstack-config set proactive true
+  2. 說：「Proactive suggestions are back on.」
 allowed-tools:
   - Bash
   - Read
@@ -48,111 +48,111 @@ allowed-tools:
 
 {{PREAMBLE}}
 
-If `PROACTIVE` is `false`: do NOT proactively suggest other gstack skills during this session.
-Only run skills the user explicitly invokes. This preference persists across sessions via
-`gstack-config`.
+如果 `PROACTIVE` 是 `false`：在本次工作階段中不要主動建議其他 gstack 技能。
+只執行使用者明確呼叫的技能。此偏好透過 `gstack-config` 跨工作階段持續。
 
-# gstack browse: QA Testing & Dogfooding
+# gstack browse：QA 測試與網站試用
 
-Persistent headless Chromium. First call auto-starts (~3s), then ~100-200ms per command.
-Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, sessions).
+持久無頭 Chromium。第一次呼叫自動啟動（約 3 秒），之後每個指令約 100-200ms。
+閒置 30 分鐘後自動關閉。呼叫之間狀態持續（Cookie、分頁、工作階段）。
 
 {{BROWSE_SETUP}}
 
-## IMPORTANT
+## 重要事項
 
-- Use the compiled binary via Bash: `$B <command>`
-- NEVER use `mcp__claude-in-chrome__*` tools. They are slow and unreliable.
-- Browser persists between calls — cookies, login sessions, and tabs carry over.
-- Dialogs (alert/confirm/prompt) are auto-accepted by default — no browser lockup.
-- **Show screenshots:** After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always use the Read tool on the output PNG(s) so the user can see them. Without this, screenshots are invisible.
+- 透過 Bash 使用編譯後的二進位檔：`$B <command>`
+- **絕對不要**使用 `mcp__claude-in-chrome__*` 工具。它們緩慢且不可靠。
+- 瀏覽器在呼叫之間持續——Cookie、登入工作階段和分頁都會延續。
+- 對話框（alert/confirm/prompt）預設自動接受——不會發生瀏覽器鎖定。
+- **顯示截圖：** 執行 `$B screenshot`、`$B snapshot -a -o` 或 `$B responsive` 後，
+  務必對輸出的 PNG 使用 Read 工具，讓使用者能看到截圖。沒有這步驟，截圖是看不見的。
 
-## QA Workflows
+## QA 工作流程
 
-### Test a user flow (login, signup, checkout, etc.)
+### 測試使用者流程（登入、註冊、結帳等）
 
 ```bash
-# 1. Go to the page
+# 1. 前往頁面
 $B goto https://app.example.com/login
 
-# 2. See what's interactive
+# 2. 查看有什麼可互動的
 $B snapshot -i
 
-# 3. Fill the form using refs
+# 3. 使用參考填寫表單
 $B fill @e3 "test@example.com"
 $B fill @e4 "password123"
 $B click @e5
 
-# 4. Verify it worked
-$B snapshot -D              # diff shows what changed after clicking
-$B is visible ".dashboard"  # assert the dashboard appeared
+# 4. 驗證是否成功
+$B snapshot -D              # diff 顯示點擊後的變化
+$B is visible ".dashboard"  # 斷言儀表板出現了
 $B screenshot /tmp/after-login.png
 ```
 
-### Verify a deployment / check prod
+### 驗證部署/檢查正式環境
 
 ```bash
 $B goto https://yourapp.com
-$B text                          # read the page — does it load?
-$B console                       # any JS errors?
-$B network                       # any failed requests?
-$B js "document.title"           # correct title?
-$B is visible ".hero-section"    # key elements present?
+$B text                          # 讀取頁面——它有載入嗎？
+$B console                       # 有 JS 錯誤嗎？
+$B network                       # 有失敗的請求嗎？
+$B js "document.title"           # 標題正確嗎？
+$B is visible ".hero-section"    # 關鍵元素存在嗎？
 $B screenshot /tmp/prod-check.png
 ```
 
-### Dogfood a feature end-to-end
+### 端到端試用功能
 
 ```bash
-# Navigate to the feature
+# 導航到功能
 $B goto https://app.example.com/new-feature
 
-# Take annotated screenshot — shows every interactive element with labels
+# 拍攝帶標注的截圖——顯示每個帶標籤的互動元素
 $B snapshot -i -a -o /tmp/feature-annotated.png
 
-# Find ALL clickable things (including divs with cursor:pointer)
+# 找出所有可點擊的東西（包括帶 cursor:pointer 的 div）
 $B snapshot -C
 
-# Walk through the flow
-$B snapshot -i          # baseline
-$B click @e3            # interact
-$B snapshot -D          # what changed? (unified diff)
+# 逐步執行流程
+$B snapshot -i          # 基準線
+$B click @e3            # 互動
+$B snapshot -D          # 發生了什麼變化？（統一差異）
 
-# Check element states
+# 檢查元素狀態
 $B is visible ".success-toast"
 $B is enabled "#next-step-btn"
 $B is checked "#agree-checkbox"
 
-# Check console for errors after interactions
+# 互動後檢查主控台是否有錯誤
 $B console
 ```
 
-### Test responsive layouts
+### 測試響應式版面
 
 ```bash
-# Quick: 3 screenshots at mobile/tablet/desktop
+# 快速：在手機/平板/桌機三種尺寸截圖
 $B goto https://yourapp.com
 $B responsive /tmp/layout
 
-# Manual: specific viewport
+# 手動：特定視窗尺寸
 $B viewport 375x812     # iPhone
 $B screenshot /tmp/mobile.png
-$B viewport 1440x900    # Desktop
+$B viewport 1440x900    # 桌機
 $B screenshot /tmp/desktop.png
 
-# Element screenshot (crop to specific element)
+# 元素截圖（裁切到特定元素）
 $B screenshot "#hero-banner" /tmp/hero.png
 $B snapshot -i
 $B screenshot @e3 /tmp/button.png
 
-# Region crop
+# 區域裁切
 $B screenshot --clip 0,0,800,600 /tmp/above-fold.png
 
-# Viewport only (no scroll)
+# 僅視窗（不捲動）
 $B screenshot --viewport /tmp/viewport.png
 ```
 
-### Test file upload
+### 測試檔案上傳
 
 ```bash
 $B goto https://app.example.com/upload
@@ -162,59 +162,59 @@ $B is visible ".upload-success"
 $B screenshot /tmp/upload-result.png
 ```
 
-### Test forms with validation
+### 測試帶驗證的表單
 
 ```bash
 $B goto https://app.example.com/form
 $B snapshot -i
 
-# Submit empty — check validation errors appear
-$B click @e10                        # submit button
-$B snapshot -D                       # diff shows error messages appeared
+# 空白提交——檢查驗證錯誤是否出現
+$B click @e10                        # 提交按鈕
+$B snapshot -D                       # diff 顯示錯誤訊息出現了
 $B is visible ".error-message"
 
-# Fill and resubmit
+# 填寫並重新提交
 $B fill @e3 "valid input"
 $B click @e10
-$B snapshot -D                       # diff shows errors gone, success state
+$B snapshot -D                       # diff 顯示錯誤消失了，成功狀態
 ```
 
-### Test dialogs (delete confirmations, prompts)
+### 測試對話框（刪除確認、提示）
 
 ```bash
-# Set up dialog handling BEFORE triggering
-$B dialog-accept              # will auto-accept next alert/confirm
-$B click "#delete-button"     # triggers confirmation dialog
-$B dialog                     # see what dialog appeared
-$B snapshot -D                # verify the item was deleted
+# 在觸發之前設定對話框處理
+$B dialog-accept              # 將自動接受下一個 alert/confirm
+$B click "#delete-button"     # 觸發確認對話框
+$B dialog                     # 查看出現了什麼對話框
+$B snapshot -D                # 驗證項目已刪除
 
-# For prompts that need input
-$B dialog-accept "my answer"  # accept with text
-$B click "#rename-button"     # triggers prompt
+# 對需要輸入的 prompt
+$B dialog-accept "my answer"  # 帶文字接受
+$B click "#rename-button"     # 觸發 prompt
 ```
 
-### Test authenticated pages (import real browser cookies)
+### 測試已驗證的頁面（匯入真實瀏覽器 Cookie）
 
 ```bash
-# Import cookies from your real browser (opens interactive picker)
+# 從你的真實瀏覽器匯入 Cookie（開啟互動式選擇器）
 $B cookie-import-browser
 
-# Or import a specific domain directly
+# 或直接匯入特定域名
 $B cookie-import-browser comet --domain .github.com
 
-# Now test authenticated pages
+# 現在測試已驗證的頁面
 $B goto https://github.com/settings/profile
 $B snapshot -i
 $B screenshot /tmp/github-profile.png
 ```
 
-### Compare two pages / environments
+### 比較兩個頁面/環境
 
 ```bash
 $B diff https://staging.app.com https://prod.app.com
 ```
 
-### Multi-step chain (efficient for long flows)
+### 多步驟鏈（適用於長流程的高效方式）
 
 ```bash
 echo '[
@@ -228,53 +228,53 @@ echo '[
 ]' | $B chain
 ```
 
-## Quick Assertion Patterns
+## 快速斷言模式
 
 ```bash
-# Element exists and is visible
+# 元素存在且可見
 $B is visible ".modal"
 
-# Button is enabled/disabled
+# 按鈕已啟用/已停用
 $B is enabled "#submit-btn"
 $B is disabled "#submit-btn"
 
-# Checkbox state
+# 核取方塊狀態
 $B is checked "#agree"
 
-# Input is editable
+# 輸入框可編輯
 $B is editable "#name-field"
 
-# Element has focus
+# 元素已聚焦
 $B is focused "#search-input"
 
-# Page contains text
+# 頁面包含文字
 $B js "document.body.textContent.includes('Success')"
 
-# Element count
+# 元素計數
 $B js "document.querySelectorAll('.list-item').length"
 
-# Specific attribute value
-$B attrs "#logo"    # returns all attributes as JSON
+# 特定屬性值
+$B attrs "#logo"    # 以 JSON 返回所有屬性
 
-# CSS property
+# CSS 屬性
 $B css ".button" "background-color"
 ```
 
-## Snapshot System
+## 快照系統
 
 {{SNAPSHOT_FLAGS}}
 
-## Command Reference
+## 指令參考
 
 {{COMMAND_REFERENCE}}
 
-## Tips
+## 技巧
 
-1. **Navigate once, query many times.** `goto` loads the page; then `text`, `js`, `screenshot` all hit the loaded page instantly.
-2. **Use `snapshot -i` first.** See all interactive elements, then click/fill by ref. No CSS selector guessing.
-3. **Use `snapshot -D` to verify.** Baseline → action → diff. See exactly what changed.
-4. **Use `is` for assertions.** `is visible .modal` is faster and more reliable than parsing page text.
-5. **Use `snapshot -a` for evidence.** Annotated screenshots are great for bug reports.
-6. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-7. **Check `console` after actions.** Catch JS errors that don't surface visually.
-8. **Use `chain` for long flows.** Single command, no per-step CLI overhead.
+1. **導航一次，查詢多次。** `goto` 載入頁面；之後 `text`、`js`、`screenshot` 都立即命中已載入的頁面。
+2. **先用 `snapshot -i`。** 查看所有互動元素，然後透過參考點擊/填寫。不需要猜測 CSS 選擇器。
+3. **用 `snapshot -D` 驗證。** 基準線 → 操作 → 差異。精確看到發生了什麼變化。
+4. **用 `is` 進行斷言。** `is visible .modal` 比解析頁面文字更快、更可靠。
+5. **用 `snapshot -a` 作為證據。** 帶標注的截圖非常適合 bug 報告。
+6. **對棘手的 UI 使用 `snapshot -C`。** 找到無障礙樹遺漏的可點擊 div。
+7. **操作後檢查 `console`。** 捕捉視覺上看不出來的 JS 錯誤。
+8. **對長流程使用 `chain`。** 單一指令，沒有每步驟的 CLI 開銷。
