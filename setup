@@ -137,6 +137,8 @@ link_codex_skill_dirs() {
   for skill_dir in "$agents_dir"/gstack*/; do
     if [ -f "$skill_dir/SKILL.md" ]; then
       skill_name="$(basename "$skill_dir")"
+      # ~/.codex/skills/gstack must stay the full repo (for bin/, browse/) — root SKILL.md covers the umbrella skill.
+      [ "$skill_name" = "gstack" ] && continue
       target="$skills_dir/$skill_name"
       # Create or update symlink
       if [ -L "$target" ] || [ ! -e "$target" ]; then
@@ -191,12 +193,10 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
   CODEX_GSTACK="$CODEX_SKILLS/gstack"
   mkdir -p "$CODEX_SKILLS"
 
-  # Symlink gstack source for runtime assets (bin/, browse/dist/)
-  if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
-    ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
-  fi
   # Install generated Codex-format skills (not Claude source dirs)
   link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
+  # Must run after skill links: ~/.codex/skills/gstack is the full repo (bin/, browse/dist/, root SKILL.md).
+  ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
 
   echo "gstack ready (codex)."
   echo "  browse: $BROWSE_BIN"

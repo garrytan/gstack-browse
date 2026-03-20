@@ -16,6 +16,7 @@ import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const DRY_RUN = process.argv.includes('--dry-run');
+const MAX_SKILL_DESCRIPTION_CHARS = 1024;
 
 // ─── Template Context ───────────────────────────────────────
 
@@ -1437,6 +1438,60 @@ function codexSkillName(skillDir: string): string {
   return `gstack-${skillDir}`;
 }
 
+function splitFrontmatter(content: string): { frontmatter: string; body: string } | null {
+  const fmStart = content.indexOf('---\n');
+  if (fmStart !== 0) return null;
+  const fmEnd = content.indexOf('\n---', fmStart + 4);
+  if (fmEnd === -1) return null;
+  return {
+    frontmatter: content.slice(fmStart + 4, fmEnd),
+    body: content.slice(fmEnd + 4),
+  };
+}
+
+function extractDescriptionFromFrontmatter(frontmatter: string): string {
+  let description = '';
+  const lines = frontmatter.split('\n');
+  let inDescription = false;
+  const descLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.match(/^description:\s*\|?\s*$/)) {
+      inDescription = true;
+      continue;
+    }
+    if (line.match(/^description:\s*\S/)) {
+      description = line.replace(/^description:\s*/, '').trim();
+      break;
+    }
+    if (inDescription) {
+      if (line === '' || line.match(/^\s/)) {
+        descLines.push(line.replace(/^  /, ''));
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (descLines.length > 0) {
+    description = descLines.join('\n').trim();
+  }
+
+  return description;
+}
+
+function assertDescriptionLength(content: string, relOutput: string): void {
+  const parts = splitFrontmatter(content);
+  if (!parts) return;
+
+  const description = extractDescriptionFromFrontmatter(parts.frontmatter);
+  if (description.length > MAX_SKILL_DESCRIPTION_CHARS) {
+    throw new Error(
+      `${relOutput}: description is ${description.length} chars; loaders reject descriptions over ${MAX_SKILL_DESCRIPTION_CHARS} chars. Shorten the frontmatter description.`
+    );
+  }
+}
+
 /**
  * Transform frontmatter for Codex: keep only name + description.
  * Strips allowed-tools, hooks, version, and all other fields.
@@ -1445,48 +1500,16 @@ function codexSkillName(skillDir: string): string {
 function transformFrontmatter(content: string, host: Host): string {
   if (host === 'claude') return content;
 
-  // Find frontmatter boundaries
-  const fmStart = content.indexOf('---\n');
-  if (fmStart !== 0) return content; // frontmatter must be at the start
-  const fmEnd = content.indexOf('\n---', fmStart + 4);
-  if (fmEnd === -1) return content;
-
-  const frontmatter = content.slice(fmStart + 4, fmEnd);
-  const body = content.slice(fmEnd + 4); // includes the leading \n after ---
+  const parts = splitFrontmatter(content);
+  if (!parts) return content;
+  const { frontmatter, body } = parts;
 
   // Parse name
   const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
   const name = nameMatch ? nameMatch[1].trim() : '';
 
   // Parse description — handle both simple and block scalar (|) formats
-  let description = '';
-  const lines = frontmatter.split('\n');
-  let inDescription = false;
-  const descLines: string[] = [];
-  for (const line of lines) {
-    if (line.match(/^description:\s*\|?\s*$/)) {
-      // Block scalar start: "description: |" or "description:"
-      inDescription = true;
-      continue;
-    }
-    if (line.match(/^description:\s*\S/)) {
-      // Simple inline: "description: some text"
-      description = line.replace(/^description:\s*/, '').trim();
-      break;
-    }
-    if (inDescription) {
-      // Block scalar continuation — indented lines (2 spaces) or blank lines
-      if (line === '' || line.match(/^\s/)) {
-        descLines.push(line.replace(/^  /, ''));
-      } else {
-        // End of block scalar — hit a non-indented, non-blank line
-        break;
-      }
-    }
-  }
-  if (descLines.length > 0) {
-    description = descLines.join('\n').trim();
-  }
+  const description = extractDescriptionFromFrontmatter(frontmatter);
 
   // Re-emit Codex frontmatter (name + description only)
   const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
@@ -1600,6 +1623,9 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
   } else {
     content = header + content;
   }
+
+  const relOutput = path.relative(ROOT, outputPath);
+  assertDescriptionLength(content, relOutput);
 
   return { outputPath, content };
 }

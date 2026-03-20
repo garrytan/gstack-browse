@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const MAX_SKILL_DESCRIPTION_CHARS = 1024;
 
 // Dynamic template discovery — matches the generator's findTemplates() behavior.
 // New skills automatically get test coverage without updating a static list.
@@ -21,6 +22,37 @@ const ALL_SKILLS = (() => {
   }
   return skills;
 })();
+
+function extractFrontmatter(content: string): string {
+  const fmEnd = content.indexOf('\n---', 4);
+  expect(fmEnd).toBeGreaterThan(0);
+  return content.slice(4, fmEnd);
+}
+
+function extractDescription(frontmatter: string): string {
+  const lines = frontmatter.split('\n');
+  let inDescription = false;
+  const descLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.match(/^description:\s*\|?\s*$/)) {
+      inDescription = true;
+      continue;
+    }
+    if (line.match(/^description:\s*\S/)) {
+      return line.replace(/^description:\s*/, '').trim();
+    }
+    if (inDescription) {
+      if (line === '' || line.match(/^\s/)) {
+        descLines.push(line.replace(/^  /, ''));
+      } else {
+        break;
+      }
+    }
+  }
+
+  return descLines.join('\n').trim();
+}
 
 describe('gen-skill-docs', () => {
   test('generated SKILL.md contains all command categories', () => {
@@ -95,6 +127,14 @@ describe('gen-skill-docs', () => {
       expect(content.startsWith('---\n')).toBe(true);
       expect(content).toContain('name:');
       expect(content).toContain('description:');
+    }
+  });
+
+  test('every generated Claude description stays within loader limits', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      const description = extractDescription(extractFrontmatter(content));
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_CHARS);
     }
   });
 
@@ -552,9 +592,7 @@ describe('Codex generation (--host codex)', () => {
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
       expect(content.startsWith('---\n')).toBe(true);
-      const fmEnd = content.indexOf('\n---', 4);
-      expect(fmEnd).toBeGreaterThan(0);
-      const frontmatter = content.slice(4, fmEnd);
+      const frontmatter = extractFrontmatter(content);
       // Must have name and description
       expect(frontmatter).toContain('name:');
       expect(frontmatter).toContain('description:');
@@ -619,8 +657,7 @@ describe('Codex generation (--host codex)', () => {
   test('multiline descriptions preserved in Codex output', () => {
     // office-hours has a multiline description — verify it survives the frontmatter transform
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-office-hours', 'SKILL.md'), 'utf-8');
-    const fmEnd = content.indexOf('\n---', 4);
-    const frontmatter = content.slice(4, fmEnd);
+    const frontmatter = extractFrontmatter(content);
     // Description should span multiple lines (block scalar)
     const descLines = frontmatter.split('\n').filter(l => l.startsWith('  '));
     expect(descLines.length).toBeGreaterThan(1);
@@ -635,9 +672,16 @@ describe('Codex generation (--host codex)', () => {
       // Must have safety advisory prose
       expect(content).toContain('Safety Advisory');
       // Must NOT have hooks: in frontmatter
-      const fmEnd = content.indexOf('\n---', 4);
-      const frontmatter = content.slice(4, fmEnd);
+      const frontmatter = extractFrontmatter(content);
       expect(frontmatter).not.toContain('hooks:');
+    }
+  });
+
+  test('every generated Codex description stays within loader limits', () => {
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
+      const description = extractDescription(extractFrontmatter(content));
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_CHARS);
     }
   });
 
@@ -782,6 +826,17 @@ describe('setup script validation', () => {
     expect(codexSection).not.toContain('link_claude_skill_dirs');
   });
 
+  test('Codex install relinks ~/.codex/skills/gstack after generated skill links', () => {
+    const codexSection = setupContent.slice(
+      setupContent.indexOf('# 5. Install for Codex'),
+      setupContent.indexOf('# 6. Create')
+    );
+    const linkFnIndex = codexSection.indexOf('link_codex_skill_dirs');
+    const repoLinkIndex = codexSection.indexOf('ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"');
+    expect(linkFnIndex).toBeGreaterThanOrEqual(0);
+    expect(repoLinkIndex).toBeGreaterThan(linkFnIndex);
+  });
+
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
     // The Codex link function must reference .agents/skills for generated Codex skills
     const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
@@ -789,6 +844,13 @@ describe('setup script validation', () => {
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('.agents/skills');
     expect(fnBody).toContain('gstack*');
+  });
+
+  test('link_codex_skill_dirs skips the umbrella gstack symlink', () => {
+    const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('[ "$skill_name" = "gstack" ] && continue');
   });
 
   test('link_claude_skill_dirs creates relative symlinks', () => {
