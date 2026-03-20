@@ -349,6 +349,29 @@ The `EvalCollector` accumulates test results and writes them in two ways:
 
 Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea: catch 95% of issues for free, use LLMs only for judgment calls and integration testing.
 
+## Synthetic memory
+
+Long-running skills (`/review`, `/qa`, `/investigate`) accumulate findings, decisions, and session state that exceed the context window. When Claude compacts earlier messages, critical details are silently lost — specific findings get summarized away, user decisions are forgotten, and the agent re-tests hypotheses it already disproved.
+
+The synthetic memory layer externalizes this state to `.gstack/` (project root, gitignored):
+
+```
+.gstack/
+├── session.json      ← mutable per-skill state (phase, turn count, findings)
+├── findings.md       ← append-only finding registry (source of truth)
+├── decisions.log     ← append-only user decision log
+├── handoff.md        ← inter-skill context transfer
+└── checkpoints/      ← periodic snapshots + archives
+```
+
+**Key design decisions:**
+- **JSON for session state, markdown for findings.** Session state is read/written programmatically; findings benefit from human readability.
+- **Dual-write with tiebreaker.** Findings go to both `session.json` and `findings.md`. If they disagree, `findings.md` wins (append-only, more durable).
+- **Checkpoint every 5 tool calls.** Re-reads files and prints status to re-inject state into the most recent (uncompacted) context. The cost (~200-500 tokens) is worth the compaction resistance.
+- **gitignored.** Session state is ephemeral and developer-specific. The code fixes are committed; the session metadata is not.
+
+The protocol is defined in `lib/memory.md` and included by reference in each skill's SKILL.md.tmpl. Scripts in `scripts/` handle initialization, status display, and reset-with-archive.
+
 ## What's intentionally not here
 
 - **No WebSocket streaming.** HTTP request/response is simpler, debuggable with curl, and fast enough. Streaming would add complexity for marginal benefit.
