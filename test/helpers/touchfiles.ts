@@ -79,6 +79,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Codex E2E (tests skills via Codex CLI)
   'codex-discover-skill':  ['codex/**', '.agents/skills/**', 'test/helpers/codex-session-runner.ts'],
   'codex-review-findings': ['review/**', '.agents/skills/gstack-review/**', 'codex/**', 'test/helpers/codex-session-runner.ts'],
+  'codex-question-gate':   ['plan-eng-review/**', '.agents/skills/gstack-plan-eng-review/**', 'codex/**', 'test/helpers/codex-session-runner.ts'],
 
   // QA bootstrap
   'qa-bootstrap': ['qa/**', 'browse/src/**', 'ship/**'],

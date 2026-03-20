@@ -222,6 +222,46 @@ This only happens once. If \`TEL_PROMPTED\` is \`yes\`, skip this entirely.`;
 }
 
 function generateAskUserFormat(_ctx: TemplateContext): string {
+  if (_ctx.host === 'codex') {
+    return `## Question Gate Format
+
+Codex may not provide a native AskUserQuestion UI. In this host, **every mention of
+\`AskUserQuestion\` anywhere in this skill means: write a single structured question
+to the user in chat, then stop and wait.**
+
+Rules:
+1. **One issue = one Question Gate.** Never combine multiple issues unless the skill explicitly allows batching.
+2. **End your turn immediately after the question.** Do not keep reviewing, editing, or running tools after asking.
+3. **Never silently choose a default** when the skill told you to ask the user.
+4. **If the user replies with \`A\`, \`B\`, or \`C\`,** treat that as the choice. If they reply in freeform, restate the decision you inferred before continuing.
+5. **If there is no real tradeoff and the fix is obvious,** make the fix instead of asking.
+6. **Always include a literal \`RECOMMENDATION:\` line before \`Options:\`.** Do not omit it, even if your recommendation is "no default" or "answer with constraints first".
+
+Use this structure for every Question Gate:
+
+\`\`\`md
+QUESTION
+Project: <project>
+Branch: <branch>
+Task: <current plan/task>
+
+Problem:
+<plain-English explanation a smart 16-year-old could follow>
+
+RECOMMENDATION: Choose A because <one-line reason>
+
+Options:
+A) <option> (Completeness: 10/10, human: ~X / CC: ~Y)
+B) <option> (Completeness: 7/10, human: ~X / CC: ~Y)
+C) <option> (Completeness: 3/10, human: ~X / CC: ~Y)
+
+Reply with A/B/C or answer in your own words.
+STOP here until the user responds.
+\`\`\`
+
+Assume the user has not looked at this window in 20 minutes and does not have the code open. Re-ground them before asking.`;
+  }
+
   return `## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**

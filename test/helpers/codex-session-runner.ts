@@ -39,6 +39,37 @@ export interface ParsedCodexJSONL {
   sessionId: string | null;
 }
 
+async function collectStreamText(
+  stream: ReadableStream<Uint8Array>,
+): Promise<{ text: string; done: Promise<void>; cancel: () => Promise<void> }> {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+
+  const done = (async () => {
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      text += decoder.decode();
+    } catch {
+      // Ignore stream read/cancel errors; return whatever was collected.
+    }
+  })();
+
+  return {
+    get text() {
+      return text;
+    },
+    done,
+    cancel: async () => {
+      try { await reader.cancel(); } catch { /* non-fatal */ }
+    },
+  };
+}
+
 /**
  * Parse an array of JSONL lines from `codex exec --json` into structured data.
  * Pure function — no I/O, no side effects.
@@ -119,6 +150,25 @@ export function installSkillToTempHome(
   return home;
 }
 
+function copyCodexAuthFiles(realCodexConfig: string, tempCodexDir: string): void {
+  // Copy only the minimum files needed for auth/config. Copying the entire
+  // ~/.codex directory drags in large state DBs, worktrees, and archives,
+  // which makes E2E tests extremely slow and can hang cleanup.
+  const allowlist = [
+    'auth.json',
+    'config.toml',
+    'AGENTS.md',
+    'version.json',
+  ];
+
+  for (const entry of allowlist) {
+    const src = path.join(realCodexConfig, entry);
+    const dst = path.join(tempCodexDir, entry);
+    if (!fs.existsSync(src) || fs.existsSync(dst)) continue;
+    fs.cpSync(src, dst, { recursive: true });
+  }
+}
+
 // --- Main runner ---
 
 /**
@@ -175,17 +225,7 @@ export async function runCodexSkill(opts: {
     const realCodexConfig = path.join(realHome, '.codex');
     const tempCodexDir = path.join(tempHome, '.codex');
     if (fs.existsSync(realCodexConfig)) {
-      // Copy auth-related files from real ~/.codex/ into temp ~/.codex/
-      // (skills/ is already set up by installSkillToTempHome)
-      const entries = fs.readdirSync(realCodexConfig);
-      for (const entry of entries) {
-        if (entry === 'skills') continue; // don't clobber our test skills
-        const src = path.join(realCodexConfig, entry);
-        const dst = path.join(tempCodexDir, entry);
-        if (!fs.existsSync(dst)) {
-          fs.cpSync(src, dst, { recursive: true });
-        }
-      }
+      copyCodexAuthFiles(realCodexConfig, tempCodexDir);
     }
 
     // Build codex exec command
@@ -211,7 +251,7 @@ export async function runCodexSkill(opts: {
 
     // Stream and collect JSONL from stdout
     const collectedLines: string[] = [];
-    const stderrPromise = new Response(proc.stderr).text();
+    const stderrCollector = await collectStreamText(proc.stderr);
 
     const reader = proc.stdout.getReader();
     const decoder = new TextDecoder();
@@ -251,9 +291,15 @@ export async function runCodexSkill(opts: {
       collectedLines.push(buf);
     }
 
-    const stderr = await stderrPromise;
     const exitCode = await proc.exited;
     clearTimeout(timeoutId);
+    // Codex may leave stderr pipes open briefly via child processes (MCP/browser).
+    // Don't hang the entire E2E run waiting forever for stderr to close.
+    await Promise.race([
+      stderrCollector.done,
+      new Promise(resolve => setTimeout(resolve, 500)),
+    ]);
+    await stderrCollector.cancel();
 
     const durationMs = Date.now() - startTime;
 
@@ -261,8 +307,8 @@ export async function runCodexSkill(opts: {
     const parsed = parseCodexJSONL(collectedLines);
 
     // Log stderr if non-empty (may contain auth errors, etc.)
-    if (stderr.trim()) {
-      process.stderr.write(`  [codex stderr] ${stderr.trim().slice(0, 200)}\n`);
+    if (stderrCollector.text.trim()) {
+      process.stderr.write(`  [codex stderr] ${stderrCollector.text.trim().slice(0, 200)}\n`);
     }
 
     return {

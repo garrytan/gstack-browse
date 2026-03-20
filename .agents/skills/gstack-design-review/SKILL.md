@@ -89,17 +89,43 @@ touch ~/.gstack/.telemetry-prompted
 
 This only happens once. If `TEL_PROMPTED` is `yes`, skip this entirely.
 
-## AskUserQuestion Format
+## Question Gate Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
-2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
-4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+Codex may not provide a native AskUserQuestion UI. In this host, **every mention of
+`AskUserQuestion` anywhere in this skill means: write a single structured question
+to the user in chat, then stop and wait.**
 
-Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+Rules:
+1. **One issue = one Question Gate.** Never combine multiple issues unless the skill explicitly allows batching.
+2. **End your turn immediately after the question.** Do not keep reviewing, editing, or running tools after asking.
+3. **Never silently choose a default** when the skill told you to ask the user.
+4. **If the user replies with `A`, `B`, or `C`,** treat that as the choice. If they reply in freeform, restate the decision you inferred before continuing.
+5. **If there is no real tradeoff and the fix is obvious,** make the fix instead of asking.
+6. **Always include a literal `RECOMMENDATION:` line before `Options:`.** Do not omit it, even if your recommendation is "no default" or "answer with constraints first".
 
-Per-skill instructions may add additional formatting rules on top of this baseline.
+Use this structure for every Question Gate:
+
+```md
+QUESTION
+Project: <project>
+Branch: <branch>
+Task: <current plan/task>
+
+Problem:
+<plain-English explanation a smart 16-year-old could follow>
+
+RECOMMENDATION: Choose A because <one-line reason>
+
+Options:
+A) <option> (Completeness: 10/10, human: ~X / CC: ~Y)
+B) <option> (Completeness: 7/10, human: ~X / CC: ~Y)
+C) <option> (Completeness: 3/10, human: ~X / CC: ~Y)
+
+Reply with A/B/C or answer in your own words.
+STOP here until the user responds.
+```
+
+Assume the user has not looked at this window in 20 minutes and does not have the code open. Re-ground them before asking.
 
 ## Completeness Principle — Boil the Lake
 

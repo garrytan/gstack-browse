@@ -55,6 +55,7 @@ if (!evalsEnabled) {
 const CODEX_E2E_TOUCHFILES: Record<string, string[]> = {
   'codex-discover-skill':    ['codex/**', '.agents/skills/**', 'test/helpers/codex-session-runner.ts'],
   'codex-review-findings':   ['review/**', '.agents/skills/gstack-review/**', 'codex/**', 'test/helpers/codex-session-runner.ts'],
+  'codex-question-gate':     ['plan-eng-review/**', '.agents/skills/gstack-plan-eng-review/**', 'codex/**', 'test/helpers/codex-session-runner.ts'],
 };
 
 let selectedTests: string[] | null = null; // null = run all
@@ -182,4 +183,45 @@ describeCodex('Codex E2E', () => {
       outputLower.includes('p2');
     expect(hasReviewContent).toBe(true);
   }, 600_000);
+
+  testIfSelected('codex-question-gate', async () => {
+    const skillDir = path.join(ROOT, '.agents', 'skills', 'gstack-plan-eng-review');
+    const tempRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-question-gate-'));
+
+    try {
+      const run = (args: string[]) => Bun.spawnSync(args, { cwd: tempRepo, stdout: 'pipe', stderr: 'pipe' });
+      run(['git', 'init', '-b', 'main']);
+      run(['git', 'config', 'user.email', 'test@test.com']);
+      run(['git', 'config', 'user.name', 'Test']);
+      run(['git', 'commit', '--allow-empty', '-m', 'init']);
+
+      const result = await runCodexSkill({
+        skillDir,
+        prompt: 'Use the gstack-plan-eng-review skill. You are reviewing a plan to add Stripe payments. The plan does not specify whether to use Stripe Checkout or Stripe Elements. Ask the next decision question and stop. Do not choose a default. Do not continue the review after asking.',
+        timeoutMs: 180_000,
+        cwd: tempRepo,
+        skillName: 'gstack-plan-eng-review',
+      });
+
+      logCodexCost('codex-question-gate', result);
+
+      const output = result.output;
+      const passed =
+        result.exitCode === 0 &&
+        output.includes('QUESTION') &&
+        output.includes('RECOMMENDATION:') &&
+        output.includes('STOP here until the user responds.');
+      recordCodexE2E('codex-question-gate', result, passed);
+
+      expect(result.exitCode).toBe(0);
+      expect(output).toContain('QUESTION');
+      expect(output).toContain('RECOMMENDATION:');
+      expect(output).toContain('Options:');
+      expect(output).toContain('A)');
+      expect(output).toContain('B)');
+      expect(output).toContain('STOP here until the user responds.');
+    } finally {
+      try { fs.rmSync(tempRepo, { recursive: true, force: true }); } catch {}
+    }
+  }, 240_000);
 });

@@ -564,6 +564,15 @@ describe('Codex generation (--host codex)', () => {
     expect(content).toContain('.agents/skills/gstack');
   });
 
+  test('Codex output includes Question Gate compatibility instructions', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('## Question Gate Format');
+    expect(content).toContain('every mention of');
+    expect(content).toContain('`AskUserQuestion`');
+    expect(content).toContain('QUESTION');
+    expect(content).toContain('STOP here until the user responds.');
+  });
+
   // ─── Path rewriting regression tests ─────────────────────────
 
   test('sidecar paths point to .agents/skills/gstack/review/ (not gstack-review/)', () => {
