@@ -5,7 +5,10 @@ description: |
   Designer's eye plan review — interactive, like CEO and Eng review.
   Rates each design dimension 0-10, explains what would make it a 10,
   then fixes the plan to get there. Works in plan mode. For live site
-  visual audits, use /design-review.
+  visual audits, use /design-review. Use when asked to "review the design plan"
+  or "design critique".
+  Proactively suggest when the user has a plan with UI/UX components that
+  should be reviewed before implementation.
 allowed-tools:
   - Read
   - Edit
@@ -266,9 +269,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default to 
 After producing the Completion Summary above, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","overall_score":N,"unresolved":N,"decisions_made":N}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","overall_score":N,"unresolved":N,"decisions_made":N,"commit":"COMMIT"}'
 ```
 
 Substitute values from the Completion Summary:
@@ -277,8 +278,24 @@ Substitute values from the Completion Summary:
 - **overall_score**: final overall design score (0-10)
 - **unresolved**: number of unresolved design decisions
 - **decisions_made**: number of design decisions added to the plan
+- **COMMIT**: output of `git rev-parse --short HEAD`
 
 {{REVIEW_DASHBOARD}}
+
+## Next Steps — Review Chaining
+
+After displaying the Review Readiness Dashboard, recommend the next review(s) based on what this design review discovered. Read the dashboard output to see which reviews have already been run and whether they are stale.
+
+**Recommend /plan-eng-review if eng review is not skipped globally** — check the dashboard output for `skip_eng_review`. If it is `true`, eng review is opted out — do not recommend it. Otherwise, eng review is the required shipping gate. If this design review added significant interaction specifications, new user flows, or changed the information architecture, emphasize that eng review needs to validate the architectural implications. If an eng review already exists but the commit hash shows it predates this design review, note that it may be stale and should be re-run.
+
+**Consider recommending /plan-ceo-review** — but only if this design review revealed fundamental product direction gaps. Specifically: if the overall design score started below 4/10, if the information architecture had major structural problems, or if the review surfaced questions about whether the right problem is being solved. AND no CEO review exists in the dashboard. This is a selective recommendation — most design reviews should NOT trigger a CEO review.
+
+**If both are needed, recommend eng review first** (required gate).
+
+Use AskUserQuestion to present the next step. Include only applicable options:
+- **A)** Run /plan-eng-review next (required gate)
+- **B)** Run /plan-ceo-review (only if fundamental product gaps found)
+- **C)** Skip — I'll handle reviews manually
 
 ## Formatting Rules
 * NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).

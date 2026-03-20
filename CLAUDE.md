@@ -20,15 +20,28 @@ bun run eval:compare # compare two eval runs (auto-picks most recent)
 bun run eval:summary # aggregate stats across all eval runs
 ```
 
-`test:evals` requires `ANTHROPIC_API_KEY`. E2E tests stream progress in real-time
-(tool-by-tool via `--output-format stream-json --verbose`). Results are persisted
-to `~/.gstack-dev/evals/` with auto-comparison against the previous run.
+`test:evals` requires `ANTHROPIC_API_KEY`. Codex E2E tests (`test/codex-e2e.test.ts`)
+use Codex's own auth from `~/.codex/` config — no `OPENAI_API_KEY` env var needed.
+E2E tests stream progress in real-time (tool-by-tool via `--output-format stream-json
+--verbose`). Results are persisted to `~/.gstack-dev/evals/` with auto-comparison
+against the previous run.
 
 **Diff-based test selection:** `test:evals` and `test:e2e` auto-select tests based
 on `git diff` against the base branch. Each test declares its file dependencies in
 `test/helpers/touchfiles.ts`. Changes to global touchfiles (session-runner, eval-store,
 llm-judge, gen-skill-docs) trigger all tests. Use `EVALS_ALL=1` or the `:all` script
 variants to force all tests. Run `eval:select` to preview which tests would run.
+
+## Testing
+
+```bash
+bun test             # run before every commit — free, <2s
+bun run test:evals   # run before shipping — paid, diff-based (~$4/run max)
+```
+
+`bun test` runs skill validation, gen-skill-docs quality checks, and browse
+integration tests. `bun run test:evals` runs LLM-judge quality evals and E2E
+tests via `claude -p`. Both must pass before creating a PR.
 
 ## Project structure
 
@@ -58,6 +71,8 @@ gstack/
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill
 ├── plan-eng-review/ # /plan-eng-review skill
+├── office-hours/    # /office-hours skill (YC Office Hours — startup diagnostic + builder brainstorm)
+├── investigate/     # /investigate skill (systematic root-cause debugging)
 ├── retro/           # Retrospective skill
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── setup            # One-time setup: build binary + symlink skills
@@ -76,6 +91,18 @@ SKILL.md files are **generated** from `.tmpl` templates. To update docs:
 
 To add a new browse command: add it to `browse/src/commands.ts` and rebuild.
 To add a snapshot flag: add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts` and rebuild.
+
+## Platform-agnostic design
+
+Skills must NEVER hardcode framework-specific commands, file patterns, or directory
+structures. Instead:
+
+1. **Read CLAUDE.md** for project-specific config (test commands, eval commands, etc.)
+2. **If missing, AskUserQuestion** — let the user tell you or let gstack search the repo
+3. **Persist the answer to CLAUDE.md** so we never have to ask again
+
+This applies to test commands, eval commands, deploy commands, and any other
+project-specific behavior. The project owns its config; gstack reads it.
 
 ## Writing SKILL templates
 
@@ -141,6 +168,8 @@ CHANGELOG.md is **for users**, not contributors. Write it like product release n
 
 - Lead with what the user can now **do** that they couldn't before. Sell the feature.
 - Use plain language, not implementation details. "You can now..." not "Refactored the..."
+- **Never mention TODOS.md, internal tracking, eval infrastructure, or contributor-facing
+  details.** These are invisible to users and meaningless to them.
 - Put contributor/internal changes in a separate "For contributors" section at the bottom.
 - Every entry should make someone think "oh nice, I want to try that."
 - No jargon: say "every question now tells you which project and branch you're in" not

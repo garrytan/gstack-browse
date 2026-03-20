@@ -6,6 +6,10 @@ description: |
   challenge premises, expand scope when it creates a better product. Four modes:
   SCOPE EXPANSION (dream big), SELECTIVE EXPANSION (hold scope + cherry-pick
   expansions), HOLD SCOPE (maximum rigor), SCOPE REDUCTION (strip to essentials).
+  Use when asked to "think bigger", "expand scope", "strategy review", "rethink this",
+  or "is this ambitious enough".
+  Proactively suggest when the user is questioning scope or ambition of a plan,
+  or when the plan feels like it could be thinking bigger.
 allowed-tools:
   - Read
   - Grep
@@ -33,7 +37,7 @@ Do NOT make any code changes. Do NOT start implementation. Your only job right n
 
 ## Prime Directives
 1. Zero silent failures. Every failure mode must be visible — to the system, to the team, to the user. If a failure can happen silently, that is a critical defect in the plan.
-2. Every error has a name. Don't say "handle errors." Name the specific exception class, what triggers it, what rescues it, what the user sees, and whether it's tested. rescue StandardError is a code smell — call it out.
+2. Every error has a name. Don't say "handle errors." Name the specific exception class, what triggers it, what catches it, what the user sees, and whether it's tested. Catch-all error handling (e.g., catch Exception, rescue StandardError, except Exception) is a code smell — call it out.
 3. Data flows have shadow paths. Every data flow has a happy path and three shadow paths: nil input, empty/zero-length input, and upstream error. Trace all four for every new flow.
 4. Interactions have edge cases. Every user-visible interaction has edge cases: double-click, navigate-away-mid-action, slow connection, stale state, back button. Map them.
 5. Observability is scope, not afterthought. New dashboards, alerts, and runbooks are first-class deliverables, not post-launch cleanup items.
@@ -91,10 +95,22 @@ Run the following commands:
 git log --oneline -30                          # Recent history
 git diff <base> --stat                           # What's already changed
 git stash list                                 # Any stashed work
-grep -r "TODO\|FIXME\|HACK\|XXX" --include="*.rb" --include="*.js" -l
-find . -name "*.rb" -newer Gemfile.lock | head -20  # Recently touched files
+grep -r "TODO\|FIXME\|HACK\|XXX" -l --exclude-dir=node_modules --exclude-dir=vendor --exclude-dir=.git . | head -30
+git log --since=30.days --name-only --format="" | sort | uniq -c | sort -rn | head -20  # Recently touched files
 ```
-Then read CLAUDE.md, TODOS.md, and any existing architecture docs. When reading TODOS.md, specifically:
+Then read CLAUDE.md, TODOS.md, and any existing architecture docs.
+
+**Design doc check:**
+```bash
+SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
+DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
+[ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
+```
+If a design doc exists (from `/office-hours`), read it. Use it as the source of truth for the problem statement, constraints, and chosen approach. If it has a `Supersedes:` field, note that this is a revised design.
+
+When reading TODOS.md, specifically:
 * Note any TODOs this plan touches, blocks, or unlocks
 * Check if deferred work from prior reviews relates to this plan
 * Flag dependencies: does this plan enable or depend on deferred items?
@@ -134,6 +150,36 @@ Describe the ideal end state of this system 12 months from now. Does this plan m
   [describe]          --->       [describe delta]    --->    [describe target]
 ```
 
+### 0C-bis. Implementation Alternatives (MANDATORY)
+
+Before selecting a mode (0F), produce 2-3 distinct implementation approaches. This is NOT optional — every plan must consider alternatives.
+
+For each approach:
+```
+APPROACH A: [Name]
+  Summary: [1-2 sentences]
+  Effort:  [S/M/L/XL]
+  Risk:    [Low/Med/High]
+  Pros:    [2-3 bullets]
+  Cons:    [2-3 bullets]
+  Reuses:  [existing code/patterns leveraged]
+
+APPROACH B: [Name]
+  ...
+
+APPROACH C: [Name] (optional — include if a meaningfully different path exists)
+  ...
+```
+
+**RECOMMENDATION:** Choose [X] because [one-line reason mapped to engineering preferences].
+
+Rules:
+- At least 2 approaches required. 3 preferred for non-trivial plans.
+- One approach must be the "minimal viable" (fewest files, smallest diff).
+- One approach must be the "ideal architecture" (best long-term trajectory).
+- If only one approach exists, explain concretely why alternatives were eliminated.
+- Do NOT proceed to mode selection (0F) without user approval of the chosen approach.
+
 ### 0D. Mode-Specific Analysis
 **For SCOPE EXPANSION** — run all three, then the opt-in ceremony:
 1. 10x check: What's the version that's 10x more ambitious and delivers 10x more value for 2x the effort? Describe it concretely.
@@ -163,8 +209,7 @@ Describe the ideal end state of this system 12 months from now. Does this plan m
 After the opt-in/cherry-pick ceremony, write the plan to disk so the vision and decisions survive beyond this conversation. Only run this step for EXPANSION and SELECTIVE EXPANSION modes.
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG/ceo-plans
+source <(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG/ceo-plans
 ```
 
 Before writing, check for existing CEO plans in the ceo-plans/ directory. If any are >30 days old or their branch has been merged/deleted, offer to archive them:
@@ -241,6 +286,8 @@ Context-dependent defaults:
 * User says "go big" / "ambitious" / "cathedral" → EXPANSION, no question
 * User says "hold scope but tempt me" / "show me options" / "cherry-pick" → SELECTIVE EXPANSION, no question
 
+After mode is selected, confirm which implementation approach (from 0C-bis) applies under the chosen mode. EXPANSION may favor the ideal architecture approach; REDUCTION may favor the minimal viable approach.
+
 Once selected, commit fully. Do not silently drift.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If no issues or fix is obvious, state what you'll do and move on — don't waste a question. Do NOT proceed until user responds.
 
@@ -277,24 +324,24 @@ For every new method, service, or codepath that can fail, fill in this table:
 ```
   METHOD/CODEPATH          | WHAT CAN GO WRONG           | EXCEPTION CLASS
   -------------------------|-----------------------------|-----------------
-  ExampleService#call      | API timeout                 | Faraday::TimeoutError
+  ExampleService#call      | API timeout                 | TimeoutError
                            | API returns 429             | RateLimitError
-                           | API returns malformed JSON  | JSON::ParserError
-                           | DB connection pool exhausted| ActiveRecord::ConnectionTimeoutError
-                           | Record not found            | ActiveRecord::RecordNotFound
+                           | API returns malformed JSON  | JSONParseError
+                           | DB connection pool exhausted| ConnectionPoolExhausted
+                           | Record not found            | RecordNotFound
   -------------------------|-----------------------------|-----------------
 
   EXCEPTION CLASS              | RESCUED?  | RESCUE ACTION          | USER SEES
   -----------------------------|-----------|------------------------|------------------
-  Faraday::TimeoutError        | Y         | Retry 2x, then raise   | "Service temporarily unavailable"
+  TimeoutError                 | Y         | Retry 2x, then raise   | "Service temporarily unavailable"
   RateLimitError               | Y         | Backoff + retry         | Nothing (transparent)
-  JSON::ParserError            | N ← GAP   | —                      | 500 error ← BAD
-  ConnectionTimeoutError       | N ← GAP   | —                      | 500 error ← BAD
-  ActiveRecord::RecordNotFound | Y         | Return nil, log warning | "Not found" message
+  JSONParseError               | N ← GAP   | —                      | 500 error ← BAD
+  ConnectionPoolExhausted      | N ← GAP   | —                      | 500 error ← BAD
+  RecordNotFound               | Y         | Return nil, log warning | "Not found" message
 ```
 Rules for this section:
-* `rescue StandardError` is ALWAYS a smell. Name the specific exceptions.
-* `rescue => e` with only `Rails.logger.error(e.message)` is insufficient. Log the full context: what was being attempted, with what arguments, for what user/request.
+* Catch-all error handling (`rescue StandardError`, `catch (Exception e)`, `except Exception`) is ALWAYS a smell. Name the specific exceptions.
+* Catching an error with only a generic log message is insufficient. Log the full context: what was being attempted, with what arguments, for what user/request.
 * Every rescued error must either: retry with backoff, degrade gracefully with a user-visible message, or re-raise with added context. "Swallow and continue" is almost never acceptable.
 * For each GAP (unrescued error that should be rescued): specify the rescue action and what the user should see.
 * For LLM/AI service calls specifically: what happens when the response is malformed? When it's empty? When it hallucinates invalid JSON? When the model returns a refusal? Each of these is a distinct failure mode.
@@ -591,9 +638,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default.
 After producing the Completion Summary above, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
-mkdir -p ~/.gstack/projects/$SLUG
-echo '{"skill":"plan-ceo-review","timestamp":"TIMESTAMP","status":"STATUS","unresolved":N,"critical_gaps":N,"mode":"MODE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-ceo-review","timestamp":"TIMESTAMP","status":"STATUS","unresolved":N,"critical_gaps":N,"mode":"MODE","commit":"COMMIT"}'
 ```
 
 Before running this command, substitute the placeholder values from the Completion Summary you just produced:
@@ -602,8 +647,24 @@ Before running this command, substitute the placeholder values from the Completi
 - **unresolved**: number from "Unresolved decisions" in the summary
 - **critical_gaps**: number from "Failure modes: ___ CRITICAL GAPS" in the summary
 - **MODE**: the mode the user selected (SCOPE_EXPANSION / SELECTIVE_EXPANSION / HOLD_SCOPE / SCOPE_REDUCTION)
+- **COMMIT**: output of `git rev-parse --short HEAD`
 
 {{REVIEW_DASHBOARD}}
+
+## Next Steps — Review Chaining
+
+After displaying the Review Readiness Dashboard, recommend the next review(s) based on what this CEO review discovered. Read the dashboard output to see which reviews have already been run and whether they are stale.
+
+**Recommend /plan-eng-review if eng review is not skipped globally** — check the dashboard output for `skip_eng_review`. If it is `true`, eng review is opted out — do not recommend it. Otherwise, eng review is the required shipping gate. If this CEO review expanded scope, changed architectural direction, or accepted scope expansions, emphasize that a fresh eng review is needed. If an eng review already exists in the dashboard but the commit hash shows it predates this CEO review, note that it may be stale and should be re-run.
+
+**Recommend /plan-design-review if UI scope was detected** — specifically if Section 11 (Design & UX Review) was NOT skipped, or if accepted scope expansions included UI-facing features. If an existing design review is stale (commit hash drift), note that. In SCOPE REDUCTION mode, skip this recommendation — design review is unlikely relevant for scope cuts.
+
+**If both are needed, recommend eng review first** (required gate), then design review.
+
+Use AskUserQuestion to present the next step. Include only applicable options:
+- **A)** Run /plan-eng-review next (required gate)
+- **B)** Run /plan-design-review next (only if UI scope detected)
+- **C)** Skip — I'll handle reviews manually
 
 ## docs/designs Promotion (EXPANSION and SELECTIVE EXPANSION only)
 

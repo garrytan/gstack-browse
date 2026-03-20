@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gstack-diff-scope — categorize what changed in the diff against a base branch
-# Usage: eval $(gstack-diff-scope main)  → sets SCOPE_FRONTEND=true SCOPE_BACKEND=false ...
+# Usage: source <(gstack-diff-scope main)  → sets SCOPE_FRONTEND=true SCOPE_BACKEND=false ...
 # Or:    gstack-diff-scope main           → prints SCOPE_*=... lines
 set -euo pipefail
 

@@ -6,7 +6,8 @@ description: |
   elements, verify page state, diff before/after actions, take annotated screenshots, check
   responsive layouts, test forms and uploads, handle dialogs, and assert element states.
   ~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
-  user flow, or file a bug with evidence.
+  user flow, or file a bug with evidence. Use when asked to "open in browser", "test the
+  site", "take a screenshot", or "dogfood this".
 allowed-tools:
   - Bash
   - Read
@@ -104,6 +105,32 @@ $B diff https://staging.app.com https://prod.app.com
 
 ### 11. Show screenshots to the user
 After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always use the Read tool on the output PNG(s) so the user can see them. Without this, screenshots are invisible.
+
+## User Handoff
+
+When you hit something you can't handle in headless mode (CAPTCHA, complex auth, multi-factor
+login), hand off to the user:
+
+```bash
+# 1. Open a visible Chrome at the current page
+$B handoff "Stuck on CAPTCHA at login page"
+
+# 2. Tell the user what happened (via AskUserQuestion)
+#    "I've opened Chrome at the login page. Please solve the CAPTCHA
+#     and let me know when you're done."
+
+# 3. When user says "done", re-snapshot and continue
+$B resume
+```
+
+**When to use handoff:**
+- CAPTCHAs or bot detection
+- Multi-factor authentication (SMS, authenticator app)
+- OAuth flows that require user interaction
+- Complex interactions the AI can't handle after 3 attempts
+
+The browser preserves all state (cookies, localStorage, tabs) across the handoff.
+After `resume`, you get a fresh snapshot of wherever the user left off.
 
 ## Snapshot Flags
 
