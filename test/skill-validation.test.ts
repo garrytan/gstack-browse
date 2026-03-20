@@ -1326,3 +1326,70 @@ describe('Skill trigger phrases', () => {
     });
   }
 });
+
+// ─── Codex Skill Validation ──────────────────────────────────
+
+describe('Codex skill validation', () => {
+  const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
+
+  // Discover all Claude skills with templates (except /codex which is Claude-only)
+  const CLAUDE_SKILLS_WITH_TEMPLATES = (() => {
+    const skills: string[] = [];
+    for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+      if (entry.name === 'codex') continue; // Claude-only skill
+      if (fs.existsSync(path.join(ROOT, entry.name, 'SKILL.md.tmpl'))) {
+        skills.push(entry.name);
+      }
+    }
+    return skills;
+  })();
+
+  test('all skills (except /codex) have both Claude and Codex variants', () => {
+    for (const skillDir of CLAUDE_SKILLS_WITH_TEMPLATES) {
+      // Claude variant
+      const claudeMd = path.join(ROOT, skillDir, 'SKILL.md');
+      expect(fs.existsSync(claudeMd)).toBe(true);
+
+      // Codex variant
+      const codexName = skillDir.startsWith('gstack-') ? skillDir : `gstack-${skillDir}`;
+      const codexMd = path.join(AGENTS_DIR, codexName, 'SKILL.md');
+      expect(fs.existsSync(codexMd)).toBe(true);
+    }
+    // Root template has both too
+    expect(fs.existsSync(path.join(ROOT, 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'gstack', 'SKILL.md'))).toBe(true);
+  });
+
+  test('/codex skill is Claude-only — no Codex variant', () => {
+    // Claude variant should exist
+    expect(fs.existsSync(path.join(ROOT, 'codex', 'SKILL.md'))).toBe(true);
+    // Codex variant must NOT exist
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'gstack-codex', 'SKILL.md'))).toBe(false);
+  });
+
+  test('Codex skill names follow gstack-{name} convention', () => {
+    const codexDirs = fs.readdirSync(AGENTS_DIR);
+    for (const dir of codexDirs) {
+      // Every directory should start with gstack
+      expect(dir.startsWith('gstack')).toBe(true);
+      // Root is just 'gstack', others are 'gstack-{name}'
+      if (dir !== 'gstack') {
+        expect(dir.startsWith('gstack-')).toBe(true);
+      }
+    }
+  });
+
+  test('$B commands in Codex SKILL.md files are valid browse commands', () => {
+    const codexDirs = fs.readdirSync(AGENTS_DIR);
+    for (const dir of codexDirs) {
+      const skillMd = path.join(AGENTS_DIR, dir, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const content = fs.readFileSync(skillMd, 'utf-8');
+      // Only validate if the skill contains $B commands
+      if (!content.includes('$B ')) continue;
+      const result = validateSkill(skillMd);
+      expect(result.invalid).toHaveLength(0);
+    }
+  });
+});

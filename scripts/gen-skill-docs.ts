@@ -19,10 +19,45 @@ const DRY_RUN = process.argv.includes('--dry-run');
 
 // ─── Template Context ───────────────────────────────────────
 
+type Host = 'claude' | 'codex';
+
+const HOST_ARG = process.argv.find(a => a.startsWith('--host'));
+const HOST: Host = (() => {
+  if (!HOST_ARG) return 'claude';
+  const val = HOST_ARG.includes('=') ? HOST_ARG.split('=')[1] : process.argv[process.argv.indexOf(HOST_ARG) + 1];
+  if (val === 'codex' || val === 'agents') return 'codex';
+  if (val === 'claude') return 'claude';
+  throw new Error(`Unknown host: ${val}. Use claude, codex, or agents.`);
+})();
+
+interface HostPaths {
+  skillRoot: string;
+  localSkillRoot: string;
+  binDir: string;
+  browseDir: string;
+}
+
+const HOST_PATHS: Record<Host, HostPaths> = {
+  claude: {
+    skillRoot: '~/.claude/skills/gstack',
+    localSkillRoot: '.claude/skills/gstack',
+    binDir: '~/.claude/skills/gstack/bin',
+    browseDir: '~/.claude/skills/gstack/browse/dist',
+  },
+  codex: {
+    skillRoot: '~/.codex/skills/gstack',
+    localSkillRoot: '.agents/skills/gstack',
+    binDir: '~/.codex/skills/gstack/bin',
+    browseDir: '~/.codex/skills/gstack/browse/dist',
+  },
+};
+
 interface TemplateContext {
   skillName: string;
   tmplPath: string;
   benefitsFrom?: string[];
+  host: Host;
+  paths: HostPaths;
 }
 
 // ─── Placeholder Resolvers ──────────────────────────────────
@@ -102,33 +137,44 @@ function generateSnapshotFlags(_ctx: TemplateContext): string {
   return lines.join('\n');
 }
 
-function generatePreamble(ctx: TemplateContext): string {
+function generatePreambleBash(ctx: TemplateContext): string {
   return `## Preamble (run first)
 
 \`\`\`bash
-_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$(${ctx.paths.binDir}/gstack-update-check 2>/dev/null || ${ctx.paths.localSkillRoot}/bin/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
-_PROACTIVE=$(~/.claude/skills/gstack/bin/gstack-config get proactive 2>/dev/null || echo "true")
+_CONTRIB=$(${ctx.paths.binDir}/gstack-config get gstack_contributor 2>/dev/null || true)
+_PROACTIVE=$(${ctx.paths.binDir}/gstack-config get proactive 2>/dev/null || echo "true")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
 echo "PROACTIVE: $_PROACTIVE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
+_TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
+_TEL_START=$(date +%s)
+_SESSION_ID="$$-$(date +%s)"
+echo "TELEMETRY: \${_TEL:-off}"
+echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 echo '{"skill":"${ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-\`\`\`
+for _PF in ~/.gstack/analytics/.pending-*; do [ -f "$_PF" ] && ${ctx.paths.binDir}/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+\`\`\``;
+}
 
-If \`PROACTIVE\` is \`"false"\`, do not proactively suggest gstack skills — only invoke
+function generateUpgradeCheck(ctx: TemplateContext): string {
+  return `If \`PROACTIVE\` is \`"false"\`, do not proactively suggest gstack skills — only invoke
 them when the user explicitly asks. The user opted out of proactive suggestions.
 
-If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`~/.claude/skills/gstack/gstack-upgrade/SKILL.md\` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If \`JUST_UPGRADED <from> <to>\`: tell user "Running gstack v{to} (just updated!)" and continue.
+If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`${ctx.paths.skillRoot}/gstack-upgrade/SKILL.md\` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If \`JUST_UPGRADED <from> <to>\`: tell user "Running gstack v{to} (just updated!)" and continue.`;
+}
 
-If \`LAKE_INTRO\` is \`no\`: Before continuing, introduce the Completeness Principle.
+function generateLakeIntro(): string {
+  return `If \`LAKE_INTRO\` is \`no\`: Before continuing, introduce the Completeness Principle.
 Tell the user: "gstack follows the **Boil the Lake** principle — always do the complete
 thing when AI makes the marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean"
 Then offer to open the essay in their default browser:
@@ -138,9 +184,46 @@ open https://garryslist.org/posts/boil-the-ocean
 touch ~/.gstack/.completeness-intro-seen
 \`\`\`
 
-Only run \`open\` if the user says yes. Always run \`touch\` to mark as seen. This only happens once.
+Only run \`open\` if the user says yes. Always run \`touch\` to mark as seen. This only happens once.`;
+}
 
-## AskUserQuestion Format
+function generateTelemetryPrompt(ctx: TemplateContext): string {
+  return `If \`TEL_PROMPTED\` is \`no\` AND \`LAKE_INTRO\` is \`yes\`: After the lake intro is handled,
+ask the user about telemetry. Use AskUserQuestion:
+
+> Help gstack get better! Community mode shares usage data (which skills you use, how long
+> they take, crash info) with a stable device ID so we can track trends and fix bugs faster.
+> No code, file paths, or repo names are ever sent.
+> Change anytime with \`gstack-config set telemetry off\`.
+
+Options:
+- A) Help gstack get better! (recommended)
+- B) No thanks
+
+If A: run \`${ctx.paths.binDir}/gstack-config set telemetry community\`
+
+If B: ask a follow-up AskUserQuestion:
+
+> How about anonymous mode? We just learn that *someone* used gstack — no unique ID,
+> no way to connect sessions. Just a counter that helps us know if anyone's out there.
+
+Options:
+- A) Sure, anonymous is fine
+- B) No thanks, fully off
+
+If B→A: run \`${ctx.paths.binDir}/gstack-config set telemetry anonymous\`
+If B→B: run \`${ctx.paths.binDir}/gstack-config set telemetry off\`
+
+Always run:
+\`\`\`bash
+touch ~/.gstack/.telemetry-prompted
+\`\`\`
+
+This only happens once. If \`TEL_PROMPTED\` is \`yes\`, skip this entirely.`;
+}
+
+function generateAskUserFormat(_ctx: TemplateContext): string {
+  return `## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
 1. **Re-ground:** State the project, the current branch (use the \`_BRANCH\` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
@@ -150,9 +233,11 @@ Only run \`open\` if the user says yes. Always run \`touch\` to mark as seen. Th
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
-Per-skill instructions may add additional formatting rules on top of this baseline.
+Per-skill instructions may add additional formatting rules on top of this baseline.`;
+}
 
-## Completeness Principle — Boil the Lake
+function generateCompletenessSection(): string {
+  return `## Completeness Principle — Boil the Lake
 
 AI-assisted coding makes the marginal cost of completeness near-zero. When you present options:
 
@@ -175,9 +260,11 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When you p
 - BAD: "Choose B — it covers 90% of the value with less code." (If A is only 70 lines more, choose A.)
 - BAD: "We can skip edge case handling to save time." (Edge case handling costs minutes with CC.)
 - BAD: "Let's defer test coverage to a follow-up PR." (Tests are the cheapest lake to boil.)
-- BAD: Quoting only human-team effort: "This would take 2 weeks." (Say: "2 weeks human / ~1 hour CC.")
+- BAD: Quoting only human-team effort: "This would take 2 weeks." (Say: "2 weeks human / ~1 hour CC.")`;
+}
 
-## Contributor Mode
+function generateContributorMode(): string {
+  return `## Contributor Mode
 
 If \`_CONTRIB\` is \`true\`: you are in **contributor mode**. You're a gstack user who also helps make it better.
 
@@ -212,9 +299,11 @@ Hey gstack team — ran into this while using /{skill-name}:
 **Date:** {YYYY-MM-DD} | **Version:** {gstack version} | **Skill:** /{skill}
 \`\`\`
 
-Slug: lowercase, hyphens, max 60 chars (e.g. \`browse-js-no-await\`). Skip if file already exists. Max 3 reports per session. File inline and continue — don't stop the workflow. Tell user: "Filed gstack field report: {title}"
+Slug: lowercase, hyphens, max 60 chars (e.g. \`browse-js-no-await\`). Skip if file already exists. Max 3 reports per session. File inline and continue — don't stop the workflow. Tell user: "Filed gstack field report: {title}"`;
+}
 
-## Completion Status Protocol
+function generateCompletionStatus(): string {
+  return `## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
 - **DONE** — All steps completed successfully. Evidence provided for each claim.
@@ -237,17 +326,58 @@ STATUS: BLOCKED | NEEDS_CONTEXT
 REASON: [1-2 sentences]
 ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
-\`\`\``;
+\`\`\`
+
+## Telemetry (run last)
+
+After the skill workflow completes (success, error, or abort), log the telemetry event.
+Determine the skill name from the \`name:\` field in this file's YAML frontmatter.
+Determine the outcome from the workflow result (success if completed normally, error
+if it failed, abort if the user interrupted).
+
+**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes telemetry to
+\`~/.gstack/analytics/\` (user config directory, not project files). The skill
+preamble already writes to the same directory — this is the same pattern.
+Skipping this command loses session duration and outcome data.
+
+Run this bash:
+
+\`\`\`bash
+_TEL_END=$(date +%s)
+_TEL_DUR=$(( _TEL_END - _TEL_START ))
+rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-telemetry-log \\
+  --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \\
+  --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
+\`\`\`
+
+Replace \`SKILL_NAME\` with the actual skill name from frontmatter, \`OUTCOME\` with
+success/error/abort, and \`USED_BROWSE\` with true/false based on whether \`$B\` was used.
+If you cannot determine the outcome, use "unknown". This runs in the background and
+never blocks the user.`;
 }
 
-function generateBrowseSetup(_ctx: TemplateContext): string {
+function generatePreamble(ctx: TemplateContext): string {
+  return [
+    generatePreambleBash(ctx),
+    generateUpgradeCheck(ctx),
+    generateLakeIntro(),
+    generateTelemetryPrompt(ctx),
+    generateAskUserFormat(ctx),
+    generateCompletenessSection(),
+    generateContributorMode(),
+    generateCompletionStatus(),
+  ].join('\n\n');
+}
+
+function generateBrowseSetup(ctx: TemplateContext): string {
   return `## SETUP (run this check BEFORE any browse command)
 
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
+[ -z "$B" ] && B=${ctx.paths.browseDir}/browse
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -1298,14 +1428,122 @@ const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
   BENEFITS_FROM: generateBenefitsFrom,
 };
 
+// ─── Codex Helpers ───────────────────────────────────────────
+
+function codexSkillName(skillDir: string): string {
+  if (skillDir === '.' || skillDir === '') return 'gstack';
+  // Don't double-prefix: gstack-upgrade → gstack-upgrade (not gstack-gstack-upgrade)
+  if (skillDir.startsWith('gstack-')) return skillDir;
+  return `gstack-${skillDir}`;
+}
+
+/**
+ * Transform frontmatter for Codex: keep only name + description.
+ * Strips allowed-tools, hooks, version, and all other fields.
+ * Handles multiline block scalar descriptions (YAML | syntax).
+ */
+function transformFrontmatter(content: string, host: Host): string {
+  if (host === 'claude') return content;
+
+  // Find frontmatter boundaries
+  const fmStart = content.indexOf('---\n');
+  if (fmStart !== 0) return content; // frontmatter must be at the start
+  const fmEnd = content.indexOf('\n---', fmStart + 4);
+  if (fmEnd === -1) return content;
+
+  const frontmatter = content.slice(fmStart + 4, fmEnd);
+  const body = content.slice(fmEnd + 4); // includes the leading \n after ---
+
+  // Parse name
+  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+  const name = nameMatch ? nameMatch[1].trim() : '';
+
+  // Parse description — handle both simple and block scalar (|) formats
+  let description = '';
+  const lines = frontmatter.split('\n');
+  let inDescription = false;
+  const descLines: string[] = [];
+  for (const line of lines) {
+    if (line.match(/^description:\s*\|?\s*$/)) {
+      // Block scalar start: "description: |" or "description:"
+      inDescription = true;
+      continue;
+    }
+    if (line.match(/^description:\s*\S/)) {
+      // Simple inline: "description: some text"
+      description = line.replace(/^description:\s*/, '').trim();
+      break;
+    }
+    if (inDescription) {
+      // Block scalar continuation — indented lines (2 spaces) or blank lines
+      if (line === '' || line.match(/^\s/)) {
+        descLines.push(line.replace(/^  /, ''));
+      } else {
+        // End of block scalar — hit a non-indented, non-blank line
+        break;
+      }
+    }
+  }
+  if (descLines.length > 0) {
+    description = descLines.join('\n').trim();
+  }
+
+  // Re-emit Codex frontmatter (name + description only)
+  const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
+  const codexFm = `---\nname: ${name}\ndescription: |\n${indentedDesc}\n---`;
+  return codexFm + body;
+}
+
+/**
+ * Extract hook descriptions from frontmatter for inline safety prose.
+ * Returns a description of what the hooks do, or null if no hooks.
+ */
+function extractHookSafetyProse(tmplContent: string): string | null {
+  if (!tmplContent.match(/^hooks:/m)) return null;
+
+  // Parse the hook matchers to build a human-readable safety description
+  const matchers: string[] = [];
+  const matcherRegex = /matcher:\s*"(\w+)"/g;
+  let m;
+  while ((m = matcherRegex.exec(tmplContent)) !== null) {
+    if (!matchers.includes(m[1])) matchers.push(m[1]);
+  }
+
+  if (matchers.length === 0) return null;
+
+  // Build safety prose based on what tools are hooked
+  const toolDescriptions: Record<string, string> = {
+    Bash: 'check bash commands for destructive operations (rm -rf, DROP TABLE, force-push, git reset --hard, etc.) before execution',
+    Edit: 'verify file edits are within the allowed scope boundary before applying',
+    Write: 'verify file writes are within the allowed scope boundary before applying',
+  };
+
+  const safetyChecks = matchers
+    .map(t => toolDescriptions[t] || `check ${t} operations for safety`)
+    .join(', and ');
+
+  return `> **Safety Advisory:** This skill includes safety checks that ${safetyChecks}. When using this skill, always pause and verify before executing potentially destructive operations. If uncertain about a command's safety, ask the user for confirmation before proceeding.`;
+}
+
 // ─── Template Processing ────────────────────────────────────
 
 const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit directly -->\n<!-- Regenerate: bun run gen:skill-docs -->\n`;
 
-function processTemplate(tmplPath: string): { outputPath: string; content: string } {
+function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
   const relTmplPath = path.relative(ROOT, tmplPath);
-  const outputPath = tmplPath.replace(/\.tmpl$/, '');
+  let outputPath = tmplPath.replace(/\.tmpl$/, '');
+
+  // Determine skill directory relative to ROOT
+  const skillDir = path.relative(ROOT, path.dirname(tmplPath));
+
+  // For codex host, route output to .agents/skills/{codexSkillName}/SKILL.md
+  if (host === 'codex') {
+    const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
+    const outputDir = path.join(ROOT, '.agents', 'skills', codexName);
+    fs.mkdirSync(outputDir, { recursive: true });
+    outputPath = path.join(outputDir, 'SKILL.md');
+  }
 
   // Extract skill name from frontmatter for TemplateContext
   const nameMatch = tmplContent.match(/^name:\s*(.+)$/m);
@@ -1317,7 +1555,7 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
     ? benefitsMatch[1].split(',').map(s => s.trim()).filter(Boolean)
     : undefined;
 
-  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom };
+  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host] };
 
   // Replace placeholders
   let content = tmplContent.replace(/\{\{(\w+)\}\}/g, (match, name) => {
@@ -1330,6 +1568,27 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
   const remaining = content.match(/\{\{(\w+)\}\}/g);
   if (remaining) {
     throw new Error(`Unresolved placeholders in ${relTmplPath}: ${remaining.join(', ')}`);
+  }
+
+  // For codex host: transform frontmatter and replace Claude-specific paths
+  if (host === 'codex') {
+    // Extract hook safety prose BEFORE transforming frontmatter (which strips hooks)
+    const safetyProse = extractHookSafetyProse(tmplContent);
+
+    // Transform frontmatter: keep only name + description
+    content = transformFrontmatter(content, host);
+
+    // Insert safety advisory at the top of the body (after frontmatter)
+    if (safetyProse) {
+      const bodyStart = content.indexOf('\n---') + 4;
+      content = content.slice(0, bodyStart) + '\n' + safetyProse + '\n' + content.slice(bodyStart);
+    }
+
+    // Replace remaining hardcoded Claude paths with host-appropriate paths
+    content = content.replace(/~\/\.claude\/skills\/gstack/g, ctx.paths.skillRoot);
+    content = content.replace(/\.claude\/skills\/gstack/g, ctx.paths.localSkillRoot);
+    content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
+    content = content.replace(/\.claude\/skills/g, '.agents/skills');
   }
 
   // Prepend generated header (after frontmatter)
@@ -1349,32 +1608,13 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
 
 function findTemplates(): string[] {
   const templates: string[] = [];
-  const candidates = [
-    path.join(ROOT, 'SKILL.md.tmpl'),
-    path.join(ROOT, 'browse', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'qa', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'qa-only', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'setup-browser-cookies', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'ship', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'review', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'plan-ceo-review', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'plan-eng-review', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'retro', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'office-hours', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'investigate', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'gstack-upgrade', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'plan-design-review', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'design-review', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'design-consultation', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'codex', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'careful', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'freeze', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'guard', 'SKILL.md.tmpl'),
-    path.join(ROOT, 'unfreeze', 'SKILL.md.tmpl'),
-  ];
-  for (const p of candidates) {
-    if (fs.existsSync(p)) templates.push(p);
+  const rootTmpl = path.join(ROOT, 'SKILL.md.tmpl');
+  if (fs.existsSync(rootTmpl)) templates.push(rootTmpl);
+
+  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
+    const tmpl = path.join(ROOT, entry.name, 'SKILL.md.tmpl');
+    if (fs.existsSync(tmpl)) templates.push(tmpl);
   }
   return templates;
 }
@@ -1382,7 +1622,13 @@ function findTemplates(): string[] {
 let hasChanges = false;
 
 for (const tmplPath of findTemplates()) {
-  const { outputPath, content } = processTemplate(tmplPath);
+  // Skip /codex skill for codex host (self-referential — it's a Claude wrapper around codex exec)
+  if (HOST === 'codex') {
+    const dir = path.basename(path.dirname(tmplPath));
+    if (dir === 'codex') continue;
+  }
+
+  const { outputPath, content } = processTemplate(tmplPath, HOST);
   const relOutput = path.relative(ROOT, outputPath);
 
   if (DRY_RUN) {
