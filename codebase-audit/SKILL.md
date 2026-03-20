@@ -560,11 +560,19 @@ Options:
 
 **If the user picks A:** Print all findings grouped by severity. Then re-ask with options B, C, D.
 
-**If the user picks B:** Present each Important and Critical finding as a numbered item. Ask which ones to fix (user can pick by number, "all", or "all important"). Then:
-1. Exit the read-only audit constraint — you may now edit source code
-2. For each selected finding, create a focused implementation plan using the finding's description, evidence, and recommendation as the specification
-3. Work through the fixes one at a time, committing each atomically with a message referencing the finding ID (e.g., `fix: add io.LimitReader to HTTP response reads (audit I-3)`)
-4. After all fixes, re-run the relevant checklist patterns to verify the fixes resolved the findings
+**If the user picks B:** Present each Important and Critical finding as a numbered item. Ask which ones to fix (user can pick by number, "all", or "all important"). Then classify the selected findings:
+
+**Mechanical fixes** (gitignore patterns, narrowing exception types, adding timeouts, adding constants): Apply directly — commit each atomically. These don't need a plan review.
+
+**Substantive fixes** (architecture changes, error handling redesign, security fixes, test coverage additions, anything touching multiple files or requiring design decisions): These should go through the gstack review pipeline. Recommend:
+1. Create a plan summarizing the selected findings and proposed fixes
+2. Run `/plan-eng-review` on the plan (required shipping gate)
+3. If the fixes involve scope/product decisions, suggest `/plan-ceo-review` first
+4. Then execute the reviewed plan
+
+Present this as a recommendation, not a gate. If the user wants to skip reviews for a simple fix, let them. But for anything touching 3+ files or involving architectural judgment, push for the review pipeline — that's how gstack ensures quality.
+
+After all fixes (whether mechanical or reviewed), re-run the relevant checklist patterns to verify the fixes resolved the findings.
 
 **If the user picks C:** Identify findings that are purely mechanical fixes — no judgment calls, no architectural decisions. Examples:
 - Adding patterns to .gitignore
