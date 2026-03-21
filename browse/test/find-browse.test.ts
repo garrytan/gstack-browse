@@ -42,6 +42,11 @@ describe('locateBinary', () => {
     expect(agentsIdx).toBeLessThan(claudeIdx);
   });
 
+  test('source checks for .exe binaries as a Windows fallback', () => {
+    const src = require('fs').readFileSync(require('path').join(__dirname, '../src/find-browse.ts'), 'utf-8');
+    expect(src).toContain('`${basePath}.exe`');
+  });
+
   test('function signature accepts no arguments', () => {
     // locateBinary should be callable with no arguments
     expect(typeof locateBinary).toBe('function');

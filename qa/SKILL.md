@@ -295,8 +295,16 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -n "$_ROOT" ]; then
+  for CANDIDATE in "$_ROOT/.claude/skills/gstack/browse/dist/browse" "$_ROOT/.claude/skills/gstack/browse/dist/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
+if [ -z "$B" ]; then
+  for CANDIDATE in "~/.claude/skills/gstack/browse/dist/browse" "~/.claude/skills/gstack/browse/dist/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -306,7 +314,7 @@ fi
 
 If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: `cd <SKILL_DIR> && ./setup`
+2. Run: `cd ~/.claude/skills/gstack && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
 **Check test framework (bootstrap if needed):**

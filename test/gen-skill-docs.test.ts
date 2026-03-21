@@ -7,11 +7,19 @@ import * as path from 'path';
 const ROOT = path.resolve(import.meta.dir, '..');
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
 
+function getFrontmatter(content: string): string {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  expect(match).not.toBeNull();
+  return match![1];
+}
+
+function normalizeForAssertions(content: string): string {
+  return content.replace(/\r\n/g, '\n').replace(/\\/g, '/');
+}
+
 function extractDescription(content: string): string {
-  const fmEnd = content.indexOf('\n---', 4);
-  expect(fmEnd).toBeGreaterThan(0);
-  const frontmatter = content.slice(4, fmEnd);
-  const lines = frontmatter.split('\n');
+  const frontmatter = getFrontmatter(content);
+  const lines = frontmatter.split(/\r?\n/);
   let description = '';
   let inDescription = false;
   const descLines: string[] = [];
@@ -125,9 +133,10 @@ describe('gen-skill-docs', () => {
   test('every generated SKILL.md has valid YAML frontmatter', () => {
     for (const skill of ALL_SKILLS) {
       const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
-      expect(content.startsWith('---\n')).toBe(true);
-      expect(content).toContain('name:');
-      expect(content).toContain('description:');
+      expect(content).toMatch(/^---\r?\n/);
+      const frontmatter = getFrontmatter(content);
+      expect(frontmatter).toContain('name:');
+      expect(frontmatter).toContain('description:');
     }
   });
 
@@ -146,12 +155,24 @@ describe('gen-skill-docs', () => {
       stderr: 'pipe',
     });
     expect(result.exitCode).toBe(0);
-    const output = result.stdout.toString();
+    const output = normalizeForAssertions(result.stdout.toString());
     // Every skill should be FRESH
     for (const skill of ALL_SKILLS) {
       const file = skill.dir === '.' ? 'SKILL.md' : `${skill.dir}/SKILL.md`;
       expect(output).toContain(`FRESH: ${file}`);
     }
+    expect(output).not.toContain('STALE');
+  });
+
+  test('codex-generated files are fresh (match --dry-run --host codex)', () => {
+    const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex', '--dry-run'], {
+      cwd: ROOT,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).toBe(0);
+    const output = normalizeForAssertions(result.stdout.toString());
+    expect(output).toContain('FRESH: .agents/skills/gstack-office-hours/SKILL.md');
     expect(output).not.toContain('STALE');
   });
 
@@ -204,6 +225,12 @@ describe('gen-skill-docs', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('skill-usage.jsonl');
     expect(content).toContain('~/.gstack/analytics');
+  });
+
+  test('codex browse setup checks browse.exe and points setup to the gstack root', () => {
+    const content = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-office-hours', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('browse/dist/browse.exe');
+    expect(content).toContain('cd ~/.codex/skills/gstack && ./setup --host codex');
   });
 
   test('preamble-using skills have correct skill name in telemetry', () => {
@@ -592,10 +619,8 @@ describe('Codex generation (--host codex)', () => {
   test('Codex frontmatter has ONLY name + description', () => {
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
-      expect(content.startsWith('---\n')).toBe(true);
-      const fmEnd = content.indexOf('\n---', 4);
-      expect(fmEnd).toBeGreaterThan(0);
-      const frontmatter = content.slice(4, fmEnd);
+      expect(content).toMatch(/^---\r?\n/);
+      const frontmatter = getFrontmatter(content);
       // Must have name and description
       expect(frontmatter).toContain('name:');
       expect(frontmatter).toContain('description:');
@@ -642,7 +667,7 @@ describe('Codex generation (--host codex)', () => {
       stderr: 'pipe',
     });
     expect(result.exitCode).toBe(0);
-    const output = result.stdout.toString();
+    const output = normalizeForAssertions(result.stdout.toString());
     // Every Codex skill should be FRESH
     for (const skill of CODEX_SKILLS) {
       expect(output).toContain(`FRESH: .agents/skills/${skill.codexName}/SKILL.md`);
@@ -670,10 +695,9 @@ describe('Codex generation (--host codex)', () => {
   test('multiline descriptions preserved in Codex output', () => {
     // office-hours has a multiline description — verify it survives the frontmatter transform
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-office-hours', 'SKILL.md'), 'utf-8');
-    const fmEnd = content.indexOf('\n---', 4);
-    const frontmatter = content.slice(4, fmEnd);
+    const frontmatter = getFrontmatter(content);
     // Description should span multiple lines (block scalar)
-    const descLines = frontmatter.split('\n').filter(l => l.startsWith('  '));
+    const descLines = frontmatter.split(/\r?\n/).filter(l => l.startsWith('  '));
     expect(descLines.length).toBeGreaterThan(1);
     // Verify key phrases survived
     expect(frontmatter).toContain('YC Office Hours');
@@ -686,8 +710,7 @@ describe('Codex generation (--host codex)', () => {
       // Must have safety advisory prose
       expect(content).toContain('Safety Advisory');
       // Must NOT have hooks: in frontmatter
-      const fmEnd = content.indexOf('\n---', 4);
-      const frontmatter = content.slice(4, fmEnd);
+      const frontmatter = getFrontmatter(content);
       expect(frontmatter).not.toContain('hooks:');
     }
   });

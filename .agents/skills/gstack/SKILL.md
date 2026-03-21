@@ -235,8 +235,16 @@ Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.agents/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.codex/skills/gstack/browse/dist/browse
+if [ -n "$_ROOT" ]; then
+  for CANDIDATE in "$_ROOT/.agents/skills/gstack/browse/dist/browse" "$_ROOT/.agents/skills/gstack/browse/dist/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
+if [ -z "$B" ]; then
+  for CANDIDATE in "~/.codex/skills/gstack/browse/dist/browse" "~/.codex/skills/gstack/browse/dist/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -246,7 +254,7 @@ fi
 
 If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: `cd <SKILL_DIR> && ./setup`
+2. Run: `cd ~/.codex/skills/gstack && ./setup --host codex`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
 ## IMPORTANT

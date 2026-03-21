@@ -24,6 +24,16 @@ function getGitRoot(): string | null {
   }
 }
 
+function resolveBinary(basePath: string): string | null {
+  const candidates = [basePath, `${basePath}.exe`];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  return null;
+}
+
 export function locateBinary(): string | null {
   const root = getGitRoot();
   const home = homedir();
@@ -33,14 +43,16 @@ export function locateBinary(): string | null {
   if (root) {
     for (const m of markers) {
       const local = join(root, m, 'skills', 'gstack', 'browse', 'dist', 'browse');
-      if (existsSync(local)) return local;
+      const localBinary = resolveBinary(local);
+      if (localBinary) return localBinary;
     }
   }
 
   // Global fallback
   for (const m of markers) {
     const global = join(home, m, 'skills', 'gstack', 'browse', 'dist', 'browse');
-    if (existsSync(global)) return global;
+    const globalBinary = resolveBinary(global);
+    if (globalBinary) return globalBinary;
   }
 
   return null;

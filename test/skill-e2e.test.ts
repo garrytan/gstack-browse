@@ -238,6 +238,7 @@ Report what each command returned.`,
 
     // Guard: verify we extracted a valid setup block
     expect(setupBlock).toContain('browse/dist/browse');
+    expect(setupBlock).toContain('browse/dist/browse.exe');
 
     const result = await runSkillTest({
       prompt: `Follow these instructions to find the browse binary and run a basic command.

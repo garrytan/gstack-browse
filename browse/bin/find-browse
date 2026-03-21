@@ -5,17 +5,27 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)/dist"
 if test -x "$DIR/find-browse"; then
   exec "$DIR/find-browse" "$@"
 fi
+if test -x "$DIR/find-browse.exe"; then
+  exec "$DIR/find-browse.exe" "$@"
+fi
+
+emit_if_executable() {
+  local base="$1"
+  for candidate in "$base" "$base.exe"; do
+    if test -x "$candidate"; then
+      echo "$candidate"
+      exit 0
+    fi
+  done
+}
+
 # Fallback: basic discovery with priority chain
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 for MARKER in .codex .agents .claude; do
-  if [ -n "$ROOT" ] && test -x "$ROOT/$MARKER/skills/gstack/browse/dist/browse"; then
-    echo "$ROOT/$MARKER/skills/gstack/browse/dist/browse"
-    exit 0
+  if [ -n "$ROOT" ]; then
+    emit_if_executable "$ROOT/$MARKER/skills/gstack/browse/dist/browse"
   fi
-  if test -x "$HOME/$MARKER/skills/gstack/browse/dist/browse"; then
-    echo "$HOME/$MARKER/skills/gstack/browse/dist/browse"
-    exit 0
-  fi
+  emit_if_executable "$HOME/$MARKER/skills/gstack/browse/dist/browse"
 done
 echo "ERROR: browse binary not found. Run: cd <skill-dir> && ./setup" >&2
 exit 1

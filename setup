@@ -10,7 +10,7 @@ fi
 
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
-BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+BROWSE_BIN_BASE="$GSTACK_DIR/browse/dist/browse"
 
 IS_WINDOWS=0
 case "$(uname -s)" in
@@ -31,6 +31,19 @@ case "$HOST" in
   claude|codex|auto) ;;
   *) echo "Unknown --host value: $HOST (expected claude, codex, or auto)" >&2; exit 1 ;;
 esac
+
+resolve_browse_bin() {
+  local base="$1"
+  for candidate in "$base" "$base.exe"; do
+    if [ -x "$candidate" ]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+BROWSE_BIN="$(resolve_browse_bin "$BROWSE_BIN_BASE" || true)"
 
 # For auto: detect which agents are installed
 INSTALL_CLAUDE=0
@@ -68,11 +81,11 @@ ensure_playwright_browser() {
 NEEDS_BUILD=0
 if [ ! -x "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+elif [ -n "$BROWSE_BIN" ] && [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
   NEEDS_BUILD=1
-elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+elif [ -n "$BROWSE_BIN" ] && [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+elif [ -n "$BROWSE_BIN" ] && [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
 fi
 
@@ -87,10 +100,11 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
   if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
     git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
   fi
+  BROWSE_BIN="$(resolve_browse_bin "$BROWSE_BIN_BASE" || true)"
 fi
 
 if [ ! -x "$BROWSE_BIN" ]; then
-  echo "gstack setup failed: browse binary missing at $BROWSE_BIN" >&2
+  echo "gstack setup failed: browse binary missing at $BROWSE_BIN_BASE(.exe)" >&2
   exit 1
 fi
 

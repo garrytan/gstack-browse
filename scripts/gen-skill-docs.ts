@@ -376,8 +376,16 @@ function generateBrowseSetup(ctx: TemplateContext): string {
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" ] && B="$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse"
-[ -z "$B" ] && B=${ctx.paths.browseDir}/browse
+if [ -n "$_ROOT" ]; then
+  for CANDIDATE in "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse" "$_ROOT/${ctx.paths.localSkillRoot}/browse/dist/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
+if [ -z "$B" ]; then
+  for CANDIDATE in "${ctx.paths.browseDir}/browse" "${ctx.paths.browseDir}/browse.exe"; do
+    [ -x "$CANDIDATE" ] && B="$CANDIDATE" && break
+  done
+fi
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -387,7 +395,7 @@ fi
 
 If \`NEEDS_SETUP\`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: \`cd <SKILL_DIR> && ./setup\`
+2. Run: \`cd ${ctx.paths.skillRoot} && ./setup${ctx.host === 'codex' ? ' --host codex' : ''}\`
 3. If \`bun\` is not installed: \`curl -fsSL https://bun.sh/install | bash\``;
 }
 
@@ -1579,14 +1587,12 @@ function codexSkillName(skillDir: string): string {
 function transformFrontmatter(content: string, host: Host): string {
   if (host === 'claude') return content;
 
-  // Find frontmatter boundaries
-  const fmStart = content.indexOf('---\n');
-  if (fmStart !== 0) return content; // frontmatter must be at the start
-  const fmEnd = content.indexOf('\n---', fmStart + 4);
-  if (fmEnd === -1) return content;
+  const newline = content.includes('\r\n') ? '\r\n' : '\n';
+  const frontmatterMatch = content.match(/^---\r?\n([\s\S]*?)\r?\n---((?:\r?\n[\s\S]*)?)$/);
+  if (!frontmatterMatch) return content;
 
-  const frontmatter = content.slice(fmStart + 4, fmEnd);
-  const body = content.slice(fmEnd + 4); // includes the leading \n after ---
+  const frontmatter = frontmatterMatch[1];
+  const body = frontmatterMatch[2] || '';
 
   // Parse name
   const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
@@ -1594,7 +1600,7 @@ function transformFrontmatter(content: string, host: Host): string {
 
   // Parse description — handle both simple and block scalar (|) formats
   let description = '';
-  const lines = frontmatter.split('\n');
+  const lines = frontmatter.split(/\r?\n/);
   let inDescription = false;
   const descLines: string[] = [];
   for (const line of lines) {
@@ -1623,8 +1629,8 @@ function transformFrontmatter(content: string, host: Host): string {
   }
 
   // Re-emit Codex frontmatter (name + description only)
-  const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
-  const codexFm = `---\nname: ${name}\ndescription: |\n${indentedDesc}\n---`;
+  const indentedDesc = description.split('\n').map(l => `  ${l}`).join(newline);
+  const codexFm = ['---', `name: ${name}`, 'description: |', indentedDesc, '---'].join(newline);
   return codexFm + body;
 }
 
