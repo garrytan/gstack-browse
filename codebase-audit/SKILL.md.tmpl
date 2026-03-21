@@ -198,7 +198,9 @@ Work through the checklist in priority order:
 6. **Tech Debt** — dead code, TODO/FIXME/HACK comments, deprecated APIs, copy-paste
 7. **Performance** — N+1 queries, unbounded collections, missing indexes, large payloads
 
-For each checklist item: use Grep to find matching patterns across the codebase, then use Read to examine surrounding context for confirmation. Do not report a pattern match as a finding without reading the context — many patterns have legitimate uses.
+For each checklist item: use Grep in `files_with_matches` mode (not `content` mode) to find which files match, then use Read to examine the specific lines for confirmation. Do not dump entire file contents into the conversation — use targeted reads of specific line ranges. Do not report a pattern match as a finding without reading the context — many patterns have legitimate uses.
+
+**Important:** Keep the conversation output concise. Other gstack skills use Explore subagents for deep investigation, keeping verbose output out of the main context. For checklist execution, use `files_with_matches` to identify candidate files, then Read specific line ranges. Never let a single Grep call return hundreds of lines of content into the conversation.
 
 ### 3.4 Finding limits
 
@@ -360,13 +362,20 @@ Options:
 
 **Mechanical fixes** (gitignore patterns, narrowing exception types, adding timeouts, adding constants): Apply directly — commit each atomically. These don't need a plan review.
 
-**Substantive fixes** (architecture changes, error handling redesign, security fixes, test coverage additions, anything touching multiple files or requiring design decisions): These should go through the gstack review pipeline. Recommend:
-1. Create a plan summarizing the selected findings and proposed fixes
-2. Run `/plan-eng-review` on the plan (required shipping gate)
-3. If the fixes involve scope/product decisions, suggest `/plan-ceo-review` first
-4. Then execute the reviewed plan
+**Substantive fixes** (architecture changes, error handling redesign, security fixes, test coverage additions, anything touching multiple files or requiring design decisions): Do NOT jump straight to writing a plan and executing. Instead:
 
-Present this as a recommendation, not a gate. If the user wants to skip reviews for a simple fix, let them. But for anything touching 3+ files or involving architectural judgment, push for the review pipeline — that's how gstack ensures quality.
+1. Apply any mechanical fixes first (commit atomically)
+2. Then tell the user: "The remaining N findings are substantive — they touch multiple files and require design decisions. The gstack way is to run these through the review pipeline before implementation."
+3. Use AskUserQuestion to offer the review pipeline:
+   - **A) Run /plan-eng-review on these findings** (recommended) — creates a reviewed plan before any code changes
+   - **B) Skip review, create a plan and fix directly** — faster but bypasses the quality gate
+   - **C) Done for now** — I'll handle these separately
+
+If the user picks A: write a plan file summarizing the findings and proposed fixes, then tell the user to run `/plan-eng-review`. Do NOT proceed to implementation — the eng review will handle that.
+
+If the user picks B: write a plan and execute fixes, committing each atomically.
+
+If the user picks C: end the skill.
 
 After all fixes (whether mechanical or reviewed), re-run the relevant checklist patterns to verify the fixes resolved the findings.
 
