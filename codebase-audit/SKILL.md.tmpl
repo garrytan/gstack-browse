@@ -400,7 +400,30 @@ Health score: {N}/100. No critical or important findings.
 See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 ```
 
-**After writing the plan**, output a brief message classifying what's in it: "Plan written: {M} mechanical fixes (Part 1) + {S} substantive fixes (Part 2, recommend `/plan-eng-review` first)."
+**After writing the plan**, use AskUserQuestion to offer the next step:
+
+If there are substantive findings (Part 2 exists):
+
+> "Audit complete. Plan written with {M} mechanical fixes (Part 1) and {S} substantive fixes (Part 2). The mechanical fixes are ready to apply. The substantive fixes benefit from review before implementation."
+
+Options:
+- **A) Run /plan-eng-review now** (recommended) — reviews Part 2 architecture before implementing
+- **B) Run /plan-ceo-review first** — if scope/product decisions are involved, review those before the eng review
+- **C) Accept the plan as-is** — apply all fixes without formal review
+- **D) I want to make changes first** — edit the plan before proceeding
+
+If the user picks A: read the plan-eng-review SKILL.md and execute that skill on this plan. The review will use the plan file that's already written.
+If the user picks B: read the plan-ceo-review SKILL.md and execute that skill on this plan.
+If the user picks C: proceed to implementation (the plan file is ready for "Ready to code?").
+If the user picks D: the user edits the plan in their editor, then re-runs the skill or proceeds manually.
+
+If there are only mechanical findings (no Part 2):
+
+> "Audit complete. Plan written with {M} mechanical fixes — all straightforward, no review needed."
+
+Options:
+- **A) Apply fixes now** (recommended)
+- **B) I want to review the plan first**
 
 ---
 
@@ -424,7 +447,7 @@ See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 4. No hallucinating findings. Every finding must reference a specific file and line (or component for non-code findings). If you can't point to it, don't report it.
 5. Use the severity calibration definitions exactly as specified. Do not inflate or deflate severity.
 6. In quick mode, respect the 2-minute target. Do not run Phase 2 or the full Phase 3 checklist.
-7. AskUserQuestion fires in one place: Phase 1 if >50K LOC, to scope the audit. The fix plan (Phase 4.7) uses the plan file for next steps — "Ready to code?" is the user's decision point. Do not use AskUserQuestion elsewhere during the audit.
+7. AskUserQuestion fires in two places: (1) Phase 1 if >50K LOC, to scope the audit; (2) Phase 4.7 after the plan is written, to offer review chaining (/plan-eng-review, /plan-ceo-review, or accept as-is). Do not use AskUserQuestion elsewhere during the audit.
 8. All bash blocks are self-contained. Do not rely on shell variables persisting between code blocks.
 9. When reading files for context, read enough surrounding lines to understand the code — do not make judgments from a single line in isolation.
 10. Cap detailed findings at 50. Summarize overflow in a table.
