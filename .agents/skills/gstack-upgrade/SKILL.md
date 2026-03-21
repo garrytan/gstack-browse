@@ -22,7 +22,7 @@ First, check if auto-upgrade is enabled:
 ```bash
 _AUTO=""
 [ "${GSTACK_AUTO_UPGRADE:-}" = "1" ] && _AUTO="true"
-[ -z "$_AUTO" ] && _AUTO=$(~/.codex/skills/gstack/bin/gstack-config get auto_upgrade 2>/dev/null || true)
+[ -z "$_AUTO" ] && _AUTO=$($([ -x .agents/skills/gstack/bin/gstack-config ] && echo .agents/skills/gstack/bin/gstack-config || echo ~/.codex/skills/gstack/bin/gstack-config) get auto_upgrade 2>/dev/null || true)
 echo "AUTO_UPGRADE=$_AUTO"
 ```
 
@@ -36,7 +36,7 @@ echo "AUTO_UPGRADE=$_AUTO"
 
 **If "Always keep me up to date":**
 ```bash
-~/.codex/skills/gstack/bin/gstack-config set auto_upgrade true
+$([ -x .agents/skills/gstack/bin/gstack-config ] && echo .agents/skills/gstack/bin/gstack-config || echo ~/.codex/skills/gstack/bin/gstack-config) set auto_upgrade true
 ```
 Tell user: "Auto-upgrade enabled. Future updates will install automatically." Then proceed to Step 2.
 
@@ -62,26 +62,26 @@ Tell user the snooze duration: "Next reminder in 24h" (or 48h or 1 week, dependi
 
 **If "Never ask again":**
 ```bash
-~/.codex/skills/gstack/bin/gstack-config set update_check false
+$([ -x .agents/skills/gstack/bin/gstack-config ] && echo .agents/skills/gstack/bin/gstack-config || echo ~/.codex/skills/gstack/bin/gstack-config) set update_check false
 ```
-Tell user: "Update checks disabled. Run `~/.codex/skills/gstack/bin/gstack-config set update_check true` to re-enable."
+Tell user: "Update checks disabled. Run `$([ -x .agents/skills/gstack/bin/gstack-config ] && echo .agents/skills/gstack/bin/gstack-config || echo ~/.codex/skills/gstack/bin/gstack-config) set update_check true` to re-enable."
 Continue with the current skill.
 
 ### Step 2: Detect install type
 
 ```bash
-if [ -d "$HOME/.agents/skills/gstack/.git" ]; then
+if [ -d "$HOME/.codex/skills/gstack/.git" ]; then
   INSTALL_TYPE="global-git"
-  INSTALL_DIR="$HOME/.agents/skills/gstack"
+  INSTALL_DIR="$HOME/.codex/skills/gstack"
 elif [ -d ".agents/skills/gstack/.git" ]; then
   INSTALL_TYPE="local-git"
   INSTALL_DIR=".agents/skills/gstack"
 elif [ -d ".agents/skills/gstack" ]; then
   INSTALL_TYPE="vendored"
   INSTALL_DIR=".agents/skills/gstack"
-elif [ -d "$HOME/.agents/skills/gstack" ]; then
+elif [ -d "$HOME/.codex/skills/gstack" ]; then
   INSTALL_TYPE="vendored-global"
-  INSTALL_DIR="$HOME/.agents/skills/gstack"
+  INSTALL_DIR="$HOME/.codex/skills/gstack"
 else
   echo "ERROR: gstack not found"
   exit 1
@@ -195,8 +195,7 @@ When invoked directly as `/gstack-upgrade` (not from a preamble):
 
 1. Force a fresh update check (bypass cache):
 ```bash
-~/.codex/skills/gstack/bin/gstack-update-check --force 2>/dev/null || \
-.agents/skills/gstack/bin/gstack-update-check --force 2>/dev/null || true
+$([ -x .agents/skills/gstack/bin/gstack-update-check ] && echo .agents/skills/gstack/bin/gstack-update-check || echo ~/.codex/skills/gstack/bin/gstack-update-check) --force 2>/dev/null || true
 ```
 Use the output to determine if an upgrade is available.
 
