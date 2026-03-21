@@ -180,16 +180,15 @@ In the top-right corner of the extensions page, toggle the **Developer mode** sw
 
 Click **Load unpacked**. A file picker dialog opens.
 
-Navigate to the `extension/` folder inside gstack. The exact path depends on your install:
+A file picker opens. You need to navigate to the `extension/` folder inside gstack, but macOS hides folders starting with `.` by default. The easiest way: press **Cmd+Shift+G** in the file picker to open "Go to folder", then paste one of these paths:
+
 - Global install: `~/.claude/skills/gstack/extension`
 - Project install: `<your-repo>/.claude/skills/gstack/extension`
 - Dev/source: `<gstack-repo>/extension`
 
-**Tip:** The `extension/` folder may be inside a hidden directory (`.claude/`). Two ways to get there in the macOS file picker:
-- **Cmd+Shift+G** — opens a "Go to folder" text field. Paste the full path and press Enter. Fastest.
-- **Cmd+Shift+.** (period) — toggles hidden files/folders visible so you can navigate to `.claude/` normally.
+Press Enter, then click **Select** (select the `extension/` folder itself, not a file inside it).
 
-Select the `extension/` folder (not a file inside it) and click **Select**.
+Alternatively, press **Cmd+Shift+.** (period) in the file picker to reveal hidden files, then navigate to `.claude/skills/gstack/extension` manually.
 
 **4. Pin the extension**
 
