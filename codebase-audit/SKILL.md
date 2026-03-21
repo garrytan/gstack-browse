@@ -616,10 +616,12 @@ Options:
 - **C) Accept the plan as-is** — apply all fixes without formal review
 - **D) I want to make changes first** — edit the plan before proceeding
 
-If the user picks A: read the plan-eng-review SKILL.md and execute that skill on this plan. The review will use the plan file that's already written.
-If the user picks B: read the plan-ceo-review SKILL.md and execute that skill on this plan.
+**CRITICAL: After the user responds to the AskUserQuestion, you MUST act on their choice BEFORE plan mode shows "Ready to code?". Do NOT let the plan prompt appear if the user chose A or B.**
+
+If the user picks A: **Immediately** invoke the Skill tool with `skill: "plan-eng-review"`. Do this right after the AskUserQuestion response — do not output any other text or tool calls first. The review skill will pick up the plan file that's already written.
+If the user picks B: **Immediately** invoke the Skill tool with `skill: "plan-ceo-review"`. Same urgency — invoke before anything else.
 If the user picks C: proceed to implementation (the plan file is ready for "Ready to code?").
-If the user picks D: the user edits the plan in their editor, then re-runs the skill or proceeds manually.
+If the user picks D: tell the user to edit the plan file, then re-run the audit or proceed manually.
 
 If there are only mechanical findings (no Part 2):
 
