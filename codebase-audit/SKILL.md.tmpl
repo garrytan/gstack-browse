@@ -386,9 +386,23 @@ Options:
 **If the user picks A (with substantive findings):**
 1. Exit the read-only audit constraint — you may now edit source code
 2. Apply mechanical fixes immediately, committing each atomically with messages referencing the finding ID (e.g., `fix: broaden .gitignore coverage patterns (audit N-2)`)
-3. For the remaining substantive findings, write a brief plan summarizing what needs to be done
-4. Tell the user: "Mechanical fixes applied. For the remaining {S} substantive findings, run `/plan-eng-review` to review the plan before implementation."
-5. End the skill. The user runs `/plan-eng-review` in this same session or a new one.
+3. For the remaining substantive findings, write a plan summarizing what needs to be done. **At the very top of the plan file**, before the Context section, include a review recommendation banner. Choose the appropriate one based on the nature of the findings:
+
+**If findings involve scope/product decisions** (new abstractions, architecture redesign, changing public interfaces, adding new packages, significant pattern changes across the codebase):
+```
+> **Next step:** Run `/plan-ceo-review` on this plan first (scope decisions), then `/plan-eng-review` (architecture review).
+> These fixes involve design decisions that benefit from structured review before implementation.
+```
+
+**If findings are implementation-level** (write tests, add error handling, fix resource leaks, add timeouts — things with clear solutions but touching multiple files):
+```
+> **Next step:** Run `/plan-eng-review` on this plan before implementing.
+> The substantive fixes below touch multiple files and benefit from architectural review.
+```
+
+This banner ensures the user sees the review recommendation in the "Ready to code?" preview, even though plan mode takes over the conversation flow after the plan is written.
+
+4. End the skill. The user sees the plan with the review recommendation and can either approve it directly or run the appropriate review first.
 
 **If the user picks B:**
 1. Apply mechanical fixes (commit atomically)
