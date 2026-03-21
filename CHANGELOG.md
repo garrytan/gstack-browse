@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.9.6.0] - 2026-03-21 — Prism Foundation Fix
+
+### Added
+
+- **Prism now researches before building.** When a feature involves external APIs, services, or tools, Prism spends up to 60 seconds checking official docs, pricing, and constraints before recommending an approach. No more suggesting broken APIs or silently picking the cheapest option.
+- **Decision Boundary — Prism knows what to decide silently and what to ask you about.** Engineering decisions (file structure, frameworks, dependency versions) are silent. Product decisions (paid vs free API, capability tradeoffs, anything involving your money) surface as confident recommendations you can approve or redirect.
+- **Operator boundary — Prism never sends you to another terminal.** If it can install a dependency, run a command, or configure a tool, it does it itself. Only asks you to act when it genuinely needs your credentials, legal consent, or subjective taste.
+- **Behavioral E2E eval for Prism.** The X/Twitter crawler scenario that originally exposed the "watered-down Claude" problem is now an automated test. If Prism regresses, the eval catches it.
+
+### Changed
+
+- **Prism's chunk build cycle is now a single 11-step numbered sequence.** Research gate → specificity gate → build → code review → TDD → tests → LLM drift comparison → precedence. No more separate bullet-point "invisible expert team" wish list.
+- **Six contradictory "just build" instructions rewritten.** Prism's momentum is preserved (it still builds with confidence) but now applies the Decision Boundary during the build flow.
+- **Precedence table expanded from 6 to 8 entries** with research approach checkpoints and operator-boundary disclosures.
+
 ## [0.9.5.0] - 2026-03-21 — CEO Review ↔ Office Hours Chaining
 
 ### Added
