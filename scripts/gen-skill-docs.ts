@@ -1218,6 +1218,26 @@ function summarizeDescription(description: string): string {
   return (firstSentence || description).replace(/\s+/g, ' ');
 }
 
+function validateGeneratedFrontmatter(outputPath: string, content: string): void {
+  const description = extractDescription(content);
+
+  if (!description) {
+    throw new Error(`${path.relative(ROOT, outputPath)} is missing a frontmatter description`);
+  }
+
+  if (description.includes('<') || description.includes('>')) {
+    throw new Error(
+      `${path.relative(ROOT, outputPath)} has invalid description: angle brackets are not allowed`
+    );
+  }
+
+  if (description.length > 1024) {
+    throw new Error(
+      `${path.relative(ROOT, outputPath)} has invalid description: ${description.length} characters exceeds 1024`
+    );
+  }
+}
+
 function generateAgentsMd(files: GeneratedFile[]): string {
   const skillOrder = [
     'browse',
@@ -1311,6 +1331,7 @@ function processTemplate(tmplPath: string): { outputPath: string; content: strin
   }
 
   content = transformForCodex(content);
+  validateGeneratedFrontmatter(outputPath, content);
 
   return { outputPath, content };
 }

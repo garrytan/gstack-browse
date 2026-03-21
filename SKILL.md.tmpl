@@ -8,37 +8,14 @@ description: |
   ~100ms per command. Use when you need to test a feature, verify a deployment, dogfood a
   user flow, or file a bug with evidence.
 
-  gstack also includes development workflow skills. When you notice the user is at
-  these stages, suggest the appropriate skill:
-  - Brainstorming a new idea → suggest /office-hours
-  - Reviewing a plan (strategy) → suggest /plan-ceo-review
-  - Reviewing a plan (architecture) → suggest /plan-eng-review
-  - Reviewing a plan (design) → suggest /plan-design-review
-  - Creating a design system → suggest /design-consultation
-  - Debugging errors → suggest /investigate
-  - Testing the app → suggest /qa
-  - Code review before merge → suggest /review
-  - Visual design audit → suggest /design-review
-  - Ready to deploy / create PR → suggest /ship
-  - Post-ship doc updates → suggest /document-release
-  - Weekly retrospective → suggest /retro
-  - Wanting a second opinion or adversarial code review → suggest /codex
-  - Working with production or live systems → suggest /careful
-  - Want to scope edits to one module/directory → suggest /freeze
-  - Maximum safety mode (destructive warnings + edit restrictions) → suggest /guard
-  - Removing edit restrictions → suggest /unfreeze
-  - Upgrading gstack to latest version → suggest /gstack-upgrade
-
-  If the user pushes back on skill suggestions ("stop suggesting things",
-  "I don't need suggestions", "too aggressive"):
-  1. Stop suggesting for the rest of this session
-  2. Run: gstack-config set proactive false
-  3. Say: "Got it — I'll stop suggesting skills. Just tell me to be proactive
-     again if you change your mind."
-
-  If the user says "be proactive again" or "turn on suggestions":
-  1. Run: gstack-config set proactive true
-  2. Say: "Proactive suggestions are back on."
+  gstack also includes development workflow skills and may proactively suggest them
+  when the user is brainstorming, reviewing plans, debugging, testing, auditing
+  design, shipping, updating docs, running retros, wanting a second opinion,
+  upgrading gstack, or asking for extra safety around destructive commands. If the
+  user says "stop suggesting things", "I don't need suggestions", or similar, stop
+  suggesting for the rest of the session and run `gstack-config set proactive false`.
+  If they later say "be proactive again" or "turn on suggestions", run
+  `gstack-config set proactive true`.
 allowed-tools:
   - Bash
   - Read
@@ -51,6 +28,42 @@ allowed-tools:
 If `PROACTIVE` is `false`: do NOT proactively suggest other gstack skills during this session.
 Only run skills the user explicitly invokes. This preference persists across sessions via
 `gstack-config`.
+
+## Skill Routing
+
+When `PROACTIVE` is not `false` and the user is clearly at one of these stages, suggest the
+matching gstack skill:
+
+- Brainstorming a new idea -> `/office-hours`
+- Reviewing product scope or ambition -> `/plan-ceo-review`
+- Reviewing architecture or execution details -> `/plan-eng-review`
+- Reviewing UI or UX plans -> `/plan-design-review`
+- Creating a design system or brand direction -> `/design-consultation`
+- Debugging errors or broken behavior -> `/investigate`
+- Testing the app and fixing bugs -> `/qa`
+- Code review before merge -> `/review`
+- Visual design audit or polish -> `/design-review`
+- Ready to deploy or create a PR -> `/ship`
+- Post-ship doc updates -> `/document-release`
+- Weekly retrospective -> `/retro`
+- Wanting a second opinion or adversarial code review -> `/codex`
+- Working with production or live systems -> `/careful`
+- Wanting to scope edits to one module or directory -> `/freeze`
+- Wanting maximum safety mode -> `/guard`
+- Removing edit restrictions -> `/unfreeze`
+- Upgrading gstack to the latest version -> `/gstack-upgrade`
+
+If the user pushes back on skill suggestions with phrases like "stop suggesting things",
+"I don't need suggestions", or "too aggressive":
+
+1. Stop suggesting for the rest of this session.
+2. Run: `gstack-config set proactive false`
+3. Say: "I'll stop suggesting skills. Tell me to be proactive again if you change your mind."
+
+If the user later says "be proactive again" or "turn on suggestions":
+
+1. Run: `gstack-config set proactive true`
+2. Say: "Proactive suggestions are back on."
 
 # gstack browse: QA Testing & Dogfooding
 

@@ -6,6 +6,20 @@ import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
+function extractDescription(content: string): string {
+  const blockMatch = content.match(/^description:\s*\|\n((?:  .*\n?)*)/m);
+  if (blockMatch) {
+    return blockMatch[1]
+      .split('\n')
+      .map(line => line.replace(/^  /, '').trim())
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  const inlineMatch = content.match(/^description:\s*(.+)$/m);
+  return inlineMatch ? inlineMatch[1].trim().replace(/^"|"$/g, '') : '';
+}
+
 describe('gen-skill-docs', () => {
   test('generated SKILL.md contains all command categories', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
@@ -102,6 +116,17 @@ describe('gen-skill-docs', () => {
       expect(content.startsWith('---\n')).toBe(true);
       expect(content).toContain('name:');
       expect(content).toContain('description:');
+    }
+  });
+
+  test('every generated SKILL.md description stays within Codex limits', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      const description = extractDescription(content);
+      expect(description.length).toBeGreaterThan(0);
+      expect(description.length).toBeLessThanOrEqual(1024);
+      expect(description.includes('<')).toBe(false);
+      expect(description.includes('>')).toBe(false);
     }
   });
 
