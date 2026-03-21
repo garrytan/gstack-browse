@@ -41,7 +41,7 @@ Expect first useful run in under 5 minutes on any repo with tests already set up
 
 ## Install — takes 30 seconds
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
+**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) or Codex, [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
 
 ### Step 1: Install on your machine
 
@@ -49,11 +49,23 @@ Open Claude Code and paste this. Claude does the rest.
 
 > Install gstack: run **`git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /qa-design-review, /setup-browser-cookies, /retro, /document-release. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
+Using Codex instead? Install globally with:
+
+> **`git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack && cd ~/.codex/skills/gstack && ./setup`**
+
+Then add a "gstack" section to your repo's `AGENTS.md` telling Codex to use gstack's `browse` skill for web browsing and invoke gstack skills with `$review`, `$qa`, `$ship`, `$browse`, etc. Codex uses `$skill` or `/skills`; Claude uses `/skill`.
+
 ### Step 2: Add to your repo so teammates get it (optional)
 
 > Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /qa-design-review, /setup-browser-cookies, /retro, /document-release, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
-Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
+For Codex, vendor the same repo into `.agents/skills/gstack`:
+
+> **`cp -Rf ~/.codex/skills/gstack .agents/skills/gstack && rm -rf .agents/skills/gstack/.git && cd .agents/skills/gstack && ./setup`**
+
+Then add a "gstack" section to `AGENTS.md` explaining that Codex should use `$browse` for browser work and invoke the rest of the workflows as `$plan-ceo-review`, `$review`, `$qa`, `$ship`, and so on.
+
+Real files get committed to your repo (not a submodule), so `git clone` just works. Claude installs live under `.claude/`; Codex vendored installs live under `.agents/skills/`. Nothing touches your PATH or runs in the background.
 
 ## See it work
 
@@ -178,6 +190,8 @@ Thirteen specialists. All slash commands. All Markdown. All free. **[github.com/
 **Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
 
 **`/browse` fails?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+
+**Codex can't find the skills?** Make sure gstack is installed at `~/.codex/skills/gstack` globally or vendored at `.agents/skills/gstack` in the repo, then run `cd ~/.codex/skills/gstack && ./setup` (or the `.agents/skills/gstack` equivalent).
 
 **Stale install?** Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml`
 

@@ -50,7 +50,7 @@ ls src/ app/ pages/ components/ 2>/dev/null | head -30
 Look for brainstorm output:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 ls ~/.gstack/projects/$SLUG/*brainstorm* 2>/dev/null | head -5
 ls .context/*brainstorm* .context/attachments/*brainstorm* 2>/dev/null | head -5
 ```

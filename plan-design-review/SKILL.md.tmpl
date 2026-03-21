@@ -267,7 +267,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default to 
 After producing the Completion Summary above, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 mkdir -p ~/.gstack/projects/$SLUG
 echo '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","overall_score":N,"unresolved":N,"decisions_made":N}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
 ```

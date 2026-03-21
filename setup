@@ -1,10 +1,53 @@
 #!/usr/bin/env bash
-# gstack setup — build browser binary + register all skills with Claude Code
-set -e
+# gstack setup — build browser binary and register skills when installed for Claude Code
+set -euo pipefail
 
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
 BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+HOST_MODE="auto"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      HOST_MODE="${2:-}"
+      if [ -z "$HOST_MODE" ]; then
+        echo "setup: --host requires claude, codex, or auto" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      echo "setup: unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+detect_install_host() {
+  local parent grandparent
+  parent="$(basename "$SKILLS_DIR")"
+  grandparent="$(basename "$(dirname "$SKILLS_DIR")")"
+  if [ "$parent" != "skills" ]; then
+    echo "unknown"
+    return 0
+  fi
+  case "$grandparent" in
+    .claude) echo "claude" ;;
+    .codex|.agents) echo "codex" ;;
+    *) echo "unknown" ;;
+  esac
+}
+
+INSTALL_HOST="$(detect_install_host)"
+case "$HOST_MODE" in
+  auto) EFFECTIVE_HOST="$INSTALL_HOST" ;;
+  claude|codex) EFFECTIVE_HOST="$HOST_MODE" ;;
+  *)
+    echo "setup: invalid --host value '$HOST_MODE' (expected claude, codex, or auto)" >&2
+    exit 1
+    ;;
+esac
 
 ensure_playwright_browser() {
   (
@@ -60,9 +103,8 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# 4. Only create skill symlinks if we're inside a .claude/skills directory
-SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
-if [ "$SKILLS_BASENAME" = "skills" ]; then
+# 4. Only create skill symlinks for Claude installs
+if [ "$EFFECTIVE_HOST" = "claude" ] && [ "$(basename "$SKILLS_DIR")" = "skills" ]; then
   linked=()
   for skill_dir in "$GSTACK_DIR"/*/; do
     if [ -f "$skill_dir/SKILL.md" ]; then
@@ -79,14 +121,16 @@ if [ "$SKILLS_BASENAME" = "skills" ]; then
   done
 
   echo "gstack ready."
+  echo "  host: claude"
   echo "  browse: $BROWSE_BIN"
   if [ ${#linked[@]} -gt 0 ]; then
     echo "  linked skills: ${linked[*]}"
   fi
 else
   echo "gstack ready."
+  echo "  host: ${EFFECTIVE_HOST:-unknown}"
   echo "  browse: $BROWSE_BIN"
-  echo "  (skipped skill symlinks — not inside .claude/skills/)"
+  echo "  (skipped skill symlinks — Codex discovers nested skills directly)"
 fi
 
 # 4. First-time welcome + legacy cleanup

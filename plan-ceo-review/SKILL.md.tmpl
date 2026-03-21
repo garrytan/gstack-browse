@@ -165,7 +165,7 @@ Describe the ideal end state of this system 12 months from now. Does this plan m
 After the opt-in/cherry-pick ceremony, write the plan to disk so the vision and decisions survive beyond this conversation. Only run this step for EXPANSION and SELECTIVE EXPANSION modes.
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 mkdir -p ~/.gstack/projects/$SLUG/ceo-plans
 ```
 
@@ -519,7 +519,7 @@ Complete table of every method that can fail, every exception class, rescued sta
 Any row with RESCUED=N, TEST=N, USER SEES=Silent → **CRITICAL GAP**.
 
 ### TODOS.md updates
-Present each potential TODO as its own individual AskUserQuestion. Never batch TODOs — one per question. Never silently skip this step. Follow the format in `.claude/skills/review/TODOS-format.md`.
+Present each potential TODO as its own individual AskUserQuestion. Never batch TODOs — one per question. Never silently skip this step. Follow the format in `$_GSTACK_ROOT/review/TODOS-format.md`.
 
 For each TODO, describe:
 * **What:** One-line description of the work.
@@ -593,7 +593,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default.
 After producing the Completion Summary above, persist the review result:
 
 ```bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 mkdir -p ~/.gstack/projects/$SLUG
 echo '{"skill":"plan-ceo-review","timestamp":"TIMESTAMP","status":"STATUS","unresolved":N,"critical_gaps":N,"mode":"MODE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
 ```

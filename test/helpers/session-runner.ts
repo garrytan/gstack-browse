@@ -51,6 +51,8 @@ const BROWSE_ERROR_PATTERNS = [
   /no such file or directory.*browse/i,
 ];
 
+export type RunnerHost = 'claude' | 'codex';
+
 // --- Testable NDJSON parser ---
 
 export interface ParsedNDJSON {
@@ -102,6 +104,108 @@ export function parseNDJSON(lines: string[]): ParsedNDJSON {
   return { transcript, resultLine, turnCount, toolCallCount, toolCalls };
 }
 
+export function parseCodexJSONL(lines: string[]): ParsedNDJSON {
+  const transcript: any[] = [];
+  let resultLine: any = null;
+  let turnCount = 0;
+  let toolCallCount = 0;
+  const toolCalls: ParsedNDJSON['toolCalls'] = [];
+  const commandMap = new Map<string, number>();
+  let lastAgentMessage = '';
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line);
+      transcript.push(event);
+
+      if (event.type === 'item.started' && event.item?.type === 'command_execution') {
+        toolCallCount++;
+        commandMap.set(event.item.id, toolCalls.length);
+        toolCalls.push({
+          tool: 'Bash',
+          input: { command: event.item.command || '' },
+          output: '',
+        });
+      }
+
+      if (event.type === 'item.completed') {
+        if (event.item?.type === 'agent_message') {
+          turnCount++;
+          if (typeof event.item.text === 'string') {
+            lastAgentMessage = event.item.text;
+          }
+        }
+
+        if (event.item?.type === 'command_execution') {
+          let idx = commandMap.get(event.item.id);
+          if (idx === undefined) {
+            toolCallCount++;
+            idx = toolCalls.length;
+            commandMap.set(event.item.id, idx);
+            toolCalls.push({
+              tool: 'Bash',
+              input: { command: event.item.command || '' },
+              output: '',
+            });
+          }
+
+          const output = event.item.aggregated_output || '';
+          toolCalls[idx].output = output;
+        }
+
+        if (event.item?.type === 'error' && typeof event.item.message === 'string') {
+          resultLine = {
+            type: 'result',
+            subtype: 'error',
+            result: event.item.message,
+            usage: {},
+          };
+        }
+      }
+
+      if (event.type === 'turn.completed') {
+        resultLine = {
+          type: 'result',
+          subtype: 'success',
+          result: lastAgentMessage,
+          usage: {
+            input_tokens: event.usage?.input_tokens || 0,
+            output_tokens: event.usage?.output_tokens || 0,
+            cache_read_input_tokens: event.usage?.cached_input_tokens || 0,
+          },
+          num_turns: turnCount,
+          total_cost_usd: 0,
+        };
+      }
+
+      if (event.type === 'turn.failed') {
+        resultLine = {
+          type: 'result',
+          subtype: 'error',
+          result: event.error?.message || lastAgentMessage,
+          usage: {},
+          num_turns: turnCount,
+          total_cost_usd: 0,
+        };
+      }
+
+      if (event.type === 'error') {
+        resultLine = {
+          type: 'result',
+          subtype: 'error',
+          result: event.message || '',
+          usage: {},
+          num_turns: turnCount,
+          total_cost_usd: 0,
+        };
+      }
+    } catch { /* skip malformed lines */ }
+  }
+
+  return { transcript, resultLine, turnCount, toolCallCount, toolCalls };
+}
+
 function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) + '…' : s;
 }
@@ -116,6 +220,7 @@ export async function runSkillTest(options: {
   timeout?: number;
   testName?: string;
   runId?: string;
+  host?: RunnerHost;
 }): Promise<SkillTestResult> {
   const {
     prompt,
@@ -125,6 +230,7 @@ export async function runSkillTest(options: {
     timeout = 120_000,
     testName,
     runId,
+    host = 'claude',
   } = options;
 
   const startTime = Date.now();
@@ -140,22 +246,22 @@ export async function runSkillTest(options: {
     } catch { /* non-fatal */ }
   }
 
-  // Spawn claude -p with streaming NDJSON output. Prompt piped via stdin to
-  // avoid shell escaping issues. --verbose is required for stream-json mode.
-  const args = [
-    '-p',
-    '--output-format', 'stream-json',
-    '--verbose',
-    '--dangerously-skip-permissions',
-    '--max-turns', String(maxTurns),
-    '--allowed-tools', ...allowedTools,
-  ];
-
   // Write prompt to a temp file and pipe it via shell to avoid stdin buffering issues
   const promptFile = path.join(workingDirectory, '.prompt-tmp');
   fs.writeFileSync(promptFile, prompt);
 
-  const proc = Bun.spawn(['sh', '-c', `cat "${promptFile}" | claude ${args.map(a => `"${a}"`).join(' ')}`], {
+  const command = host === 'claude'
+    ? `cat "${promptFile}" | claude ${[
+      '-p',
+      '--output-format', 'stream-json',
+      '--verbose',
+      '--dangerously-skip-permissions',
+      '--max-turns', String(maxTurns),
+      '--allowed-tools', ...allowedTools,
+    ].map(a => `"${a}"`).join(' ')}`
+    : `cat "${promptFile}" | codex exec --json --ephemeral -C "${workingDirectory}" --skip-git-repo-check -s workspace-write`;
+
+  const proc = Bun.spawn(['sh', '-c', command], {
     cwd: workingDirectory,
     stdout: 'pipe',
     stderr: 'pipe',
@@ -263,7 +369,9 @@ export async function runSkillTest(options: {
   const duration = Date.now() - startTime;
 
   // Parse all collected NDJSON lines
-  const parsed = parseNDJSON(collectedLines);
+  const parsed = host === 'claude'
+    ? parseNDJSON(collectedLines)
+    : parseCodexJSONL(collectedLines);
   const { transcript, resultLine, toolCalls } = parsed;
   const browseErrors: string[] = [];
 

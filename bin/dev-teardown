@@ -1,39 +1,94 @@
 #!/usr/bin/env bash
 # Remove local dev skill symlinks. Restores global gstack as the active install.
-set -e
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SKILLS_DIR="$REPO_ROOT/.claude/skills"
+HOST_MODE="claude"
 
-if [ ! -d "$SKILLS_DIR" ]; then
-  echo "Nothing to tear down — .claude/skills/ doesn't exist."
-  exit 0
-fi
-
-# Remove individual skill symlinks
-removed=()
-for link in "$SKILLS_DIR"/*/; do
-  name="$(basename "$link")"
-  [ "$name" = "gstack" ] && continue
-  if [ -L "${link%/}" ]; then
-    rm "${link%/}"
-    removed+=("$name")
-  fi
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      HOST_MODE="${2:-}"
+      if [ -z "$HOST_MODE" ]; then
+        echo "dev-teardown: --host requires claude, codex, or both" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      echo "dev-teardown: unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
 done
 
-# Remove the gstack symlink
-if [ -L "$SKILLS_DIR/gstack" ]; then
-  rm "$SKILLS_DIR/gstack"
-  removed+=("gstack")
-fi
+case "$HOST_MODE" in
+  claude|codex|both) ;;
+  *)
+    echo "dev-teardown: invalid --host value '$HOST_MODE' (expected claude, codex, or both)" >&2
+    exit 1
+    ;;
+esac
 
-# Clean up empty dirs
-rmdir "$SKILLS_DIR" 2>/dev/null || true
-rmdir "$REPO_ROOT/.claude" 2>/dev/null || true
+removed=()
+
+teardown_claude_dev() {
+  local skills_dir="$REPO_ROOT/.claude/skills"
+  if [ ! -d "$skills_dir" ]; then
+    return 0
+  fi
+
+  for link in "$skills_dir"/*/; do
+    [ -e "${link%/}" ] || continue
+    local name
+    name="$(basename "$link")"
+    [ "$name" = "gstack" ] && continue
+    if [ -L "${link%/}" ]; then
+      rm "${link%/}"
+      removed+=(".claude/skills/$name")
+    fi
+  done
+
+  if [ -L "$skills_dir/gstack" ]; then
+    rm "$skills_dir/gstack"
+    removed+=(".claude/skills/gstack")
+  fi
+
+  rmdir "$skills_dir" 2>/dev/null || true
+  rmdir "$REPO_ROOT/.claude" 2>/dev/null || true
+}
+
+teardown_codex_dev() {
+  local skills_dir="$REPO_ROOT/.agents/skills"
+  if [ ! -d "$skills_dir" ]; then
+    return 0
+  fi
+
+  if [ -L "$skills_dir/gstack" ]; then
+    rm "$skills_dir/gstack"
+    removed+=(".agents/skills/gstack")
+  fi
+
+  rmdir "$skills_dir" 2>/dev/null || true
+  rmdir "$REPO_ROOT/.agents" 2>/dev/null || true
+}
+
+case "$HOST_MODE" in
+  claude)
+    teardown_claude_dev
+    ;;
+  codex)
+    teardown_codex_dev
+    ;;
+  both)
+    teardown_claude_dev
+    teardown_codex_dev
+    ;;
+esac
 
 if [ ${#removed[@]} -gt 0 ]; then
   echo "Removed: ${removed[*]}"
 else
   echo "No symlinks found."
 fi
-echo "Dev mode deactivated. Global gstack (~/.claude/skills/gstack) is now active."
+echo "Dev mode deactivated for host: $HOST_MODE"

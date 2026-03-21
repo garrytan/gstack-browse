@@ -1,17 +1,77 @@
 #!/usr/bin/env bash
 # Set up gstack for local development — test skills from within this repo.
 #
-# Creates .claude/skills/gstack → (symlink to repo root) so Claude Code
-# discovers skills from your working tree. Changes take effect immediately.
+# Creates development symlinks so Claude Code and/or Codex discover skills
+# from your working tree. Changes take effect immediately.
 #
 # Also copies .env from the main worktree if this is a Conductor workspace
 # or git worktree (so API keys carry over automatically).
 #
-# Usage: bin/dev-setup       # set up
-#        bin/dev-teardown    # clean up
-set -e
+# Usage: bin/dev-setup [--host claude|codex|both]
+#        bin/dev-teardown [--host claude|codex|both]
+set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+HOST_MODE="claude"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --host)
+      HOST_MODE="${2:-}"
+      if [ -z "$HOST_MODE" ]; then
+        echo "dev-setup: --host requires claude, codex, or both" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    *)
+      echo "dev-setup: unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "$HOST_MODE" in
+  claude|codex|both) ;;
+  *)
+    echo "dev-setup: invalid --host value '$HOST_MODE' (expected claude, codex, or both)" >&2
+    exit 1
+    ;;
+esac
+
+setup_claude_dev() {
+  mkdir -p "$REPO_ROOT/.claude/skills"
+
+  local gstack_link="$REPO_ROOT/.claude/skills/gstack"
+  if [ -L "$gstack_link" ]; then
+    echo "Updating existing Claude dev symlink..."
+    rm "$gstack_link"
+  elif [ -d "$gstack_link" ]; then
+    echo "Error: .claude/skills/gstack is a real directory, not a symlink." >&2
+    echo "Remove it manually if you want to use Claude dev mode." >&2
+    exit 1
+  fi
+
+  ln -s "$REPO_ROOT" "$gstack_link"
+  "$gstack_link/setup" --host claude
+}
+
+setup_codex_dev() {
+  mkdir -p "$REPO_ROOT/.agents/skills"
+
+  local gstack_link="$REPO_ROOT/.agents/skills/gstack"
+  if [ -L "$gstack_link" ]; then
+    echo "Updating existing Codex dev symlink..."
+    rm "$gstack_link"
+  elif [ -d "$gstack_link" ]; then
+    echo "Error: .agents/skills/gstack is a real directory, not a symlink." >&2
+    echo "Remove it manually if you want to use Codex dev mode." >&2
+    exit 1
+  fi
+
+  ln -s "$REPO_ROOT" "$gstack_link"
+  "$gstack_link/setup" --host codex
+}
 
 # 1. Copy .env from main worktree (if we're a worktree and don't have one)
 if [ ! -f "$REPO_ROOT/.env" ]; then
@@ -28,27 +88,21 @@ if [ ! -d "$REPO_ROOT/node_modules" ]; then
   (cd "$REPO_ROOT" && bun install)
 fi
 
-# 3. Create .claude/skills/ inside the repo
-mkdir -p "$REPO_ROOT/.claude/skills"
-
-# 4. Symlink .claude/skills/gstack → repo root
-# This makes setup think it's inside a real .claude/skills/ directory
-GSTACK_LINK="$REPO_ROOT/.claude/skills/gstack"
-if [ -L "$GSTACK_LINK" ]; then
-  echo "Updating existing symlink..."
-  rm "$GSTACK_LINK"
-elif [ -d "$GSTACK_LINK" ]; then
-  echo "Error: .claude/skills/gstack is a real directory, not a symlink." >&2
-  echo "Remove it manually if you want to use dev mode." >&2
-  exit 1
-fi
-ln -s "$REPO_ROOT" "$GSTACK_LINK"
-
-# 5. Run setup via the symlink so it detects .claude/skills/ as its parent
-"$GSTACK_LINK/setup"
+case "$HOST_MODE" in
+  claude)
+    setup_claude_dev
+    ;;
+  codex)
+    setup_codex_dev
+    ;;
+  both)
+    setup_claude_dev
+    setup_codex_dev
+    ;;
+esac
 
 echo ""
-echo "Dev mode active. Skills resolve from this working tree."
+echo "Dev mode active for host: $HOST_MODE"
 echo "Edit any SKILL.md and test immediately — no copy/deploy needed."
 echo ""
-echo "To tear down: bin/dev-teardown"
+echo "To tear down: bin/dev-teardown --host $HOST_MODE"

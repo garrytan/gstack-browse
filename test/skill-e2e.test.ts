@@ -12,6 +12,17 @@ import * as path from 'path';
 import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const e2eHost = process.env.E2E_HOST === 'codex' ? 'codex' : 'claude';
+const CODEX_SMOKE_TESTS = new Set([
+  'browse-basic',
+  'skillmd-setup-discovery',
+  'review-base-branch',
+  'qa-only-no-fix',
+]);
+const CODEX_BROWSER_DEPENDENT_TESTS = new Set([
+  'browse-basic',
+  'qa-only-no-fix',
+]);
 
 // Skip unless EVALS=1. Session runner strips CLAUDE* env vars to avoid nested session issues.
 //
@@ -21,6 +32,7 @@ const ROOT = path.resolve(import.meta.dir, '..');
 // agent behavior. See CLAUDE.md "E2E eval failure blame protocol" for details.
 const evalsEnabled = !!process.env.EVALS;
 const describeE2E = evalsEnabled ? describe : describe.skip;
+const codexBrowserDisabled = e2eHost === 'codex' && process.env.T3CODE_NO_BROWSER === '1';
 
 // --- Diff-based test selection ---
 // When EVALS_ALL is not set, only run tests whose touchfiles were modified.
@@ -45,6 +57,19 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
   // If changedFiles is empty (e.g., on main branch), selectedTests stays null → run all
 }
 
+if (evalsEnabled && e2eHost === 'codex' && !process.env.EVALS_ALL) {
+  const codexSmokeTests = Array.from(CODEX_SMOKE_TESTS).filter(
+    testName => !(codexBrowserDisabled && CODEX_BROWSER_DEPENDENT_TESTS.has(testName))
+  );
+  selectedTests = selectedTests === null
+    ? codexSmokeTests
+    : selectedTests.filter(testName => CODEX_SMOKE_TESTS.has(testName));
+}
+
+if (evalsEnabled && codexBrowserDisabled) {
+  process.stderr.write('\nCodex browser launches are disabled in this terminal (T3CODE_NO_BROWSER=1); skipping browse-dependent Codex smoke tests.\n\n');
+}
+
 /** Wrap a describe block to skip entirely if none of its tests are selected. */
 function describeIfSelected(name: string, testNames: string[], fn: () => void) {
   const anySelected = selectedTests === null || testNames.some(t => selectedTests!.includes(t));
@@ -53,8 +78,14 @@ function describeIfSelected(name: string, testNames: string[], fn: () => void) {
 
 /** Skip an individual test if not selected (for multi-test describe blocks). */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
-  const shouldRun = selectedTests === null || selectedTests.includes(testName);
+  const hostEligible = e2eHost === 'claude' || CODEX_SMOKE_TESTS.has(testName);
+  const browserEligible = !(codexBrowserDisabled && CODEX_BROWSER_DEPENDENT_TESTS.has(testName));
+  const shouldRun = hostEligible && browserEligible && (selectedTests === null || selectedTests.includes(testName));
   (shouldRun ? test : test.skip)(testName, fn, timeout);
+}
+
+function runHostSkillTest(options: Parameters<typeof runSkillTest>[0]) {
+  return runSkillTest({ host: e2eHost, ...options });
 }
 
 // Eval result collector — accumulates test results, writes to ~/.gstack-dev/evals/ on finalize
@@ -89,6 +120,16 @@ function recordE2E(name: string, suite: string, result: SkillTestResult, extra?:
 let testServer: ReturnType<typeof startTestServer>;
 let tmpDir: string;
 const browseBin = path.resolve(ROOT, 'browse', 'dist', 'browse');
+const describeClaudeOnlyE2E = e2eHost === 'claude' ? describeE2E : describe.skip;
+const hostTimeout = (claudeMs: number, codexMs: number = claudeMs) => e2eHost === 'codex' ? codexMs : claudeMs;
+
+function getToolCommand(input: SkillTestResult['toolCalls'][number]['input']): string {
+  if (typeof input === 'string') return input;
+  if (input && typeof input === 'object' && typeof (input as { command?: unknown }).command === 'string') {
+    return (input as { command: string }).command;
+  }
+  return JSON.stringify(input ?? '');
+}
 
 /**
  * Copy a directory tree recursively (files only, follows structure).
@@ -159,7 +200,7 @@ function dumpOutcomeDiagnostic(dir: string, label: string, report: string, judge
 }
 
 // Fail fast if Anthropic API is unreachable — don't burn through 13 tests getting ConnectionRefused
-if (evalsEnabled) {
+if (evalsEnabled && e2eHost === 'claude') {
   const check = spawnSync('sh', ['-c', 'echo "ping" | claude -p --max-turns 1 --output-format stream-json --verbose --dangerously-skip-permissions'], {
     stdio: 'pipe', timeout: 30_000,
   });
@@ -177,6 +218,9 @@ describeIfSelected('Skill E2E tests', [
     testServer = startTestServer();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-'));
     setupBrowseShims(tmpDir);
+    spawnSync('git', ['init', '-q'], { cwd: tmpDir, stdio: 'pipe', timeout: 5_000 });
+    fs.mkdirSync(path.join(tmpDir, '.agents', 'skills'), { recursive: true });
+    fs.symlinkSync(ROOT, path.join(tmpDir, '.agents', 'skills', 'gstack'));
   });
 
   afterAll(() => {
@@ -185,7 +229,7 @@ describeIfSelected('Skill E2E tests', [
   });
 
   testIfSelected('browse-basic', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You have a browse binary at ${browseBin}. Assign it to B variable and run these commands in sequence:
 1. $B goto ${testServer.url}
 2. $B snapshot -i
@@ -194,7 +238,7 @@ describeIfSelected('Skill E2E tests', [
 Report the results of each command.`,
       workingDirectory: tmpDir,
       maxTurns: 10,
-      timeout: 60_000,
+      timeout: hostTimeout(60_000, 180_000),
       testName: 'browse-basic',
       runId,
     });
@@ -203,10 +247,10 @@ Report the results of each command.`,
     recordE2E('browse basic commands', 'Skill E2E tests', result);
     expect(result.browseErrors).toHaveLength(0);
     expect(result.exitReason).toBe('success');
-  }, 90_000);
+  }, hostTimeout(90_000, 240_000));
 
   testIfSelected('browse-snapshot', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You have a browse binary at ${browseBin}. Assign it to B variable and run:
 1. $B goto ${testServer.url}
 2. $B snapshot -i
@@ -239,25 +283,38 @@ Report what each command returned.`,
     // Guard: verify we extracted a valid setup block
     expect(setupBlock).toContain('browse/dist/browse');
 
-    const result = await runSkillTest({
-      prompt: `Follow these instructions to find the browse binary and run a basic command.
+    const prompt = codexBrowserDisabled
+      ? `Follow these instructions exactly and report the result of the setup check.
+
+${setupBlock}
+
+Report the exact output from the setup block, including the resolved READY path or NEEDS_SETUP. Do not run any browse commands after that.`
+      : `Follow these instructions to find the browse binary and run a basic command.
 
 ${setupBlock}
 
 After finding the binary, run: $B goto ${testServer.url}
 Then run: $B text
-Report whether it worked.`,
+Report whether it worked.`;
+
+    const result = await runHostSkillTest({
+      prompt,
       workingDirectory: tmpDir,
       maxTurns: 10,
-      timeout: 60_000,
+      timeout: hostTimeout(60_000, 180_000),
       testName: 'skillmd-setup-discovery',
       runId,
     });
 
     recordE2E('SKILL.md setup block discovery', 'Skill E2E tests', result);
-    expect(result.browseErrors).toHaveLength(0);
+    if (!codexBrowserDisabled) {
+      expect(result.browseErrors).toHaveLength(0);
+    }
+    if (codexBrowserDisabled) {
+      expect(result.output).toMatch(/READY: |NEEDS_SETUP/);
+    }
     expect(result.exitReason).toBe('success');
-  }, 90_000);
+  }, hostTimeout(90_000, 240_000));
 
   testIfSelected('skillmd-no-local-binary', async () => {
     // Create a tmpdir with no browse binary — no local .claude/skills/gstack/browse/dist/browse
@@ -268,7 +325,7 @@ Report whether it worked.`,
     const setupEnd = skillMd.indexOf('## IMPORTANT');
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Follow these instructions exactly. Run the bash code block below and report what it outputs.
 
 ${setupBlock}
@@ -303,7 +360,7 @@ Report the exact output. Do NOT try to fix or install anything — just report w
     const setupEnd = skillMd.indexOf('## IMPORTANT');
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Follow these instructions exactly. Run the bash code block below and report what it outputs.
 
 ${setupBlock}
@@ -336,7 +393,7 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
     const contribEnd = skillMd.indexOf('\n## ', contribStart + 1);
     const contribBlock = skillMd.slice(contribStart, contribEnd > 0 ? contribEnd : undefined);
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are in contributor mode (_CONTRIB=true).
 
 ${contribBlock}
@@ -405,7 +462,7 @@ File a contributor report about this issue. Then tell me what you filed.`,
 
     const outputPath = path.join(sessionDir, 'question-output.md');
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are running a gstack skill. The session preamble detected _SESSIONS=4 (the user has 4 gstack windows open).
 
 ${aqBlock}
@@ -473,7 +530,7 @@ describeIfSelected('QA skill E2E', ['qa-quick'], () => {
   });
 
   test('/qa quick completes without browse errors', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `B="${browseBin}"
 
 The test server is already running at: ${testServer.url}
@@ -545,7 +602,7 @@ describeIfSelected('Review skill E2E', ['review-sql-injection'], () => {
   });
 
   test('/review produces findings on SQL injection branch', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are in a git repo on a feature branch with changes against main.
 Read review-SKILL.md for the review workflow instructions.
 Also read review-checklist.md and apply it.
@@ -603,7 +660,7 @@ describeIfSelected('Review enum completeness E2E', ['review-enum-completeness'],
   });
 
   test('/review catches missing enum handlers for new status value', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are in a git repo on branch feature/add-returned-status with changes against main.
 Read review-SKILL.md for the review workflow instructions.
 Also read review-checklist.md and apply it — pay special attention to the Enum & Value Completeness section.
@@ -638,7 +695,7 @@ The diff adds a new "returned" status to the Order model. Your job is to check i
 
 // --- Review: Design review lite E2E ---
 
-describeE2E('Review design lite E2E', () => {
+describeClaudeOnlyE2E('Review design lite E2E', () => {
   let designDir: string;
 
   beforeAll(() => {
@@ -678,7 +735,7 @@ describeE2E('Review design lite E2E', () => {
   });
 
   test('/review catches design anti-patterns in CSS/HTML diff', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are in a git repo on branch feature/add-landing-page with changes against main.
 Read review-SKILL.md for the review workflow instructions.
 Read review-checklist.md for the code review checklist.
@@ -772,7 +829,7 @@ const anyOutcomeSelected = selectedTests === null || outcomeTestNames.some(t => 
     // Direct bug-finding with browse. Keep prompt concise — no reading long SKILL.md docs.
     // "Write early, update later" pattern ensures report exists even if agent hits max turns.
     const targetUrl = `${testServer.url}/${fixture}`;
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Find bugs on this page: ${targetUrl}
 
 Browser binary: B="${browseBin}"
@@ -953,7 +1010,7 @@ We're building a new user dashboard that shows recent activity, notifications, a
   });
 
   test('/plan-ceo-review produces structured review output', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
 
 Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration or system audit steps.
@@ -1037,7 +1094,7 @@ We're building a new user dashboard that shows recent activity, notifications, a
   });
 
   test('/plan-ceo-review SELECTIVE EXPANSION produces structured review output', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
 
 Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration or system audit steps.
@@ -1131,7 +1188,7 @@ Replace session-cookie auth with JWT tokens. Currently using express-session + R
   });
 
   test('/plan-eng-review produces structured review output', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-eng-review/SKILL.md for the review workflow.
 
 Read plan.md — that's the plan to review. This is a standalone plan document, not a codebase — skip any codebase exploration steps.
@@ -1218,7 +1275,7 @@ describeIfSelected('Retro E2E', ['retro'], () => {
   });
 
   test('/retro produces analysis from git history', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read retro/SKILL.md for instructions on how to run a retrospective.
 
 Run /retro for the last 7 days of this git repo. Skip any AskUserQuestion calls — this is non-interactive.
@@ -1286,7 +1343,7 @@ describeIfSelected('QA-Only skill E2E', ['qa-only-no-fix'], () => {
   });
 
   test('/qa-only produces report without using Edit tool', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `IMPORTANT: The browse binary is already assigned below as B. Do NOT search for it or run the SKILL.md setup block — just use $B directly.
 
 B="${browseBin}"
@@ -1299,7 +1356,7 @@ Write your report to ${qaOnlyDir}/qa-reports/qa-only-report.md`,
       workingDirectory: qaOnlyDir,
       maxTurns: 35,
       allowedTools: ['Bash', 'Read', 'Write', 'Glob'],  // NO Edit — the critical guardrail
-      timeout: 180_000,
+      timeout: hostTimeout(180_000, 300_000),
       testName: 'qa-only-no-fix',
       runId,
     });
@@ -1331,7 +1388,7 @@ Write your report to ${qaOnlyDir}/qa-reports/qa-only-report.md`,
       (l: string) => l.trim() && !l.includes('.prompt-tmp') && !l.includes('.gstack/') && !l.includes('qa-reports/'),
     );
     expect(statusLines.filter((l: string) => l.startsWith(' M') || l.startsWith('M '))).toHaveLength(0);
-  }, 240_000);
+  }, hostTimeout(240_000, 360_000));
 });
 
 // --- QA Fix Loop E2E ---
@@ -1407,7 +1464,7 @@ describeIfSelected('QA Fix Loop E2E', ['qa-fix-loop'], () => {
   test('/qa fix loop finds bugs and commits fixes', async () => {
     const qaFixUrl = `http://127.0.0.1:${qaFixServer!.port}`;
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You have a browse binary at ${browseBin}. Assign it to B variable like: B="${browseBin}"
 
 Read the file qa/SKILL.md for the QA workflow instructions.
@@ -1532,7 +1589,7 @@ export function main() { return Dashboard(); }
     // Count existing test-plan files before
     const beforeFiles = fs.readdirSync(projectDir).filter(f => f.includes('test-plan'));
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-eng-review/SKILL.md for the review workflow.
 
 Read plan.md — that's the plan to review. This is a standalone plan with source code in app.ts and dashboard.ts.
@@ -1602,6 +1659,7 @@ describeIfSelected('Base branch detection', ['review-base-branch', 'ship-base-br
     fs.writeFileSync(path.join(dir, 'app.rb'), '# clean base\nclass App\nend\n');
     run('git', ['add', 'app.rb'], dir);
     run('git', ['commit', '-m', 'initial commit'], dir);
+    run('git', ['branch', '-M', 'main'], dir);
 
     // Create feature branch with a change
     run('git', ['checkout', '-b', 'feature/test-review'], dir);
@@ -1614,7 +1672,7 @@ describeIfSelected('Base branch detection', ['review-base-branch', 'ship-base-br
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(dir, 'review-checklist.md'));
     fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(dir, 'review-greptile-triage.md'));
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You are in a git repo on a feature branch with changes.
 Read review-SKILL.md for the review workflow instructions.
 Also read review-checklist.md and apply it.
@@ -1624,7 +1682,7 @@ Then run the review against the detected base branch.
 Write your findings to ${dir}/review-output.md`,
       workingDirectory: dir,
       maxTurns: 15,
-      timeout: 90_000,
+      timeout: hostTimeout(90_000, 180_000),
       testName: 'review-base-branch',
       runId,
     });
@@ -1638,10 +1696,10 @@ Write your findings to ${dir}/review-output.md`,
     const allOutput = (result.output || '') + toolOutputs;
     // The agent should have run git diff against main (the fallback)
     const usedGitDiff = result.toolCalls.some(tc =>
-      tc.tool === 'Bash' && typeof tc.input === 'string' && tc.input.includes('git diff')
+      tc.tool === 'Bash' && getToolCommand(tc.input).includes('git diff')
     );
     expect(usedGitDiff).toBe(true);
-  }, 120_000);
+  }, hostTimeout(120_000, 240_000));
 
   testIfSelected('ship-base-branch', async () => {
     const dir = path.join(baseBranchDir, 'ship-base');
@@ -1655,6 +1713,7 @@ Write your findings to ${dir}/review-output.md`,
     fs.writeFileSync(path.join(dir, 'app.ts'), 'console.log("v1");\n');
     run('git', ['add', 'app.ts'], dir);
     run('git', ['commit', '-m', 'initial'], dir);
+    run('git', ['branch', '-M', 'main'], dir);
 
     run('git', ['checkout', '-b', 'feature/ship-test'], dir);
     fs.writeFileSync(path.join(dir, 'app.ts'), 'console.log("v2");\n');
@@ -1664,7 +1723,7 @@ Write your findings to ${dir}/review-output.md`,
     // Copy ship skill
     fs.copyFileSync(path.join(ROOT, 'ship', 'SKILL.md'), path.join(dir, 'ship-SKILL.md'));
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read ship-SKILL.md for the ship workflow.
 
 Run ONLY Step 0 (Detect base branch) and Step 1 (Pre-flight) from the ship workflow.
@@ -1698,10 +1757,10 @@ Write a summary of what you detected to ${dir}/ship-preflight.md including:
     }
 
     // Verify no destructive actions — no push, no PR creation
-    const destructiveTools = result.toolCalls.filter(tc =>
-      tc.tool === 'Bash' && typeof tc.input === 'string' &&
-      (tc.input.includes('git push') || tc.input.includes('gh pr create'))
-    );
+    const destructiveTools = result.toolCalls.filter(tc => {
+      const command = getToolCommand(tc.input);
+      return tc.tool === 'Bash' && (command.includes('git push') || command.includes('gh pr create'));
+    });
     expect(destructiveTools).toHaveLength(0);
   }, 90_000);
 
@@ -1717,6 +1776,7 @@ Write a summary of what you detected to ${dir}/ship-preflight.md including:
     fs.writeFileSync(path.join(dir, 'app.ts'), 'console.log("hello");\n');
     run('git', ['add', 'app.ts'], dir);
     run('git', ['commit', '-m', 'feat: initial app', '--date', '2026-03-14T09:00:00'], dir);
+    run('git', ['branch', '-M', 'main'], dir);
 
     fs.writeFileSync(path.join(dir, 'auth.ts'), 'export function login() {}\n');
     run('git', ['add', 'auth.ts'], dir);
@@ -1730,7 +1790,7 @@ Write a summary of what you detected to ${dir}/ship-preflight.md including:
     fs.mkdirSync(path.join(dir, 'retro'), { recursive: true });
     fs.copyFileSync(path.join(ROOT, 'retro', 'SKILL.md'), path.join(dir, 'retro', 'SKILL.md'));
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read retro/SKILL.md for instructions on how to run a retrospective.
 
 IMPORTANT: Follow the "Detect default branch" step first. Since there is no remote, gh will fail — fall back to main.
@@ -1810,7 +1870,7 @@ describeIfSelected('Document-Release skill E2E', ['document-release'], () => {
   });
 
   test('/document-release updates docs without clobbering CHANGELOG', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read the file document-release/SKILL.md for the document-release workflow instructions.
 
 Run the /document-release workflow on this repo. The base branch is "main".
@@ -1869,7 +1929,7 @@ IMPORTANT:
 // --- Deferred skill E2E tests (destructive or require interactive UI) ---
 
 // Deferred tests — only test.todo entries, no selection needed
-describeE2E('Deferred skill E2E', () => {
+describeClaudeOnlyE2E('Deferred skill E2E', () => {
   // Ship is destructive: pushes to remote, creates PRs, modifies VERSION/CHANGELOG
   test.todo('/ship completes full workflow');
 
@@ -1951,7 +2011,7 @@ describeIfSelected('gstack-upgrade E2E', ['gstack-upgrade-happy-path'], () => {
 
   testIfSelected('gstack-upgrade-happy-path', async () => {
     const mockGstack = path.join(upgradeDir, '.claude', 'skills', 'gstack');
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read gstack-upgrade/SKILL.md for the upgrade workflow.
 
 You are running /gstack-upgrade standalone. The gstack installation is at ./.claude/skills/gstack (local-git type — it has a .git directory with an origin remote).
@@ -2066,7 +2126,7 @@ A civic tech data platform for government employees to access, visualize, and sh
   });
 
   testIfSelected('design-consultation-core', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
 
 This is a civic tech data platform called CivicPulse for government employees who need to access public data. Read the README.md for details.
@@ -2130,7 +2190,7 @@ Write DESIGN.md and CLAUDE.md (or update it) in the working directory.`,
     try { fs.unlinkSync(path.join(designDir, 'DESIGN.md')); } catch {}
     try { fs.unlinkSync(path.join(designDir, 'CLAUDE.md')); } catch {}
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
 
 This is a civic tech data platform called CivicPulse. Read the README.md.
@@ -2190,7 +2250,7 @@ Write DESIGN.md to the working directory.`,
 Body: system-ui
 `);
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
 
 There is already a DESIGN.md in this repo. Update it with a complete design system for CivicPulse, a civic tech data platform for government employees.
@@ -2232,7 +2292,7 @@ Skip research. Skip font preview. Skip any AskUserQuestion calls — this is non
     // Clean up
     try { fs.unlinkSync(path.join(designDir, 'DESIGN.md')); } catch {}
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read design-consultation/SKILL.md for the design consultation workflow.
 
 This is CivicPulse, a civic tech data platform. Read the README.md.
@@ -2342,7 +2402,7 @@ Build a user dashboard that shows account stats, recent activity, and settings.
   });
 
   testIfSelected('plan-design-review-plan-mode', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-design-review/SKILL.md for the design review workflow.
 
 Review the plan in ./plan.md. This plan has several design gaps — it uses vague language like "clean, modern UI" and "cards and icons", mentions a "hero section with gradient" (AI slop), and doesn't specify empty states, error states, loading states, responsive behavior, or accessibility.
@@ -2405,7 +2465,7 @@ Migrate user records from PostgreSQL to a new schema with better indexing.
 5. Run migration in staging first, then production
 `);
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read plan-design-review/SKILL.md for the design review workflow.
 
 Review the plan in ./backend-plan.md. This is a pure backend database migration plan with no UI changes.
@@ -2533,7 +2593,7 @@ describeIfSelected('Design Review E2E', ['design-review-fix'], () => {
   test('Test 7: /design-review audits and fixes design issues', async () => {
     const serverUrl = `http://localhost:${(qaDesignServer as any)?.port}`;
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `IMPORTANT: The browse binary is already assigned below as B. Do NOT search for it or run the SKILL.md setup block — just use $B directly.
 
 B="${browseBin}"
@@ -2654,7 +2714,7 @@ export function divide(a, b) { return a / b; } // BUG: no zero check
   test('/qa bootstrap + regression test on zero-test project', async () => {
     const serverUrl = `http://127.0.0.1:${bootstrapServer!.port}`;
 
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `You have a browse binary at ${browseBin}. Assign it to B variable like: B="${browseBin}"
 
 Read the file qa/SKILL.md for the QA workflow instructions.
@@ -2794,7 +2854,7 @@ describe('processPayment', () => {
   });
 
   test('/ship Step 3.4 produces coverage diagram', async () => {
-    const result = await runSkillTest({
+    const result = await runHostSkillTest({
       prompt: `Read the file ship/SKILL.md for the ship workflow instructions.
 
 You are on the feature/billing branch. The base branch is main.

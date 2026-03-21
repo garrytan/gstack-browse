@@ -98,20 +98,47 @@ function generatePreamble(): string {
   return `## Preamble (run first)
 
 \`\`\`bash
-_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
+_gstack_find_root() {
+  local repo_root candidate
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+  for candidate in \
+    "\${repo_root:+$repo_root/.claude/skills/gstack}" \
+    "\${repo_root:+$repo_root/.agents/skills/gstack}" \
+    "$HOME/.claude/skills/gstack" \
+    "$_CODEX_HOME/skills/gstack"
+  do
+    [ -n "$candidate" ] || continue
+    if [ -d "$candidate" ]; then
+      cd "$candidate" && pwd -P
+      return 0
+    fi
+  done
+  return 1
+}
+_GSTACK_ROOT=$(_gstack_find_root || true)
+_GSTACK_BIN="\${_GSTACK_ROOT:+$_GSTACK_ROOT/bin}"
+_UPD=$([ -n "$_GSTACK_BIN" ] && "$_GSTACK_BIN/gstack-update-check" 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
+_CONTRIB=$([ -n "$_GSTACK_BIN" ] && "$_GSTACK_BIN/gstack-config" get gstack_contributor 2>/dev/null || true)
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+_GSTACK_HOST="unknown"
+case "$_GSTACK_ROOT" in
+  */.claude/skills/gstack) _GSTACK_HOST="claude" ;;
+  */.codex/skills/gstack|*/.agents/skills/gstack) _GSTACK_HOST="codex" ;;
+esac
+echo "GSTACK_ROOT: \${_GSTACK_ROOT:-unresolved}"
+echo "GSTACK_HOST: $_GSTACK_HOST"
 echo "BRANCH: $_BRANCH"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
 \`\`\`
 
-If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`~/.claude/skills/gstack/gstack-upgrade/SKILL.md\` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If \`JUST_UPGRADED <from> <to>\`: tell user "Running gstack v{to} (just updated!)" and continue.
+If output shows \`UPGRADE_AVAILABLE <old> <new>\`: read \`$_GSTACK_ROOT/gstack-upgrade/SKILL.md\` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise ask the user with 4 options and write snooze state if declined). If \`JUST_UPGRADED <from> <to>\`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 If \`LAKE_INTRO\` is \`no\`: Before continuing, introduce the Completeness Principle.
 Tell the user: "gstack follows the **Boil the Lake** principle — always do the complete
@@ -125,9 +152,9 @@ touch ~/.gstack/.completeness-intro-seen
 
 Only run \`open\` if the user says yes. Always run \`touch\` to mark as seen. This only happens once.
 
-## AskUserQuestion Format
+## Interactive Question Format
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
+**ALWAYS follow this structure whenever you need user input.** In Claude Code, call \`AskUserQuestion\`. In Codex, ask the user directly using the same structure:
 1. **Re-ground:** State the project, the current branch (use the \`_BRANCH\` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\` — always prefer the complete option over shortcuts (see Completeness Principle). Include \`Completeness: X/10\` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
@@ -205,9 +232,12 @@ function generateBrowseSetup(): string {
 
 \`\`\`bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+_CODEX_HOME="\${CODEX_HOME:-$HOME/.codex}"
 B=""
 [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+[ -z "$B" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.agents/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.agents/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -x "$HOME/.claude/skills/gstack/browse/dist/browse" ] && B="$HOME/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && [ -x "$_CODEX_HOME/skills/gstack/browse/dist/browse" ] && B="$_CODEX_HOME/skills/gstack/browse/dist/browse"
 if [ -x "$B" ]; then
   echo "READY: $B"
 else
@@ -217,7 +247,7 @@ fi
 
 If \`NEEDS_SETUP\`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: \`cd <SKILL_DIR> && ./setup\`
+2. Run: \`cd \${_GSTACK_ROOT:-<SKILL_DIR>} && ./setup\`
 3. If \`bun\` is not installed: \`curl -fsSL https://bun.sh/install | bash\``;
 }
 
@@ -525,7 +555,7 @@ function generateDesignReviewLite(): string {
 Check if the diff touches frontend files using \`gstack-diff-scope\`:
 
 \`\`\`bash
-eval $(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-diff-scope" <base> 2>/dev/null)
 \`\`\`
 
 **If \`SCOPE_FRONTEND=false\`:** Skip design review silently. No output.
@@ -534,7 +564,7 @@ eval $(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 
 1. **Check for DESIGN.md.** If \`DESIGN.md\` or \`design-system.md\` exists in the repo root, read it. All design findings are calibrated against it — patterns blessed in DESIGN.md are not flagged. If not found, use universal design principles.
 
-2. **Read \`.claude/skills/review/design-checklist.md\`.** If the file cannot be read, skip design review with a note: "Design checklist not found — skipping design review."
+2. **Read \`$_GSTACK_ROOT/review/design-checklist.md\`.** If the file cannot be read, skip design review with a note: "Design checklist not found — skipping design review."
 
 3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
 
@@ -548,7 +578,7 @@ eval $(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 6. **Log the result** for the Review Readiness Dashboard:
 
 \`\`\`bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 mkdir -p ~/.gstack/projects/$SLUG
 echo '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
 \`\`\`
@@ -808,7 +838,7 @@ Compare screenshots and observations across pages for:
 
 **Project-scoped:**
 \`\`\`bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 mkdir -p ~/.gstack/projects/$SLUG
 \`\`\`
 Write to: \`~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md\`
@@ -898,10 +928,10 @@ function generateReviewDashboard(): string {
 After completing the review, read the review log and config to display the dashboard.
 
 \`\`\`bash
-eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval $("$_GSTACK_ROOT/bin/gstack-slug" 2>/dev/null)
 cat ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_REVIEWS"
 echo "---CONFIG---"
-~/.claude/skills/gstack/bin/gstack-config get skip_eng_review 2>/dev/null || echo "false"
+"$_GSTACK_ROOT/bin/gstack-config" get skip_eng_review 2>/dev/null || echo "false"
 \`\`\`
 
 Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review, design-review-lite). Ignore entries with timestamps older than 7 days. For Design Review, show whichever is more recent between \`plan-design-review\` (full visual audit) and \`design-review-lite\` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:

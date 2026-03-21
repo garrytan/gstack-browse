@@ -3,6 +3,7 @@ node_modules/
 browse/dist/
 .gstack/
 .claude/skills/
+.agents/skills/
 /tmp/
 *.log
 bun.lock

@@ -4,20 +4,24 @@ Thanks for wanting to make gstack better. Whether you're fixing a typo in a skil
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+gstack skills are Markdown files discovered by Claude Code and Codex. Global installs typically live at `~/.claude/skills/gstack/` for Claude Code and `~/.codex/skills/gstack/` for Codex. But when you're developing gstack itself, you want the active tool to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
-That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
+That's what dev mode does. It symlinks your repo into `.claude/skills/` for Claude or `.agents/skills/` for Codex so the tool reads skills straight from your checkout.
 
 ```bash
 git clone <repo> && cd gstack
 bun install                    # install dependencies
-bin/dev-setup                  # activate dev mode
+bin/dev-setup                  # activate Claude dev mode
+# or: bin/dev-setup --host codex
+# or: bin/dev-setup --host both
 ```
 
-Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your changes live. When you're done developing:
+Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`) or Codex (e.g. `$review`), and see your changes live. When you're done developing:
 
 ```bash
-bin/dev-teardown               # deactivate — back to your global install
+bin/dev-teardown               # deactivate Claude dev mode
+# or: bin/dev-teardown --host codex
+# or: bin/dev-teardown --host both
 ```
 
 ## Contributor mode
@@ -30,6 +34,7 @@ would make it better.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-config set gstack_contributor true
+# or: ~/.codex/skills/gstack/bin/gstack-config set gstack_contributor true
 ```
 
 The logs are for **you**. When something bugs you enough to fix, the report is
@@ -62,8 +67,8 @@ When you have 3+ gstack sessions open simultaneously, every question tells you w
 
 When you're editing gstack skills and want to test them by actually using gstack
 in the same repo, `bin/dev-setup` wires this up. It creates `.claude/skills/`
-symlinks (gitignored) pointing back to your working tree, so Claude Code uses
-your local edits instead of the global install.
+and/or `.agents/skills/` symlinks (gitignored) pointing back to your working
+tree, so Claude Code or Codex uses your local edits instead of the global install.
 
 ```
 gstack/                          <- your working tree
@@ -72,6 +77,8 @@ gstack/                          <- your working tree
 │   ├── review -> gstack/review
 │   ├── ship -> gstack/ship
 │   └── ...                      <- one symlink per skill
+├── .agents/skills/              <- created by dev-setup --host codex (gitignored)
+│   └── gstack -> ../../         <- symlink back to repo root
 ├── review/
 │   └── SKILL.md                 <- edit this, test with /review
 ├── ship/
@@ -86,19 +93,20 @@ gstack/                          <- your working tree
 
 ```bash
 # 1. Enter dev mode
-bin/dev-setup
+bin/dev-setup --host both
 
 # 2. Edit a skill
 vim review/SKILL.md
 
-# 3. Test it in Claude Code — changes are live
-#    > /review
+# 3. Test it in Claude Code or Codex — changes are live
+#    Claude: /review
+#    Codex:  $review
 
 # 4. Editing browse source? Rebuild the binary
 bun run build
 
 # 5. Done for the day? Tear down
-bin/dev-teardown
+bin/dev-teardown --host both
 ```
 
 ## Testing & evals

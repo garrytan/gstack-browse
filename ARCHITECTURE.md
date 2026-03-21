@@ -1,10 +1,10 @@
 # Architecture
 
-This document explains **why** gstack is built the way it is. For setup and commands, see CLAUDE.md. For contributing, see CONTRIBUTING.md.
+This document explains **why** gstack is built the way it is. For setup and commands, see CLAUDE.md and AGENTS.md. For contributing, see CONTRIBUTING.md.
 
 ## The core idea
 
-gstack gives Claude Code a persistent browser and a set of opinionated workflow skills. The browser is the hard part — everything else is Markdown.
+gstack gives Claude Code and Codex a persistent browser and a set of opinionated workflow skills. The browser is the hard part — everything else is Markdown.
 
 The key insight: an AI agent interacting with a browser needs **sub-second latency** and **persistent state**. If every command cold-starts a browser, you're waiting 3-5 seconds per tool call. If the browser dies between commands, you lose cookies, tabs, and login sessions. So gstack runs a long-lived Chromium daemon that the CLI talks to over localhost HTTP.
 
@@ -39,7 +39,7 @@ First call starts everything (~3s). Every call after: ~100-200ms.
 
 Node.js would work. Bun is better here for three reasons:
 
-1. **Compiled binaries.** `bun build --compile` produces a single ~58MB executable. No `node_modules` at runtime, no `npx`, no PATH configuration. The binary just runs. This matters because gstack installs into `~/.claude/skills/` where users don't expect to manage a Node.js project.
+1. **Compiled binaries.** `bun build --compile` produces a single ~58MB executable. No `node_modules` at runtime, no `npx`, no PATH configuration. The binary just runs. This matters because gstack installs into `~/.claude/skills/`, `~/.codex/skills/`, or a repo-local `.agents/skills/` tree where users don't expect to manage a Node.js project.
 
 2. **Native SQLite.** Cookie decryption reads Chromium's SQLite cookie database directly. Bun has `new Database()` built in — no `better-sqlite3`, no native addon compilation, no gyp. One less thing that breaks on different machines.
 
@@ -198,7 +198,7 @@ Templates contain the workflows, tips, and examples that require human judgment.
 |-------------|--------|-------------------|
 | `{{COMMAND_REFERENCE}}` | `commands.ts` | Categorized command table |
 | `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | Flag reference with examples |
-| `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, AskUserQuestion format |
+| `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, and shared interactive-question format |
 | `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | Binary discovery + setup instructions |
 | `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for PR-targeting skills (ship, review, qa, plan-ceo-review) |
 | `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared QA methodology block for /qa and /qa-only |
@@ -215,7 +215,7 @@ Every skill starts with a `{{PREAMBLE}}` block that runs before the skill's own 
 1. **Update check** — calls `gstack-update-check`, reports if an upgrade is available.
 2. **Session tracking** — touches `~/.gstack/sessions/$PPID` and counts active sessions (files modified in the last 2 hours). When 3+ sessions are running, all skills enter "ELI16 mode" — every question re-grounds the user on context because they're juggling windows.
 3. **Contributor mode** — reads `gstack_contributor` from config. When true, the agent files casual field reports to `~/.gstack/contributor-logs/` when gstack itself misbehaves.
-4. **AskUserQuestion format** — universal format: context, question, `RECOMMENDATION: Choose X because ___`, lettered options. Consistent across all skills.
+4. **Interactive question format** — universal format: context, question, `RECOMMENDATION: Choose X because ___`, lettered options. In Claude Code this maps to `AskUserQuestion`; in Codex it maps to a direct user question with the same structure.
 
 ### Why committed, not generated at runtime?
 

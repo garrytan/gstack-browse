@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { parseNDJSON } from './session-runner';
+import { parseCodexJSONL, parseNDJSON } from './session-runner';
 
 // Fixture: minimal NDJSON session (system init, assistant with tool_use, tool result, assistant text, result)
 const FIXTURE_LINES = [
@@ -9,6 +9,16 @@ const FIXTURE_LINES = [
   '{"type":"assistant","message":{"content":[{"type":"text","text":"The command printed hello."}]}}',
   '{"type":"assistant","message":{"content":[{"type":"text","text":"Let me also read a file."},{"type":"tool_use","id":"tu2","name":"Read","input":{"file_path":"/tmp/test"}}]}}',
   '{"type":"result","subtype":"success","total_cost_usd":0.05,"num_turns":3,"usage":{"input_tokens":100,"output_tokens":50},"result":"Done."}',
+];
+
+const CODEX_FIXTURE_LINES = [
+  '{"type":"thread.started","thread_id":"thread-123"}',
+  '{"type":"turn.started"}',
+  '{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I am going to run pwd."}}',
+  '{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc pwd","aggregated_output":"","exit_code":null,"status":"in_progress"}}',
+  '{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc pwd","aggregated_output":"/tmp/project\\n","exit_code":0,"status":"completed"}}',
+  '{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"/tmp/project"}}',
+  '{"type":"turn.completed","usage":{"input_tokens":42,"cached_input_tokens":12,"output_tokens":7}}',
 ];
 
 describe('parseNDJSON', () => {
@@ -92,5 +102,32 @@ describe('parseNDJSON', () => {
     const parsed = parseNDJSON(lines);
     expect(parsed.turnCount).toBe(2);
     expect(parsed.toolCalls).toHaveLength(0);
+  });
+});
+
+describe('parseCodexJSONL', () => {
+  test('parses Codex JSONL and extracts Bash command executions', () => {
+    const parsed = parseCodexJSONL(CODEX_FIXTURE_LINES);
+    expect(parsed.transcript).toHaveLength(7);
+    expect(parsed.turnCount).toBe(2);
+    expect(parsed.toolCalls).toHaveLength(1);
+    expect(parsed.toolCalls[0]).toEqual({
+      tool: 'Bash',
+      input: { command: '/bin/zsh -lc pwd' },
+      output: '/tmp/project\n',
+    });
+    expect(parsed.resultLine?.subtype).toBe('success');
+    expect(parsed.resultLine?.result).toBe('/tmp/project');
+    expect(parsed.resultLine?.usage?.cache_read_input_tokens).toBe(12);
+  });
+
+  test('converts Codex failure events into an error result', () => {
+    const parsed = parseCodexJSONL([
+      '{"type":"turn.started"}',
+      '{"type":"error","message":"sandbox denied"}',
+      '{"type":"turn.failed","error":{"message":"sandbox denied"}}',
+    ]);
+    expect(parsed.resultLine?.subtype).toBe('error');
+    expect(parsed.resultLine?.result).toBe('sandbox denied');
   });
 });
