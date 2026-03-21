@@ -103,6 +103,9 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'plan-design-review-no-ui-scope': ['plan-design-review/**'],
   'design-review-fix':              ['design-review/**', 'browse/src/**'],
 
+  // Prism
+  'prism-x-crawler-judgment': ['prism/SKILL.md'],
+
   // gstack-upgrade
   'gstack-upgrade-happy-path': ['gstack-upgrade/**'],
 

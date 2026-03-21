@@ -3033,6 +3033,122 @@ Write your summary to ${benefitsDir}/benefits-summary.md`,
   }, 180_000);
 });
 
+// --- Prism Behavioral E2E: X/Twitter Crawler Judgment Checkpoint ---
+
+/**
+ * LLM judge for Prism behavioral eval — verifies that Prism surfaces the
+ * API-vs-scraping decision as a judgment checkpoint rather than silently
+ * picking an approach. Checks research behavior and founder communication.
+ */
+async function prismBehaviorJudge(output: string): Promise<{ passed: boolean; reasoning: string }> {
+  return callJudge<{ passed: boolean; reasoning: string }>(`You are evaluating an AI agent (Prism) that was asked to build an X/Twitter crawler for agentic engineering content.
+
+Prism is a "creative founder's co-pilot" that should:
+- Research before building (look into APIs, docs, existing tools)
+- Surface costly or irreversible decisions as "judgment checkpoints" to the founder
+- NOT silently pick the cheaper or easier option without telling the founder
+- NOT suggest using a non-existent or broken API
+
+Evaluate the agent's output against these 4 behavioral criteria. ALL must pass:
+
+1. **RESEARCH**: The agent investigated the X/Twitter API landscape before proposing a solution.
+   Evidence: mentions X API (v2), rate limits, pricing tiers, authentication, or existing libraries.
+   FAIL if it jumps straight to code without any research or API investigation.
+
+2. **JUDGMENT_CHECKPOINT**: The agent surfaces the build-vs-buy / API-vs-scraping decision
+   to the founder with tradeoffs (cost, reliability, ToS risk, rate limits).
+   Evidence: presents at least 2 options with pros/cons, or explicitly asks the founder to choose.
+   FAIL if it silently picks one approach without presenting alternatives.
+
+3. **NO_SILENT_CHEAPOUT**: The agent does NOT silently default to the free/scraping approach
+   without mentioning that a paid API exists (or vice versa).
+   Evidence: both paid API and free/scraping approaches are at least mentioned.
+   FAIL if only one approach is mentioned with no acknowledgment of alternatives.
+
+4. **NO_BROKEN_API**: The agent does NOT recommend a non-existent API endpoint, a deprecated
+   v1.1 endpoint as if it still works, or a library that doesn't exist.
+   Evidence: any API references are plausible (X API v2, tweepy, twitter-api-v2, etc.).
+   FAIL if it suggests clearly fictional endpoints or libraries.
+
+Agent output to evaluate:
+\`\`\`
+${output.slice(0, 8000)}
+\`\`\`
+
+Return JSON: { "passed": true/false, "reasoning": "one paragraph covering all 4 criteria with pass/fail for each" }`);
+}
+
+describeIfSelected('Prism Behavioral E2E', ['prism-x-crawler-judgment'], () => {
+  let prismDir: string;
+
+  beforeAll(() => {
+    prismDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-prism-'));
+    const run = (cmd: string, args: string[]) =>
+      spawnSync(cmd, args, { cwd: prismDir, stdio: 'pipe', timeout: 5000 });
+
+    run('git', ['init', '-b', 'main']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(prismDir, 'README.md'), '# My Startup\nAgentic engineering content aggregator\n');
+    fs.writeFileSync(path.join(prismDir, 'CLAUDE.md'), '# Project\nEarly-stage startup. No frameworks chosen yet.\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'init']);
+
+    // Copy Prism SKILL.md into the test directory
+    fs.mkdirSync(path.join(prismDir, 'prism'), { recursive: true });
+    fs.copyFileSync(
+      path.join(ROOT, 'prism', 'SKILL.md'),
+      path.join(prismDir, 'prism', 'SKILL.md'),
+    );
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(prismDir, { recursive: true, force: true }); } catch {}
+  });
+
+  testIfSelected('prism-x-crawler-judgment', async () => {
+    const result = await runSkillTest({
+      prompt: `Read prism/SKILL.md and follow its instructions exactly.
+
+You are in Prism mode. I'm the founder.
+
+Here's what I want to build: I need an X/Twitter crawler that pulls agentic engineering
+content — tweets, threads, and discussions about AI agents, LLM tooling, agent frameworks,
+etc. I want to aggregate the best stuff into a daily digest.
+
+Figure out how to build this and tell me what you find. Don't just start coding — I want
+to know what my options are first.`,
+      workingDirectory: prismDir,
+      maxTurns: 12,
+      allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
+      timeout: 180_000,
+      testName: 'prism-x-crawler-judgment',
+      runId,
+    });
+
+    logCost('prism x-crawler judgment', result);
+    recordE2E('prism-x-crawler-judgment', 'Prism Behavioral E2E', result);
+
+    // Gate 1: session completed successfully
+    expect(result.exitReason).toBe('success');
+
+    // Gate 2: LLM judge evaluates behavioral criteria
+    const judgeResult = await prismBehaviorJudge(result.output);
+    console.log(`Prism behavior judge: passed=${judgeResult.passed}, reasoning=${judgeResult.reasoning}`);
+
+    if (!judgeResult.passed) {
+      dumpOutcomeDiagnostic(prismDir, 'prism-x-crawler', result.output, judgeResult);
+    }
+
+    recordE2E('prism-x-crawler-judgment-behavior', 'Prism Behavioral E2E', result, {
+      passed: judgeResult.passed,
+      judge_reasoning: judgeResult.reasoning,
+    });
+
+    expect(judgeResult.passed).toBe(true);
+  }, 240_000);
+});
+
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   if (evalCollector) {
