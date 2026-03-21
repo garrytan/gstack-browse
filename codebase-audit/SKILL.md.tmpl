@@ -231,17 +231,16 @@ Use these exact definitions:
 
 ## Phase 4: Report Generation
 
-### 4.0 Write files via Bash (plan mode compatible)
+### 4.0 Report and plan — two outputs
 
-**CRITICAL:** The report and baseline MUST be written to `~/.gstack/projects/$SLUG/audits/`. If the session is in plan mode, the Write tool may be restricted to the plan file. To avoid this, **always use Bash with heredoc** to write the report and baseline files — Bash is not restricted by plan mode. Example:
+The audit produces **two artifacts**:
 
-```bash
-cat > ~/.gstack/projects/$SLUG/audits/{datetime}-audit.md << 'AUDIT_EOF'
-{report content here}
-AUDIT_EOF
-```
+1. **Report + baseline** → written to `~/.gstack/projects/$SLUG/audits/` via Bash heredoc (permanent record, not actionable by Claude Code)
+2. **Fix plan** → written to the plan file (actionable — this is what "Ready to code?" executes)
 
-Do NOT use the Write tool for the report or baseline. Do NOT write the report to a plan file. Do NOT write the report content into the plan file "temporarily" — it will trigger "Ready to code?" which is wrong for an audit.
+The audit is planning-for-a-plan. The report is the research; the plan file is the actionable output. This is compatible with plan mode — the audit phases (1-3) are read-only research, and Phase 4 produces both the archival report and the executable fix plan.
+
+**Always use Bash heredoc** to write the report and baseline to `~/.gstack/` — the Write tool may be restricted to the plan file in plan mode.
 
 ### 4.1 Load report template
 
@@ -356,66 +355,52 @@ After writing the report file, print a summary directly to the conversation. Thi
 5. **Report location**: Full path to the written report
 6. **Regression delta** (if applicable): Score change, count of fixed/new findings
 
-### 4.7 Next Steps — Review Chaining
+### 4.7 Write the Fix Plan
 
-After printing the conversation summary, chain to the appropriate next action. This follows the same pattern as `/plan-ceo-review` and `/plan-eng-review` — read the state, recommend the logical next step, present concrete options.
+After printing the conversation summary, write the fix plan to the plan file. The audit is planning-for-a-plan — the plan file is the natural, actionable output.
 
-**Classify findings for the recommendation:**
-- Count mechanical findings (gitignore patterns, narrowing exception types, adding timeouts, adding named constants — things with zero design judgment)
-- Count substantive findings (architecture changes, error handling redesign, security fixes, test coverage additions — things requiring design decisions or touching 3+ files)
+**Classify each finding:**
+- **Mechanical** (gitignore patterns, narrowing exception types, adding timeouts, adding inline auth checks, replacing assert with explicit checks — things with zero design judgment, single-file changes)
+- **Substantive** (architecture changes, error handling redesign across many files, test coverage additions, security pattern changes — things requiring design decisions or touching 3+ files)
 
-**Present the recommendation via AskUserQuestion:**
+**Structure the plan file with two parts:**
 
-If there are Critical or Important findings:
-> "Audit found {N} findings worth acting on — {M} mechanical (can fix now) and {S} substantive (need a plan). The substantive fixes touch multiple files and benefit from `/plan-eng-review` before implementation."
+```markdown
+> **Recommended workflow:**
+> 1. Accept this plan to apply Part 1 (mechanical fixes) immediately
+> 2. Then run `/plan-eng-review` to review Part 2 (substantive fixes) before implementing
+>
+> Or accept the full plan to implement everything in one session.
 
-Options (include only applicable ones):
-- **A) Fix mechanical issues now, then /plan-eng-review for the rest** (recommended when substantive findings exist) — applies gitignore fixes, exception narrowing, etc. immediately with atomic commits, then writes a plan for the remaining findings and recommends running `/plan-eng-review`
-- **B) Fix all now** — applies mechanical fixes, then works through substantive fixes without formal review. Faster but skips the quality gate.
-- **C) Show all findings inline** — display the full report in conversation before deciding
-- **D) Done** — review the report file later
+# Codebase Audit Fix Plan
 
-If there are only Notable/Opportunity findings (no Critical or Important):
-> "Audit found {N} findings — all minor. No critical or important issues to address."
+## Context
+{audit summary, score, commit}
 
-Options:
-- **A) Fix mechanical issues now** — applies quick fixes with atomic commits
-- **B) Show all findings inline**
-- **C) Done**
+## Part 1: Mechanical Fixes (apply immediately)
+{For each mechanical finding: file, problem, fix, verify}
 
-**If the user picks A (with substantive findings):**
+## Part 2: Substantive Fixes (review first)
 
-**Step 1: Apply mechanical fixes NOW** (before writing any plan file).
-Exit the read-only audit constraint. Apply each mechanical fix via Edit/Bash, commit atomically with messages referencing the finding ID (e.g., `fix: add WebSocket auth check on /ws/ctrl (audit S-1)`). These are done — no plan needed.
+> Run `/plan-eng-review` on Part 2 before implementing.
+> These fixes touch multiple files and benefit from architectural review.
 
-**Step 2: Write a plan for ONLY the substantive fixes.**
-The plan file should contain ONLY the substantive findings that need review. Do NOT include the mechanical fixes — they're already committed. At the very top of the plan file, include a review recommendation banner:
-
-**If findings involve scope/product decisions** (new abstractions, architecture redesign, changing public interfaces, adding new packages, significant pattern changes across the codebase):
-```
-> **Next step:** Run `/plan-ceo-review` on this plan first (scope decisions), then `/plan-eng-review` (architecture review).
-> These fixes involve design decisions that benefit from structured review before implementation.
+{For each substantive finding: scope, approach, files to modify, verification}
 ```
 
-**If findings are implementation-level** (write tests, add error handling, fix resource leaks, add timeouts — things with clear solutions but touching multiple files):
+**If findings involve scope/product decisions** (new abstractions, architecture redesign, changing public interfaces), change the Part 2 banner to recommend `/plan-ceo-review` first, then `/plan-eng-review`.
+
+**If there are no substantive findings** (all mechanical), omit Part 2 and the review banners entirely.
+
+**If there are no findings worth fixing** (all Notable/Opportunity), write a minimal plan:
+```markdown
+# Codebase Audit — No Action Required
+
+Health score: {N}/100. No critical or important findings.
+See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 ```
-> **Next step:** Run `/plan-eng-review` on this plan before implementing.
-> The substantive fixes below touch multiple files and benefit from architectural review.
-```
 
-When the user sees "Ready to code?" it will be for the substantive fixes only. The banner tells them to run `/plan-eng-review` (or `/plan-ceo-review`) instead of accepting directly. If they accept anyway, the plan contains only the substantive work.
-
-**Step 3: Tell the user what happened.**
-Before the plan file triggers "Ready to code?", output a brief message: "Applied N mechanical fixes (committed). The plan contains only the substantive fixes — run `/plan-eng-review` before implementing."
-
-**If the user picks B:**
-1. Apply mechanical fixes (commit atomically)
-2. Work through substantive fixes one at a time (commit atomically)
-3. Re-run relevant checklist patterns to verify
-
-**If the user picks C:** Print all findings grouped by severity, then re-present options A/B/D.
-
-**If the user picks D:** End the skill.
+**After writing the plan**, output a brief message classifying what's in it: "Plan written: {M} mechanical fixes (Part 1) + {S} substantive fixes (Part 2, recommend `/plan-eng-review` first)."
 
 ---
 
@@ -433,17 +418,17 @@ Before the plan file triggers "Ready to code?", output a brief message: "Applied
 
 ## Key Rules
 
-1. You MUST NOT modify any source code. Your only Write operations are the report and baseline files in `~/.gstack/`.
+1. During audit phases (1-3), you MUST NOT modify any source code. Phase 4 writes the report/baseline to `~/.gstack/` and the fix plan to the plan file. When the plan is executed (after "Ready to code?"), you may edit source code to implement the fixes.
 2. Findings that reference specific code MUST include `file:line`. Findings about missing functionality (missing tests, missing error handling), dependency vulnerabilities, or architectural patterns should reference the most relevant file or component instead. Never report a finding you cannot anchor to something concrete in the codebase.
 3. Reports are saved to your home directory (`~/.gstack/`), not the project directory. They may contain security findings — do not commit them to public repos.
 4. No hallucinating findings. Every finding must reference a specific file and line (or component for non-code findings). If you can't point to it, don't report it.
 5. Use the severity calibration definitions exactly as specified. Do not inflate or deflate severity.
 6. In quick mode, respect the 2-minute target. Do not run Phase 2 or the full Phase 3 checklist.
-7. AskUserQuestion fires in two places: (1) Phase 1 if >50K LOC, to scope the audit; (2) Phase 4.7 for review chaining (next steps after the audit). Do not use it elsewhere during the audit phases.
+7. AskUserQuestion fires in one place: Phase 1 if >50K LOC, to scope the audit. The fix plan (Phase 4.7) uses the plan file for next steps — "Ready to code?" is the user's decision point. Do not use AskUserQuestion elsewhere during the audit.
 8. All bash blocks are self-contained. Do not rely on shell variables persisting between code blocks.
 9. When reading files for context, read enough surrounding lines to understand the code — do not make judgments from a single line in isolation.
 10. Cap detailed findings at 50. Summarize overflow in a table.
 11. Be aware of your knowledge cutoff. Do not flag dependency versions, language versions, or API usage as "deprecated" or "nonexistent" based solely on your training data. If uncertain whether a version exists, state the uncertainty rather than asserting it as a finding.
 12. Always use the Read tool to read files — never use `cat` via Bash. The Read tool provides better context and is the expected convention.
 14. **NEVER use Grep in `content` mode during checklist execution.** Always use `files_with_matches` mode. If a regex returns more than ~20 lines, the pattern is too broad — use `files_with_matches` to get filenames, then Read specific line ranges. Multiline regex patterns (e.g., patterns matching across `{` `}` boundaries) are especially dangerous and must NEVER be run in content mode.
-13. Do NOT write to plan files or enter plan mode during the audit phases (1-4). The audit produces a report, not an implementation plan. Write only to `~/.gstack/projects/$SLUG/audits/` during the audit. After the audit, if the user selects a fix option in the review chaining step, you may edit source code and commit changes — but the audit phase itself is always read-only.
+13. The audit is planning-for-a-plan. Phases 1-3 are read-only research. Phase 4 produces two outputs: the archival report (written to `~/.gstack/` via Bash) and the fix plan (written to the plan file). The plan file is the correct, actionable output — "Ready to code?" means "execute this fix plan." This is fully compatible with plan mode.
