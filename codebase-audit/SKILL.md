@@ -554,51 +554,48 @@ After writing the report file, print a summary directly to the conversation. Thi
 5. **Report location**: Full path to the written report
 6. **Regression delta** (if applicable): Score change, count of fixed/new findings
 
-### 4.7 Next steps
+### 4.7 Next Steps — Review Chaining
 
-After printing the conversation summary, use AskUserQuestion to offer next steps:
+After printing the conversation summary, chain to the appropriate next action. This follows the same pattern as `/plan-ceo-review` and `/plan-eng-review` — read the state, recommend the logical next step, present concrete options.
 
-"Audit complete. What would you like to do?"
+**Classify findings for the recommendation:**
+- Count mechanical findings (gitignore patterns, narrowing exception types, adding timeouts, adding named constants — things with zero design judgment)
+- Count substantive findings (architecture changes, error handling redesign, security fixes, test coverage additions — things requiring design decisions or touching 3+ files)
+
+**Present the recommendation via AskUserQuestion:**
+
+If there are Critical or Important findings:
+> "Audit found {N} findings worth acting on — {M} mechanical (can fix now) and {S} substantive (need a plan). The substantive fixes touch multiple files and benefit from `/plan-eng-review` before implementation."
+
+Options (include only applicable ones):
+- **A) Fix mechanical issues now, then /plan-eng-review for the rest** (recommended when substantive findings exist) — applies gitignore fixes, exception narrowing, etc. immediately with atomic commits, then writes a plan for the remaining findings and recommends running `/plan-eng-review`
+- **B) Fix all now** — applies mechanical fixes, then works through substantive fixes without formal review. Faster but skips the quality gate.
+- **C) Show all findings inline** — display the full report in conversation before deciding
+- **D) Done** — review the report file later
+
+If there are only Notable/Opportunity findings (no Critical or Important):
+> "Audit found {N} findings — all minor. No critical or important issues to address."
 
 Options:
-- **A) Show all findings inline** — Display all findings grouped by severity in this conversation
-- **B) Fix selected findings** — Pick which findings to address now. I'll create a plan and start fixing.
-- **C) Quick fixes only** — Auto-fix mechanical issues (gitignore patterns, narrowing broad exception catches, adding named constants, etc.) without a full plan. Commits each fix atomically.
-- **D) Done** — I'll review the report file later
+- **A) Fix mechanical issues now** — applies quick fixes with atomic commits
+- **B) Show all findings inline**
+- **C) Done**
 
-**If the user picks A:** Print all findings grouped by severity. Then re-ask with options B, C, D.
+**If the user picks A (with substantive findings):**
+1. Exit the read-only audit constraint — you may now edit source code
+2. Apply mechanical fixes immediately, committing each atomically with messages referencing the finding ID (e.g., `fix: broaden .gitignore coverage patterns (audit N-2)`)
+3. For the remaining substantive findings, write a brief plan summarizing what needs to be done
+4. Tell the user: "Mechanical fixes applied. For the remaining {S} substantive findings, run `/plan-eng-review` to review the plan before implementation."
+5. End the skill. The user runs `/plan-eng-review` in this same session or a new one.
 
-**If the user picks B:** Present each Important and Critical finding as a numbered item. Ask which ones to fix (user can pick by number, "all", or "all important"). Then classify the selected findings:
+**If the user picks B:**
+1. Apply mechanical fixes (commit atomically)
+2. Work through substantive fixes one at a time (commit atomically)
+3. Re-run relevant checklist patterns to verify
 
-**Mechanical fixes** (gitignore patterns, narrowing exception types, adding timeouts, adding constants): Apply directly — commit each atomically. These don't need a plan review.
+**If the user picks C:** Print all findings grouped by severity, then re-present options A/B/D.
 
-**Substantive fixes** (architecture changes, error handling redesign, security fixes, test coverage additions, anything touching multiple files or requiring design decisions): Do NOT jump straight to writing a plan and executing. Instead:
-
-1. Apply any mechanical fixes first (commit atomically)
-2. Then tell the user: "The remaining N findings are substantive — they touch multiple files and require design decisions. The gstack way is to run these through the review pipeline before implementation."
-3. Use AskUserQuestion to offer the review pipeline:
-   - **A) Run /plan-eng-review on these findings** (recommended) — creates a reviewed plan before any code changes
-   - **B) Skip review, create a plan and fix directly** — faster but bypasses the quality gate
-   - **C) Done for now** — I'll handle these separately
-
-If the user picks A: write a plan file summarizing the findings and proposed fixes, then tell the user to run `/plan-eng-review`. Do NOT proceed to implementation — the eng review will handle that.
-
-If the user picks B: write a plan and execute fixes, committing each atomically.
-
-If the user picks C: end the skill.
-
-After all fixes (whether mechanical or reviewed), re-run the relevant checklist patterns to verify the fixes resolved the findings.
-
-**If the user picks C:** Identify findings that are purely mechanical fixes — no judgment calls, no architectural decisions. Examples:
-- Adding patterns to .gitignore
-- Narrowing `except Exception` to specific exception types
-- Replacing magic numbers with named constants
-- Adding missing `timeout=` parameters to HTTP calls
-- Adding `t.Parallel()` to independent tests
-
-For each mechanical fix: apply the fix, commit atomically, move to the next. Skip anything that requires a design decision. Report what was fixed and what was skipped.
-
-**If the user picks D:** End the skill. The report and baseline are saved.
+**If the user picks D:** End the skill.
 
 ---
 
@@ -622,10 +619,10 @@ For each mechanical fix: apply the fix, commit atomically, move to the next. Ski
 4. No hallucinating findings. Every finding must reference a specific file and line (or component for non-code findings). If you can't point to it, don't report it.
 5. Use the severity calibration definitions exactly as specified. Do not inflate or deflate severity.
 6. In quick mode, respect the 2-minute target. Do not run Phase 2 or the full Phase 3 checklist.
-7. AskUserQuestion fires in three places: (1) Phase 1 if >50K LOC, to scope the audit; (2) end of Phase 4, for next steps (show findings / fix / quick fix / done); (3) within fix mode (B), for finding selection. Do not use it elsewhere.
+7. AskUserQuestion fires in two places: (1) Phase 1 if >50K LOC, to scope the audit; (2) Phase 4.7 for review chaining (next steps after the audit). Do not use it elsewhere during the audit phases.
 8. All bash blocks are self-contained. Do not rely on shell variables persisting between code blocks.
 9. When reading files for context, read enough surrounding lines to understand the code — do not make judgments from a single line in isolation.
 10. Cap detailed findings at 50. Summarize overflow in a table.
 11. Be aware of your knowledge cutoff. Do not flag dependency versions, language versions, or API usage as "deprecated" or "nonexistent" based solely on your training data. If uncertain whether a version exists, state the uncertainty rather than asserting it as a finding.
 12. Always use the Read tool to read files — never use `cat` via Bash. The Read tool provides better context and is the expected convention.
-13. Do NOT write to plan files or enter plan mode during the audit phases (1-4). The audit produces a report, not an implementation plan. Write only to `~/.gstack/projects/$SLUG/audits/` during the audit. If the user then selects "Fix selected findings" or "Quick fixes only" in the next-steps prompt, you may edit source code and commit changes — but the audit phase itself is always read-only.
+13. Do NOT write to plan files or enter plan mode during the audit phases (1-4). The audit produces a report, not an implementation plan. Write only to `~/.gstack/projects/$SLUG/audits/` during the audit. After the audit, if the user selects a fix option in the review chaining step, you may edit source code and commit changes — but the audit phase itself is always read-only.
