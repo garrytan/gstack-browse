@@ -384,9 +384,12 @@ Options:
 - **C) Done**
 
 **If the user picks A (with substantive findings):**
-1. Exit the read-only audit constraint — you may now edit source code
-2. Apply mechanical fixes immediately, committing each atomically with messages referencing the finding ID (e.g., `fix: broaden .gitignore coverage patterns (audit N-2)`)
-3. For the remaining substantive findings, write a plan summarizing what needs to be done. **At the very top of the plan file**, before the Context section, include a review recommendation banner. Choose the appropriate one based on the nature of the findings:
+
+**Step 1: Apply mechanical fixes NOW** (before writing any plan file).
+Exit the read-only audit constraint. Apply each mechanical fix via Edit/Bash, commit atomically with messages referencing the finding ID (e.g., `fix: add WebSocket auth check on /ws/ctrl (audit S-1)`). These are done — no plan needed.
+
+**Step 2: Write a plan for ONLY the substantive fixes.**
+The plan file should contain ONLY the substantive findings that need review. Do NOT include the mechanical fixes — they're already committed. At the very top of the plan file, include a review recommendation banner:
 
 **If findings involve scope/product decisions** (new abstractions, architecture redesign, changing public interfaces, adding new packages, significant pattern changes across the codebase):
 ```
@@ -400,9 +403,10 @@ Options:
 > The substantive fixes below touch multiple files and benefit from architectural review.
 ```
 
-This banner ensures the user sees the review recommendation in the "Ready to code?" preview, even though plan mode takes over the conversation flow after the plan is written.
+When the user sees "Ready to code?" it will be for the substantive fixes only. The banner tells them to run `/plan-eng-review` (or `/plan-ceo-review`) instead of accepting directly. If they accept anyway, the plan contains only the substantive work.
 
-4. End the skill. The user sees the plan with the review recommendation and can either approve it directly or run the appropriate review first.
+**Step 3: Tell the user what happened.**
+Before the plan file triggers "Ready to code?", output a brief message: "Applied N mechanical fixes (committed). The plan contains only the substantive fixes — run `/plan-eng-review` before implementing."
 
 **If the user picks B:**
 1. Apply mechanical fixes (commit atomically)
