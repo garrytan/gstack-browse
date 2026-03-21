@@ -666,6 +666,12 @@ describe('Codex generation (--host codex)', () => {
     expect(content).toContain('.agents/skills/gstack');
   });
 
+  test('Codex runtime commands prefer project-local sidecars when present', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('$([ -x .agents/skills/gstack/bin/gstack-config ]');
+    expect(content).toContain('echo ~/.codex/skills/gstack/bin/gstack-config');
+  });
+
   // ─── Path rewriting regression tests ─────────────────────────
 
   test('sidecar paths point to .agents/skills/gstack/review/ (not gstack-review/)', () => {
@@ -713,6 +719,12 @@ describe('Codex generation (--host codex)', () => {
 
     // Rule 4: .claude/skills → .agents/skills (catch-all)
     expect(content).not.toContain('.claude/skills');
+  });
+
+  test('codex output keeps $HOME paths global instead of rewriting them to .agents', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-upgrade', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('$HOME/.codex/skills/gstack');
+    expect(content).not.toContain('$HOME/.agents/skills/gstack');
   });
 
   test('path rewrite rules apply to all Codex skills with sidecar references', () => {
@@ -814,20 +826,33 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('claude|codex|auto');
   });
 
+  test('setup supports --scope auto|user|workspace', () => {
+    expect(setupContent).toContain('--scope');
+    expect(setupContent).toContain('auto|user|workspace');
+  });
+
   test('auto mode detects claude and codex binaries', () => {
     expect(setupContent).toContain('command -v claude');
     expect(setupContent).toContain('command -v codex');
   });
 
+  test('workspace scope resolves a project root and uses project-local skill dirs', () => {
+    expect(setupContent).toContain('resolve_workspace_root');
+    expect(setupContent).toContain('.claude/skills');
+    expect(setupContent).toContain('.agents/skills');
+    expect(setupContent).toContain('--project-root');
+  });
+
   test('create_agents_sidecar links runtime assets', () => {
-    // Sidecar must link bin, browse, review, qa
+    // Sidecar must expose the root skill plus the runtime assets/datasets it needs.
     const fnStart = setupContent.indexOf('create_agents_sidecar()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('SKILL.md');
+    expect(fnBody).toContain('VERSION');
     expect(fnBody).toContain('bin');
     expect(fnBody).toContain('browse');
     expect(fnBody).toContain('review');
-    expect(fnBody).toContain('qa');
   });
 });
 
@@ -838,16 +863,18 @@ describe('telemetry', () => {
     expect(content).toContain('_SESSION_ID');
     expect(content).toContain('TELEMETRY:');
     expect(content).toContain('TEL_PROMPTED:');
-    expect(content).toContain('gstack-config get telemetry');
+    expect(content).toContain('get telemetry');
+    expect(content).toContain('.claude/skills/gstack/bin/gstack-config');
+    expect(content).toContain('~/.claude/skills/gstack/bin/gstack-config');
   });
 
   test('generated SKILL.md contains telemetry opt-in prompt', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('.telemetry-prompted');
     expect(content).toContain('Help gstack get better');
-    expect(content).toContain('gstack-config set telemetry community');
-    expect(content).toContain('gstack-config set telemetry anonymous');
-    expect(content).toContain('gstack-config set telemetry off');
+    expect(content).toContain('set telemetry community');
+    expect(content).toContain('set telemetry anonymous');
+    expect(content).toContain('set telemetry off');
   });
 
   test('generated SKILL.md contains telemetry epilogue', () => {

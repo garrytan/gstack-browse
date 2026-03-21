@@ -50,6 +50,13 @@ Open Claude Code and paste this. Claude does the rest.
 
 > Install gstack: run **`git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
+Prefer to keep the checkout anywhere and still install globally? Use the new user-scoped install:
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/gstack
+cd ~/gstack && ./setup --host auto --scope user
+```
+
 ### Step 2: Add to your repo so teammates get it (optional)
 
 > Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
@@ -69,10 +76,22 @@ Or let setup auto-detect which agents you have installed:
 
 ```bash
 git clone https://github.com/garrytan/gstack.git ~/gstack
-cd ~/gstack && ./setup --host auto
+cd ~/gstack && ./setup --host auto --scope user
 ```
 
 This installs to `~/.claude/skills/gstack` and/or `~/.codex/skills/gstack` depending on what's available. All 21 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
+
+### Evaluate in one repo without touching your global profile
+
+If you want to try gstack in a single project first, install it into that workspace only:
+
+```bash
+git clone https://github.com/garrytan/gstack.git ~/gstack
+cd ~/gstack && ./setup --host auto --scope workspace --project-root /path/to/project
+```
+
+That writes skills to `/path/to/project/.claude/skills/` and `/path/to/project/.agents/skills/` instead of `~/.claude/skills/` or `~/.codex/skills/`.
+Generated skills prefer those project-local runtime assets when present, so you can test gstack in one repo without first wiring a global profile.
 
 ## See it work
 

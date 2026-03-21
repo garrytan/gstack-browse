@@ -32,7 +32,11 @@ const HOST: Host = (() => {
 
 interface HostPaths {
   skillRoot: string;
+  homeSkillRoot: string;
   localSkillRoot: string;
+  localSkillsDir: string;
+  globalReviewDir: string;
+  localReviewDir: string;
   binDir: string;
   browseDir: string;
 }
@@ -40,13 +44,21 @@ interface HostPaths {
 const HOST_PATHS: Record<Host, HostPaths> = {
   claude: {
     skillRoot: '~/.claude/skills/gstack',
+    homeSkillRoot: '$HOME/.claude/skills/gstack',
     localSkillRoot: '.claude/skills/gstack',
+    localSkillsDir: '.claude/skills',
+    globalReviewDir: '~/.claude/skills/review',
+    localReviewDir: '.claude/skills/review',
     binDir: '~/.claude/skills/gstack/bin',
     browseDir: '~/.claude/skills/gstack/browse/dist',
   },
   codex: {
     skillRoot: '~/.codex/skills/gstack',
+    homeSkillRoot: '$HOME/.codex/skills/gstack',
     localSkillRoot: '.agents/skills/gstack',
+    localSkillsDir: '.agents/skills',
+    globalReviewDir: '~/.codex/skills/gstack/review',
+    localReviewDir: '.agents/skills/gstack/review',
     binDir: '~/.codex/skills/gstack/bin',
     browseDir: '~/.codex/skills/gstack/browse/dist',
   },
@@ -58,6 +70,67 @@ interface TemplateContext {
   benefitsFrom?: string[];
   host: Host;
   paths: HostPaths;
+}
+
+let replacementCounter = 0;
+
+function replacePathVariants(content: string, variants: string[], replacement: string): string {
+  const marker = `__GSTACK_PATH_${replacementCounter++}__`;
+  let updated = content;
+  let replaced = false;
+
+  for (const variant of variants) {
+    if (!variant) continue;
+    if (!updated.includes(variant)) continue;
+    updated = updated.split(variant).join(marker);
+    replaced = true;
+  }
+
+  return replaced ? updated.split(marker).join(replacement) : updated;
+}
+
+function commandPathExpr(localPath: string, globalPath: string): string {
+  return `$([ -x ${localPath} ] && echo ${localPath} || echo ${globalPath})`;
+}
+
+function filePathExpr(localPath: string, globalPath: string): string {
+  return `$([ -f ${localPath} ] && echo ${localPath} || echo ${globalPath})`;
+}
+
+function applyRuntimeFallbacks(content: string, ctx: TemplateContext): string {
+  const runtimeCommands = [
+    'gstack-config',
+    'gstack-diff-scope',
+    'gstack-review-log',
+    'gstack-review-read',
+    'gstack-slug',
+    'gstack-telemetry-log',
+    'gstack-update-check',
+  ];
+
+  for (const command of runtimeCommands) {
+    const globalPath = `${ctx.paths.skillRoot}/bin/${command}`;
+    const homePath = `${ctx.paths.homeSkillRoot}/bin/${command}`;
+    const localPath = `${ctx.paths.localSkillRoot}/bin/${command}`;
+    content = replacePathVariants(content, [globalPath, homePath], commandPathExpr(localPath, globalPath));
+  }
+
+  const globalRemoteSlug = `${ctx.paths.skillRoot}/browse/bin/remote-slug`;
+  const localRemoteSlug = `${ctx.paths.localSkillRoot}/browse/bin/remote-slug`;
+  content = replacePathVariants(content, [globalRemoteSlug], commandPathExpr(localRemoteSlug, globalRemoteSlug));
+
+  const reviewDocs = ['checklist.md', 'design-checklist.md', 'greptile-triage.md', 'TODOS-format.md'];
+  for (const doc of reviewDocs) {
+    const globalPath = `${ctx.paths.globalReviewDir}/${doc}`;
+    const localPath = `${ctx.paths.localReviewDir}/${doc}`;
+    content = replacePathVariants(content, [globalPath, localPath], filePathExpr(localPath, globalPath));
+  }
+
+  const globalUpgradeSkill = `${ctx.paths.skillRoot}/gstack-upgrade/SKILL.md`;
+  const localUpgradeSkill = `${ctx.paths.localSkillsDir}/gstack-upgrade/SKILL.md`;
+  content = replacePathVariants(content, [globalUpgradeSkill], filePathExpr(localUpgradeSkill, globalUpgradeSkill));
+
+  return content;
 }
 
 // ─── Placeholder Resolvers ──────────────────────────────────
@@ -141,7 +214,7 @@ function generatePreambleBash(ctx: TemplateContext): string {
   return `## Preamble (run first)
 
 \`\`\`bash
-_UPD=$(${ctx.paths.binDir}/gstack-update-check 2>/dev/null || ${ctx.paths.localSkillRoot}/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$(${ctx.paths.binDir}/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
@@ -1719,11 +1792,14 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     }
 
     // Replace remaining hardcoded Claude paths with host-appropriate paths
+    content = content.replace(/\$HOME\/\.claude\/skills\/gstack/g, ctx.paths.homeSkillRoot);
     content = content.replace(/~\/\.claude\/skills\/gstack/g, ctx.paths.skillRoot);
     content = content.replace(/\.claude\/skills\/gstack/g, ctx.paths.localSkillRoot);
     content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
     content = content.replace(/\.claude\/skills/g, '.agents/skills');
   }
+
+  content = applyRuntimeFallbacks(content, ctx);
 
   // Prepend generated header (after frontmatter)
   const header = GENERATED_HEADER.replace('{{SOURCE}}', path.basename(tmplPath));

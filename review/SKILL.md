@@ -21,20 +21,20 @@ allowed-tools:
 ## Preamble (run first)
 
 ```bash
-_UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
+_UPD=$($([ -x .claude/skills/gstack/bin/gstack-update-check ] && echo .claude/skills/gstack/bin/gstack-update-check || echo ~/.claude/skills/gstack/bin/gstack-update-check) 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
-_PROACTIVE=$(~/.claude/skills/gstack/bin/gstack-config get proactive 2>/dev/null || echo "true")
+_CONTRIB=$($([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) get gstack_contributor 2>/dev/null || true)
+_PROACTIVE=$($([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) get proactive 2>/dev/null || echo "true")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
 echo "PROACTIVE: $_PROACTIVE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
-_TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
+_TEL=$($([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
 _SESSION_ID="$$-$(date +%s)"
@@ -42,13 +42,13 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 echo '{"skill":"review","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-for _PF in ~/.gstack/analytics/.pending-*; do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+for _PF in ~/.gstack/analytics/.pending-*; do [ -f "$_PF" ] && $([ -x .claude/skills/gstack/bin/gstack-telemetry-log ] && echo .claude/skills/gstack/bin/gstack-telemetry-log || echo ~/.claude/skills/gstack/bin/gstack-telemetry-log) --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
 ```
 
 If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills — only invoke
 them when the user explicitly asks. The user opted out of proactive suggestions.
 
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+If output shows `UPGRADE_AVAILABLE <old> <new>`: read `$([ -f .claude/skills/gstack-upgrade/SKILL.md ] && echo .claude/skills/gstack-upgrade/SKILL.md || echo ~/.claude/skills/gstack/gstack-upgrade/SKILL.md)` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
 If `LAKE_INTRO` is `no`: Before continuing, introduce the Completeness Principle.
 Tell the user: "gstack follows the **Boil the Lake** principle — always do the complete
@@ -74,7 +74,7 @@ Options:
 - A) Help gstack get better! (recommended)
 - B) No thanks
 
-If A: run `~/.claude/skills/gstack/bin/gstack-config set telemetry community`
+If A: run `$([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) set telemetry community`
 
 If B: ask a follow-up AskUserQuestion:
 
@@ -85,8 +85,8 @@ Options:
 - A) Sure, anonymous is fine
 - B) No thanks, fully off
 
-If B→A: run `~/.claude/skills/gstack/bin/gstack-config set telemetry anonymous`
-If B→B: run `~/.claude/skills/gstack/bin/gstack-config set telemetry off`
+If B→A: run `$([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) set telemetry anonymous`
+If B→B: run `$([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) set telemetry off`
 
 Always run:
 ```bash
@@ -212,7 +212,7 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-~/.claude/skills/gstack/bin/gstack-telemetry-log \
+$([ -x .claude/skills/gstack/bin/gstack-telemetry-log ] && echo .claude/skills/gstack/bin/gstack-telemetry-log || echo ~/.claude/skills/gstack/bin/gstack-telemetry-log) \
   --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
   --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 ```
@@ -291,7 +291,7 @@ Before reviewing code quality, check: **did they build what was requested — no
 
 ## Step 2: Read the checklist
 
-Read `.claude/skills/review/checklist.md`.
+Read `$([ -f .claude/skills/review/checklist.md ] && echo .claude/skills/review/checklist.md || echo ~/.claude/skills/review/checklist.md)`.
 
 **If the file cannot be read, STOP and report the error.** Do not proceed without the checklist.
 
@@ -299,7 +299,7 @@ Read `.claude/skills/review/checklist.md`.
 
 ## Step 2.5: Check for Greptile review comments
 
-Read `.claude/skills/review/greptile-triage.md` and follow the fetch, filter, classify, and **escalation detection** steps.
+Read `$([ -f .claude/skills/review/greptile-triage.md ] && echo .claude/skills/review/greptile-triage.md || echo ~/.claude/skills/review/greptile-triage.md)` and follow the fetch, filter, classify, and **escalation detection** steps.
 
 **If no PR exists, `gh` fails, API returns an error, or there are zero Greptile comments:** Skip this step silently. Greptile integration is additive — the review works without it.
 
@@ -339,7 +339,7 @@ Follow the output format specified in the checklist. Respect the suppressions �
 Check if the diff touches frontend files using `gstack-diff-scope`:
 
 ```bash
-source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
+source <($([ -x .claude/skills/gstack/bin/gstack-diff-scope ] && echo .claude/skills/gstack/bin/gstack-diff-scope || echo ~/.claude/skills/gstack/bin/gstack-diff-scope) <base> 2>/dev/null)
 ```
 
 **If `SCOPE_FRONTEND=false`:** Skip design review silently. No output.
@@ -348,7 +348,7 @@ source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 
 1. **Check for DESIGN.md.** If `DESIGN.md` or `design-system.md` exists in the repo root, read it. All design findings are calibrated against it — patterns blessed in DESIGN.md are not flagged. If not found, use universal design principles.
 
-2. **Read `.claude/skills/review/design-checklist.md`.** If the file cannot be read, skip design review with a note: "Design checklist not found — skipping design review."
+2. **Read `$([ -f .claude/skills/review/design-checklist.md ] && echo .claude/skills/review/design-checklist.md || echo ~/.claude/skills/review/design-checklist.md)`.** If the file cannot be read, skip design review with a note: "Design checklist not found — skipping design review."
 
 3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
 
@@ -362,7 +362,7 @@ source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 6. **Log the result** for the Review Readiness Dashboard:
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}'
+$([ -x .claude/skills/gstack/bin/gstack-review-log ] && echo .claude/skills/gstack/bin/gstack-review-log || echo ~/.claude/skills/gstack/bin/gstack-review-log) '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}'
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count, COMMIT = output of `git rev-parse --short HEAD`.
@@ -489,7 +489,7 @@ Check if the Codex CLI is available and read the user's Codex review preference:
 
 ```bash
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
-CODEX_REVIEWS_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || true)
+CODEX_REVIEWS_CFG=$($([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) get codex_reviews 2>/dev/null || true)
 echo "CODEX_REVIEWS: ${CODEX_REVIEWS_CFG:-not_set}"
 ```
 
@@ -511,14 +511,14 @@ C) No thanks, don't ask me again
 
 If the user chooses A: persist the setting and run both:
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set codex_reviews enabled
+$([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) set codex_reviews enabled
 ```
 
 If the user chooses B: run both this time but do not persist any setting.
 
 If the user chooses C: persist the opt-out and skip:
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set codex_reviews disabled
+$([ -x .claude/skills/gstack/bin/gstack-config ] && echo .claude/skills/gstack/bin/gstack-config || echo ~/.claude/skills/gstack/bin/gstack-config) set codex_reviews disabled
 ```
 Then skip this step. Continue to the next step.
 
@@ -576,7 +576,7 @@ Before persisting the gate result, check for errors. All errors are non-blocking
 
 **Only if codex produced a real review (non-empty stdout):** Persist the code review result:
 ```bash
-~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"codex-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
+$([ -x .claude/skills/gstack/bin/gstack-review-log ] && echo .claude/skills/gstack/bin/gstack-review-log || echo ~/.claude/skills/gstack/bin/gstack-review-log) '{"skill":"codex-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 ```
 
 Substitute: STATUS ("clean" if PASS, "issues_found" if FAIL), GATE ("pass" or "fail").

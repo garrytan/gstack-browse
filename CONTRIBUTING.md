@@ -274,6 +274,16 @@ bun run skill:check
 
 When you run `bin/dev-setup`, it creates symlinks in both `.claude/skills/` and `.agents/skills/` (if applicable), so Codex-compatible agents can discover your dev skills too.
 
+For arbitrary checkouts outside a skills directory, `./setup` now supports explicit install scopes:
+
+```bash
+./setup --host auto --scope user
+./setup --host auto --scope workspace --project-root /path/to/project
+```
+
+`--scope user` installs into `~/.claude/skills/` and `~/.codex/skills/`. `--scope workspace` installs into a single project's `.claude/skills/` and `.agents/skills/` without touching your global profile.
+Generated skills resolve project-local runtime assets first, then fall back to the global install, so workspace-scoped evaluation works without a separate global bootstrap step.
+
 ### Adding a new skill
 
 When you add a new skill template, both hosts get it automatically:

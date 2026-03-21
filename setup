@@ -17,12 +17,18 @@ case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*|Windows_NT) IS_WINDOWS=1 ;;
 esac
 
-# ─── Parse --host flag ─────────────────────────────────────────
+# ─── Parse flags ───────────────────────────────────────────────
 HOST="claude"
+SCOPE="auto"
+PROJECT_ROOT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST="$2"; shift 2 ;;
     --host=*) HOST="${1#--host=}"; shift ;;
+    --scope) SCOPE="$2"; shift 2 ;;
+    --scope=*) SCOPE="${1#--scope=}"; shift ;;
+    --project-root) PROJECT_ROOT="$2"; shift 2 ;;
+    --project-root=*) PROJECT_ROOT="${1#--project-root=}"; shift ;;
     *) shift ;;
   esac
 done
@@ -30,6 +36,11 @@ done
 case "$HOST" in
   claude|codex|auto) ;;
   *) echo "Unknown --host value: $HOST (expected claude, codex, or auto)" >&2; exit 1 ;;
+esac
+
+case "$SCOPE" in
+  auto|user|workspace) ;;
+  *) echo "Unknown --scope value: $SCOPE (expected auto, user, or workspace)" >&2; exit 1 ;;
 esac
 
 # For auto: detect which agents are installed
@@ -46,6 +57,39 @@ elif [ "$HOST" = "claude" ]; then
   INSTALL_CLAUDE=1
 elif [ "$HOST" = "codex" ]; then
   INSTALL_CODEX=1
+fi
+
+detect_vendored_workspace_root() {
+  case "$GSTACK_DIR" in
+    */.claude/skills/gstack|*/.agents/skills/gstack)
+      dirname "$(dirname "$(dirname "$GSTACK_DIR")")"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+resolve_workspace_root() {
+  if [ -n "$PROJECT_ROOT" ]; then
+    (
+      cd "$PROJECT_ROOT"
+      pwd
+    )
+    return
+  fi
+
+  if vendored_root="$(detect_vendored_workspace_root 2>/dev/null)"; then
+    echo "$vendored_root"
+    return
+  fi
+
+  git -C "$PWD" rev-parse --show-toplevel 2>/dev/null || pwd
+}
+
+WORKSPACE_ROOT=""
+if [ "$SCOPE" = "workspace" ]; then
+  WORKSPACE_ROOT="$(resolve_workspace_root)"
 fi
 
 ensure_playwright_browser() {
@@ -65,27 +109,29 @@ ensure_playwright_browser() {
 }
 
 # 1. Build browse binary if needed (smart rebuild: stale sources, package.json, lock)
-NEEDS_BUILD=0
-if [ ! -x "$BROWSE_BIN" ]; then
-  NEEDS_BUILD=1
-elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
-  NEEDS_BUILD=1
-elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
-  NEEDS_BUILD=1
-elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
-  NEEDS_BUILD=1
-fi
+if [ "${GSTACK_SETUP_SKIP_BUILD:-0}" != "1" ]; then
+  NEEDS_BUILD=0
+  if [ ! -x "$BROWSE_BIN" ]; then
+    NEEDS_BUILD=1
+  elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+    NEEDS_BUILD=1
+  elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+    NEEDS_BUILD=1
+  elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+    NEEDS_BUILD=1
+  fi
 
-if [ "$NEEDS_BUILD" -eq 1 ]; then
-  echo "Building browse binary..."
-  (
-    cd "$GSTACK_DIR"
-    bun install
-    bun run build
-  )
-  # Safety net: write .version if build script didn't (e.g., git not available during build)
-  if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
-    git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
+  if [ "$NEEDS_BUILD" -eq 1 ]; then
+    echo "Building browse binary..."
+    (
+      cd "$GSTACK_DIR"
+      bun install
+      bun run build
+    )
+    # Safety net: write .version if build script didn't (e.g., git not available during build)
+    if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
+      git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
+    fi
   fi
 fi
 
@@ -95,43 +141,100 @@ if [ ! -x "$BROWSE_BIN" ]; then
 fi
 
 # 2. Ensure Playwright's Chromium is available
-if ! ensure_playwright_browser; then
-  echo "Installing Playwright Chromium..."
-  (
-    cd "$GSTACK_DIR"
-    bunx playwright install chromium
-  )
-
-  if [ "$IS_WINDOWS" -eq 1 ]; then
-    # On Windows, Node.js launches Chromium (not Bun — see oven-sh/bun#4253).
-    # Ensure playwright is importable by Node from the gstack directory.
-    if ! command -v node >/dev/null 2>&1; then
-      echo "gstack setup failed: Node.js is required on Windows (Bun cannot launch Chromium due to a pipe bug)" >&2
-      echo "  Install Node.js: https://nodejs.org/" >&2
-      exit 1
-    fi
-    echo "Windows detected — verifying Node.js can load Playwright..."
+if [ "${GSTACK_SETUP_SKIP_BROWSER:-0}" != "1" ]; then
+  if ! ensure_playwright_browser; then
+    echo "Installing Playwright Chromium..."
     (
       cd "$GSTACK_DIR"
-      # Bun's node_modules already has playwright; verify Node can require it
-      node -e "require('playwright')" 2>/dev/null || npm install --no-save playwright
+      bunx playwright install chromium
     )
-  fi
-fi
 
-if ! ensure_playwright_browser; then
-  if [ "$IS_WINDOWS" -eq 1 ]; then
-    echo "gstack setup failed: Playwright Chromium could not be launched via Node.js" >&2
-    echo "  This is a known issue with Bun on Windows (oven-sh/bun#4253)." >&2
-    echo "  Ensure Node.js is installed and 'node -e \"require('playwright')\"' works." >&2
-  else
-    echo "gstack setup failed: Playwright Chromium could not be launched" >&2
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+      # On Windows, Node.js launches Chromium (not Bun — see oven-sh/bun#4253).
+      # Ensure playwright is importable by Node from the gstack directory.
+      if ! command -v node >/dev/null 2>&1; then
+        echo "gstack setup failed: Node.js is required on Windows (Bun cannot launch Chromium due to a pipe bug)" >&2
+        echo "  Install Node.js: https://nodejs.org/" >&2
+        exit 1
+      fi
+      echo "Windows detected — verifying Node.js can load Playwright..."
+      (
+        cd "$GSTACK_DIR"
+        # Bun's node_modules already has playwright; verify Node can require it
+        node -e "require('playwright')" 2>/dev/null || npm install --no-save playwright
+      )
+    fi
   fi
-  exit 1
+
+  if ! ensure_playwright_browser; then
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+      echo "gstack setup failed: Playwright Chromium could not be launched via Node.js" >&2
+      echo "  This is a known issue with Bun on Windows (oven-sh/bun#4253)." >&2
+      echo "  Ensure Node.js is installed and 'node -e \"require('playwright')\"' works." >&2
+    else
+      echo "gstack setup failed: Playwright Chromium could not be launched" >&2
+    fi
+    exit 1
+  fi
 fi
 
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
+
+ensure_root_link() {
+  local link_path="$1"
+  local target_path="$2"
+  local label="$3"
+  mkdir -p "$(dirname "$link_path")"
+
+  if [ -L "$link_path" ] || [ ! -e "$link_path" ]; then
+    ln -snf "$target_path" "$link_path"
+    return 0
+  fi
+
+  local resolved=""
+  resolved="$(cd "$link_path" 2>/dev/null && pwd || true)"
+  if [ "$resolved" = "$target_path" ]; then
+    return 0
+  fi
+
+  echo "Error: $label already exists at $link_path and points somewhere else." >&2
+  echo "  Remove it, rename it, or use --scope workspace to keep this install isolated." >&2
+  return 1
+}
+
+ensure_managed_dir() {
+  local dir_path="$1"
+  local label="$2"
+  mkdir -p "$(dirname "$dir_path")"
+
+  if [ -L "$dir_path" ]; then
+    rm -f "$dir_path"
+    mkdir -p "$dir_path"
+    return 0
+  fi
+
+  if [ ! -e "$dir_path" ]; then
+    mkdir -p "$dir_path"
+    return 0
+  fi
+
+  if [ -d "$dir_path" ]; then
+    return 0
+  fi
+
+  echo "Error: $label already exists at $dir_path and is not a directory." >&2
+  return 1
+}
+
+link_sidecar_entry() {
+  local src="$1"
+  local dst="$2"
+  mkdir -p "$(dirname "$dst")"
+  if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+    ln -snf "$src" "$dst"
+  fi
+}
 
 # ─── Helper: link Claude skill subdirectories into a skills parent directory ──
 link_claude_skill_dirs() {
@@ -173,6 +276,7 @@ link_codex_skill_dirs() {
   for skill_dir in "$agents_dir"/gstack*/; do
     if [ -f "$skill_dir/SKILL.md" ]; then
       skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "gstack" ] && continue
       target="$skills_dir/$skill_name"
       # Create or update symlink
       if [ -L "$target" ] || [ ! -e "$target" ]; then
@@ -188,66 +292,120 @@ link_codex_skill_dirs() {
 
 # ─── Helper: create .agents/skills/gstack/ sidecar symlinks ──────────
 # Codex/Gemini/Cursor read skills from .agents/skills/. We link runtime
-# assets (bin/, browse/dist/, review/, qa/, etc.) so skill templates can
+# assets (bin/, browse/dist/, review docs, etc.) so skill templates can
 # resolve paths like $SKILL_ROOT/review/design-checklist.md.
 create_agents_sidecar() {
   local repo_root="$1"
   local agents_gstack="$repo_root/.agents/skills/gstack"
-  mkdir -p "$agents_gstack"
+  ensure_managed_dir "$agents_gstack" "Codex sidecar" || return 1
 
-  # Sidecar directories that skills reference at runtime
-  for asset in bin browse review qa; do
+  if [ -f "$GSTACK_DIR/.agents/skills/gstack/SKILL.md" ]; then
+    link_sidecar_entry "$GSTACK_DIR/.agents/skills/gstack/SKILL.md" "$agents_gstack/SKILL.md"
+  fi
+
+  for asset in VERSION bin browse; do
     local src="$GSTACK_DIR/$asset"
     local dst="$agents_gstack/$asset"
     if [ -d "$src" ] || [ -f "$src" ]; then
-      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
-        ln -snf "$src" "$dst"
-      fi
+      link_sidecar_entry "$src" "$dst"
     fi
   done
+
+  local review_dir="$agents_gstack/review"
+  if [ ! -e "$review_dir" ]; then
+    mkdir -p "$review_dir"
+  fi
+  if [ -d "$review_dir" ]; then
+    for doc in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
+      local src="$GSTACK_DIR/review/$doc"
+      local dst="$review_dir/$doc"
+      if [ -f "$src" ]; then
+        link_sidecar_entry "$src" "$dst"
+      fi
+    done
+  fi
 }
 
 # 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
-  if [ "$SKILLS_BASENAME" = "skills" ]; then
-    link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR"
-    echo "gstack ready (claude)."
-    echo "  browse: $BROWSE_BIN"
-  else
-    echo "gstack ready (claude)."
-    echo "  browse: $BROWSE_BIN"
-    echo "  (skipped skill symlinks — not inside .claude/skills/)"
-  fi
+  case "$SCOPE" in
+    user)
+      CLAUDE_SKILLS="$HOME/.claude/skills"
+      ensure_root_link "$CLAUDE_SKILLS/gstack" "$GSTACK_DIR" "Claude install"
+      link_claude_skill_dirs "$GSTACK_DIR" "$CLAUDE_SKILLS"
+      echo "gstack ready (claude user)."
+      echo "  browse: $BROWSE_BIN"
+      echo "  claude skills: $CLAUDE_SKILLS"
+      ;;
+    workspace)
+      CLAUDE_SKILLS="$WORKSPACE_ROOT/.claude/skills"
+      ensure_root_link "$CLAUDE_SKILLS/gstack" "$GSTACK_DIR" "Claude install"
+      link_claude_skill_dirs "$GSTACK_DIR" "$CLAUDE_SKILLS"
+      echo "gstack ready (claude workspace)."
+      echo "  browse: $BROWSE_BIN"
+      echo "  claude skills: $CLAUDE_SKILLS"
+      ;;
+    auto)
+      if [ "$SKILLS_BASENAME" = "skills" ]; then
+        link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR"
+        echo "gstack ready (claude)."
+        echo "  browse: $BROWSE_BIN"
+      else
+        echo "gstack ready (claude)."
+        echo "  browse: $BROWSE_BIN"
+        echo "  (skipped skill symlinks — not inside .claude/skills/)"
+      fi
+      ;;
+  esac
 fi
 
 # 5. Install for Codex
 if [ "$INSTALL_CODEX" -eq 1 ]; then
-  CODEX_SKILLS="$HOME/.codex/skills"
-  CODEX_GSTACK="$CODEX_SKILLS/gstack"
-  mkdir -p "$CODEX_SKILLS"
+  case "$SCOPE" in
+    user)
+      CODEX_SKILLS="$HOME/.codex/skills"
+      CODEX_GSTACK="$CODEX_SKILLS/gstack"
+      mkdir -p "$CODEX_SKILLS"
+      ensure_root_link "$CODEX_GSTACK" "$GSTACK_DIR" "Codex install"
+      link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
+      echo "gstack ready (codex user)."
+      echo "  browse: $BROWSE_BIN"
+      echo "  codex skills: $CODEX_SKILLS"
+      ;;
+    workspace)
+      CODEX_SKILLS="$WORKSPACE_ROOT/.agents/skills"
+      mkdir -p "$CODEX_SKILLS"
+      link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
+      create_agents_sidecar "$WORKSPACE_ROOT"
+      echo "gstack ready (codex workspace)."
+      echo "  browse: $BROWSE_BIN"
+      echo "  codex skills: $CODEX_SKILLS"
+      ;;
+    auto)
+      CODEX_SKILLS="$HOME/.codex/skills"
+      CODEX_GSTACK="$CODEX_SKILLS/gstack"
+      mkdir -p "$CODEX_SKILLS"
 
-  # Symlink gstack source for runtime assets (bin/, browse/dist/)
-  if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
-    ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
-  fi
-  # Install generated Codex-format skills (not Claude source dirs)
-  link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
+      # Symlink gstack source for runtime assets (bin/, browse/dist/)
+      if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
+        ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
+      fi
+      # Install generated Codex-format skills (not Claude source dirs)
+      link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
 
-  echo "gstack ready (codex)."
-  echo "  browse: $BROWSE_BIN"
-  echo "  codex skills: $CODEX_SKILLS"
+      echo "gstack ready (codex)."
+      echo "  browse: $BROWSE_BIN"
+      echo "  codex skills: $CODEX_SKILLS"
+      ;;
+  esac
 fi
 
 # 6. Create .agents/ sidecar symlinks (useful for Codex/Gemini/Cursor workspace-local)
-if [ "$INSTALL_CODEX" -eq 1 ]; then
-  # Detect repo root: if we're inside a skills directory, go up two levels
-  if [ "$SKILLS_BASENAME" = "skills" ]; then
-    REPO_ROOT="$(dirname "$SKILLS_DIR")"
-  else
-    REPO_ROOT="$GSTACK_DIR"
+if [ "$INSTALL_CODEX" -eq 1 ] && [ "$SCOPE" = "auto" ]; then
+  if REPO_ROOT="$(detect_vendored_workspace_root 2>/dev/null)"; then
+    create_agents_sidecar "$REPO_ROOT"
   fi
-  create_agents_sidecar "$REPO_ROOT"
 fi
 
 # 7. First-time welcome + legacy cleanup
