@@ -1,10 +1,10 @@
 /**
  * Chromium browser cookie import — read and decrypt cookies from real browsers
  *
- * Supports macOS Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
+ * Supports macOS and Linux Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
  * Pure logic module — no Playwright dependency, no HTTP concerns.
  *
- * Decryption pipeline (Chromium macOS "v10" format):
+ * Decryption pipeline (Chromium "v10" format):
  *
  *   ┌──────────────────────────────────────────────────────────────────┐
  *   │ 1. Keychain: `security find-generic-password -s "<svc>" -w`     │
@@ -42,7 +42,8 @@ import * as os from 'os';
 
 export interface BrowserInfo {
   name: string;
-  dataDir: string;        // relative to ~/Library/Application Support/
+  dataDir: string;        // relative to ~/Library/Application Support/ (macOS)
+  linuxDataDir?: string;  // relative to ~/.config/ (Linux) — undefined = macOS-only
   keychainService: string;
   aliases: string[];
 }
@@ -84,12 +85,15 @@ export class CookieImportError extends Error {
 // ─── Browser Registry ───────────────────────────────────────────
 // Hardcoded — NEVER interpolate user input into shell commands.
 
+const IS_LINUX = process.platform === 'linux';
+
 const BROWSER_REGISTRY: BrowserInfo[] = [
   { name: 'Comet',  dataDir: 'Comet/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
-  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
+  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'], linuxDataDir: 'google-chrome/' },
   { name: 'Arc',    dataDir: 'Arc/User Data/',                keychainService: 'Arc Safe Storage',            aliases: ['arc'] },
-  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'] },
-  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
+  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'], linuxDataDir: 'BraveSoftware/Brave-Browser/' },
+  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'], linuxDataDir: 'microsoft-edge/' },
+  { name: 'Chromium', dataDir: 'Chromium/',                   keychainService: 'Chromium Safe Storage',       aliases: ['chromium'], linuxDataDir: 'chromium/' },
 ];
 
 // ─── Key Cache ──────────────────────────────────────────────────
@@ -104,9 +108,13 @@ const keyCache = new Map<string, Buffer>();
  * Find which browsers are installed (have a cookie DB on disk).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  const baseDir = IS_LINUX
+    ? path.join(os.homedir(), '.config')
+    : path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
+    const dataDir = IS_LINUX ? b.linuxDataDir : b.dataDir;
+    if (!dataDir) return false; // browser not available on this platform
+    const dbPath = path.join(baseDir, dataDir, 'Default', 'Cookies');
     try { return fs.existsSync(dbPath); } catch { return false; }
   });
 }
@@ -186,11 +194,14 @@ export async function importCookies(
 
 function resolveBrowser(nameOrAlias: string): BrowserInfo {
   const needle = nameOrAlias.toLowerCase().trim();
-  const found = BROWSER_REGISTRY.find(b =>
+  const available = IS_LINUX
+    ? BROWSER_REGISTRY.filter(b => b.linuxDataDir)
+    : BROWSER_REGISTRY;
+  const found = available.find(b =>
     b.aliases.includes(needle) || b.name.toLowerCase() === needle
   );
   if (!found) {
-    const supported = BROWSER_REGISTRY.flatMap(b => b.aliases).join(', ');
+    const supported = available.flatMap(b => b.aliases).join(', ');
     throw new CookieImportError(
       `Unknown browser '${nameOrAlias}'. Supported: ${supported}`,
       'unknown_browser',
@@ -210,8 +221,17 @@ function validateProfile(profile: string): void {
 
 function getCookieDbPath(browser: BrowserInfo, profile: string): string {
   validateProfile(profile);
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
-  const dbPath = path.join(appSupport, browser.dataDir, profile, 'Cookies');
+  const dataDir = IS_LINUX ? browser.linuxDataDir : browser.dataDir;
+  if (!dataDir) {
+    throw new CookieImportError(
+      `${browser.name} is not available on ${process.platform}`,
+      'not_installed',
+    );
+  }
+  const baseDir = IS_LINUX
+    ? path.join(os.homedir(), '.config')
+    : path.join(os.homedir(), 'Library', 'Application Support');
+  const dbPath = path.join(baseDir, dataDir, profile, 'Cookies');
   if (!fs.existsSync(dbPath)) {
     throw new CookieImportError(
       `${browser.name} is not installed (no cookie database at ${dbPath})`,
@@ -274,12 +294,21 @@ function openDbFromCopy(dbPath: string, browserName: string): Database {
 // ─── Internal: Keychain Access (async, 10s timeout) ─────────────
 
 async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
-  const cached = keyCache.get(browser.keychainService);
+  const cacheKey = IS_LINUX ? `linux:${browser.name}` : browser.keychainService;
+  const cached = keyCache.get(cacheKey);
   if (cached) return cached;
+
+  if (IS_LINUX) {
+    // Linux Chromium uses PBKDF2 with hardcoded password "peanuts", 1 iteration.
+    // This is the default when GNOME Keyring / libsecret is not storing the key.
+    const derived = crypto.pbkdf2Sync('peanuts', 'saltysalt', 1, 16, 'sha1');
+    keyCache.set(cacheKey, derived);
+    return derived;
+  }
 
   const password = await getKeychainPassword(browser.keychainService);
   const derived = crypto.pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1');
-  keyCache.set(browser.keychainService, derived);
+  keyCache.set(cacheKey, derived);
   return derived;
 }
 
