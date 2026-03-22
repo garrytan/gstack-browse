@@ -830,26 +830,89 @@ From the discovery JSON, analyze tool usage patterns:
 
 ### Global Step 7: Aggregate and generate narrative
 
-Structure the output as:
+Structure the output with the **shareable personal card first**, then the full
+team/project breakdown below. The personal card is designed to be screenshot-friendly
+— everything someone would want to share on X/Twitter in one clean block.
 
 ---
 
 **Tweetable summary** (first line, before everything else):
 ```
-Week of Mar 14: 5 projects, 182 commits, 15.3k LOC | CC: 48, Codex: 8, Gemini: 3 | Focus: gstack (58%) | Streak: 52d
+Week of Mar 14: 5 projects, 138 commits, 250k LOC across 5 repos | 48 AI sessions | Streak: 52d 🔥
 ```
+
+## 🚀 Your Week: [user name] — [date range]
+
+This section is the **shareable personal card**. It contains ONLY the current user's
+stats — no team data, no project breakdowns. Designed to screenshot and post.
+
+Use the user identity from `git config user.name` to filter all per-repo git data.
+Aggregate across all repos to compute personal totals.
+
+Render as a single visually clean block:
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  [USER NAME] — Week of [date]                               ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  [N] commits across [M] projects                             ║
+║  +[X]k LOC added · [Y]k LOC deleted · [Z]k net              ║
+║  [N] AI coding sessions (CC: X, Codex: Y, Gemini: Z)        ║
+║  [N]-day shipping streak 🔥                                  ║
+║                                                              ║
+║  PROJECTS                                                    ║
+║  ──────────────────────────────────────────────────────────── ║
+║  [repo1]     [N] commits   +[X]k LOC   [role: solo/team]    ║
+║  [repo2]     [N] commits   +[X]k LOC   [role: solo/team]    ║
+║  [repo3]     [N] commits   +[X]k LOC   [role: solo/team]    ║
+║  ...                                                         ║
+║                                                              ║
+║  SHIP OF THE WEEK                                            ║
+║  [PR title] — [LOC] lines across [N] files                   ║
+║                                                              ║
+║  TOP WORK                                                    ║
+║  • [1-line description of biggest theme]                     ║
+║  • [1-line description of second theme]                      ║
+║  • [1-line description of third theme]                       ║
+║                                                              ║
+║  Powered by gstack /retro global                             ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+**Rules for the personal card:**
+- Only show repos where the user has commits. Skip repos with 0 commits.
+- Sort repos by user's commit count descending.
+- For LOC, use "k" formatting for thousands (e.g., "+64.0k" not "+64010").
+- Role: "solo" if user is the only contributor, "team" if others contributed.
+- Ship of the Week: the user's single highest-LOC PR across ALL repos.
+- Top Work: 3 bullet points summarizing the user's major themes, inferred from
+  commit messages. Not individual commits — synthesize into themes.
+  E.g., "Built /retro global — cross-project retrospective with AI session discovery"
+  not "feat: gstack-global-discover" + "feat: /retro global template".
+- The card must be self-contained. Someone seeing ONLY this block should understand
+  the user's week without any surrounding context.
+- Do NOT include team members, project totals, or context switching data here.
+
+**Personal streak:** Use the user's own commits across all repos (filtered by
+`--author`) to compute a personal streak, separate from the team streak.
+
+---
 
 ## Global Engineering Retro: [date range]
 
-### Overview
+Everything below is the full analysis — team data, project breakdowns, patterns.
+This is the "deep dive" that follows the shareable card.
+
+### All Projects Overview
 | Metric | Value |
 |--------|-------|
 | Projects active | N |
-| Total commits (all repos) | N |
+| Total commits (all repos, all contributors) | N |
 | Total LOC | +N / -N |
 | AI coding sessions | N (CC: X, Codex: Y, Gemini: Z) |
 | Active days | N |
-| Global shipping streak | N consecutive days |
+| Global shipping streak (any contributor, any repo) | N consecutive days |
 | Context switches/day | N avg (max: M) |
 
 ### Per-Project Breakdown
@@ -882,7 +945,7 @@ Format:
 ```
 
 ### Cross-Project Patterns
-- Time allocation across projects (% breakdown)
+- Time allocation across projects (% breakdown, use YOUR commits not total)
 - Peak productivity hours aggregated across all repos
 - Focused vs. fragmented days
 - Context switching trends
