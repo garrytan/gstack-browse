@@ -238,9 +238,9 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
   CODEX_GSTACK="$CODEX_SKILLS/gstack"
   mkdir -p "$CODEX_SKILLS"
 
-  # Symlink gstack source for runtime assets (bin/, browse/dist/)
+  # Symlink the generated Codex root skill; runtime assets are provided via sidecars.
   if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
-    ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
+    ln -snf "$GSTACK_DIR/.agents/skills/gstack" "$CODEX_GSTACK"
   fi
   # Install generated Codex-format skills (not Claude source dirs)
   link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
