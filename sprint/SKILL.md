@@ -247,6 +247,9 @@ All tasks follow this format:
 | `deploy:` | Deploy approval | `[SPRINT-01] deploy: Release v2.0` |
 | `chore:` | Infra, vận hành | `[SPRINT-01] chore: Setup monitoring` |
 | `design:` | Design/UI | `[SPRINT-01] design: Landing page mockup` |
+| `security:` | Bảo mật, audit | `[SPRINT-01] security: Fix SQL injection in search` |
+| `perf:` | Tối ưu hiệu năng | `[SPRINT-01] perf: Optimize image loading` |
+| `maintain:` | Bảo trì, nâng cấp deps | `[SPRINT-01] maintain: Upgrade React 18→19` |
 
 The sprint number auto-increments. When parsing user input for `/sprint add`,
 detect if they included a type prefix. If not, ask or default to `feat:`.
@@ -296,6 +299,9 @@ Every task has an `owner` field that prevents conflicts:
 | `deploy:` | **AI Dev prepares → PO approves** | AI never deploys without PO approval |
 | `chore:` | **AI Dev** | PO informed, no approval needed |
 | `design:` | **PO decides → AI Dev implements** | AI proposes options, PO picks |
+| `security:` | **AI Dev detects + fixes** | PO approves if breaking change. AI proactively scans. |
+| `perf:` | **AI Dev profiles + optimizes** | PO sets targets ("page load < 2s"). AI decides how. |
+| `maintain:` | **AI Dev** | PO approves major upgrades (breaking versions). Minor = autonomous. |
 
 ### Conflict Prevention
 
@@ -339,6 +345,10 @@ When unclear who should decide:
 | "What's the deadline?" | **PO** sets, **AI Dev** flags if unrealistic |
 | "Fix this bug" | **AI Dev** (autonomous, PO notified) |
 | "Refactor this" | **AI Dev** (autonomous if chore, PO approves if risky) |
+| "Is this secure?" | **AI Dev** (scans + fixes) → **PO** (approves if breaking) |
+| "Too slow" | **PO** (sets target) → **AI Dev** (profiles + optimizes) |
+| "Update dependencies" | **AI Dev** (minor auto, major needs PO approval) |
+| "Tech debt" | **AI Dev** (flags) → **PO** (prioritizes vs features) |
 
 ## User-invocable
 
