@@ -834,6 +834,16 @@ describe('Codex generation (--host codex)', () => {
     expect(content).toContain('.agents/skills/gstack');
   });
 
+  test('ship co-author trailer is host-specific', () => {
+    const claudeShip = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(claudeShip).toContain('Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>');
+    expect(claudeShip).not.toContain('Co-Authored-By: OpenAI Codex <noreply@openai.com>');
+
+    const codexShip = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-ship', 'SKILL.md'), 'utf-8');
+    expect(codexShip).toContain('Co-Authored-By: OpenAI Codex <noreply@openai.com>');
+    expect(codexShip).not.toContain('Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>');
+  });
+
   // ─── Path rewriting regression tests ─────────────────────────
 
   test('sidecar paths point to .agents/skills/gstack/review/ (not gstack-review/)', () => {
