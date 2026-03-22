@@ -254,13 +254,13 @@ Tests spin up a local HTTP server (`browse/test/test-server.ts`) serving HTML fi
 
 ### Deploying to the active skill
 
-The active skill lives at `~/.claude/skills/gstack/`. After making changes:
+The active Claude discoverability entrypoint lives at `~/.claude/skills/gstack/`, while the canonical runtime home lives in `~/.gstack`. After making changes:
 
 1. Push your branch
-2. Pull in the skill directory: `cd ~/.claude/skills/gstack && git pull`
-3. Rebuild: `cd ~/.claude/skills/gstack && bun run build`
+2. Refresh the runtime source checkout you use to publish `~/.gstack`
+3. Rebuild and re-materialize the shared runtime home: `cd ~/.gstack && ./setup --host auto`
 
-Or copy the binary directly: `cp browse/dist/browse ~/.claude/skills/gstack/browse/dist/browse`
+Or copy the binary directly: `cp browse/dist/browse ~/.gstack/browse/dist/browse`
 
 ### Adding a new command
 

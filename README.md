@@ -42,37 +42,41 @@ Expect first useful run in under 5 minutes on any repo with tests already set up
 
 ## Install — takes 30 seconds
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Windows only)
+**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Node.js](https://nodejs.org/), and [Bun](https://bun.sh/) v1.0+ when building from source.
 
 ### Step 1: Install on your machine
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install gstack: run **`git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run **`bunx gstack install --host auto`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. Note that shared runtime assets now live in `~/.gstack`, and host-specific directories only contain discoverable entrypoints. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run **`mkdir -p .claude/skills && cp -Rf ~/.gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup --host auto`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup --host auto` to rebuild the binary, refresh `~/.gstack`, and re-register discoverable skills.
 
-Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
+Real files get committed to your repo (not a submodule), so `git clone` just works. Discoverable entrypoints live in `.claude/`, while the repo-local runtime fallback lives in `.gstack/`. Nothing touches your PATH or runs in the background.
 
 ### Codex, Gemini CLI, or Cursor
 
-gstack works on any agent that supports the [SKILL.md standard](https://github.com/anthropics/claude-code). Skills live in `.agents/skills/` and are discovered automatically.
+gstack works on any agent that supports the [SKILL.md standard](https://github.com/anthropics/claude-code). Codex gets global discoverable entrypoints, while Gemini uses the repo-local `.gstack` workspace fallback.
 
 ```bash
-git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack
-cd ~/.codex/skills/gstack && ./setup --host codex
+bunx gstack install --host codex
 ```
+
+```bash
+cd /path/to/repo && bunx gstack install --host gemini
+```
+
+`gstack install` keeps discoverable skill entrypoints in host-specific locations like `~/.claude/skills/` or `~/.codex/skills/`, while shared runtime assets are materialized once in `~/.gstack` with a workspace fallback in `.gstack`.
 
 Or let setup auto-detect which agents you have installed:
 
 ```bash
-git clone https://github.com/garrytan/gstack.git ~/gstack
-cd ~/gstack && ./setup --host auto
+bunx gstack install --host auto
 ```
 
-This installs to `~/.claude/skills/gstack` and/or `~/.codex/skills/gstack` depending on what's available. All 25 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
+`--host auto` installs every supported host it can actually detect. If only Gemini is detected, run it from the target repo root so setup can materialize `.gstack`; otherwise setup now fails instead of silently defaulting to Claude. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
 
 ## See it work
 
@@ -158,7 +162,7 @@ One sprint, one person, one feature — that takes about 30 minutes with gstack.
 | `/guard` | **Full Safety** — `/careful` + `/freeze` in one command. Maximum safety for prod work. |
 | `/unfreeze` | **Unlock** — remove the `/freeze` boundary. |
 | `/setup-deploy` | **Deploy Configurator** — one-time setup for `/land-and-deploy`. Detects your platform, production URL, and deploy commands. |
-| `/gstack-upgrade` | **Self-Updater** — upgrade gstack to latest. Detects global vs vendored install, syncs both, shows what changed. |
+| `/gstack-upgrade` | **Self-Updater** — upgrade the canonical `~/.gstack` runtime, sync workspace `.gstack` copies when present, and show what changed. |
 
 **[Deep dives with examples and philosophy for every skill →](docs/skills.md)**
 
@@ -239,9 +243,9 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 ## Troubleshooting
 
-**Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
+**Skill not showing up?** `~/.gstack/setup --host auto`
 
-**`/browse` fails?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+**`/browse` fails?** `cd ~/.gstack && bun install && bun run build && ./setup --host auto`
 
 **Stale install?** Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml`
 

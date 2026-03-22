@@ -4,7 +4,7 @@ Thanks for wanting to make gstack better. Whether you're fixing a typo in a skil
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Discoverable entrypoints normally live in `~/.claude/skills/gstack/` (for Claude) or `~/.codex/skills/gstack/` (for Codex), while shared runtime assets now live in `~/.gstack`. But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
 That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
 
@@ -29,7 +29,7 @@ a report to `~/.gstack/contributor-logs/` with what happened, repro steps, and w
 would make it better.
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set gstack_contributor true
+~/.gstack/bin/gstack-config set gstack_contributor true
 ```
 
 The logs are for **you**. When something bugs you enough to fix, the report is
@@ -252,7 +252,8 @@ bun run build
 |--------|--------|-------|
 | Output directory | `{skill}/SKILL.md` | `.agents/skills/gstack-{skill}/SKILL.md` |
 | Frontmatter | Full (name, description, allowed-tools, hooks, version) | Minimal (name + description only) |
-| Paths | `~/.claude/skills/gstack` | `~/.codex/skills/gstack` |
+| Discoverability layer | `~/.claude/skills/gstack` | `~/.codex/skills/gstack` |
+| Shared runtime home | `~/.gstack` | `~/.gstack` |
 | Hook skills | `hooks:` frontmatter (enforced by Claude) | Inline safety advisory prose (advisory only) |
 | `/codex` skill | Included (Claude wraps codex exec) | Excluded (self-referential) |
 
@@ -300,7 +301,7 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
 - **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
-- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/gstack`. `bin/dev-teardown` restores the global one.
+- **Dev mode shadows your global install.** Project-local skills take priority over the global discoverability layer backed by `~/.gstack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
 - **`.env` propagates across worktrees.** Set it once in the main repo, all Conductor workspaces get it.
 - **`.claude/skills/` is gitignored.** The symlinks never get committed.
@@ -327,20 +328,20 @@ it up immediately.
 rm .claude/skills/gstack
 ```
 
-Claude Code falls back to `~/.claude/skills/gstack/` automatically.
+Claude Code falls back to the global discoverability layer at `~/.claude/skills/gstack/` automatically, which is backed by `~/.gstack`.
 
-### Alternative: point your global install at a branch
+### Alternative: point your global runtime home at a branch
 
-If you don't want per-project symlinks, you can switch the global install:
+If your `~/.gstack` install is a git checkout and you don't want per-project symlinks, you can switch the global runtime home directly:
 
 ```bash
-cd ~/.claude/skills/gstack
+cd ~/.gstack
 git fetch origin
 git checkout origin/<branch>
-bun install && bun run build
+./setup --host auto
 ```
 
-This affects all projects. To revert: `git checkout main && git pull && bun run build`.
+This affects all projects. To revert: `git checkout main && git pull && ./setup --host auto`.
 
 ## Shipping your changes
 
