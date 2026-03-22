@@ -2167,6 +2167,13 @@ in the decision tree below.
 If you want to persist deploy settings for future runs, suggest the user run \`/setup-deploy\`.`;
 }
 
+function generateCoauthorTrailer(ctx: TemplateContext): string {
+  if (ctx.host === 'codex') {
+    return 'Co-Authored-By: OpenAI Codex <noreply@openai.com>';
+  }
+  return 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>';
+}
+
 const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
@@ -2185,6 +2192,7 @@ const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
   TEST_FAILURE_TRIAGE: generateTestFailureTriage,
   SPEC_REVIEW_LOOP: generateSpecReviewLoop,
   DESIGN_SKETCH: generateDesignSketch,
+  COAUTHOR_TRAILER: generateCoauthorTrailer,
   BENEFITS_FROM: generateBenefitsFrom,
   CODEX_REVIEW_STEP: generateAdversarialStep,
   ADVERSARIAL_STEP: generateAdversarialStep,
