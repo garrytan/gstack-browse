@@ -1,11 +1,11 @@
 ---
 name: sprint
-version: 1.0.0
+version: 1.1.0
 description: |
-  Sprint & task management via Odoo Project. Create tasks, track sprints,
-  send approval requests, and view dashboards — all from terminal.
-  Use when asked to "manage tasks", "create sprint", "add task", "sprint status",
-  "send for approval", or "close sprint".
+  Sprint & task management with dual sync: Odoo Project + GitHub Issues/Milestones.
+  Naming convention: [SPRINT-XX] type: description. Tasks created in both systems.
+  Approvals via GitHub Issues. Use when asked to "manage tasks", "create sprint",
+  "add task", "sprint status", "send for approval", or "close sprint".
   Proactively suggest when the user mentions task management or sprint planning.
 allowed-tools:
   - Bash
@@ -19,10 +19,36 @@ allowed-tools:
 
 {{PREAMBLE}}
 
-# /sprint — Sprint & Task Management (Odoo Integration)
+# /sprint — Sprint & Task Management (Odoo + GitHub Sync)
 
-Manage sprints and tasks via Odoo Project API. Supports task creation, sprint tracking,
-approval workflows, and notifications — all through Odoo's built-in systems.
+Manage sprints and tasks with **dual sync** between Odoo Project and GitHub.
+Tasks are created in both systems with consistent naming. Approvals go through
+GitHub Issues. Sprint tracking via Odoo milestones + GitHub Milestones.
+
+## Naming Convention
+
+All tasks follow this format:
+
+```
+[SPRINT-XX] type: description
+```
+
+**Types:**
+
+| Prefix | Dùng cho | Ví dụ |
+|--------|----------|-------|
+| `feat:` | Tính năng mới | `[SPRINT-01] feat: User authentication` |
+| `fix:` | Bug fix | `[SPRINT-01] fix: Login redirect loop` |
+| `content:` | Nội dung cần review | `[SPRINT-01] content: Blog post Q1 review` |
+| `deploy:` | Deploy approval | `[SPRINT-01] deploy: Release v2.0` |
+| `chore:` | Infra, vận hành | `[SPRINT-01] chore: Setup monitoring` |
+| `design:` | Design/UI | `[SPRINT-01] design: Landing page mockup` |
+
+The sprint number auto-increments. When parsing user input for `/sprint add`,
+detect if they included a type prefix. If not, ask or default to `feat:`.
+
+The naming convention is enforced on **both** Odoo task names and GitHub Issue titles
+to keep the two systems in sync.
 
 ## User-invocable
 
@@ -75,7 +101,17 @@ curl -s -X POST "<ODOO_URL>/jsonrpc" \
   }'
 ```
 
-Show the list of projects and ask the user to pick one. Then save config:
+Show the list of projects and ask the user to pick one.
+
+5. Detect the GitHub repo for sync:
+
+```bash
+gh repo view --json nameWithOwner -q .nameWithOwner
+```
+
+6. Ask for the current sprint number (default: 1). This is used for the `[SPRINT-XX]` prefix.
+
+7. Save config:
 
 ```bash
 mkdir -p ~/.gstack
@@ -86,13 +122,16 @@ cat > ~/.gstack/odoo-config.json << 'CONFIGEOF'
   "uid": <UID>,
   "api_key": "<API_KEY>",
   "project_id": <PROJECT_ID>,
-  "project_name": "<PROJECT_NAME>"
+  "project_name": "<PROJECT_NAME>",
+  "github_repo": "<OWNER/REPO>",
+  "current_sprint": <SPRINT_NUMBER>,
+  "sprint_prefix": "SPRINT"
 }
 CONFIGEOF
 chmod 600 ~/.gstack/odoo-config.json
 ```
 
-Confirm setup is complete and show the user their selected project.
+Confirm setup is complete and show the user their selected project and GitHub repo.
 
 ## Odoo API Helper
 
@@ -154,33 +193,41 @@ curl -s -X POST "<URL>/jsonrpc" \
   }'
 ```
 
-Format the output as a clean dashboard:
+Format the output as a clean dashboard with naming convention:
 
 ```
-╔══════════════════════════════════════════════════╗
-║  Sprint: <sprint_name>  |  Deadline: <date>      ║
-╠══════════════════════════════════════════════════╣
-║                                                  ║
-║  📋 New (3)                                      ║
-║    #42  Setup CI/CD pipeline         ★★          ║
-║    #43  Design landing page          ★           ║
-║    #44  Write API docs               ★           ║
-║                                                  ║
-║  🔄 In Progress (2)                              ║
-║    #40  User authentication          ★★★         ║
-║    #41  Database migrations          ★★          ║
-║                                                  ║
-║  ✅ Done (5)                                     ║
-║    #35  Project setup                ★           ║
-║    ...                                           ║
-║                                                  ║
-║  Progress: ████████░░ 50% (5/10)                 ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║  Sprint 01  |  Deadline: Mar 22, 2026                       ║
+║  Odoo: <project_name>  |  GitHub: <owner/repo>              ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  📋 New (3)                                                  ║
+║    OD#42  GH#12  [SPRINT-01] feat: Setup CI/CD       ★★     ║
+║    OD#43  GH#13  [SPRINT-01] design: Landing page    ★      ║
+║    OD#44  GH#14  [SPRINT-01] chore: Write API docs   ★      ║
+║                                                              ║
+║  🔄 In Progress (2)                                          ║
+║    OD#40  GH#10  [SPRINT-01] feat: User auth         ★★★    ║
+║    OD#41  GH#11  [SPRINT-01] feat: DB migrations     ★★     ║
+║                                                              ║
+║  ✅ Done (5)                                                 ║
+║    OD#35  GH#5   [SPRINT-01] chore: Project setup    ★      ║
+║    ...                                                       ║
+║                                                              ║
+║  Progress: ████████░░ 50% (5/10)                             ║
+╚══════════════════════════════════════════════════════════════╝
 ```
+
+`OD#` = Odoo task ID, `GH#` = GitHub Issue number. Both are clickable links when shown in terminal.
 
 ## Command: Add Task (`/sprint add <description>`)
 
-Parse the description from the argument. Create a task in Odoo:
+Parse the description from the argument. Apply naming convention:
+
+1. If user input has no type prefix, ask or default to `feat:`
+2. Format task name: `[SPRINT-XX] type: description`
+
+**Step 1: Create task in Odoo:**
 
 ```bash
 curl -s -X POST "<URL>/jsonrpc" \
@@ -192,28 +239,53 @@ curl -s -X POST "<URL>/jsonrpc" \
       "service": "object",
       "method": "execute_kw",
       "args": ["<DB>", <UID>, "<API_KEY>", "project.task", "create",
-        [{"name": "<TASK_NAME>", "project_id": <PROJECT_ID>, "milestone_id": <MILESTONE_ID>, "user_ids": [<UID>]}],
+        [{"name": "[SPRINT-XX] type: description", "project_id": <PROJECT_ID>, "milestone_id": <MILESTONE_ID>, "user_ids": [<UID>]}],
         {}
       ]
     }
   }'
 ```
 
-After creating, confirm with the task ID and link:
+**Step 2: Create matching GitHub Issue:**
+
+```bash
+gh issue create \
+  --title "[SPRINT-XX] type: description" \
+  --label "sprint-XX,type" \
+  --milestone "Sprint XX" \
+  --body "$(cat <<'EOF'
+**Odoo Task:** #<ODOO_TASK_ID>
+**Sprint:** Sprint XX
+**Odoo Link:** <ODOO_URL>/web#id=<ODOO_TASK_ID>&model=project.task&view_type=form
+
+---
+<DESCRIPTION_IF_PROVIDED>
+EOF
+)"
 ```
-Task #<ID> created: "<TASK_NAME>"
-Sprint: <sprint_name> | Assigned to: you
-Link: <ODOO_URL>/web#id=<ID>&model=project.task&view_type=form
+
+If the GitHub Milestone "Sprint XX" doesn't exist yet, create it first:
+```bash
+gh api repos/<OWNER>/<REPO>/milestones -f title="Sprint XX" -f due_on="<DEADLINE>"
+```
+
+**Step 3: Confirm with IDs from both systems:**
+```
+Task created (synced):
+  Odoo:   #<ODOO_ID>  — <ODOO_URL>/web#id=<ODOO_ID>&model=project.task
+  GitHub: #<GH_NUM>   — <GH_ISSUE_URL>
+  Name:   [SPRINT-XX] type: description
 ```
 
 **Batch mode:** If the user provides multiple tasks (comma-separated or multi-line),
-create all of them in sequence and show a summary table.
+create all of them in sequence and show a summary table with both Odoo + GitHub IDs.
 
 ## Command: New Sprint (`/sprint new [name]`)
 
-1. If no name given, ask the user for a sprint name
+1. If no name given, auto-generate: `Sprint XX` (increment from config's `current_sprint`)
 2. Ask for deadline (default: 2 weeks from today)
-3. Create a milestone in Odoo:
+
+**Step 1: Create milestone in Odoo:**
 
 ```bash
 curl -s -X POST "<URL>/jsonrpc" \
@@ -225,28 +297,38 @@ curl -s -X POST "<URL>/jsonrpc" \
       "service": "object",
       "method": "execute_kw",
       "args": ["<DB>", <UID>, "<API_KEY>", "project.milestone", "create",
-        [{"name": "<SPRINT_NAME>", "project_id": <PROJECT_ID>, "deadline": "<DEADLINE_DATE>"}],
+        [{"name": "Sprint XX", "project_id": <PROJECT_ID>, "deadline": "<DEADLINE_DATE>"}],
         {}
       ]
     }
   }'
 ```
 
-4. Confirm creation and show the new sprint in dashboard format
+**Step 2: Create matching GitHub Milestone:**
+
+```bash
+gh api repos/<OWNER>/<REPO>/milestones \
+  -f title="Sprint XX" \
+  -f due_on="<DEADLINE_DATE>T23:59:59Z" \
+  -f description="Sprint XX — created via /sprint"
+```
+
+**Step 3: Update config** — increment `current_sprint` in `~/.gstack/odoo-config.json`
+
+**Step 4: Confirm creation** and show the new sprint in dashboard format with links to both systems
 
 ## Command: Close Sprint (`/sprint close`)
 
-1. Get current sprint tasks and compute stats:
-   - Total tasks
-   - Completed vs incomplete
-   - Tasks by priority
+1. Get current sprint tasks from **both** systems and compute stats:
+   - Total tasks, completed vs incomplete
+   - Tasks by priority and type
 
 2. If there are incomplete tasks, ask:
-   - Move to next sprint?
-   - Mark as cancelled?
+   - Move to next sprint? (updates both Odoo milestone + GitHub milestone)
+   - Mark as cancelled? (closes GitHub issue with "cancelled" label)
    - Leave in current sprint?
 
-3. Mark milestone as reached:
+3. **Close Odoo milestone:**
 
 ```bash
 curl -s -X POST "<URL>/jsonrpc" \
@@ -265,9 +347,19 @@ curl -s -X POST "<URL>/jsonrpc" \
   }'
 ```
 
-4. Generate sprint report (see Report command)
+4. **Close GitHub milestone:**
 
-5. Ask if user wants to create the next sprint immediately
+```bash
+# Get milestone number
+gh api repos/<OWNER>/<REPO>/milestones --jq '.[] | select(.title=="Sprint XX") | .number'
+
+# Close it
+gh api repos/<OWNER>/<REPO>/milestones/<NUMBER> -X PATCH -f state="closed"
+```
+
+5. Generate sprint report (see Report command)
+
+6. Ask if user wants to create the next sprint immediately
 
 ## Command: Approve (`/sprint approve <task_id>`)
 
