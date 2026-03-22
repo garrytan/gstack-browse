@@ -713,9 +713,11 @@ Compare screenshots and observations across pages for:
 
 **Project-scoped:**
 ```bash
-source <(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval $(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null)
+DATE=$(date +%Y-%m-%d)
+mkdir -p $PROJECTS_DIR/$SLUG/reports
 ```
-Write to: `~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md`
+Write to: `$PROJECTS_DIR/$SLUG/reports/design-{domain}-$DATE.md`
 
 **Baseline:** Write `design-baseline.json` for regression mode:
 ```json
@@ -931,7 +933,7 @@ Write the report to both local and project-scoped locations:
 
 **Project-scoped:**
 ```bash
-source <(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval $(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p $PROJECTS_DIR/$SLUG
 ```
 Write to `~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md`
 

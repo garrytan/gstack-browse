@@ -263,15 +263,15 @@ cat package.json 2>/dev/null | head -20
 ls src/ app/ pages/ components/ 2>/dev/null | head -30
 ```
 
-Look for office-hours output:
+Look for office-hours or brainstorm output:
 
 ```bash
-source <(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null)
-ls ~/.gstack/projects/$SLUG/*office-hours* 2>/dev/null | head -5
-ls .context/*office-hours* .context/attachments/*office-hours* 2>/dev/null | head -5
+eval $(~/.codex/skills/gstack/bin/gstack-slug 2>/dev/null)
+ls -t $PROJECTS_DIR/$SLUG/brainstorm/* $PROJECTS_DIR/$SLUG/*office-hours* 2>/dev/null | head -5
+ls .context/*office-hours* .context/*brainstorm* .context/attachments/*office-hours* 2>/dev/null | head -5
 ```
 
-If office-hours output exists, read it — the product context is pre-filled.
+If office-hours or brainstorm output exists, read it — the product context is pre-filled.
 
 If the codebase is empty and purpose is unclear, say: *"I don't have a clear picture of what you're building yet. Want to explore first with `/office-hours`? Once we know the product direction, we can set up the design system."*
 

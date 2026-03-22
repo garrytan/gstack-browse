@@ -391,7 +391,9 @@ source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 6. **Log the result** for the Review Readiness Dashboard:
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}'
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+mkdir -p $PROJECTS_DIR/$SLUG/reviews
+echo '{"skill":"design-review-lite","timestamp":"TIMESTAMP","status":"STATUS","findings":N,"auto_fixed":M,"commit":"COMMIT"}' >> $PROJECTS_DIR/$SLUG/reviews/$BRANCH.jsonl
 ```
 
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count, COMMIT = output of `git rev-parse --short HEAD`.
@@ -548,6 +550,74 @@ Claude's structured review already ran. Now add a **cross-model adversarial chal
 
 **Codex adversarial:**
 
+If the user chooses C: persist the opt-out and skip:
+```bash
+~/.claude/skills/gstack/bin/gstack-config set codex_reviews disabled
+```
+Then skip this step. Continue to the next step.
+
+### Run Codex
+
+Always run **both** code review and adversarial challenge. Use a 5-minute timeout (`timeout: 300000`) on each Bash call.
+
+First, create a temp file for stderr capture:
+```bash
+TMPERR=$(mktemp /tmp/codex-review-XXXXXXXX)
+```
+
+**Code review:** Run:
+```bash
+codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+```
+
+After the command completes, read stderr for cost/error info:
+```bash
+cat "$TMPERR"
+```
+
+Present the full output verbatim under a `CODEX SAYS (code review):` header:
+
+```
+CODEX SAYS (code review):
+════════════════════════════════════════════════════════════
+<full codex output, verbatim — do not truncate or summarize>
+════════════════════════════════════════════════════════════
+GATE: PASS                    Tokens: N | Est. cost: ~$X.XX
+```
+
+Check the output for `[P1]` markers. If found: `GATE: FAIL`. If no `[P1]`: `GATE: PASS`.
+
+**If GATE is FAIL:** use AskUserQuestion:
+
+```
+Codex found N critical issues in the diff.
+
+A) Investigate and fix now (recommended)
+B) Ship anyway — these issues may cause production problems
+```
+
+If the user chooses A: read the Codex findings carefully and work to address them. Then re-run `codex review` to verify the gate is now PASS.
+
+If the user chooses B: continue to the next step.
+
+### Error handling (code review)
+
+Before persisting the gate result, check for errors. All errors are non-blocking — Codex is a quality enhancement, not a prerequisite. Check `$TMPERR` output (already read above) for error indicators:
+
+- **Auth failure:** If stderr contains "auth", "login", "unauthorized", or "API key", tell the user: "Codex authentication failed. Run \`codex login\` in your terminal to authenticate via ChatGPT." Do NOT persist a review log entry. Continue to the adversarial step (it will likely fail too, but try anyway).
+- **Timeout:** If the Bash call times out (5 min), tell the user: "Codex timed out after 5 minutes. The diff may be too large or the API may be slow." Do NOT persist a review log entry. Skip to cleanup.
+- **Empty response:** If codex returned no stdout output, tell the user: "Codex returned no response. Stderr: <paste relevant error>." Do NOT persist a review log entry. Skip to cleanup.
+
+**Only if codex produced a real review (non-empty stdout):** Persist the code review result:
+```bash
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+mkdir -p $PROJECTS_DIR/$SLUG/reviews
+echo '{"skill":"codex-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}' >> $PROJECTS_DIR/$SLUG/reviews/$BRANCH.jsonl
+```
+
+Substitute: STATUS ("clean" if PASS, "issues_found" if FAIL), GATE ("pass" or "fail").
+
+**Adversarial challenge:** Run:
 ```bash
 TMPERR_ADV=$(mktemp /tmp/codex-adv-XXXXXXXX)
 codex exec "Review the changes on this branch against the base branch. Run git diff origin/<base> to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems." -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR_ADV"

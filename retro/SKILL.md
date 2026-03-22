@@ -532,7 +532,8 @@ Count backward from today — how many consecutive days have at least one commit
 Before saving the new snapshot, check for prior retro history:
 
 ```bash
-ls -t .context/retros/*.json 2>/dev/null
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+ls -t $PROJECTS_DIR/$SLUG/retros/*.json 2>/dev/null
 ```
 
 **If prior retros exist:** Load the most recent one using the Read tool. Calculate deltas for key metrics and include a **Trends vs Last Retro** section:
@@ -553,16 +554,17 @@ Deep sessions:      3      →    5           ↑2
 After computing all metrics (including streak) and loading any prior history for comparison, save a JSON snapshot:
 
 ```bash
-mkdir -p .context/retros
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+mkdir -p $PROJECTS_DIR/$SLUG/retros
 ```
 
 Determine the next sequence number for today (substitute the actual date for `$(date +%Y-%m-%d)`):
 ```bash
 # Count existing retros for today to get next sequence number
 today=$(date +%Y-%m-%d)
-existing=$(ls .context/retros/${today}-*.json 2>/dev/null | wc -l | tr -d ' ')
+existing=$(ls $PROJECTS_DIR/$SLUG/retros/${today}-*.json 2>/dev/null | wc -l | tr -d ' ')
 next=$((existing + 1))
-# Save as .context/retros/${today}-${next}.json
+# Save as $PROJECTS_DIR/$SLUG/retros/${today}-${next}.json
 ```
 
 Use the Write tool to save the JSON file with this schema:
@@ -736,7 +738,7 @@ When the user runs `/retro compare` (or `/retro compare 14d`):
 2. Compute metrics for the immediately prior same-length window using both `--since` and `--until` with midnight-aligned dates to avoid overlap (e.g., for a 7d window starting 2026-03-11: prior window is `--since="2026-03-04T00:00:00" --until="2026-03-11T00:00:00"`)
 3. Show a side-by-side comparison table with deltas and arrows
 4. Write a brief narrative highlighting the biggest improvements and regressions
-5. Save only the current-window snapshot to `.context/retros/` (same as a normal retro run); do **not** persist the prior-window metrics.
+5. Save only the current-window snapshot to `$PROJECTS_DIR/$SLUG/retros/` (same as a normal retro run); do **not** persist the prior-window metrics.
 
 ## Tone
 
@@ -749,11 +751,11 @@ When the user runs `/retro compare` (or `/retro compare 14d`):
 - Never compare teammates against each other negatively. Each person's section stands on its own.
 - Keep total output around 3000-4500 words (slightly longer to accommodate team sections)
 - Use markdown tables and code blocks for data, prose for narrative
-- Output directly to the conversation — do NOT write to filesystem (except the `.context/retros/` JSON snapshot)
+- Output directly to the conversation — do NOT write to filesystem (except the `$PROJECTS_DIR/$SLUG/retros/` JSON snapshot)
 
 ## Important Rules
 
-- ALL narrative output goes directly to the user in the conversation. The ONLY file written is the `.context/retros/` JSON snapshot.
+- ALL narrative output goes directly to the user in the conversation. The ONLY file written is the `$PROJECTS_DIR/$SLUG/retros/` JSON snapshot.
 - Use `origin/<default>` for all git queries (not local main which may be stale)
 - Display all timestamps in the user's local timezone (do not override `TZ`)
 - If the window has zero commits, say so and suggest a different window

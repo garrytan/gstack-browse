@@ -9,20 +9,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { atomicWriteSync, sanitizeForFilename, GSTACK_DEV_DIR } from '../../lib/util';
+import type { CostEntry } from '../../lib/eval-format';
+import { resolveTier, tierToModel } from '../../lib/eval-tier';
 
-const GSTACK_DEV_DIR = path.join(os.homedir(), '.gstack-dev');
 const HEARTBEAT_PATH = path.join(GSTACK_DEV_DIR, 'e2e-live.json');
 
 /** Sanitize test name for use as filename: strip leading slashes, replace / with - */
 export function sanitizeTestName(name: string): string {
-  return name.replace(/^\/+/, '').replace(/\//g, '-');
-}
-
-/** Atomic write: write to .tmp then rename. Non-fatal on error. */
-function atomicWriteSync(filePath: string, data: string): void {
-  const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, data);
-  fs.renameSync(tmp, filePath);
+  return sanitizeForFilename(name);
 }
 
 export interface CostEstimate {
@@ -41,6 +36,7 @@ export interface SkillTestResult {
   output: string;
   costEstimate: CostEstimate;
   transcript: any[];
+  costs: CostEntry[];
   /** Which model was used for this test (added for Sonnet/Opus split diagnostics) */
   model: string;
   /** Time from spawn to first NDJSON line, in ms (added for rate-limit diagnostics) */
@@ -151,6 +147,8 @@ export async function runSkillTest(options: {
 
   // Spawn claude -p with streaming NDJSON output. Prompt piped via stdin to
   // avoid shell escaping issues. --verbose is required for stream-json mode.
+  // Model pinned via EVAL_TIER env var (default: sonnet).
+  const evalModel = tierToModel(resolveTier());
   const args = [
     '-p',
     '--model', model,
@@ -353,5 +351,21 @@ export async function runSkillTest(options: {
     turnsUsed,
   };
 
-  return { toolCalls, browseErrors, exitReason, duration, output: resultLine?.result || '', costEstimate, transcript, model, firstResponseMs, maxInterTurnMs };
+  // Extract per-model costs from resultLine.modelUsage (camelCase → snake_case)
+  const costs: CostEntry[] = [];
+  if (resultLine?.modelUsage) {
+    for (const [modelName, usage] of Object.entries(resultLine.modelUsage as Record<string, any>)) {
+      costs.push({
+        model: modelName,
+        calls: 1,
+        input_tokens: usage.inputTokens || 0,
+        output_tokens: usage.outputTokens || 0,
+        cache_read_input_tokens: usage.cacheReadInputTokens || 0,
+        cache_creation_input_tokens: usage.cacheCreationInputTokens || 0,
+        cost_usd: usage.costUSD,
+      });
+    }
+  }
+
+  return { toolCalls, browseErrors, exitReason, duration, output: resultLine?.result || '', costEstimate, transcript, costs, model, firstResponseMs, maxInterTurnMs };
 }

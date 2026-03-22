@@ -12,3 +12,4 @@ bun.lock
 .env.local
 .env.*
 !.env.example
+.gstack-sync.json
