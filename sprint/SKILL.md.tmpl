@@ -99,6 +99,26 @@ Every task has an `owner` field that prevents conflicts:
 | `perf:` | **AI Dev profiles + optimizes** | PO sets targets ("page load < 2s"). AI decides how. |
 | `maintain:` | **AI Dev** | PO approves major upgrades (breaking versions). Minor = autonomous. |
 
+### API & Credentials — AI Dev tự lấy
+
+Khi task cần gọi external API, AI Dev **tự tìm credentials** theo thứ tự:
+
+1. **Env vars** — kiểm tra `.env`, `.env.local`, env hiện tại
+2. **Config files** — `.claude/settings.json`, `~/.config/`, project config
+3. **CLAUDE.md** — credentials/endpoints đã ghi lại từ lần setup trước
+4. **Secret manager** — nếu project dùng (1Password CLI, Vault, etc.)
+
+Chỉ hỏi PO khi **tất cả đều không có**. Khi PO cung cấp, AI Dev phải:
+- Lưu vào `.env` hoặc CLAUDE.md (tuỳ loại) để lần sau không hỏi lại
+- **Không bao giờ** commit credentials vào git
+
+| Tình huống | AI Dev làm gì |
+|------------|---------------|
+| API key có trong env | Dùng luôn, không hỏi |
+| API key chưa có, biết service nào | Hỏi PO 1 lần, lưu lại |
+| Cần API mới chưa từng dùng | Hỏi PO cách auth + endpoint |
+| Key hết hạn / bị revoke | Báo PO, không tự tạo key mới |
+
 ### Conflict Prevention
 
 To prevent two people (or two AI sessions) editing the same thing:
