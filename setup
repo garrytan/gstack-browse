@@ -8,9 +8,10 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
-GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
-SKILLS_DIR="$(dirname "$GSTACK_DIR")"
-BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+INSTALL_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
+SOURCE_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+INSTALL_SKILLS_DIR="$(dirname "$INSTALL_GSTACK_DIR")"
+BROWSE_BIN="$SOURCE_GSTACK_DIR/browse/dist/browse"
 
 IS_WINDOWS=0
 case "$(uname -s)" in
@@ -53,12 +54,12 @@ ensure_playwright_browser() {
     # On Windows, Bun can't launch Chromium due to broken pipe handling
     # (oven-sh/bun#4253). Use Node.js to verify Chromium works instead.
     (
-      cd "$GSTACK_DIR"
+      cd "$SOURCE_GSTACK_DIR"
       node -e "const { chromium } = require('playwright'); (async () => { const b = await chromium.launch(); await b.close(); })()" 2>/dev/null
     )
   else
     (
-      cd "$GSTACK_DIR"
+      cd "$SOURCE_GSTACK_DIR"
       bun --eval 'import { chromium } from "playwright"; const browser = await chromium.launch(); await browser.close();'
     ) >/dev/null 2>&1
   fi
@@ -68,24 +69,24 @@ ensure_playwright_browser() {
 NEEDS_BUILD=0
 if [ ! -x "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -n "$(find "$GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+elif [ -n "$(find "$SOURCE_GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
   NEEDS_BUILD=1
-elif [ "$GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+elif [ "$SOURCE_GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -f "$GSTACK_DIR/bun.lock" ] && [ "$GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+elif [ -f "$SOURCE_GSTACK_DIR/bun.lock" ] && [ "$SOURCE_GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
 fi
 
 if [ "$NEEDS_BUILD" -eq 1 ]; then
   echo "Building browse binary..."
   (
-    cd "$GSTACK_DIR"
+    cd "$SOURCE_GSTACK_DIR"
     bun install
     bun run build
   )
   # Safety net: write .version if build script didn't (e.g., git not available during build)
-  if [ ! -f "$GSTACK_DIR/browse/dist/.version" ]; then
-    git -C "$GSTACK_DIR" rev-parse HEAD > "$GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
+  if [ ! -f "$SOURCE_GSTACK_DIR/browse/dist/.version" ]; then
+    git -C "$SOURCE_GSTACK_DIR" rev-parse HEAD > "$SOURCE_GSTACK_DIR/browse/dist/.version" 2>/dev/null || true
   fi
 fi
 
@@ -98,7 +99,7 @@ fi
 if ! ensure_playwright_browser; then
   echo "Installing Playwright Chromium..."
   (
-    cd "$GSTACK_DIR"
+    cd "$SOURCE_GSTACK_DIR"
     bunx playwright install chromium
   )
 
@@ -112,7 +113,7 @@ if ! ensure_playwright_browser; then
     fi
     echo "Windows detected — verifying Node.js can load Playwright..."
     (
-      cd "$GSTACK_DIR"
+      cd "$SOURCE_GSTACK_DIR"
       # Bun's node_modules already has playwright; verify Node can require it
       node -e "require('playwright')" 2>/dev/null || npm install --no-save playwright
     )
@@ -197,7 +198,7 @@ create_agents_sidecar() {
 
   # Sidecar directories that skills reference at runtime
   for asset in bin browse review qa; do
-    local src="$GSTACK_DIR/$asset"
+    local src="$SOURCE_GSTACK_DIR/$asset"
     local dst="$agents_gstack/$asset"
     if [ -d "$src" ] || [ -f "$src" ]; then
       if [ -L "$dst" ] || [ ! -e "$dst" ]; then
@@ -208,7 +209,7 @@ create_agents_sidecar() {
 
   # Sidecar files that skills reference at runtime
   for file in ETHOS.md; do
-    local src="$GSTACK_DIR/$file"
+    local src="$SOURCE_GSTACK_DIR/$file"
     local dst="$agents_gstack/$file"
     if [ -f "$src" ]; then
       if [ -L "$dst" ] || [ ! -e "$dst" ]; then
@@ -219,8 +220,8 @@ create_agents_sidecar() {
 }
 
 # 4. Install for Claude (default)
-SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
-SKILLS_PARENT_BASENAME="$(basename "$(dirname "$SKILLS_DIR")")"
+SKILLS_BASENAME="$(basename "$INSTALL_SKILLS_DIR")"
+SKILLS_PARENT_BASENAME="$(basename "$(dirname "$INSTALL_SKILLS_DIR")")"
 CODEX_REPO_LOCAL=0
 if [ "$SKILLS_BASENAME" = "skills" ] && [ "$SKILLS_PARENT_BASENAME" = ".agents" ]; then
   CODEX_REPO_LOCAL=1
@@ -228,7 +229,7 @@ fi
 
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
-    link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR"
+    link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
     echo "gstack ready (claude)."
     echo "  browse: $BROWSE_BIN"
   else
@@ -241,8 +242,8 @@ fi
 # 5. Install for Codex
 if [ "$INSTALL_CODEX" -eq 1 ]; then
   if [ "$CODEX_REPO_LOCAL" -eq 1 ]; then
-    CODEX_SKILLS="$SKILLS_DIR"
-    CODEX_GSTACK="$GSTACK_DIR"
+    CODEX_SKILLS="$INSTALL_SKILLS_DIR"
+    CODEX_GSTACK="$INSTALL_GSTACK_DIR"
   else
     CODEX_SKILLS="$HOME/.codex/skills"
     CODEX_GSTACK="$CODEX_SKILLS/gstack"
@@ -250,26 +251,22 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
   mkdir -p "$CODEX_SKILLS"
 
   # Symlink gstack source for runtime assets (bin/, browse/dist/)
-  if [ "$CODEX_GSTACK" != "$GSTACK_DIR" ] && { [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; }; then
-    ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
+  if [ "$CODEX_GSTACK" != "$INSTALL_GSTACK_DIR" ] && { [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; }; then
+    ln -snf "$SOURCE_GSTACK_DIR" "$CODEX_GSTACK"
   fi
   # Install generated Codex-format skills (not Claude source dirs)
-  link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
+  link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"
 
   echo "gstack ready (codex)."
   echo "  browse: $BROWSE_BIN"
   echo "  codex skills: $CODEX_SKILLS"
 fi
 
-# 6. Create .agents/ sidecar symlinks (useful for Codex/Gemini/Cursor workspace-local)
-if [ "$INSTALL_CODEX" -eq 1 ] && [ "$CODEX_REPO_LOCAL" -eq 0 ]; then
-  # Detect repo root: if we're inside a skills directory, go up two levels
-  if [ "$SKILLS_BASENAME" = "skills" ]; then
-    REPO_ROOT="$(dirname "$SKILLS_DIR")"
-  else
-    REPO_ROOT="$GSTACK_DIR"
-  fi
-  create_agents_sidecar "$REPO_ROOT"
+# 6. Create .agents/ sidecar symlinks for the real Codex skill target.
+# The root Codex skill ends up pointing at $SOURCE_GSTACK_DIR/.agents/skills/gstack,
+# so the runtime assets must live there for both global and repo-local installs.
+if [ "$INSTALL_CODEX" -eq 1 ]; then
+  create_agents_sidecar "$SOURCE_GSTACK_DIR"
 fi
 
 # 7. First-time welcome + legacy cleanup

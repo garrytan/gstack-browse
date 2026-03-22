@@ -827,7 +827,20 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('CODEX_REPO_LOCAL=0');
     expect(setupContent).toContain('[ "$SKILLS_PARENT_BASENAME" = ".agents" ]');
     expect(setupContent).toContain('CODEX_REPO_LOCAL=1');
-    expect(setupContent).toContain('CODEX_SKILLS="$SKILLS_DIR"');
+    expect(setupContent).toContain('CODEX_SKILLS="$INSTALL_SKILLS_DIR"');
+  });
+
+  test('setup separates install path from source path for symlinked repo-local installs', () => {
+    expect(setupContent).toContain('INSTALL_GSTACK_DIR=');
+    expect(setupContent).toContain('SOURCE_GSTACK_DIR=');
+    expect(setupContent).toContain('INSTALL_SKILLS_DIR=');
+    expect(setupContent).toContain('CODEX_GSTACK="$INSTALL_GSTACK_DIR"');
+    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"');
+  });
+
+  test('Codex installs always create sidecar runtime assets for the real skill target', () => {
+    expect(setupContent).toContain('if [ "$INSTALL_CODEX" -eq 1 ]; then');
+    expect(setupContent).toContain('create_agents_sidecar "$SOURCE_GSTACK_DIR"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
