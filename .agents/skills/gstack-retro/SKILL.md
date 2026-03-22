@@ -849,40 +849,45 @@ stats — no team data, no project breakdowns. Designed to screenshot and post.
 Use the user identity from `git config user.name` to filter all per-repo git data.
 Aggregate across all repos to compute personal totals.
 
-Render as a single visually clean block:
+Render as a single visually clean block. The box must be **wide enough to fit full
+repo names** — never truncate project names. Use 80 characters inner width minimum.
+Pad repo names to the longest repo name in the list so columns align cleanly.
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║  [USER NAME] — Week of [date]                               ║
-╠══════════════════════════════════════════════════════════════╣
-║                                                              ║
-║  [N] commits across [M] projects                             ║
-║  +[X]k LOC added · [Y]k LOC deleted · [Z]k net              ║
-║  [N] AI coding sessions (CC: X, Codex: Y, Gemini: Z)        ║
-║  [N]-day shipping streak 🔥                                  ║
-║                                                              ║
-║  PROJECTS                                                    ║
-║  ──────────────────────────────────────────────────────────── ║
-║  [repo1]     [N] commits   +[X]k LOC   [role: solo/team]    ║
-║  [repo2]     [N] commits   +[X]k LOC   [role: solo/team]    ║
-║  [repo3]     [N] commits   +[X]k LOC   [role: solo/team]    ║
-║  ...                                                         ║
-║                                                              ║
-║  SHIP OF THE WEEK                                            ║
-║  [PR title] — [LOC] lines across [N] files                   ║
-║                                                              ║
-║  TOP WORK                                                    ║
-║  • [1-line description of biggest theme]                     ║
-║  • [1-line description of second theme]                      ║
-║  • [1-line description of third theme]                       ║
-║                                                              ║
-║  Powered by gstack /retro global                             ║
-╚══════════════════════════════════════════════════════════════╝
+╔════════════════════════════════════════════════════════════════════════════════════╗
+║  [USER NAME] — Week of [date]                                                     ║
+╠════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                    ║
+║  [N] commits across [M] projects                                                   ║
+║  +[X]k LOC added · [Y]k LOC deleted · [Z]k net                                    ║
+║  [N] AI coding sessions (CC: X, Codex: Y, Gemini: Z)                              ║
+║  [N]-day shipping streak 🔥                                                        ║
+║                                                                                    ║
+║  PROJECTS                                                                          ║
+║  ──────────────────────────────────────────────────────────────────────────────     ║
+║  [repo_name_full]        [N] commits    +[X]k LOC    [role: solo/team]             ║
+║  [repo_name_full]        [N] commits    +[X]k LOC    [role: solo/team]             ║
+║  [repo_name_full]        [N] commits    +[X]k LOC    [role: solo/team]             ║
+║  ...                                                                               ║
+║                                                                                    ║
+║  SHIP OF THE WEEK                                                                  ║
+║  [PR title] — [LOC] lines across [N] files                                         ║
+║                                                                                    ║
+║  TOP WORK                                                                          ║
+║  • [1-line description of biggest theme]                                           ║
+║  • [1-line description of second theme]                                            ║
+║  • [1-line description of third theme]                                             ║
+║                                                                                    ║
+║  Powered by gstack · github.com/garrytan/gstack                                   ║
+╚════════════════════════════════════════════════════════════════════════════════════╝
 ```
 
 **Rules for the personal card:**
 - Only show repos where the user has commits. Skip repos with 0 commits.
 - Sort repos by user's commit count descending.
+- **Never truncate repo names.** Use the full repo name (e.g., `analyze_transcripts`
+  not `analyze_trans`). Pad the name column to the longest repo name so all columns
+  align. If names are long, widen the box — the box width adapts to content.
 - For LOC, use "k" formatting for thousands (e.g., "+64.0k" not "+64010").
 - Role: "solo" if user is the only contributor, "team" if others contributed.
 - Ship of the Week: the user's single highest-LOC PR across ALL repos.
