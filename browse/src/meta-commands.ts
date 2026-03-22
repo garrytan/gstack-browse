@@ -5,11 +5,12 @@
 import type { BrowserManager } from './browser-manager';
 import { handleSnapshot } from './snapshot';
 import { getCleanText } from './read-commands';
-import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
+import { READ_COMMANDS, WRITE_COMMANDS, CHAIN_ONLY_COMMANDS, META_COMMANDS } from './commands';
 import { validateNavigationUrl } from './url-validation';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { TEMP_DIR, isPathWithin } from './platform';
 
 // Security: Path validation to prevent path traversal attacks
@@ -133,16 +134,34 @@ export async function handleMetaCommand(
       if (targetSelector) {
         const resolved = await bm.resolveRef(targetSelector);
         const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
-        await locator.screenshot({ path: outputPath, timeout: 5000 });
+        const buffer = await locator.screenshot({ timeout: 5000 });
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+        if (hash === bm.getScreenshotHash()) {
+          return `Screenshot unchanged since last capture: ${outputPath}`;
+        }
+        fs.writeFileSync(outputPath, buffer);
+        bm.setScreenshotHash(hash);
         return `Screenshot saved (element): ${outputPath}`;
       }
 
       if (clipRect) {
-        await page.screenshot({ path: outputPath, clip: clipRect });
+        const buffer = await page.screenshot({ clip: clipRect });
+        const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+        if (hash === bm.getScreenshotHash()) {
+          return `Screenshot unchanged since last capture: ${outputPath}`;
+        }
+        fs.writeFileSync(outputPath, buffer);
+        bm.setScreenshotHash(hash);
         return `Screenshot saved (clip ${clipRect.x},${clipRect.y},${clipRect.width},${clipRect.height}): ${outputPath}`;
       }
 
-      await page.screenshot({ path: outputPath, fullPage: !viewportOnly });
+      const buffer = await page.screenshot({ fullPage: !viewportOnly });
+      const hash = crypto.createHash('sha256').update(buffer).digest('hex');
+      if (hash === bm.getScreenshotHash()) {
+        return `Screenshot unchanged since last capture: ${outputPath}`;
+      }
+      fs.writeFileSync(outputPath, buffer);
+      bm.setScreenshotHash(hash);
       return `Screenshot saved${viewportOnly ? ' (viewport)' : ''}: ${outputPath}`;
     }
 
@@ -181,11 +200,10 @@ export async function handleMetaCommand(
       return results.join('\n');
     }
 
-    // ─── Chain ─────────────────────────────────────────
+    // ─── Chain (primary interaction interface) ─────────────
     case 'chain': {
-      // Read JSON array from args[0] (if provided) or expect it was passed as body
       const jsonStr = args[0];
-      if (!jsonStr) throw new Error('Usage: echo \'[["goto","url"],["text"]]\' | browse chain');
+      if (!jsonStr) throw new Error('Usage: browse chain <json>');
 
       let commands: string[][];
       try {
@@ -204,17 +222,45 @@ export async function handleMetaCommand(
         const [name, ...cmdArgs] = cmd;
         try {
           let result: string;
-          if (WRITE_COMMANDS.has(name))    result = await handleWriteCommand(name, cmdArgs, bm);
+          if (CHAIN_ONLY_COMMANDS.has(name)) result = await handleWriteCommand(name, cmdArgs, bm);
           else if (READ_COMMANDS.has(name))  result = await handleReadCommand(name, cmdArgs, bm);
           else if (META_COMMANDS.has(name))  result = await handleMetaCommand(name, cmdArgs, bm, shutdown);
           else throw new Error(`Unknown command: ${name}`);
           results.push(`[${name}] ${result}`);
         } catch (err: any) {
           results.push(`[${name}] ERROR: ${err.message}`);
+          break; // Stop on first error
         }
       }
 
-      return results.join('\n\n');
+      // Wait for network to settle after all actions
+      try {
+        const page = bm.getPage();
+        await page.waitForLoadState('networkidle', { timeout: 2000 }).catch(() => {});
+      } catch {}
+
+      // Auto-observation: snapshot + page state
+      let snapshot: string;
+      try {
+        snapshot = await handleSnapshot(['-i'], bm);
+      } catch {
+        snapshot = '(snapshot failed)';
+      }
+
+      const state = await bm.getPageState();
+      const observation = [
+        '',
+        '── observation ──',
+        `URL: ${state.url}`,
+        `Title: ${state.title}`,
+        `Viewport: ${state.viewport ? `${state.viewport.width}x${state.viewport.height}` : 'unknown'}`,
+        `Focus: ${state.focusedElement || 'none'}`,
+        `Dialogs: ${state.dialogState}`,
+        '',
+        snapshot,
+      ].join('\n');
+
+      return results.join('\n') + observation;
     }
 
     // ─── Diff ──────────────────────────────────────────

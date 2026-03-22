@@ -53,6 +53,13 @@ export class BrowserManager {
   // NOT cleared on navigation — it's a text baseline for diffing
   private lastSnapshot: string | null = null;
 
+  // ─── Mouse Position Tracking ────────────────────────────────
+  private mouseX: number = 0;
+  private mouseY: number = 0;
+
+  // ─── Screenshot Dedup ───────────────────────────────────────
+  private screenshotHash: string | null = null;
+
   // ─── Dialog Handling ──────────────────────────────────────
   private dialogAutoAccept: boolean = true;
   private dialogPromptText: string | null = null;
@@ -550,13 +557,68 @@ export class BrowserManager {
     return null;
   }
 
+  // ─── Mouse Position ──────────────────────────────────────
+  setMousePosition(x: number, y: number) {
+    this.mouseX = x;
+    this.mouseY = y;
+  }
+
+  getMousePosition(): { x: number; y: number } {
+    return { x: this.mouseX, y: this.mouseY };
+  }
+
+  // ─── Screenshot Dedup ──────────────────────────────────────
+  setScreenshotHash(hash: string | null) {
+    this.screenshotHash = hash;
+  }
+
+  getScreenshotHash(): string | null {
+    return this.screenshotHash;
+  }
+
+  // ─── Page State (for chain observation) ─────────────────────
+  async getPageState(): Promise<{
+    url: string;
+    title: string;
+    viewport: { width: number; height: number } | null;
+    focusedElement: string | null;
+    dialogState: string;
+  }> {
+    const page = this.getPage();
+    const url = page.url();
+    const title = await page.title().catch(() => '');
+    const viewport = page.viewportSize();
+
+    // Get focused element description
+    let focusedElement: string | null = null;
+    try {
+      focusedElement = await page.evaluate(() => {
+        const el = document.activeElement;
+        if (!el || el === document.body) return null;
+        const tag = el.tagName.toLowerCase();
+        const role = el.getAttribute('role') || '';
+        const name = el.getAttribute('aria-label') || el.getAttribute('name') || el.getAttribute('placeholder') || '';
+        const parts = [tag];
+        if (role) parts.push(`role=${role}`);
+        if (name) parts.push(`"${name}"`);
+        return parts.join(' ');
+      });
+    } catch {}
+
+    // Dialog state
+    const dialogState = this.dialogAutoAccept ? 'auto-accept' : 'auto-dismiss';
+
+    return { url, title, viewport, focusedElement, dialogState };
+  }
+
   // ─── Console/Network/Dialog/Ref Wiring ────────────────────
   private wirePageEvents(page: Page) {
-    // Clear ref map on navigation — refs point to stale elements after page change
-    // (lastSnapshot is NOT cleared — it's a text baseline for diffing)
+    // Clear ref map + screenshot hash on navigation — refs point to stale elements,
+    // screenshot may differ. (lastSnapshot is NOT cleared — it's a text baseline for diffing)
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {
         this.clearRefs();
+        this.screenshotHash = null;
       }
     });
 

@@ -412,44 +412,49 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 
 ## Full Command List
 
+### Chain
+| Command | Description |
+|---------|-------------|
+| `chain <json>` | Execute actions + auto-observe. Primary interface for all browser interactions. Returns action results + snapshot + page state. |
+
 ### Navigation
 | Command | Description |
 |---------|-------------|
-| `back` | History back |
-| `forward` | History forward |
-| `goto <url>` | Navigate to URL |
-| `reload` | Reload page |
+| `back` | History back (chain-only) |
+| `forward` | History forward (chain-only) |
+| `goto <url>` | Navigate to URL (chain-only) |
+| `reload` | Reload page (chain-only) |
 | `url` | Print current URL |
 
 ### Reading
 | Command | Description |
 |---------|-------------|
-| `accessibility` | Full ARIA tree |
-| `forms` | Form fields as JSON |
-| `html [selector]` | innerHTML of selector (throws if not found), or full page HTML if no selector given |
-| `links` | All links as "text → href" |
-| `text` | Cleaned page text |
+| `accessibility` | Full ARIA tree (rarely needed) |
+| `forms` | Form fields as JSON (rarely needed) |
+| `html [selector]` | innerHTML of selector or full page HTML (rarely needed) |
+| `links` | All links as "text → href" (rarely needed) |
+| `text` | Cleaned page text (rarely needed — chain auto-observes) |
 
 ### Interaction
 | Command | Description |
 |---------|-------------|
-| `click <sel>` | Click element |
-| `cookie <name>=<value>` | Set cookie on current page domain |
-| `cookie-import <json>` | Import cookies from JSON file |
-| `cookie-import-browser [browser] [--domain d]` | Import cookies from Comet, Chrome, Arc, Brave, or Edge (opens picker, or use --domain for direct import) |
-| `dialog-accept [text]` | Auto-accept next alert/confirm/prompt. Optional text is sent as the prompt response |
-| `dialog-dismiss` | Auto-dismiss next dialog |
-| `fill <sel> <val>` | Fill input |
-| `header <name>:<value>` | Set custom request header (colon-separated, sensitive values auto-redacted) |
-| `hover <sel>` | Hover element |
-| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter |
-| `scroll [sel]` | Scroll element into view, or scroll to page bottom if no selector |
-| `select <sel> <val>` | Select dropdown option by value, label, or visible text |
-| `type <text>` | Type into focused element |
-| `upload <sel> <file> [file2...]` | Upload file(s) |
-| `useragent <string>` | Set user agent |
-| `viewport <WxH>` | Set viewport size |
-| `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (timeout: 15s) |
+| `click <sel>` | Click element with eased mouse movement (chain-only) |
+| `cookie <name>=<value>` | Set cookie on current domain (chain-only) |
+| `cookie-import <json>` | Import cookies from JSON file (chain-only) |
+| `cookie-import-browser [browser] [--domain d]` | Import cookies from browser (chain-only) |
+| `dialog-accept [text]` | Auto-accept dialogs (chain-only) |
+| `dialog-dismiss` | Auto-dismiss dialogs (chain-only) |
+| `fill <sel> <val>` | Fill input (chain-only) |
+| `header <name>:<value>` | Set custom request header (chain-only) |
+| `hover <sel>` | Hover element with eased mouse movement (chain-only) |
+| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter (chain-only) |
+| `scroll [sel]` | Scroll element into view or to page bottom (chain-only) |
+| `select <sel> <val>` | Select dropdown option (chain-only) |
+| `type <text>` | Type into focused element (chain-only) |
+| `upload <sel> <file> [file2...]` | Upload file(s) (chain-only) |
+| `useragent <string>` | Set user agent (chain-only) |
+| `viewport <WxH>` | Set viewport size (chain-only) |
+| `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (chain-only) |
 
 ### Inspection
 | Command | Description |
@@ -459,30 +464,25 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 | `cookies` | All cookies as JSON |
 | `css <sel> <prop>` | Computed CSS value |
 | `dialog [--clear]` | Dialog messages |
-| `eval <file>` | Run JavaScript from file and return result as string (path must be under /tmp or cwd) |
+| `eval <file>` | Run JavaScript from file (path must be under /tmp or cwd) |
 | `is <prop> <sel>` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
-| `js <expr>` | Run JavaScript expression and return result as string |
+| `js <expr>` | Run JavaScript expression |
 | `network [--clear]` | Network requests |
 | `perf` | Page load timings |
-| `storage [set k v]` | Read all localStorage + sessionStorage as JSON, or set <key> <value> to write localStorage |
+| `storage [set k v]` | Read localStorage + sessionStorage, or set <key> <value> |
 
 ### Visual
 | Command | Description |
 |---------|-------------|
 | `diff <url1> <url2>` | Text diff between pages |
 | `pdf [path]` | Save as PDF |
-| `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
-| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport) |
+| `responsive [prefix]` | Screenshots at mobile, tablet, desktop breakpoints |
+| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (deduped — returns "unchanged" if identical to previous) |
 
 ### Snapshot
 | Command | Description |
 |---------|-------------|
-| `snapshot [flags]` | Accessibility tree with @e refs for element selection. Flags: -i interactive only, -c compact, -d N depth limit, -s sel scope, -D diff vs previous, -a annotated screenshot, -o path output, -C cursor-interactive @c refs |
-
-### Meta
-| Command | Description |
-|---------|-------------|
-| `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
+| `snapshot [flags]` | Accessibility tree with @e refs. Flags: -i interactive, -c compact, -d N depth, -s sel scope, -D diff, -a annotated, -o path, -C cursor-interactive |
 
 ### Tabs
 | Command | Description |
@@ -495,8 +495,8 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 ### Server
 | Command | Description |
 |---------|-------------|
-| `handoff [message]` | Open visible Chrome at current page for user takeover |
+| `handoff [message]` | Open visible Chrome for user takeover |
 | `restart` | Restart server |
-| `resume` | Re-snapshot after user takeover, return control to AI |
+| `resume` | Re-snapshot after user takeover |
 | `status` | Health check |
 | `stop` | Shutdown server |

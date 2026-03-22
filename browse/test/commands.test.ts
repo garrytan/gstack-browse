@@ -13,6 +13,7 @@ import { handleReadCommand } from '../src/read-commands';
 import { handleWriteCommand } from '../src/write-commands';
 import { handleMetaCommand } from '../src/meta-commands';
 import { consoleBuffer, networkBuffer, dialogBuffer, addConsoleEntry, addNetworkEntry, addDialogEntry, CircularBuffer } from '../src/buffers';
+import { easeInOutCubic } from '../src/mouse';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
 import * as path from 'path';
@@ -1800,5 +1801,197 @@ describe('Chain with cookie-import', () => {
     } finally {
       try { fs.unlinkSync(tmpCookies); } catch {}
     }
+  });
+});
+
+// ─── Chain Auto-Observation ─────────────────────────────────────
+
+describe('Chain auto-observation', () => {
+  test('chain returns action results + observation block', async () => {
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/basic.html'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('[goto]');
+    expect(result).toContain('Navigated to');
+    expect(result).toContain('── observation ──');
+    expect(result).toContain('URL:');
+    expect(result).toContain('Title:');
+    expect(result).toContain('Viewport:');
+    expect(result).toContain('Focus:');
+    expect(result).toContain('Dialogs:');
+  });
+
+  test('chain observation includes interactive snapshot', async () => {
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/forms.html'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('── observation ──');
+    // Snapshot should contain interactive elements from the forms page
+    expect(result).toContain('[textbox]');
+    expect(result).toContain('[button]');
+  });
+
+  test('chain with multiple commands returns all results', async () => {
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/forms.html'],
+      ['fill', '#email', 'test@test.com'],
+      ['fill', '#password', 'secret'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('[goto]');
+    expect(result).toContain('[fill] Filled #email');
+    expect(result).toContain('[fill] Filled #password');
+    expect(result).toContain('── observation ──');
+  });
+
+  test('chain stops on error and includes observation', async () => {
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/basic.html'],
+      ['goto'],  // missing URL — fails immediately
+      ['fill', '#email', 'should-not-run'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('[goto] Navigated');
+    expect(result).toContain('[goto] ERROR:');
+    // Should NOT contain the fill command since we stopped on error
+    expect(result).not.toContain('[fill]');
+    // Should still have observation
+    expect(result).toContain('── observation ──');
+  });
+
+  test('chain with empty array returns just observation', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const commands = JSON.stringify([]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('── observation ──');
+    expect(result).toContain('URL:');
+  });
+
+  test('chain observation shows correct viewport', async () => {
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/basic.html'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('Viewport: 1280x720');
+  });
+
+  test('chain observation refs are usable', async () => {
+    // Chain to a forms page and get refs from observation
+    const commands = JSON.stringify([
+      ['goto', baseUrl + '/forms.html'],
+    ]);
+    const result = await handleMetaCommand('chain', [commands], bm, async () => {});
+    expect(result).toContain('@e');
+    // Refs from the observation should be usable in subsequent commands
+    const refCount = bm.getRefCount();
+    expect(refCount).toBeGreaterThan(0);
+  });
+});
+
+// ─── Standalone Write Rejection ──────────────────────────────────
+
+describe('Standalone write rejection', () => {
+  test('standalone write commands are rejected with chain guidance', async () => {
+    // These commands should be rejected when called standalone via server dispatch
+    // We test this by checking CHAIN_ONLY_COMMANDS exists and contains write commands
+    const { CHAIN_ONLY_COMMANDS } = await import('../src/commands');
+    expect(CHAIN_ONLY_COMMANDS.has('click')).toBe(true);
+    expect(CHAIN_ONLY_COMMANDS.has('fill')).toBe(true);
+    expect(CHAIN_ONLY_COMMANDS.has('goto')).toBe(true);
+    expect(CHAIN_ONLY_COMMANDS.has('type')).toBe(true);
+    expect(CHAIN_ONLY_COMMANDS.has('press')).toBe(true);
+    expect(CHAIN_ONLY_COMMANDS.has('hover')).toBe(true);
+  });
+});
+
+// ─── Screenshot Dedup ────────────────────────────────────────────
+
+describe('Screenshot dedup', () => {
+  test('duplicate screenshot returns unchanged', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const p = '/tmp/browse-test-dedup.png';
+    const first = await handleMetaCommand('screenshot', [p], bm, async () => {});
+    expect(first).toContain('Screenshot saved');
+    const second = await handleMetaCommand('screenshot', [p], bm, async () => {});
+    expect(second).toContain('Screenshot unchanged since last capture');
+  });
+
+  test('screenshot after navigation returns new screenshot', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const p = '/tmp/browse-test-dedup2.png';
+    await handleMetaCommand('screenshot', [p], bm, async () => {});
+    // Navigate to different page
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    const result = await handleMetaCommand('screenshot', [p], bm, async () => {});
+    expect(result).toContain('Screenshot saved');
+    expect(result).not.toContain('unchanged');
+  });
+});
+
+// ─── Mouse Movement ─────────────────────────────────────────────
+
+describe('Mouse easing', () => {
+  test('easeInOutCubic boundary values', () => {
+    expect(easeInOutCubic(0)).toBe(0);
+    expect(easeInOutCubic(1)).toBe(1);
+    expect(easeInOutCubic(0.5)).toBe(0.5);
+  });
+
+  test('easeInOutCubic is monotonically increasing', () => {
+    let prev = 0;
+    for (let t = 0.05; t <= 1; t += 0.05) {
+      const val = easeInOutCubic(t);
+      expect(val).toBeGreaterThanOrEqual(prev);
+      prev = val;
+    }
+  });
+
+  test('click updates mouse position', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    // Reset mouse position
+    bm.setMousePosition(0, 0);
+    // Click the login button (has a visible bounding box)
+    await handleWriteCommand('click', ['#login-btn'], bm);
+    const pos = bm.getMousePosition();
+    // Position should have moved from (0,0)
+    expect(pos.x).toBeGreaterThan(0);
+    expect(pos.y).toBeGreaterThan(0);
+  });
+
+  test('hover updates mouse position', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    bm.setMousePosition(0, 0);
+    await handleWriteCommand('hover', ['h1'], bm);
+    const pos = bm.getMousePosition();
+    expect(pos.x).toBeGreaterThan(0);
+    expect(pos.y).toBeGreaterThan(0);
+  });
+
+  test('click on different elements changes mouse position', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    bm.setMousePosition(0, 0);
+    await handleWriteCommand('click', ['#email'], bm);
+    const pos1 = bm.getMousePosition();
+    await handleWriteCommand('click', ['#login-btn'], bm);
+    const pos2 = bm.getMousePosition();
+    // Different elements should result in different positions
+    expect(pos1.x !== pos2.x || pos1.y !== pos2.y).toBe(true);
+  });
+});
+
+// ─── Network Idle Auto-Wait ─────────────────────────────────────
+
+describe('Network idle auto-wait', () => {
+  test('click waits for network idle', async () => {
+    // Navigate to forms page and click submit — the form handler prevents default
+    // so no actual navigation, but the networkidle wait should not hang
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    const start = Date.now();
+    await handleWriteCommand('click', ['#login-btn'], bm);
+    const duration = Date.now() - start;
+    // Should complete within reasonable time (not hang for 15s timeout)
+    expect(duration).toBeLessThan(5000);
   });
 });
