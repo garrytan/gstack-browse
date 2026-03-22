@@ -2250,6 +2250,7 @@ function transformFrontmatter(content: string, host: Host): string {
   if (descLines.length > 0) {
     description = descLines.join('\n').trim();
   }
+  description = truncateCodexDescription(description);
 
   // Re-emit Codex frontmatter (name + description only)
   const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
@@ -2291,6 +2292,19 @@ function extractHookSafetyProse(tmplContent: string): string | null {
 // ─── Template Processing ────────────────────────────────────
 
 const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit directly -->\n<!-- Regenerate: bun run gen:skill-docs -->\n`;
+const CODEX_DESCRIPTION_MAX_LENGTH = 1024;
+
+function truncateCodexDescription(description: string, maxLength = CODEX_DESCRIPTION_MAX_LENGTH): string {
+  if (description.length <= maxLength) return description;
+
+  const truncated = description.slice(0, Math.max(0, maxLength - 3));
+  const safeBoundary = Math.max(
+    truncated.lastIndexOf('\n'),
+    truncated.lastIndexOf(' '),
+  );
+  const base = (safeBoundary > 0 ? truncated.slice(0, safeBoundary) : truncated).trimEnd();
+  return `${base}...`;
+}
 
 function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');

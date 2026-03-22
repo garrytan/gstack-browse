@@ -18,27 +18,7 @@ description: |
   - Debugging errors → suggest /investigate
   - Testing the app → suggest /qa
   - Code review before merge → suggest /review
-  - Visual design audit → suggest /design-review
-  - Ready to deploy / create PR → suggest /ship
-  - Post-ship doc updates → suggest /document-release
-  - Weekly retrospective → suggest /retro
-  - Wanting a second opinion or adversarial code review → suggest /codex
-  - Working with production or live systems → suggest /careful
-  - Want to scope edits to one module/directory → suggest /freeze
-  - Maximum safety mode (destructive warnings + edit restrictions) → suggest /guard
-  - Removing edit restrictions → suggest /unfreeze
-  - Upgrading gstack to latest version → suggest /gstack-upgrade
-  
-  If the user pushes back on skill suggestions ("stop suggesting things",
-  "I don't need suggestions", "too aggressive"):
-  1. Stop suggesting for the rest of this session
-  2. Run: gstack-config set proactive false
-  3. Say: "Got it — I'll stop suggesting skills. Just tell me to be proactive
-     again if you change your mind."
-  
-  If the user says "be proactive again" or "turn on suggestions":
-  1. Run: gstack-config set proactive true
-  2. Say: "Proactive suggestions are back on."
+  - Visual design audit →...
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

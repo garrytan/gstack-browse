@@ -6,6 +6,30 @@ import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
+function extractFrontmatterDescription(content: string): string {
+  const fmEnd = content.indexOf('\n---', 4);
+  expect(fmEnd).toBeGreaterThan(0);
+  const frontmatter = content.slice(4, fmEnd);
+  const lines = frontmatter.split('\n');
+  const descStart = lines.findIndex(line => line.trim() === 'description: |');
+
+  if (descStart === -1) {
+    const inline = lines.find(line => line.startsWith('description: '));
+    return inline ? inline.replace(/^description:\s*/, '').trim() : '';
+  }
+
+  const descLines: string[] = [];
+  for (const line of lines.slice(descStart + 1)) {
+    if (line === '' || line.startsWith('  ')) {
+      descLines.push(line.startsWith('  ') ? line.slice(2) : '');
+      continue;
+    }
+    break;
+  }
+
+  return descLines.join('\n').trim();
+}
+
 // Dynamic template discovery — matches the generator's findTemplates() behavior.
 // New skills automatically get test coverage without updating a static list.
 const ALL_SKILLS = (() => {
@@ -806,6 +830,14 @@ describe('Codex generation (--host codex)', () => {
     expect(frontmatter).toContain('YC Office Hours');
   });
 
+  test('Codex descriptions stay within host frontmatter limit', () => {
+    for (const skill of CODEX_SKILLS) {
+      const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
+      const description = extractFrontmatterDescription(content);
+      expect(description.length).toBeLessThanOrEqual(1024);
+    }
+  });
+
   test('hook skills have safety prose and no hooks: in frontmatter', () => {
     const HOOK_SKILLS = ['gstack-careful', 'gstack-freeze', 'gstack-guard'];
     for (const skillName of HOOK_SKILLS) {
@@ -958,6 +990,16 @@ describe('setup script validation', () => {
     );
     expect(codexSection).toContain('link_codex_skill_dirs');
     expect(codexSection).not.toContain('link_claude_skill_dirs');
+  });
+
+  test('Codex root install points at generated gstack skill, not repo root', () => {
+    const codexSection = setupContent.slice(
+      setupContent.indexOf('# 5. Install for Codex'),
+      setupContent.indexOf('# 6. Create')
+    );
+    expect(codexSection).toContain('CODEX_GSTACK="$CODEX_SKILLS/gstack"');
+    expect(codexSection).toContain('ln -snf "$GSTACK_DIR/.agents/skills/gstack" "$CODEX_GSTACK"');
+    expect(codexSection).not.toContain('ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
