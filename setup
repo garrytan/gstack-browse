@@ -11,6 +11,8 @@ fi
 GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SKILLS_DIR="$(dirname "$GSTACK_DIR")"
 BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+CODEX_SKILLS="$HOME/.codex/skills"
+CODEX_GSTACK="$CODEX_SKILLS/gstack"
 
 IS_WINDOWS=0
 case "$(uname -s)" in
@@ -46,6 +48,32 @@ elif [ "$HOST" = "claude" ]; then
   INSTALL_CLAUDE=1
 elif [ "$HOST" = "codex" ]; then
   INSTALL_CODEX=1
+fi
+
+migrate_direct_codex_install() {
+  local gstack_dir="$1"
+  local codex_gstack="$2"
+  local migrated_dir="$HOME/.gstack/repos/gstack"
+
+  [ "$gstack_dir" = "$codex_gstack" ] || return 0
+  [ -L "$gstack_dir" ] && return 0
+
+  mkdir -p "$(dirname "$migrated_dir")"
+  if [ -e "$migrated_dir" ] && [ "$migrated_dir" != "$gstack_dir" ]; then
+    echo "gstack setup failed: direct Codex install detected at $gstack_dir" >&2
+    echo "A migrated repo already exists at $migrated_dir; move one of them aside and rerun setup." >&2
+    exit 1
+  fi
+
+  echo "Migrating direct Codex install to $migrated_dir to avoid duplicate skill discovery..."
+  mv "$gstack_dir" "$migrated_dir"
+  GSTACK_DIR="$migrated_dir"
+  SKILLS_DIR="$(dirname "$GSTACK_DIR")"
+  BROWSE_BIN="$GSTACK_DIR/browse/dist/browse"
+}
+
+if [ "$INSTALL_CODEX" -eq 1 ]; then
+  migrate_direct_codex_install "$GSTACK_DIR" "$CODEX_GSTACK"
 fi
 
 ensure_playwright_browser() {
@@ -218,6 +246,44 @@ create_agents_sidecar() {
   done
 }
 
+# ─── Helper: create a minimal ~/.codex/skills/gstack runtime root ───────────
+# Codex scans ~/.codex/skills recursively. Exposing the whole repo here causes
+# duplicate skills because source SKILL.md files and generated Codex skills are
+# both discoverable. Keep this directory limited to runtime assets + root skill.
+create_codex_runtime_root() {
+  local gstack_dir="$1"
+  local codex_gstack="$2"
+  local agents_dir="$gstack_dir/.agents/skills"
+
+  if [ -L "$codex_gstack" ]; then
+    rm -f "$codex_gstack"
+  fi
+
+  mkdir -p "$codex_gstack" "$codex_gstack/browse" "$codex_gstack/gstack-upgrade" "$codex_gstack/review"
+
+  if [ -f "$agents_dir/gstack/SKILL.md" ]; then
+    ln -snf "$agents_dir/gstack/SKILL.md" "$codex_gstack/SKILL.md"
+  fi
+  if [ -d "$gstack_dir/bin" ]; then
+    ln -snf "$gstack_dir/bin" "$codex_gstack/bin"
+  fi
+  if [ -d "$gstack_dir/browse/dist" ]; then
+    ln -snf "$gstack_dir/browse/dist" "$codex_gstack/browse/dist"
+  fi
+  if [ -d "$gstack_dir/browse/bin" ]; then
+    ln -snf "$gstack_dir/browse/bin" "$codex_gstack/browse/bin"
+  fi
+  if [ -f "$agents_dir/gstack-upgrade/SKILL.md" ]; then
+    ln -snf "$agents_dir/gstack-upgrade/SKILL.md" "$codex_gstack/gstack-upgrade/SKILL.md"
+  fi
+  # Review runtime assets (individual files, NOT the whole review/ dir which has SKILL.md)
+  for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
+    if [ -f "$gstack_dir/review/$f" ]; then
+      ln -snf "$gstack_dir/review/$f" "$codex_gstack/review/$f"
+    fi
+  done
+}
+
 # 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
@@ -234,14 +300,9 @@ fi
 
 # 5. Install for Codex
 if [ "$INSTALL_CODEX" -eq 1 ]; then
-  CODEX_SKILLS="$HOME/.codex/skills"
-  CODEX_GSTACK="$CODEX_SKILLS/gstack"
   mkdir -p "$CODEX_SKILLS"
 
-  # Symlink gstack source for runtime assets (bin/, browse/dist/)
-  if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
-    ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
-  fi
+  create_codex_runtime_root "$GSTACK_DIR" "$CODEX_GSTACK"
   # Install generated Codex-format skills (not Claude source dirs)
   link_codex_skill_dirs "$GSTACK_DIR" "$CODEX_SKILLS"
 

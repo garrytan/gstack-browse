@@ -812,8 +812,10 @@ describe('setup script validation', () => {
       setupContent.indexOf('# 5. Install for Codex'),
       setupContent.indexOf('# 6. Create')
     );
+    expect(codexSection).toContain('create_codex_runtime_root');
     expect(codexSection).toContain('link_codex_skill_dirs');
     expect(codexSection).not.toContain('link_claude_skill_dirs');
+    expect(codexSection).not.toContain('ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
@@ -852,6 +854,28 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('browse');
     expect(fnBody).toContain('review');
     expect(fnBody).toContain('qa');
+  });
+
+  test('create_codex_runtime_root exposes only runtime assets', () => {
+    const fnStart = setupContent.indexOf('create_codex_runtime_root()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', setupContent.indexOf('review/', fnStart)));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('gstack/SKILL.md');
+    expect(fnBody).toContain('browse/dist');
+    expect(fnBody).toContain('browse/bin');
+    expect(fnBody).toContain('gstack-upgrade/SKILL.md');
+    // Review runtime assets (individual files, not the whole dir)
+    expect(fnBody).toContain('checklist.md');
+    expect(fnBody).toContain('design-checklist.md');
+    expect(fnBody).toContain('greptile-triage.md');
+    expect(fnBody).toContain('TODOS-format.md');
+    expect(fnBody).not.toContain('ln -snf "$gstack_dir" "$codex_gstack"');
+  });
+
+  test('direct Codex installs are migrated out of ~/.codex/skills/gstack', () => {
+    expect(setupContent).toContain('migrate_direct_codex_install');
+    expect(setupContent).toContain('$HOME/.gstack/repos/gstack');
+    expect(setupContent).toContain('avoid duplicate skill discovery');
   });
 });
 
