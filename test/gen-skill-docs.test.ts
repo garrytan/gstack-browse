@@ -982,9 +982,39 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('claude|codex|auto');
   });
 
+  test('setup supports --prefix for Claude skill symlinks', () => {
+    expect(setupContent).toContain('--prefix');
+    expect(setupContent).toContain('CLAUDE_PREFIX');
+  });
+
   test('auto mode detects claude and codex binaries', () => {
     expect(setupContent).toContain('command -v claude');
     expect(setupContent).toContain('command -v codex');
+  });
+
+  test('link_claude_skill_dirs applies optional prefix to target names', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('local skill_prefix="${3:-}"');
+    expect(fnBody).toContain('target_name="$skill_name"');
+    expect(fnBody).toContain('target="$skills_dir/$target_name"');
+  });
+
+  test('Claude install passes CLAUDE_PREFIX into link_claude_skill_dirs', () => {
+    const claudeSection = setupContent.slice(
+      setupContent.indexOf('# 4. Install for Claude'),
+      setupContent.indexOf('# 5. Install for Codex')
+    );
+    expect(claudeSection).toContain('link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR" "$CLAUDE_PREFIX"');
+  });
+
+  test('link_claude_skill_dirs avoids double-prefixing already-prefixed skills', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('if [ -n "$skill_prefix" ] && [ "${skill_name#"$skill_prefix"}" = "$skill_name" ]; then');
+    expect(fnBody).toContain('target_name="${skill_prefix}$skill_name"');
   });
 
   test('create_agents_sidecar links runtime assets', () => {

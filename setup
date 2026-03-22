@@ -19,10 +19,20 @@ esac
 
 # ─── Parse --host flag ─────────────────────────────────────────
 HOST="claude"
+CLAUDE_PREFIX=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) HOST="$2"; shift 2 ;;
     --host=*) HOST="${1#--host=}"; shift ;;
+    --prefix)
+      [ $# -lt 2 ] && echo "Missing value for --prefix" >&2 && exit 1
+      CLAUDE_PREFIX="$2"
+      shift 2
+      ;;
+    --prefix=*)
+      CLAUDE_PREFIX="${1#--prefix=}"
+      shift
+      ;;
     *) shift ;;
   esac
 done
@@ -137,17 +147,22 @@ mkdir -p "$HOME/.gstack/projects"
 link_claude_skill_dirs() {
   local gstack_dir="$1"
   local skills_dir="$2"
+  local skill_prefix="${3:-}"
   local linked=()
   for skill_dir in "$gstack_dir"/*/; do
     if [ -f "$skill_dir/SKILL.md" ]; then
       skill_name="$(basename "$skill_dir")"
+      target_name="$skill_name"
       # Skip node_modules
       [ "$skill_name" = "node_modules" ] && continue
-      target="$skills_dir/$skill_name"
+      if [ -n "$skill_prefix" ] && [ "${skill_name#"$skill_prefix"}" = "$skill_name" ]; then
+        target_name="${skill_prefix}$skill_name"
+      fi
+      target="$skills_dir/$target_name"
       # Create or update symlink; skip if a real file/directory exists
       if [ -L "$target" ] || [ ! -e "$target" ]; then
         ln -snf "gstack/$skill_name" "$target"
-        linked+=("$skill_name")
+        linked+=("$target_name")
       fi
     fi
   done
@@ -222,7 +237,7 @@ create_agents_sidecar() {
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
-    link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR"
+    link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR" "$CLAUDE_PREFIX"
     echo "gstack ready (claude)."
     echo "  browse: $BROWSE_BIN"
   else
