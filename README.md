@@ -60,6 +60,17 @@ Real files get committed to your repo (not a submodule), so `git clone` just wor
 
 gstack works on any agent that supports the [SKILL.md standard](https://github.com/anthropics/claude-code). Skills live in `.agents/skills/` and are discovered automatically.
 
+Install to one repo:
+
+```bash
+git clone https://github.com/garrytan/gstack.git .agents/skills/gstack
+cd .agents/skills/gstack && ./setup --host codex
+```
+
+When setup runs from `.agents/skills/gstack`, it installs the generated Codex skills next to it in the same repo and does not write to `~/.codex/skills`.
+
+Install once for your user account:
+
 ```bash
 git clone https://github.com/garrytan/gstack.git ~/.codex/skills/gstack
 cd ~/.codex/skills/gstack && ./setup --host codex
@@ -72,7 +83,7 @@ git clone https://github.com/garrytan/gstack.git ~/gstack
 cd ~/gstack && ./setup --host auto
 ```
 
-This installs to `~/.claude/skills/gstack` and/or `~/.codex/skills/gstack` depending on what's available. All 25 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
+For Codex-compatible hosts, setup now supports both repo-local installs from `.agents/skills/gstack` and user-global installs from `~/.codex/skills/gstack`. All 25 skills work across all supported agents. Hook-based safety skills (careful, freeze, guard) use inline safety advisory prose on non-Claude hosts.
 
 ## See it work
 

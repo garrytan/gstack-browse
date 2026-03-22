@@ -220,6 +220,12 @@ create_agents_sidecar() {
 
 # 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$SKILLS_DIR")"
+SKILLS_PARENT_BASENAME="$(basename "$(dirname "$SKILLS_DIR")")"
+CODEX_REPO_LOCAL=0
+if [ "$SKILLS_BASENAME" = "skills" ] && [ "$SKILLS_PARENT_BASENAME" = ".agents" ]; then
+  CODEX_REPO_LOCAL=1
+fi
+
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
     link_claude_skill_dirs "$GSTACK_DIR" "$SKILLS_DIR"
@@ -234,12 +240,17 @@ fi
 
 # 5. Install for Codex
 if [ "$INSTALL_CODEX" -eq 1 ]; then
-  CODEX_SKILLS="$HOME/.codex/skills"
-  CODEX_GSTACK="$CODEX_SKILLS/gstack"
+  if [ "$CODEX_REPO_LOCAL" -eq 1 ]; then
+    CODEX_SKILLS="$SKILLS_DIR"
+    CODEX_GSTACK="$GSTACK_DIR"
+  else
+    CODEX_SKILLS="$HOME/.codex/skills"
+    CODEX_GSTACK="$CODEX_SKILLS/gstack"
+  fi
   mkdir -p "$CODEX_SKILLS"
 
   # Symlink gstack source for runtime assets (bin/, browse/dist/)
-  if [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; then
+  if [ "$CODEX_GSTACK" != "$GSTACK_DIR" ] && { [ -L "$CODEX_GSTACK" ] || [ ! -e "$CODEX_GSTACK" ]; }; then
     ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"
   fi
   # Install generated Codex-format skills (not Claude source dirs)
@@ -251,7 +262,7 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
 fi
 
 # 6. Create .agents/ sidecar symlinks (useful for Codex/Gemini/Cursor workspace-local)
-if [ "$INSTALL_CODEX" -eq 1 ]; then
+if [ "$INSTALL_CODEX" -eq 1 ] && [ "$CODEX_REPO_LOCAL" -eq 0 ]; then
   # Detect repo root: if we're inside a skills directory, go up two levels
   if [ "$SKILLS_BASENAME" = "skills" ]; then
     REPO_ROOT="$(dirname "$SKILLS_DIR")"

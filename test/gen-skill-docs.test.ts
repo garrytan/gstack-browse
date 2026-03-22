@@ -683,11 +683,14 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
-  test('Codex preamble uses codex paths', () => {
+  test('Codex preamble resolves runtime assets from repo-local or global gstack roots', () => {
     // Check a skill that has a preamble (review is a good candidate)
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('~/.codex/skills/gstack');
-    expect(content).toContain('.agents/skills/gstack');
+    expect(content).toContain('GSTACK_ROOT');
+    expect(content).toContain('$_ROOT/.agents/skills/gstack');
+    expect(content).toContain('$GSTACK_BIN/gstack-config');
+    expect(content).toContain('$GSTACK_ROOT/gstack-upgrade/SKILL.md');
+    expect(content).not.toContain('~/.codex/skills/gstack/bin/gstack-config get telemetry');
   });
 
   // ─── Path rewriting regression tests ─────────────────────────
@@ -725,9 +728,9 @@ describe('Codex generation (--host codex)', () => {
     // Test each of the 4 path rewrite rules individually
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
 
-    // Rule 1: ~/.claude/skills/gstack → ~/.codex/skills/gstack
+    // Rule 1: ~/.claude/skills/gstack → $GSTACK_ROOT
     expect(content).not.toContain('~/.claude/skills/gstack');
-    expect(content).toContain('~/.codex/skills/gstack');
+    expect(content).toContain('$GSTACK_ROOT');
 
     // Rule 2: .claude/skills/gstack → .agents/skills/gstack
     expect(content).not.toContain('.claude/skills/gstack');
@@ -746,6 +749,9 @@ describe('Codex generation (--host codex)', () => {
       // No skill should reference Claude paths
       expect(content).not.toContain('~/.claude/skills');
       expect(content).not.toContain('.claude/skills');
+      if (content.includes('gstack-config') || content.includes('gstack-update-check') || content.includes('gstack-telemetry-log')) {
+        expect(content).toContain('$GSTACK_ROOT');
+      }
       // If a skill references checklist.md, it must use the correct sidecar path
       if (content.includes('checklist.md') && !content.includes('design-checklist.md')) {
         expect(content).not.toContain('gstack-review/checklist.md');
@@ -814,6 +820,14 @@ describe('setup script validation', () => {
     );
     expect(codexSection).toContain('link_codex_skill_dirs');
     expect(codexSection).not.toContain('link_claude_skill_dirs');
+  });
+
+  test('Codex install prefers repo-local .agents/skills when setup runs from there', () => {
+    expect(setupContent).toContain('SKILLS_PARENT_BASENAME');
+    expect(setupContent).toContain('CODEX_REPO_LOCAL=0');
+    expect(setupContent).toContain('[ "$SKILLS_PARENT_BASENAME" = ".agents" ]');
+    expect(setupContent).toContain('CODEX_REPO_LOCAL=1');
+    expect(setupContent).toContain('CODEX_SKILLS="$SKILLS_DIR"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
