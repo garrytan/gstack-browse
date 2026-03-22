@@ -6,7 +6,7 @@
  */
 
 import type { BrowserManager } from './browser-manager';
-import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
+import { findInstalledBrowsers, importCookies, listSupportedBrowserNames } from './cookie-import-browser';
 import { validateNavigationUrl } from './url-validation';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -333,7 +333,7 @@ export async function handleWriteCommand(
 
       const browsers = findInstalledBrowsers();
       if (browsers.length === 0) {
-        throw new Error('No Chromium browsers found. Supported: Comet, Chrome, Arc, Brave, Edge');
+        throw new Error(`No Chromium browsers found. Supported: ${listSupportedBrowserNames().join(', ')}`);
       }
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
