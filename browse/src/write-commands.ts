@@ -8,6 +8,7 @@
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import { validateNavigationUrl } from './url-validation';
+import { moveMouseEased } from './mouse';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR, isPathWithin } from './platform';
@@ -70,10 +71,22 @@ export async function handleWriteCommand(
 
       const resolved = await bm.resolveRef(selector);
       try {
-        if ('locator' in resolved) {
-          await resolved.locator.click({ timeout: 5000 });
+        // Try eased mouse movement → click at coordinates
+        const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
+        await locator.scrollIntoViewIfNeeded({ timeout: 5000 });
+        const box = await locator.boundingBox({ timeout: 2000 });
+        if (box) {
+          const centerX = box.x + box.width / 2;
+          const centerY = box.y + box.height / 2;
+          await moveMouseEased(page, bm, centerX, centerY);
+          await page.mouse.click(centerX, centerY);
         } else {
-          await page.click(resolved.selector, { timeout: 5000 });
+          // Fallback: element has no bbox (hidden/zero-size) — use locator click
+          if ('locator' in resolved) {
+            await resolved.locator.click({ timeout: 5000 });
+          } else {
+            await page.click(resolved.selector, { timeout: 5000 });
+          }
         }
       } catch (err: any) {
         // Enhanced error guidance: clicking <option> elements always fails (not visible / timeout)
@@ -85,13 +98,13 @@ export async function handleWriteCommand(
             ).catch(() => false);
         if (isOption) {
           throw new Error(
-            `Cannot click <option> elements. Use 'browse select <parent-select> <value>' instead of 'click' for dropdown options.`
+            `Cannot click <option> elements. Use 'select' instead of 'click' for dropdown options.`
           );
         }
         throw err;
       }
-      // Wait briefly for any navigation/DOM update
-      await page.waitForLoadState('domcontentloaded').catch(() => {});
+      // Wait for network to settle after click (SPA routing, XHR, etc.)
+      await page.waitForLoadState('networkidle', { timeout: 1500 }).catch(() => {});
       return `Clicked ${selector} → now at ${page.url()}`;
     }
 
@@ -125,10 +138,21 @@ export async function handleWriteCommand(
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse hover <selector>');
       const resolved = await bm.resolveRef(selector);
-      if ('locator' in resolved) {
-        await resolved.locator.hover({ timeout: 5000 });
-      } else {
-        await page.hover(resolved.selector, { timeout: 5000 });
+      const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
+      try {
+        await locator.scrollIntoViewIfNeeded({ timeout: 5000 });
+        const box = await locator.boundingBox({ timeout: 2000 });
+        if (box) {
+          const centerX = box.x + box.width / 2;
+          const centerY = box.y + box.height / 2;
+          await moveMouseEased(page, bm, centerX, centerY);
+        } else {
+          // Fallback: no bbox — use locator hover
+          await locator.hover({ timeout: 5000 });
+        }
+      } catch {
+        // Fallback on any error
+        await locator.hover({ timeout: 5000 });
       }
       return `Hovered ${selector}`;
     }

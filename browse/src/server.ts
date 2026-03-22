@@ -51,8 +51,9 @@ function generateHelpText(): string {
   }
 
   const categoryOrder = [
-    'Navigation', 'Reading', 'Interaction', 'Inspection',
-    'Visual', 'Snapshot', 'Meta', 'Tabs', 'Server',
+    'Chain', 'Navigation', 'Interaction',
+    'Reading', 'Inspection',
+    'Visual', 'Snapshot', 'Tabs', 'Server',
   ];
 
   const lines = ['gstack browse — headless browser for AI agents', '', 'Commands:'];
@@ -154,8 +155,8 @@ const idleCheckInterval = setInterval(() => {
 }, 60_000);
 
 // ─── Command Sets (from commands.ts — single source of truth) ───
-import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
-export { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS };
+import { READ_COMMANDS, CHAIN_ONLY_COMMANDS, META_COMMANDS } from './commands';
+export { READ_COMMANDS, CHAIN_ONLY_COMMANDS, META_COMMANDS };
 
 // ─── Server ────────────────────────────────────────────────────
 const browserManager = new BrowserManager();
@@ -229,8 +230,14 @@ async function handleCommand(body: any): Promise<Response> {
 
     if (READ_COMMANDS.has(command)) {
       result = await handleReadCommand(command, args, browserManager);
-    } else if (WRITE_COMMANDS.has(command)) {
-      result = await handleWriteCommand(command, args, browserManager);
+    } else if (CHAIN_ONLY_COMMANDS.has(command)) {
+      return new Response(JSON.stringify({
+        error: `'${command}' is chain-only. Use: browse chain '[["${command}"${args.length > 0 ? ',"' + args.join('","') + '"' : ''}]]'`,
+        hint: 'chain is the primary interface — it executes actions and auto-observes (snapshot + page state).',
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
     } else if (META_COMMANDS.has(command)) {
       result = await handleMetaCommand(command, args, browserManager, shutdown);
     } else if (command === 'help') {
