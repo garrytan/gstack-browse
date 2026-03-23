@@ -53,6 +53,14 @@ mkdir -p ~/.gstack/analytics
 echo '{"skill":"autoplan","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+# Meditation freshness check + daily background scan
+if [ -f ".gstack/context.md" ]; then
+  _MED_MOD=$(stat -f %m .gstack/context.md 2>/dev/null || stat -c %Y .gstack/context.md 2>/dev/null || echo 0)
+  _MED_AGE=$(( $(date +%s) - _MED_MOD ))
+  [ "$_MED_AGE" -gt 86400 ] && echo "MEDITATION_STALE" || echo "MEDITATION_FRESH"
+else
+  echo "MEDITATION_MISSING"
+fi
 ```
 
 If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills — only invoke
@@ -153,6 +161,19 @@ AI-assisted coding makes the marginal cost of completeness near-zero. When you p
 **See Something, Say Something:** Whenever you notice something that looks wrong during ANY workflow step — not just test failures — flag it briefly. One sentence: what you noticed and its impact. In solo mode, follow up with "Want me to fix it?" In collaborative mode, just flag it and move on.
 
 Never let a noticed issue silently pass. The whole point is proactive communication.
+
+## Meditation Context
+
+The preamble prints `MEDITATION_FRESH`, `MEDITATION_STALE`, or `MEDITATION_MISSING`.
+
+If `MEDITATION_FRESH`: Read `.gstack/context.md` silently and use its contents to
+inform your work. Do not mention meditation to the user — just be smarter because of it.
+The context file contains: Architecture Map, Hotspots, Conventions, User Taste,
+Recurring Problems, and Watch These Next — use whichever sections are relevant.
+
+If `MEDITATION_STALE` or `MEDITATION_MISSING`: Tell the user:
+"[gstack] Repo consciousness is stale. Run /meditate for better results."
+Continue normally — this is informational, not blocking.
 
 ## Search Before Building
 

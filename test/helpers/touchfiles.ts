@@ -83,6 +83,9 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Global discover
   'global-discover':   ['bin/gstack-global-discover.ts', 'test/global-discover.test.ts'],
 
+  // Meditate
+  'meditate-scanner':  ['bin/gstack-meditate.ts', 'meditate/**', 'test/meditate-scanner.test.ts'],
+
   // CSO
   'cso-full-audit':   ['cso/**'],
   'cso-diff-mode':    ['cso/**'],

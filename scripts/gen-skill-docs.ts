@@ -215,6 +215,14 @@ mkdir -p ~/.gstack/analytics
 echo '{"skill":"${ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ${ctx.paths.binDir}/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+# Meditation freshness check + daily background scan
+if [ -f ".gstack/context.md" ]; then
+  _MED_MOD=$(stat -f %m .gstack/context.md 2>/dev/null || stat -c %Y .gstack/context.md 2>/dev/null || echo 0)
+  _MED_AGE=$(( $(date +%s) - _MED_MOD ))
+  [ "$_MED_AGE" -gt 86400 ] && echo "MEDITATION_STALE" || echo "MEDITATION_FRESH"
+else
+  echo "MEDITATION_MISSING"
+fi
 \`\`\``;
 }
 
@@ -579,6 +587,21 @@ file you are allowed to edit in plan mode. The plan file review report is part o
 plan's living status.`;
 }
 
+function generateMeditationContext(): string {
+  return `## Meditation Context
+
+The preamble prints \`MEDITATION_FRESH\`, \`MEDITATION_STALE\`, or \`MEDITATION_MISSING\`.
+
+If \`MEDITATION_FRESH\`: Read \`.gstack/context.md\` silently and use its contents to
+inform your work. Do not mention meditation to the user — just be smarter because of it.
+The context file contains: Architecture Map, Hotspots, Conventions, User Taste,
+Recurring Problems, and Watch These Next — use whichever sections are relevant.
+
+If \`MEDITATION_STALE\` or \`MEDITATION_MISSING\`: Tell the user:
+"[gstack] Repo consciousness is stale. Run /meditate for better results."
+Continue normally — this is informational, not blocking.`;
+}
+
 function generatePreamble(ctx: TemplateContext): string {
   return [
     generatePreambleBash(ctx),
@@ -588,6 +611,7 @@ function generatePreamble(ctx: TemplateContext): string {
     generateAskUserFormat(ctx),
     generateCompletenessSection(),
     generateRepoModeSection(),
+    generateMeditationContext(),
     generateSearchBeforeBuildingSection(ctx),
     generateContributorMode(),
     generateCompletionStatus(),
