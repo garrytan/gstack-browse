@@ -378,6 +378,93 @@ describe('Cookie Import Browser', () => {
     });
   });
 
+  describe('Windows AES-256-GCM Decryption', () => {
+    // Windows uses a 32-byte key with AES-256-GCM instead of macOS AES-128-CBC
+    const WIN_KEY = crypto.randomBytes(32);
+
+    function encryptCookieValueWindows(value: string): Buffer {
+      const nonce = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', WIN_KEY, nonce);
+      const encrypted = Buffer.concat([cipher.update(Buffer.from(value, 'utf-8')), cipher.final()]);
+      const authTag = cipher.getAuthTag(); // 16 bytes
+
+      // Layout: "v10" (3) + nonce (12) + ciphertext (N) + authTag (16)
+      return Buffer.concat([Buffer.from('v10'), nonce, encrypted, authTag]);
+    }
+
+    test('encrypts and decrypts round-trip correctly', () => {
+      const original = 'hello-windows-cookie';
+      const ev = encryptCookieValueWindows(original);
+
+      // Verify prefix
+      expect(ev.slice(0, 3).toString()).toBe('v10');
+
+      // Decrypt manually
+      const nonce = ev.slice(3, 15);
+      const authTag = ev.slice(ev.length - 16);
+      const ciphertext = ev.slice(15, ev.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', WIN_KEY, nonce);
+      decipher.setAuthTag(authTag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      expect(plaintext.toString('utf-8')).toBe(original);
+    });
+
+    test('handles special characters', () => {
+      const specialValue = 'a=b&c=d; path=/; expires=Thu, 01 Jan 2099';
+      const ev = encryptCookieValueWindows(specialValue);
+      const nonce = ev.slice(3, 15);
+      const authTag = ev.slice(ev.length - 16);
+      const ciphertext = ev.slice(15, ev.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', WIN_KEY, nonce);
+      decipher.setAuthTag(authTag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      expect(plaintext.toString('utf-8')).toBe(specialValue);
+    });
+
+    test('handles empty value', () => {
+      const ev = encryptCookieValueWindows('');
+      const nonce = ev.slice(3, 15);
+      const authTag = ev.slice(ev.length - 16);
+      const ciphertext = ev.slice(15, ev.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', WIN_KEY, nonce);
+      decipher.setAuthTag(authTag);
+      const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      expect(plaintext.toString('utf-8')).toBe('');
+    });
+
+    test('tampered auth tag fails decryption', () => {
+      const ev = encryptCookieValueWindows('should-fail');
+      // Tamper with the auth tag (last 16 bytes)
+      const tampered = Buffer.from(ev);
+      tampered[tampered.length - 1] ^= 0xff;
+
+      const nonce = tampered.slice(3, 15);
+      const authTag = tampered.slice(tampered.length - 16);
+      const ciphertext = tampered.slice(15, tampered.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', WIN_KEY, nonce);
+      decipher.setAuthTag(authTag);
+      expect(() => {
+        Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      }).toThrow();
+    });
+
+    test('tampered ciphertext fails decryption', () => {
+      const ev = encryptCookieValueWindows('should-also-fail');
+      const tampered = Buffer.from(ev);
+      // Tamper with a ciphertext byte (between nonce and auth tag)
+      if (tampered.length > 20) tampered[16] ^= 0xff;
+
+      const nonce = tampered.slice(3, 15);
+      const authTag = tampered.slice(tampered.length - 16);
+      const ciphertext = tampered.slice(15, tampered.length - 16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', WIN_KEY, nonce);
+      decipher.setAuthTag(authTag);
+      expect(() => {
+        Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+      }).toThrow();
+    });
+  });
+
   describe('Unknown Browser', () => {
     test('throws for unknown browser name', () => {
       expect(() => listDomains('firefox')).toThrow(/Unknown browser.*firefox/i);

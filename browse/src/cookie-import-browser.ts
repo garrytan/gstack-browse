@@ -1,35 +1,16 @@
 /**
  * Chromium browser cookie import — read and decrypt cookies from real browsers
  *
- * Supports macOS Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
- * Pure logic module — no Playwright dependency, no HTTP concerns.
+ * Supports macOS and Windows Chromium-based browsers: Comet, Chrome, Arc, Brave, Edge.
  *
- * Decryption pipeline (Chromium macOS "v10" format):
+ * Decryption:
+ *   macOS: Keychain + PBKDF2 + AES-128-CBC (v10 cookies)
+ *   Windows: DPAPI + AES-256-GCM (v10 cookies)
+ *   Windows v20 (App-Bound Encryption): NOT supported — use the console-script
+ *   fallback in the picker UI instead.
  *
- *   ┌──────────────────────────────────────────────────────────────────┐
- *   │ 1. Keychain: `security find-generic-password -s "<svc>" -w`     │
- *   │    → base64 password string                                     │
- *   │                                                                  │
- *   │ 2. Key derivation:                                               │
- *   │    PBKDF2(password, salt="saltysalt", iter=1003, len=16, sha1)  │
- *   │    → 16-byte AES key                                            │
- *   │                                                                  │
- *   │ 3. For each cookie with encrypted_value starting with "v10":    │
- *   │    - Ciphertext = encrypted_value[3:]                           │
- *   │    - IV = 16 bytes of 0x20 (space character)                    │
- *   │    - Plaintext = AES-128-CBC-decrypt(key, iv, ciphertext)       │
- *   │    - Remove PKCS7 padding                                       │
- *   │    - Skip first 32 bytes (HMAC-SHA256 authentication tag)       │
- *   │    - Remaining bytes = cookie value (UTF-8)                     │
- *   │                                                                  │
- *   │ 4. If encrypted_value is empty but `value` field is set,        │
- *   │    use value directly (unencrypted cookie)                      │
- *   │                                                                  │
- *   │ 5. Chromium epoch: microseconds since 1601-01-01                │
- *   │    Unix seconds = (epoch - 11644473600000000) / 1000000         │
- *   │                                                                  │
- *   │ 6. sameSite: 0→"None", 1→"Lax", 2→"Strict", else→"Lax"        │
- *   └──────────────────────────────────────────────────────────────────┘
+ * listDomains() reads host_key from SQLite (not encrypted, always works).
+ * importCookies() decrypts cookie values; returns failed count for v20 cookies.
  */
 
 import { Database } from 'bun:sqlite';
@@ -37,12 +18,14 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { IS_WINDOWS, TEMP_DIR } from './platform';
 
 // ─── Types ──────────────────────────────────────────────────────
 
 export interface BrowserInfo {
   name: string;
-  dataDir: string;        // relative to ~/Library/Application Support/
+  dataDir: string;          // relative to ~/Library/Application Support/
+  windowsDataDir?: string;  // relative to %LOCALAPPDATA%/
   keychainService: string;
   aliases: string[];
 }
@@ -85,11 +68,11 @@ export class CookieImportError extends Error {
 // Hardcoded — NEVER interpolate user input into shell commands.
 
 const BROWSER_REGISTRY: BrowserInfo[] = [
-  { name: 'Comet',  dataDir: 'Comet/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
-  { name: 'Chrome', dataDir: 'Google/Chrome/',                keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
-  { name: 'Arc',    dataDir: 'Arc/User Data/',                keychainService: 'Arc Safe Storage',            aliases: ['arc'] },
-  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  keychainService: 'Brave Safe Storage',          aliases: ['brave'] },
-  { name: 'Edge',   dataDir: 'Microsoft Edge/',               keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
+  { name: 'Comet',  dataDir: 'Comet/',                       windowsDataDir: 'Comet/User Data/',                       keychainService: 'Comet Safe Storage',          aliases: ['comet', 'perplexity'] },
+  { name: 'Chrome', dataDir: 'Google/Chrome/',                windowsDataDir: 'Google/Chrome/User Data/',               keychainService: 'Chrome Safe Storage',         aliases: ['chrome', 'google-chrome'] },
+  { name: 'Arc',    dataDir: 'Arc/User Data/',                windowsDataDir: 'Arc/User Data/',                         keychainService: 'Arc Safe Storage',            aliases: ['arc'] },
+  { name: 'Brave',  dataDir: 'BraveSoftware/Brave-Browser/',  windowsDataDir: 'BraveSoftware/Brave-Browser/User Data/', keychainService: 'Brave Safe Storage',          aliases: ['brave'] },
+  { name: 'Edge',   dataDir: 'Microsoft Edge/',               windowsDataDir: 'Microsoft/Edge/User Data/',              keychainService: 'Microsoft Edge Safe Storage', aliases: ['edge'] },
 ];
 
 // ─── Key Cache ──────────────────────────────────────────────────
@@ -101,13 +84,37 @@ const keyCache = new Map<string, Buffer>();
 // ─── Public API ─────────────────────────────────────────────────
 
 /**
+ * Resolve the User Data directory for a browser on the current platform.
+ */
+function getUserDataDir(browser: BrowserInfo): string {
+  if (IS_WINDOWS) {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localAppData, browser.windowsDataDir || browser.dataDir);
+  }
+  return path.join(os.homedir(), 'Library', 'Application Support', browser.dataDir);
+}
+
+/**
  * Find which browsers are installed (have a cookie DB on disk).
+ * Checks Default profile and any "Profile N" directories.
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
-    try { return fs.existsSync(dbPath); } catch { return false; }
+    const userDataDir = getUserDataDir(b);
+    if (!fs.existsSync(userDataDir)) return false;
+    // Check Default and any Profile directories
+    const profiles = ['Default'];
+    try {
+      const entries = fs.readdirSync(userDataDir);
+      for (const e of entries) {
+        if (e.startsWith('Profile ')) profiles.push(e);
+      }
+    } catch { /* ignore */ }
+    return profiles.some(profile => {
+      const dbPath = path.join(userDataDir, profile, 'Cookies');
+      const networkDbPath = path.join(userDataDir, profile, 'Network', 'Cookies');
+      try { return fs.existsSync(dbPath) || fs.existsSync(networkDbPath); } catch { return false; }
+    });
   });
 }
 
@@ -210,8 +217,11 @@ function validateProfile(profile: string): void {
 
 function getCookieDbPath(browser: BrowserInfo, profile: string): string {
   validateProfile(profile);
-  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
-  const dbPath = path.join(appSupport, browser.dataDir, profile, 'Cookies');
+  const userDataDir = getUserDataDir(browser);
+  // On newer Chromium (Windows), cookies live in <profile>/Network/Cookies
+  const networkDbPath = path.join(userDataDir, profile, 'Network', 'Cookies');
+  if (fs.existsSync(networkDbPath)) return networkDbPath;
+  const dbPath = path.join(userDataDir, profile, 'Cookies');
   if (!fs.existsSync(dbPath)) {
     throw new CookieImportError(
       `${browser.name} is not installed (no cookie database at ${dbPath})`,
@@ -227,7 +237,7 @@ function openDb(dbPath: string, browserName: string): Database {
   try {
     return new Database(dbPath, { readonly: true });
   } catch (err: any) {
-    if (err.message?.includes('SQLITE_BUSY') || err.message?.includes('database is locked')) {
+    if (err.message?.includes('SQLITE_BUSY') || err.message?.includes('database is locked') || err.code === 'SQLITE_CANTOPEN') {
       return openDbFromCopy(dbPath, browserName);
     }
     if (err.message?.includes('SQLITE_CORRUPT') || err.message?.includes('malformed')) {
@@ -241,7 +251,7 @@ function openDb(dbPath: string, browserName: string): Database {
 }
 
 function openDbFromCopy(dbPath: string, browserName: string): Database {
-  const tmpPath = `/tmp/browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`;
+  const tmpPath = path.join(TEMP_DIR, `browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`);
   try {
     fs.copyFileSync(dbPath, tmpPath);
     // Also copy WAL and SHM if they exist (for consistent reads)
@@ -271,9 +281,18 @@ function openDbFromCopy(dbPath: string, browserName: string): Database {
   }
 }
 
-// ─── Internal: Keychain Access (async, 10s timeout) ─────────────
+// ─── Internal: Encryption Key Retrieval ──────────────────────────
 
 async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
+  if (IS_WINDOWS) {
+    const cacheKey = browser.windowsDataDir || browser.dataDir;
+    const cached = keyCache.get(cacheKey);
+    if (cached) return cached;
+    const key = await getWindowsEncryptionKey(browser);
+    keyCache.set(cacheKey, key);
+    return key;
+  }
+
   const cached = keyCache.get(browser.keychainService);
   if (cached) return cached;
 
@@ -281,6 +300,97 @@ async function getDerivedKey(browser: BrowserInfo): Promise<Buffer> {
   const derived = crypto.pbkdf2Sync(password, 'saltysalt', 1003, 16, 'sha1');
   keyCache.set(browser.keychainService, derived);
   return derived;
+}
+
+// ─── Internal: Windows DPAPI Key Extraction ──────────────────────
+
+async function getWindowsEncryptionKey(browser: BrowserInfo): Promise<Buffer> {
+  const userDataDir = getUserDataDir(browser);
+  const localStatePath = path.join(userDataDir, 'Local State');
+
+  if (!fs.existsSync(localStatePath)) {
+    throw new CookieImportError(
+      `${browser.name} Local State not found at ${localStatePath}`,
+      'not_installed',
+    );
+  }
+
+  const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf-8'));
+  const encryptedKeyB64 = localState?.os_crypt?.encrypted_key;
+  if (!encryptedKeyB64) {
+    throw new CookieImportError(
+      `No encryption key found in ${browser.name} Local State`,
+      'key_not_found',
+    );
+  }
+
+  // Base64 decode → strip 5-byte "DPAPI" prefix
+  const encryptedKey = Buffer.from(encryptedKeyB64, 'base64');
+  const prefix = encryptedKey.slice(0, 5).toString('utf-8');
+  if (prefix !== 'DPAPI') {
+    throw new CookieImportError(
+      `Unexpected key prefix "${prefix}" (expected "DPAPI")`,
+      'key_format_error',
+    );
+  }
+  const dpapiBlob = encryptedKey.slice(5);
+
+  // Decrypt via PowerShell DPAPI (runs as current user — same user who encrypted)
+  const b64Blob = dpapiBlob.toString('base64');
+  const psScript = `
+    Add-Type -AssemblyName System.Security
+    $blob = [Convert]::FromBase64String('${b64Blob}')
+    $decrypted = [System.Security.Cryptography.ProtectedData]::Unprotect($blob, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+    [Convert]::ToBase64String($decrypted)
+  `.trim();
+
+  const proc = Bun.spawn(
+    ['powershell', '-NoProfile', '-NonInteractive', '-Command', psScript],
+    { stdout: 'pipe', stderr: 'pipe' },
+  );
+
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) =>
+    timer = setTimeout(() => {
+      proc.kill();
+      reject(new CookieImportError(
+        `DPAPI decryption timed out for ${browser.name}`,
+        'dpapi_timeout',
+        'retry',
+      ));
+    }, 10_000),
+  );
+
+  try {
+    const exitCode = await Promise.race([proc.exited, timeout]);
+    clearTimeout(timer!);
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+
+    if (exitCode !== 0) {
+      throw new CookieImportError(
+        `DPAPI decryption failed for ${browser.name}: ${stderr.trim()}`,
+        'dpapi_error',
+        'retry',
+      );
+    }
+
+    const decryptedKey = Buffer.from(stdout.trim(), 'base64');
+    if (decryptedKey.length !== 32) {
+      throw new CookieImportError(
+        `Unexpected key length ${decryptedKey.length} (expected 32) for ${browser.name}`,
+        'key_format_error',
+      );
+    }
+    return decryptedKey;
+  } catch (err) {
+    if (err instanceof CookieImportError) throw err;
+    throw new CookieImportError(
+      `DPAPI decryption failed: ${(err as Error).message}`,
+      'dpapi_error',
+      'retry',
+    );
+  }
 }
 
 async function getKeychainPassword(service: string): Promise<string> {
@@ -364,10 +474,25 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
   if (ev.length === 0) return '';
 
   const prefix = ev.slice(0, 3).toString('utf-8');
+
+  if (IS_WINDOWS) {
+    // Windows Chromium uses "v10" prefix + AES-256-GCM
+    if (prefix !== 'v10') {
+      throw new Error(prefix === 'v20'
+        ? 'v20 App-Bound Encryption — use the console-script fallback in the picker UI'
+        : `Unknown encryption prefix: ${prefix}`);
+    }
+    return decryptWindows(ev, key);
+  }
+
+  // macOS Chromium uses "v10" prefix + AES-128-CBC
   if (prefix !== 'v10') {
     throw new Error(`Unknown encryption prefix: ${prefix}`);
   }
+  return decryptMacOS(ev, key);
+}
 
+function decryptMacOS(ev: Buffer, key: Buffer): string {
   const ciphertext = ev.slice(3);
   const iv = Buffer.alloc(16, 0x20); // 16 space characters
   const decipher = crypto.createDecipheriv('aes-128-cbc', key, iv);
@@ -376,6 +501,26 @@ function decryptCookieValue(row: RawCookie, key: Buffer): string {
   // First 32 bytes are HMAC-SHA256 authentication tag; actual value follows
   if (plaintext.length <= 32) return '';
   return plaintext.slice(32).toString('utf-8');
+}
+
+function decryptWindows(ev: Buffer, key: Buffer): string {
+  // Windows AES-256-GCM layout:
+  // [0..2]   = "v10" prefix (3 bytes)
+  // [3..14]  = nonce/IV (12 bytes)
+  // [15..-17] = ciphertext
+  // [-16..]  = GCM auth tag (16 bytes)
+  // Minimum: 3 (prefix) + 12 (nonce) + 0 (empty ciphertext) + 16 (tag) = 31 bytes
+  if (ev.length < 31) {
+    throw new Error(`Encrypted value too short (${ev.length} bytes, need at least 31)`);
+  }
+  const nonce = ev.slice(3, 15);          // 12 bytes
+  const authTag = ev.slice(ev.length - 16); // last 16 bytes
+  const ciphertext = ev.slice(15, ev.length - 16);
+
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+  decipher.setAuthTag(authTag);
+  const plaintext = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return plaintext.toString('utf-8');
 }
 
 function toPlaywrightCookie(row: RawCookie, value: string): PlaywrightCookie {
