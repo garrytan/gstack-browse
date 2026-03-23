@@ -16,6 +16,23 @@
  */
 
 import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright';
+
+/**
+ * Resolve browser launch options from BROWSE_BROWSER env var.
+ * BROWSE_BROWSER=edge uses Chromium engine with Edge channel,
+ * launching the user's installed Edge instead of bundled Chromium.
+ */
+function getLaunchOptions(headless: boolean): { headless: boolean; channel?: string; timeout?: number } {
+  const name = (process.env.BROWSE_BROWSER || '').toLowerCase();
+  const opts: any = { headless };
+  if (!headless) opts.timeout = 15000;
+  if (name === 'edge' || name === 'msedge') {
+    opts.channel = 'msedge';
+  } else if (name === 'chrome') {
+    opts.channel = 'chrome';
+  }
+  return opts;
+}
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 import { validateNavigationUrl } from './url-validation';
 
@@ -62,7 +79,7 @@ export class BrowserManager {
   private consecutiveFailures: number = 0;
 
   async launch() {
-    this.browser = await chromium.launch({ headless: true });
+    this.browser = await chromium.launch(getLaunchOptions(true));
 
     // Chromium crash → exit with clear message
     this.browser.on('disconnected', () => {
@@ -464,7 +481,7 @@ export class BrowserManager {
     // 2. Launch new headed browser (try-catch — if this fails, headless stays running)
     let newBrowser: Browser;
     try {
-      newBrowser = await chromium.launch({ headless: false, timeout: 15000 });
+      newBrowser = await chromium.launch(getLaunchOptions(false));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return `ERROR: Cannot open headed browser — ${msg}. Headless browser still running.`;
