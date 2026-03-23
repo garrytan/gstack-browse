@@ -189,8 +189,9 @@ fi
 mkdir -p "$HOME/.gstack/projects"
 
 # ─── Helper: install Claude skill subdirectories into a skills parent directory ──
-# Copies SKILL.md with ~/.claude path substitution (supports CLAUDE_CONFIG_DIR);
-# symlinks all other files so changes to assets are immediately visible.
+# Copies SKILL.md with ~/.claude path substitution when CLAUDE_CONFIG_DIR is set;
+# otherwise copies as-is (keeps ~/.claude, portable for default users).
+# Symlinks all other files so changes to assets are immediately visible.
 link_claude_skill_dirs() {
   local gstack_dir="$1"
   local skills_dir="$2"
@@ -205,10 +206,16 @@ link_claude_skill_dirs() {
       # Remove old whole-dir symlink from previous installs
       [ -L "$target" ] && rm -f "$target"
       mkdir -p "$target"
-      # Copy SKILL.md with path substitution (handles both ~/ and $HOME/ forms)
-      sed -e "s|~/.claude|$claude_dir|g" \
-          -e "s|\$HOME/\.claude|$claude_dir|g" \
-          "$skill_dir/SKILL.md" > "$target/SKILL.md"
+      # Copy SKILL.md, substituting ~/.claude only when CLAUDE_CONFIG_DIR is set.
+      # Default users keep ~/.claude as-is (portable); custom-path users get the
+      # literal resolved path baked in (no runtime bash dependency).
+      if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+        sed -e "s|~/.claude|$claude_dir|g" \
+            -e "s|\$HOME/\.claude|$claude_dir|g" \
+            "$skill_dir/SKILL.md" > "$target/SKILL.md"
+      else
+        cp "$skill_dir/SKILL.md" "$target/SKILL.md"
+      fi
       # Symlink all other entries in the skill directory
       for item in "$skill_dir"*; do
         item_name="$(basename "$item")"
