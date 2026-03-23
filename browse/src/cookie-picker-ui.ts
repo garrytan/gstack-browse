@@ -101,6 +101,31 @@ export function getCookiePickerHTML(serverPort: number): string {
     background: #4ade80;
   }
 
+  /* ─── Profile Select ────────────────────── */
+  .profile-wrap {
+    padding: 0 20px 12px;
+  }
+  .profile-select {
+    width: 100%;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #141414;
+    color: #e0e0e0;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M3 5l3 3 3-3' stroke='%23666' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 32px;
+  }
+  .profile-select:focus { border-color: #555; }
+  .profile-wrap.hidden { display: none; }
+
   /* ─── Search ──────────────────────────── */
   .search-wrap {
     padding: 0 20px 12px;
@@ -268,6 +293,9 @@ export function getCookiePickerHTML(serverPort: number): string {
   <div class="panel panel-left">
     <div class="panel-header">Source Browser</div>
     <div id="browser-pills" class="browser-pills"></div>
+    <div id="profile-wrap" class="profile-wrap hidden">
+      <select id="profile-select" class="profile-select"></select>
+    </div>
     <div class="search-wrap">
       <input type="text" class="search-input" id="search" placeholder="Search domains..." />
     </div>
@@ -291,11 +319,14 @@ export function getCookiePickerHTML(serverPort: number): string {
 (function() {
   const BASE = '${baseUrl}';
   let activeBrowser = null;
+  let activeProfile = 'Default';
   let allDomains = [];
   let importedSet = {};  // domain → count
   let inflight = {};     // domain → true (prevents double-click)
 
   const $pills = document.getElementById('browser-pills');
+  const $profileWrap = document.getElementById('profile-wrap');
+  const $profileSelect = document.getElementById('profile-select');
   const $search = document.getElementById('search');
   const $sourceDomains = document.getElementById('source-domains');
   const $importedDomains = document.getElementById('imported-domains');
@@ -380,22 +411,58 @@ export function getCookiePickerHTML(serverPort: number): string {
   // ─── Select Browser ────────────────────
   async function selectBrowser(name) {
     activeBrowser = name;
+    activeProfile = 'Default';
 
     // Update pills
     $pills.querySelectorAll('.pill').forEach(p => {
       p.classList.toggle('active', p.textContent === name);
     });
 
-    $sourceDomains.innerHTML = '<div class="loading-row"><span class="spinner"></span> Loading domains...</div>';
+    $sourceDomains.innerHTML = '<div class="loading-row"><span class="spinner"></span> Loading profiles...</div>';
     $sourceFooter.textContent = '';
     $search.value = '';
 
     try {
-      const data = await api('/domains?browser=' + encodeURIComponent(name));
+      // Fetch profiles for this browser
+      const profileData = await api('/profiles?browser=' + encodeURIComponent(name));
+      const profiles = profileData.profiles || [];
+
+      if (profiles.length > 1) {
+        // Show profile dropdown
+        $profileWrap.classList.remove('hidden');
+        $profileSelect.innerHTML = '';
+        for (const p of profiles) {
+          const opt = document.createElement('option');
+          opt.value = p.folder;
+          opt.textContent = p.name + (p.name !== p.folder ? ' (' + p.folder + ')' : '');
+          $profileSelect.appendChild(opt);
+        }
+        $profileSelect.value = 'Default';
+        activeProfile = 'Default';
+      } else {
+        $profileWrap.classList.add('hidden');
+        activeProfile = profiles.length === 1 ? profiles[0].folder : 'Default';
+      }
+
+      await loadDomains();
+    } catch (err) {
+      showBanner(err.message, 'error', err.action === 'retry' ? () => selectBrowser(name) : null);
+      $sourceDomains.innerHTML = '<div class="imported-empty">Failed to load</div>';
+    }
+  }
+
+  // ─── Load Domains for Active Browser+Profile ──
+  async function loadDomains() {
+    $sourceDomains.innerHTML = '<div class="loading-row"><span class="spinner"></span> Loading domains...</div>';
+    $sourceFooter.textContent = '';
+
+    try {
+      const data = await api('/domains?browser=' + encodeURIComponent(activeBrowser) +
+        '&profile=' + encodeURIComponent(activeProfile));
       allDomains = data.domains;
       renderSourceDomains();
     } catch (err) {
-      showBanner(err.message, 'error', err.action === 'retry' ? () => selectBrowser(name) : null);
+      showBanner(err.message, 'error', err.action === 'retry' ? () => loadDomains() : null);
       $sourceDomains.innerHTML = '<div class="imported-empty">Failed to load domains</div>';
     }
   }
@@ -453,7 +520,7 @@ export function getCookiePickerHTML(serverPort: number): string {
       const data = await api('/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ browser: activeBrowser, domains: [domain] }),
+        body: JSON.stringify({ browser: activeBrowser, domains: [domain], profile: activeProfile }),
       });
 
       if (data.domainCounts) {
@@ -528,6 +595,13 @@ export function getCookiePickerHTML(serverPort: number): string {
       renderImported();
     }
   }
+
+  // ─── Profile Change ────────────────────
+  $profileSelect.addEventListener('change', () => {
+    activeProfile = $profileSelect.value;
+    $search.value = '';
+    loadDomains();
+  });
 
   // ─── Search ────────────────────────────
   $search.addEventListener('input', renderSourceDomains);
