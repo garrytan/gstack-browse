@@ -10,8 +10,8 @@ description: |
   /plan-ceo-review; architecture /plan-eng-review; design /plan-design-review or
   /design-consultation; auto-review /autoplan; debugging /investigate; QA /qa; code review
   /review; visual audit /design-review; shipping /ship; docs /document-release; retro
-  /retro; second opinion /codex; prod safety /careful or /guard; scoped edits /freeze or
-  /unfreeze; gstack upgrades /gstack-upgrade. If the user opts out of suggestions, stop
+  /retro; agent context transfer /handoff; second opinion /codex; prod safety /careful or
+  /guard; scoped edits /freeze or /unfreeze; gstack upgrades /gstack-upgrade. If the user opts out of suggestions, stop
   and run gstack-config set proactive false; if they opt back in, run gstack-config set
   proactive true.
 allowed-tools:

@@ -79,6 +79,7 @@ gstack/
 ├── office-hours/    # /office-hours skill (YC Office Hours — startup diagnostic + builder brainstorm)
 ├── investigate/     # /investigate skill (systematic root-cause debugging)
 ├── retro/           # Retrospective skill (includes /retro global cross-project mode)
+├── handoff/         # /handoff skill (structured context transfer between parallel agents)
 ├── bin/             # Standalone scripts (gstack-global-discover for cross-tool session discovery)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── cso/             # /cso skill (OWASP Top 10 + STRIDE security audit)
