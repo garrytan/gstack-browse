@@ -17,6 +17,7 @@ set -euo pipefail
 
 JSON_MODE=""
 [ "${1:-}" = "--json" ] && JSON_MODE=1
+export JSON_MODE
 
 # Detect base branch
 BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || \
