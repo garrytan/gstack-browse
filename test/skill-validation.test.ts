@@ -1004,6 +1004,25 @@ describe('gstack-slug', () => {
     expect(slug).toMatch(/^[a-zA-Z0-9._-]+$/);
     expect(branch).toMatch(/^[a-zA-Z0-9._-]+$/);
   });
+  test('eval sets variables under bash with set -euo pipefail', () => {
+    const result = Bun.spawnSync(
+      ['bash', '-c', 'set -euo pipefail; eval "$(./bin/gstack-slug 2>/dev/null)"; echo "SLUG=$SLUG"; echo "BRANCH=$BRANCH"'],
+      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+    );
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    expect(output).toMatch(/^SLUG=.+/m);
+    expect(output).toMatch(/^BRANCH=.+/m);
+  });
+
+  test('no templates or bin scripts use source process substitution for gstack-slug', () => {
+    const result = Bun.spawnSync(
+      ['grep', '-r', 'source <(.*gstack-slug', '--include=*.tmpl', '--include=gstack-review-*', '.'],
+      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+    );
+    // grep returns exit code 1 when no matches found — that's what we want
+    expect(result.stdout.toString().trim()).toBe('');
+  });
 });
 
 // --- Test Bootstrap validation ---

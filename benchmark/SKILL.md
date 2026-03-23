@@ -333,7 +333,7 @@ When the user types `/benchmark`, run this skill.
 ### Phase 1: Setup
 
 ```bash
-source <(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null || echo "SLUG=unknown")
+eval "$({CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null || echo "SLUG=unknown"))
 mkdir -p .gstack/benchmark-reports
 mkdir -p .gstack/benchmark-reports/baselines
 ```

@@ -1219,7 +1219,7 @@ Compare screenshots and observations across pages for:
 
 **Project-scoped:**
 \`\`\`bash
-source <(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG"
 \`\`\`
 Write to: \`~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md\`
 
@@ -1815,7 +1815,7 @@ The plan should be complete enough that when implementation begins, every test i
 After producing the coverage diagram, write a test plan artifact to the project directory so \`/qa\` and \`/qa-only\` can consume it as primary test input:
 
 \`\`\`bash
-source <(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG"
 USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 \`\`\`
@@ -1879,7 +1879,7 @@ Coverage line: \`Test Coverage Audit: N new code paths. M covered (X%). K tests 
 After producing the coverage diagram, write a test plan artifact so \`/qa\` and \`/qa-only\` can consume it:
 
 \`\`\`bash
-source <(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(\${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG"
 USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 \`\`\`
@@ -2629,7 +2629,17 @@ ${slopItems}
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.`;
 }
 
+function generateSlugEval(ctx: TemplateContext): string {
+  return `eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)"`;
+}
+
+function generateSlugSetup(ctx: TemplateContext): string {
+  return `eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG`;
+}
+
 const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
+  SLUG_EVAL: generateSlugEval,
+  SLUG_SETUP: generateSlugSetup,
   COMMAND_REFERENCE: generateCommandReference,
   SNAPSHOT_FLAGS: generateSnapshotFlags,
   PREAMBLE: generatePreamble,

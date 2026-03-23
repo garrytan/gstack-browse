@@ -883,7 +883,7 @@ Save report to `.gstack/deploy-reports/{date}-pr{number}-deploy.md`.
 Log to the review dashboard:
 
 ```bash
-source <(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)
+eval "$(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)"
 mkdir -p ~/.gstack/projects/$SLUG
 ```
 

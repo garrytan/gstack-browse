@@ -395,7 +395,7 @@ If the Eng Review is NOT "CLEAR":
 
 1. **Check for a prior override on this branch:**
    ```bash
-   source <(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)
+   eval "$(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)"
    grep '"skill":"ship-review-override"' ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null || echo "NO_OVERRIDE"
    ```
    If an override exists, display the dashboard and note "Review gate previously accepted — continuing." Do NOT ask again.
@@ -409,7 +409,7 @@ If the Eng Review is NOT "CLEAR":
 
 3. **If the user chooses A or C,** persist the decision so future `/ship` runs on this branch skip the gate:
    ```bash
-   source <(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)
+   eval "$(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null)"
    echo '{"skill":"ship-review-override","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","decision":"USER_CHOICE"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
    ```
    Substitute USER_CHOICE with "ship_anyway" or "not_relevant".
@@ -969,7 +969,7 @@ Coverage line: `Test Coverage Audit: N new code paths. M covered (X%). K tests g
 After producing the coverage diagram, write a test plan artifact so `/qa` and `/qa-only` can consume it:
 
 ```bash
-source <(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-slug 2>/dev/null) && mkdir -p ~/.gstack/projects/$SLUG"
 USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 ```
