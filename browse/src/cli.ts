@@ -262,6 +262,11 @@ async function ensureServer(): Promise<ServerState> {
     }
   }
 
+  // The lockfile lives under config.stateDir. Ensure the directory exists
+  // before taking the lock so first run in a fresh repo doesn't misread
+  // ENOENT as "another instance is starting".
+  ensureStateDir(config);
+
   // Acquire lock to prevent concurrent restart races (TOCTOU)
   const releaseLock = acquireServerLock();
   if (!releaseLock) {

@@ -686,6 +686,37 @@ describe('CLI server script resolution', () => {
 // ─── CLI lifecycle ──────────────────────────────────────────────
 
 describe('CLI lifecycle', () => {
+  test('missing default state dir triggers a clean first start', async () => {
+    const root = fs.mkdtempSync('/tmp/browse-first-start-');
+    const cliPath = path.resolve(__dirname, '../src/cli.ts');
+    const result = await new Promise<{ code: number; stdout: string; stderr: string }>((resolve) => {
+      const proc = spawn('bun', ['run', cliPath, 'status'], {
+        cwd: root,
+        timeout: 15000,
+        env: process.env,
+      });
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (d) => stdout += d.toString());
+      proc.stderr.on('data', (d) => stderr += d.toString());
+      proc.on('close', (code) => resolve({ code: code ?? 1, stdout, stderr }));
+    });
+
+    let startedPid: number | null = null;
+    const stateFile = path.join(root, '.gstack', 'browse.json');
+    if (fs.existsSync(stateFile)) {
+      startedPid = JSON.parse(fs.readFileSync(stateFile, 'utf-8')).pid;
+    }
+    if (startedPid) {
+      try { process.kill(startedPid, 'SIGTERM'); } catch {}
+    }
+    fs.rmSync(root, { recursive: true, force: true });
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain('Status: healthy');
+    expect(result.stderr).toContain('Starting server');
+  }, 20000);
+
   test('dead state file triggers a clean restart', async () => {
     const stateFile = `/tmp/browse-test-state-${Date.now()}.json`;
     fs.writeFileSync(stateFile, JSON.stringify({
