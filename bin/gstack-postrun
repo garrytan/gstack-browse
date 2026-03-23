@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# gstack-postrun — shell-light telemetry epilogue for Codex skill runners
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TELEMETRY_CMD="$SCRIPT_DIR/gstack-telemetry-log"
+
+SKILL=""
+OUTCOME="unknown"
+USED_BROWSE="false"
+SESSION_ID=""
+TEL_START=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --skill) SKILL="$2"; shift 2 ;;
+    --outcome) OUTCOME="$2"; shift 2 ;;
+    --used-browse) USED_BROWSE="$2"; shift 2 ;;
+    --session-id) SESSION_ID="$2"; shift 2 ;;
+    --tel-start) TEL_START="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+DURATION="0"
+case "$TEL_START" in
+  ''|*[!0-9]*)
+    DURATION="0"
+    ;;
+  *)
+    NOW="$(date +%s 2>/dev/null || echo 0)"
+    case "$NOW" in
+      ''|*[!0-9]*)
+        DURATION="0"
+        ;;
+      *)
+        if [ "$NOW" -ge "$TEL_START" ] 2>/dev/null; then
+          DURATION="$(( NOW - TEL_START ))"
+        fi
+        ;;
+    esac
+    ;;
+esac
+
+if [ -x "$TELEMETRY_CMD" ]; then
+  "$TELEMETRY_CMD"     --skill "$SKILL"     --duration "$DURATION"     --outcome "$OUTCOME"     --used-browse "$USED_BROWSE"     --session-id "$SESSION_ID"     >/dev/null 2>&1 || true
+fi
+
+exit 0
