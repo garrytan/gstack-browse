@@ -1,0 +1,132 @@
+---
+name: hate-driven-development
+version: 1.0.0
+description: |
+  Deterministic X mention triage for gstack. Polls recent posts mentioning
+  gstack, ranks the nastiest ones with a fixed lexical score, and serves Gary
+  a "breakfast" report with links, receipts, and actionable complaints.
+  Default behavior only scans since the last successful run by persisting the
+  newest seen post ID. Use when: "hate driven development", "what are people
+  saying on X", "scan gstack mentions", "feed Gary breakfast", "find the
+  haters", or "find the worst tweets about gstack".
+allowed-tools:
+  - Bash
+  - Read
+---
+
+{{PREAMBLE}}
+
+# /hate-driven-development — Feed Gary Breakfast
+
+This skill is intentionally dumb in the best possible way.
+
+No vibe scoring. No sentiment model. No LLM judging who is "mad online."
+It uses the X recent-search API plus a fixed lexical weighting table so the
+same post always gets the same score.
+
+## User-invocable
+
+When the user types `/hate-driven-development`, run this skill.
+
+## Arguments
+
+- `/hate-driven-development` — default mode, only scan since the last successful run
+- `/hate-driven-development --all` — ignore saved state and rescan the recent-search window
+- `/hate-driven-development --hours 24` — scan an explicit recent window
+- `/hate-driven-development --query "..."` — override the default search query
+- `/hate-driven-development --top 15` — change how many breakfast items to print
+
+## Prerequisites
+
+- Set one of these in your shell profile: `X_API_BEARER_TOKEN` (preferred),
+  `TWITTER_BEARER_TOKEN`, or `X_BEARER_TOKEN`
+- `bun` must be installed
+
+## Instructions
+
+### Step 1: Set up paths and check auth
+
+```bash
+GSTACK_ROOT=~/.claude/skills/gstack
+[ -n "${_ROOT:-}" ] && [ -d "$_ROOT/.agents/skills/gstack" ] && GSTACK_ROOT="$_ROOT/.agents/skills/gstack"
+
+STATE_DIR=~/.gstack/hate-driven-development
+STATE_FILE="$STATE_DIR/state.json"
+RUNS_DIR="$STATE_DIR/runs"
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+REPORT_JSON="$RUNS_DIR/$STAMP.json"
+REPORT_MD="$RUNS_DIR/$STAMP.md"
+mkdir -p "$RUNS_DIR"
+
+TOKEN_PRESENT=$([ -n "${X_API_BEARER_TOKEN:-${TWITTER_BEARER_TOKEN:-${X_BEARER_TOKEN:-}}}" ] && echo "yes" || echo "no")
+echo "TOKEN_PRESENT: $TOKEN_PRESENT"
+echo "STATE_FILE: $STATE_FILE"
+echo "REPORT_MD: $REPORT_MD"
+```
+
+If `TOKEN_PRESENT: no`, stop and tell the user:
+
+```
+Missing X API bearer token.
+Add one of:
+  export X_API_BEARER_TOKEN=...
+  export TWITTER_BEARER_TOKEN=...
+  export X_BEARER_TOKEN=...
+Then rerun /hate-driven-development.
+```
+
+### Step 2: Run the deterministic scorer
+
+Default query:
+
+```text
+(gstack OR "garrytan/gstack" OR "github.com/garrytan/gstack") lang:en -is:retweet -from:garrytan
+```
+
+Run the helper script. Mirror any explicit flags the user requested.
+If they did not specify flags, run the default command exactly:
+
+```bash
+bun "$GSTACK_ROOT/hate-driven-development/run.ts" \
+  --state "$STATE_FILE" \
+  --json "$REPORT_JSON" \
+  --markdown "$REPORT_MD"
+```
+
+Common variants:
+
+```bash
+bun "$GSTACK_ROOT/hate-driven-development/run.ts" --all --state "$STATE_FILE" --json "$REPORT_JSON" --markdown "$REPORT_MD"
+bun "$GSTACK_ROOT/hate-driven-development/run.ts" --hours 24 --state "$STATE_FILE" --json "$REPORT_JSON" --markdown "$REPORT_MD"
+bun "$GSTACK_ROOT/hate-driven-development/run.ts" --top 15 --state "$STATE_FILE" --json "$REPORT_JSON" --markdown "$REPORT_MD"
+bun "$GSTACK_ROOT/hate-driven-development/run.ts" --query '<custom query>' --state "$STATE_FILE" --json "$REPORT_JSON" --markdown "$REPORT_MD"
+```
+
+### Step 3: Read the breakfast board
+
+Read `REPORT_MD` and use it as the single source of truth for your response.
+
+Output format:
+
+1. A one-line headline:
+   - `Breakfast served.` when new hate was found
+   - `No new breakfast.` when nothing new matched since the last run
+2. Report the scan window, posts scanned, and whether the run used saved `since_id` state or a cold-start fallback.
+3. List the top items from the breakfast board in score order.
+4. Separate actionable complaints from empty-calorie snark.
+5. Include the saved report path so the user can inspect the full receipts later.
+
+### Step 4: Keep the closeout grounded
+
+- Quote or paraphrase only what is in the report. Do not invent intensity.
+- If the script says the query changed or the state was ignored, say that plainly.
+- If there are zero new results, do not pad with old posts from memory.
+- Treat "actionable complaints" as potential product input; treat "empty calories" as entertainment.
+
+## Important Rules
+
+- **Deterministic only.** The ranking comes from the helper script's fixed rule table.
+- **Read-only.** This skill never replies, likes, reposts, or mutates anything on X.
+- **Default is incremental.** Unless the user overrides it, scan only since the last successful run using the saved `newest_id`.
+- **Recent-search only.** `--all` still means "the recent-search window," not the entire history of X.
+- **Gary-specific voice is fine.** Joke about breakfast, but keep the facts exact.

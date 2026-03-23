@@ -18,6 +18,7 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | [`/cso`](#cso) | **Chief Security Officer** | OWASP Top 10 + STRIDE threat modeling security audit. Scans for injection, auth, crypto, and access control issues. |
 | [`/document-release`](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
 | [`/retro`](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
+| [`/hate-driven-development`](#hate-driven-development) | **Chief Hater Officer** | Deterministic X mention triage. Finds the nastiest fresh gstack posts, separates actionable complaints from empty-calorie snark, and feeds Gary breakfast. |
 | [`/browse`](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
 | [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
 | | | |
@@ -606,6 +607,27 @@ Claude: Week of Mar 1: 47 commits (3 contributors), 3.2k LOC, 38% tests, 12 PRs,
 ```
 
 It saves a JSON snapshot to `.context/retros/` so the next run can show trends.
+
+---
+
+## `/hate-driven-development`
+
+This one is a joke, but it still has to be useful.
+
+The workflow is deliberately deterministic: poll X recent search for fresh `gstack`
+mentions, use a fixed lexical weighting table to score negativity, then split the
+results into two buckets:
+
+- **Actionable protein** — "install is broken", "docs are confusing", "setup fails"
+- **Empty calories** — drive-by snark, mockery, vague doomposting
+
+It persists the `newest_id` from the last successful run, so the default behavior is
+"show me only what happened since breakfast." No LLM sentiment pass. No vibes. Same
+input, same ranking.
+
+Why that matters: if this were model-scored, the joke would be cute once and useless
+forever. With a fixed rule table you can actually compare runs, keep receipts, and treat
+negative feedback as a noisy but real product signal.
 
 ---
 

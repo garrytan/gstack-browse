@@ -31,6 +31,7 @@ const SKILL_FILES = [
   'design-review/SKILL.md',
   'gstack-upgrade/SKILL.md',
   'document-release/SKILL.md',
+  'hate-driven-development/SKILL.md',
   'canary/SKILL.md',
   'benchmark/SKILL.md',
   'land-and-deploy/SKILL.md',

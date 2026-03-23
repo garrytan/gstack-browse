@@ -23,6 +23,7 @@ Skills live in `.agents/skills/`. Invoke them by name (e.g., `/office-hours`).
 | `/ship` | Run tests, review, push, open PR. One command. |
 | `/document-release` | Update all docs to match what you just shipped. |
 | `/retro` | Weekly retro with per-person breakdowns and shipping streaks. |
+| `/hate-driven-development` | Scan X for gstack hate, rank the worst posts, and feed Gary breakfast. |
 | `/browse` | Headless browser — real Chromium, real clicks, ~100ms/command. |
 | `/setup-browser-cookies` | Import cookies from your real browser for authenticated testing. |
 | `/careful` | Warn before destructive commands (rm -rf, DROP TABLE, force-push). |

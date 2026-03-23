@@ -1398,6 +1398,7 @@ describe('Skill trigger phrases', () => {
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
     'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
+    'hate-driven-development',
     'codex', 'browse', 'setup-browser-cookies',
   ];
 
