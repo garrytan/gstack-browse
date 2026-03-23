@@ -3005,13 +3005,33 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
 
 function findTemplates(): string[] {
   const templates: string[] = [];
-  const rootTmpl = path.join(ROOT, 'SKILL.md.tmpl');
-  if (fs.existsSync(rootTmpl)) templates.push(rootTmpl);
-
-  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-    const tmpl = path.join(ROOT, entry.name, 'SKILL.md.tmpl');
-    if (fs.existsSync(tmpl)) templates.push(tmpl);
+  const candidates = [
+    path.join(ROOT, 'SKILL.md.tmpl'),
+    path.join(ROOT, 'browse', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'qa', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'qa-only', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'setup-browser-cookies', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'ship', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'review', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'plan-ceo-review', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'plan-eng-review', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'retro', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'office-hours', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'investigate', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'gstack-upgrade', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'plan-design-review', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'design-review', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'design-consultation', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'document-release', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'codex', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'careful', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'freeze', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'guard', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'unfreeze', 'SKILL.md.tmpl'),
+    path.join(ROOT, 'qa-cli', 'SKILL.md.tmpl'),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) templates.push(p);
   }
   return templates;
 }
