@@ -1,12 +1,92 @@
 # gstack
 
-> "I don't think I've typed like a line of code probably since December, basically, which is an extremely large change." — [Andrej Karpathy](https://fortune.com/2026/03/21/andrej-karpathy-openai-cofounder-ai-agents-coding-state-of-psychosis-openclaw/), No Priors podcast, March 2026
+> "I don't think I've typed like a line of code probably since December, basically, which is an extremely large change."
+> — Andrej Karpathy, March 2026
 
-When I heard Karpathy say this, I wanted to find out how. How does one person ship like a team of twenty? Peter Steinberger built [OpenClaw](https://github.com/openclaw/openclaw) — 247K GitHub stars — essentially solo with AI agents. The revolution is here. A single builder with the right tooling can move faster than a traditional team.
+When I heard this, I had one question:
 
-I'm [Garry Tan](https://x.com/garrytan), President & CEO of [Y Combinator](https://www.ycombinator.com/). I've worked with thousands of startups — Coinbase, Instacart, Rippling — when they were one or two people in a garage. Before YC, I was one of the first eng/PM/designers at Palantir, cofounded Posterous (sold to Twitter), and built Bookface, YC's internal social network.
+**How does one person ship like a team of twenty?**
 
-**gstack is my answer.** I've been building products for twenty years, and right now I'm shipping more code than I ever have. In the last 60 days: **600,000+ lines of production code** (35% tests), **10,000-20,000 lines per day**, part-time, while running YC full-time. Here's my last `/retro` across 3 projects: **140,751 lines added, 362 commits, ~115k net LOC** in one week.
+Peter Steinberger answered part of it with OpenClaw — ~250k stars — built essentially solo using AI agents. That’s not a fluke. It’s a shift.
+
+The revolution isn’t coming. It’s already here.
+
+---
+
+## What is gstack?
+
+**gstack is my answer.**
+
+I’ve been building products for 20+ years. Right now, I’m shipping faster than I ever have before.
+
+In the last 60 days:
+
+* **600,000+ lines of production code**
+* **35% test coverage**
+* **10k–20k LOC per day**
+* All while running YC full-time
+
+Last week alone:
+
+* **140,751 lines added**
+* **362 commits**
+* **~115k net LOC**
+
+This is not normal.
+
+---
+
+## The Idea
+
+A single builder — with the right stack — can now outperform entire teams.
+
+gstack is an opinionated system for:
+
+* AI-assisted coding
+* rapid iteration
+* high-output solo building
+
+It’s not just tools.
+
+It’s a **way of working**.
+
+---
+
+## Why this exists
+
+Startups used to scale by hiring.
+
+Now they scale by **leverage**.
+
+The best founders are becoming:
+
+* product thinkers
+* system designers
+* AI orchestrators
+
+gstack is built for that future.
+
+---
+
+## Contributing
+
+If you’re experimenting with:
+
+* AI agents
+* high-velocity coding workflows
+* unconventional dev setups
+
+You’re in the right place.
+
+PRs welcome.
+
+---
+
+## TL;DR
+
+**One person.
+One stack.
+Unfair speed.**
 
 **2026 — 1,237 contributions and counting:**
 
