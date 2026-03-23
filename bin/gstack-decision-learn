@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+# gstack-decision-learn — extract override patterns from /autoplan audit trails
+#
+# Reads Decision Audit Trail tables from plan files, identifies patterns
+# where users consistently override auto-decisions, and writes a calibration
+# file that future /autoplan runs can reference.
+#
+# Usage:
+#   gstack-decision-learn                  # analyze all autoplan runs
+#   gstack-decision-learn --show           # show current calibration
+#   gstack-decision-learn --reset          # clear learned patterns
+#
+# Output: ~/.gstack/decision-calibration.json
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)" || { SLUG="unknown"; BRANCH="unknown"; }
+GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
+CAL_FILE="$GSTACK_HOME/decision-calibration.json"
+
+case "${1:-}" in
+  --show)
+    if [ -f "$CAL_FILE" ]; then
+      cat "$CAL_FILE"
+    else
+      echo '{"patterns":[],"total_runs":0,"total_decisions":0,"total_overrides":0}'
+    fi
+    exit 0
+    ;;
+  --reset)
+    rm -f "$CAL_FILE"
+    echo "Cleared decision calibration."
+    exit 0
+    ;;
+esac
+
+# Find all plan files with Decision Audit Trails
+PLAN_DIR="$GSTACK_HOME/projects/$SLUG"
+mkdir -p "$PLAN_DIR"
+
+python3 - "$PLAN_DIR" "$CAL_FILE" << 'PYEOF'
+import json, sys, os, re, glob
+from collections import defaultdict
+
+plan_dir = sys.argv[1]
+cal_file = sys.argv[2]
+
+# Find all autoplan restore/review files
+plan_files = glob.glob(os.path.join(plan_dir, '*autoplan*')) + \
+             glob.glob(os.path.join(plan_dir, '*-reviews.jsonl'))
+
+# Parse Decision Audit Trail tables from plan files
+decisions = []
+for pf in plan_files:
+    try:
+        content = open(pf).read()
+    except:
+        continue
+
+    # Find audit trail table rows: | # | Phase | Decision | Principle | Rationale | Rejected |
+    rows = re.findall(
+        r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*([^|]+)\|\s*P(\d)\s*\|\s*([^|]+)\|\s*([^|]*)\|',
+        content
+    )
+    for row in rows:
+        num, phase, decision, principle, rationale, rejected = row
+        decisions.append({
+            'phase': phase.strip(),
+            'decision': decision.strip(),
+            'principle': f'P{principle}',
+            'rationale': rationale.strip(),
+            'was_overridden': bool(rejected.strip()),
+            'rejected_option': rejected.strip(),
+            'source': os.path.basename(pf),
+        })
+
+# Parse review JSONL for override signals
+for pf in plan_files:
+    if not pf.endswith('.jsonl'):
+        continue
+    try:
+        for line in open(pf):
+            entry = json.loads(line.strip())
+            if entry.get('via') == 'autoplan' and entry.get('overrides'):
+                for override in entry['overrides']:
+                    decisions.append({
+                        'phase': entry.get('skill', 'unknown'),
+                        'decision': override.get('decision', ''),
+                        'principle': override.get('original_principle', ''),
+                        'rationale': override.get('reason', ''),
+                        'was_overridden': True,
+                        'rejected_option': override.get('original', ''),
+                        'source': os.path.basename(pf),
+                    })
+    except:
+        continue
+
+# Extract patterns from overrides
+override_patterns = defaultdict(lambda: {'count': 0, 'total': 0, 'examples': []})
+for d in decisions:
+    # Group by decision topic (normalize)
+    key = re.sub(r'[^a-z_]', '_', d['decision'].lower()[:40])
+    override_patterns[key]['total'] += 1
+    if d['was_overridden']:
+        override_patterns[key]['count'] += 1
+        override_patterns[key]['examples'].append({
+            'decision': d['decision'],
+            'principle': d['principle'],
+            'rejected': d['rejected_option'],
+        })
+
+# Build calibration
+patterns = []
+for key, data in override_patterns.items():
+    if data['count'] >= 2 and data['total'] >= 3:
+        confidence = round(data['count'] / data['total'], 2)
+        if confidence >= 0.5:
+            patterns.append({
+                'pattern': key,
+                'override_rate': confidence,
+                'count': data['count'],
+                'total': data['total'],
+                'examples': data['examples'][:3],
+            })
+
+patterns.sort(key=lambda p: p['override_rate'], reverse=True)
+
+total_overrides = sum(1 for d in decisions if d['was_overridden'])
+
+calibration = {
+    'generated': __import__('datetime').datetime.now().isoformat(),
+    'total_runs': len(set(d['source'] for d in decisions)),
+    'total_decisions': len(decisions),
+    'total_overrides': total_overrides,
+    'override_rate': round(total_overrides / max(len(decisions), 1), 2),
+    'patterns': patterns,
+}
+
+# Write calibration
+os.makedirs(os.path.dirname(cal_file), exist_ok=True)
+with open(cal_file, 'w') as f:
+    json.dump(calibration, f, indent=2)
+
+# Print summary
+print(f"Analyzed {calibration['total_runs']} autoplan runs, "
+      f"{calibration['total_decisions']} decisions, "
+      f"{calibration['total_overrides']} overrides.")
+if patterns:
+    print(f"\nLEARNED PATTERNS ({len(patterns)}):")
+    for p in patterns[:5]:
+        print(f"  {p['pattern']} — overridden {p['count']}/{p['total']} "
+              f"({int(p['override_rate']*100)}% override rate)")
+else:
+    print("\nNo patterns found yet. Run /autoplan a few times, override some decisions.")
+print(f"\nWrote: {cal_file}")
+PYEOF
