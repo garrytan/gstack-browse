@@ -456,6 +456,12 @@ export function getCookiePickerHTML(serverPort: number): string {
         body: JSON.stringify({ browser: activeBrowser, domains: [domain] }),
       });
 
+      // Check if all cookies failed to decrypt (v20 App-Bound Encryption on Windows)
+      if (data.imported === 0 && data.failed > 0) {
+        showScriptFallback(domain, data.failed);
+        return;
+      }
+
       if (data.domainCounts) {
         for (const [d, count] of Object.entries(data.domainCounts)) {
           importedSet[d] = (importedSet[d] || 0) + count;
@@ -469,6 +475,41 @@ export function getCookiePickerHTML(serverPort: number): string {
       delete inflight[domain];
       renderSourceDomains();
     }
+  }
+
+  // ─── Script Fallback (v20 encryption) ──
+  function showScriptFallback(domain, failedCount) {
+    // Build a console snippet that captures cookies from the target site
+    // and sends them to gstack's import-raw endpoint
+    const cleanDomain = domain.replace(/^\\./, '');
+    const snippet = "fetch('" + BASE + "/cookie-picker/import-raw',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cookies:document.cookie.split(';').map(c=>{const[n,...v]=c.trim().split('=');return{name:n,value:v.join('='),domain:location.hostname,path:'/',secure:location.protocol==='https:',httpOnly:false,sameSite:'Lax'}})})}).then(r=>r.json()).then(d=>console.log('Imported',d.imported,'cookies')).catch(e=>console.error('Failed:',e))";
+
+    $banner.className = 'banner error';
+    $banner.style.display = 'flex';
+    $banner.style.flexDirection = 'column';
+    $banner.style.alignItems = 'flex-start';
+    $banner.innerHTML = ''
+      + '<div style="display:flex;width:100%;justify-content:space-between;align-items:center">'
+      + '<span class="banner-text">Cannot decrypt ' + failedCount + ' cookies for ' + escHtml(domain) + ' (v20 encryption).</span>'
+      + '<button class="banner-close" id="banner-close" style="flex-shrink:0">×</button>'
+      + '</div>'
+      + '<div style="margin-top:8px;font-size:12px;color:#aaa;line-height:1.5">'
+      + '<b>Fallback:</b> Open <code style="color:#7cb3ff">https://' + escHtml(cleanDomain) + '</code> in your browser, then paste this in DevTools Console (F12):'
+      + '</div>'
+      + '<div style="margin-top:6px;position:relative;width:100%">'
+      + '<pre id="script-snippet" style="background:#111;border:1px solid #333;border-radius:4px;padding:8px 36px 8px 8px;font-size:11px;color:#7cb3ff;overflow-x:auto;white-space:pre-wrap;word-break:break-all;max-height:80px;cursor:text;user-select:all">' + escHtml(snippet) + '</pre>'
+      + '<button id="copy-snippet" style="position:absolute;top:6px;right:6px;background:#333;border:1px solid #555;border-radius:3px;color:#ccc;padding:2px 8px;font-size:11px;cursor:pointer" title="Copy">Copy</button>'
+      + '</div>'
+      + '<div style="margin-top:6px;font-size:11px;color:#666">'
+      + 'Note: This captures non-httpOnly cookies only. For httpOnly cookies (session tokens), use a cookie export extension and <code>browse cookie-import &lt;file.json&gt;</code>.'
+      + '</div>';
+    document.getElementById('banner-close').onclick = () => { $banner.style.display = 'none'; };
+    document.getElementById('copy-snippet').onclick = () => {
+      navigator.clipboard.writeText(snippet).then(() => {
+        document.getElementById('copy-snippet').textContent = 'Copied!';
+        setTimeout(() => { document.getElementById('copy-snippet').textContent = 'Copy'; }, 2000);
+      });
+    };
   }
 
   // ─── Render Imported ───────────────────

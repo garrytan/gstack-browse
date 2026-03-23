@@ -151,6 +151,61 @@ export async function handleCookiePickerRoute(
       }, { port });
     }
 
+    // POST /cookie-picker/import-raw — import pre-decrypted cookies (manual fallback)
+    if (pathname === '/cookie-picker/import-raw' && req.method === 'POST') {
+      let body: any;
+      try {
+        body = await req.json();
+      } catch {
+        return errorResponse('Invalid JSON body', 'bad_request', { port });
+      }
+
+      const { cookies } = body;
+      if (!cookies || !Array.isArray(cookies) || cookies.length === 0) {
+        return errorResponse("Missing or empty 'cookies' array", 'missing_param', { port });
+      }
+
+      // Validate and normalize cookies
+      const valid: PlaywrightCookie[] = [];
+      for (const c of cookies) {
+        if (!c.name || c.value === undefined || !c.domain) continue;
+        valid.push({
+          name: c.name,
+          value: String(c.value),
+          domain: c.domain || '',
+          path: c.path || '/',
+          expires: c.expires ?? -1,
+          secure: c.secure ?? false,
+          httpOnly: c.httpOnly ?? false,
+          sameSite: c.sameSite === 'Strict' ? 'Strict' : c.sameSite === 'None' ? 'None' : 'Lax',
+        });
+      }
+
+      if (valid.length === 0) {
+        return errorResponse('No valid cookies in payload', 'bad_request', { port });
+      }
+
+      const page = bm.getPage();
+      await page.context().addCookies(valid);
+
+      // Track imports
+      const domainCounts: Record<string, number> = {};
+      for (const c of valid) {
+        const domain = c.domain;
+        domainCounts[domain] = (domainCounts[domain] || 0) + 1;
+        importedDomains.add(domain);
+        importedCounts.set(domain, (importedCounts.get(domain) || 0) + 1);
+      }
+
+      console.log(`[cookie-picker] Raw import: ${valid.length} cookies for ${Object.keys(domainCounts).length} domains`);
+
+      return jsonResponse({
+        imported: valid.length,
+        failed: 0,
+        domainCounts,
+      }, { port });
+    }
+
     // POST /cookie-picker/remove — clear cookies for domains
     if (pathname === '/cookie-picker/remove' && req.method === 'POST') {
       let body: any;
