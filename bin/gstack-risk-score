@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+# gstack-risk-score — predict ship risk from git history
+#
+# Computes a 0-100 risk score for the current branch based on:
+# - Fix ratio of changed files (high fix rate = risky)
+# - Bus factor (single-author files)
+# - Test coverage (source changes without test changes)
+# - File churn (frequently changed files = unstable)
+# - Historical revert rate
+#
+# Usage:
+#   gstack-risk-score                 # score current branch
+#   gstack-risk-score --json          # machine-readable output
+#
+# Output: risk score + breakdown to stdout
+set -euo pipefail
+
+JSON_MODE=""
+[ "${1:-}" = "--json" ] && JSON_MODE=1
+
+# Detect base branch
+BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || \
+       gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || \
+       echo "main")
+
+# Get changed files
+CHANGED_FILES=$(git diff "$BASE"...HEAD --name-only 2>/dev/null | grep -v "^$" || true)
+if [ -z "$CHANGED_FILES" ]; then
+  echo "No changes against $BASE."
+  exit 0
+fi
+
+python3 - "$BASE" << 'PYEOF'
+import subprocess, json, sys, os
+from collections import defaultdict
+
+base = sys.argv[1]
+json_mode = os.environ.get('JSON_MODE', '')
+
+def run(cmd):
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+    return r.stdout.strip()
+
+# Changed files
+changed = run(f'git diff {base}...HEAD --name-only').split('\n')
+changed = [f for f in changed if f.strip()]
+if not changed:
+    print("No changes.")
+    sys.exit(0)
+
+source_files = [f for f in changed if not any(t in f.lower() for t in ['test', 'spec', '__test'])]
+test_files = [f for f in changed if any(t in f.lower() for t in ['test', 'spec', '__test'])]
+
+risks = []
+score = 0  # start at 0, add risk points
+
+# 1. Fix ratio per file (high fix ratio = historically buggy)
+file_fix_ratios = {}
+for f in source_files:
+    total = run(f'git log --oneline --follow -- "{f}" 2>/dev/null | wc -l').strip()
+    fixes = run(f'git log --oneline --follow --grep="fix" -i -- "{f}" 2>/dev/null | wc -l').strip()
+    total = int(total) if total.isdigit() else 0
+    fixes = int(fixes) if fixes.isdigit() else 0
+    if total >= 5:
+        ratio = round(fixes / total, 2)
+        file_fix_ratios[f] = {'fixes': fixes, 'total': total, 'ratio': ratio}
+        if ratio >= 0.5:
+            score += 15
+            risks.append({'type': 'high_fix_ratio', 'file': f, 'detail': f'{fixes}/{total} commits are fixes ({int(ratio*100)}%)', 'points': 15})
+        elif ratio >= 0.3:
+            score += 8
+            risks.append({'type': 'moderate_fix_ratio', 'file': f, 'detail': f'{fixes}/{total} commits are fixes ({int(ratio*100)}%)', 'points': 8})
+
+# 2. Bus factor (single author in last 6 months)
+for f in source_files:
+    authors = run(f'git log --since="6 months ago" --format="%aN" -- "{f}" 2>/dev/null | sort -u | wc -l').strip()
+    authors = int(authors) if authors.isdigit() else 0
+    if authors == 1:
+        author = run(f'git log --since="6 months ago" --format="%aN" -- "{f}" 2>/dev/null | head -1').strip()
+        score += 10
+        risks.append({'type': 'bus_factor_1', 'file': f, 'detail': f'only {author} in last 6 months', 'points': 10})
+
+# 3. Test coverage gap
+if source_files and not test_files:
+    score += 20
+    risks.append({'type': 'no_tests', 'file': 'branch', 'detail': f'{len(source_files)} source files changed, 0 test files', 'points': 20})
+
+# 4. Core file risk
+core_files = ['server.ts', 'browser-manager.ts', 'cli.ts', 'setup', 'package.json']
+for f in source_files:
+    if any(c in f for c in core_files):
+        score += 12
+        risks.append({'type': 'core_file', 'file': f, 'detail': 'core infrastructure file', 'points': 12})
+
+# 5. Large change size
+total_lines = run(f'git diff {base}...HEAD --shortstat')
+added = 0
+if total_lines:
+    import re
+    m = re.search(r'(\d+) insertion', total_lines)
+    if m: added = int(m.group(1))
+    m = re.search(r'(\d+) deletion', total_lines)
+    d = int(m.group(1)) if m else 0
+    total_churn = added + d
+    if total_churn > 1000:
+        score += 15
+        risks.append({'type': 'large_change', 'file': 'branch', 'detail': f'{total_churn} lines changed', 'points': 15})
+    elif total_churn > 500:
+        score += 8
+        risks.append({'type': 'medium_change', 'file': 'branch', 'detail': f'{total_churn} lines changed', 'points': 8})
+
+# 6. Recent reverts on changed files
+for f in source_files[:5]:  # cap to avoid slow queries
+    reverts = run(f'git log --oneline --since="30 days ago" --grep="revert" -i -- "{f}" 2>/dev/null | wc -l').strip()
+    reverts = int(reverts) if reverts.isdigit() else 0
+    if reverts > 0:
+        score += 15
+        risks.append({'type': 'recent_revert', 'file': f, 'detail': f'{reverts} reverts in last 30 days', 'points': 15})
+
+# Cap at 100
+score = min(score, 100)
+
+# Risk level
+if score <= 20: level = 'low'
+elif score <= 40: level = 'moderate'
+elif score <= 60: level = 'elevated'
+elif score <= 80: level = 'high'
+else: level = 'critical'
+
+output = {
+    'score': score,
+    'level': level,
+    'base': base,
+    'files_changed': len(changed),
+    'source_files': len(source_files),
+    'test_files': len(test_files),
+    'risk_factors': risks,
+}
+
+if json_mode:
+    print(json.dumps(output, indent=2))
+else:
+    print(f"SHIP RISK SCORE: {score}/100 ({level})")
+    print()
+    if risks:
+        risks.sort(key=lambda r: r['points'], reverse=True)
+        for r in risks:
+            icon = '⚠' if r['points'] >= 10 else '○'
+            print(f"  {icon}  {r['file']}")
+            print(f"     {r['detail']} (+{r['points']} risk)")
+    else:
+        print("  No risk factors detected.")
+    print()
+    if test_files:
+        print(f"  ✓  {len(test_files)} test files included")
+    print(f"\nBranch: HEAD vs {base} ({len(changed)} files changed)")
+PYEOF
