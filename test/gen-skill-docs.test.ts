@@ -705,6 +705,50 @@ describe('DESIGN_SKETCH resolver', () => {
   });
 });
 
+// --- {{CODEX_SECOND_OPINION}} resolver tests ---
+
+describe('CODEX_SECOND_OPINION resolver', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+  const codexContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-office-hours', 'SKILL.md'), 'utf-8');
+
+  test('Phase 3.5 section appears in office-hours SKILL.md', () => {
+    expect(content).toContain('Phase 3.5: Cross-Model Second Opinion');
+  });
+
+  test('contains codex exec invocation', () => {
+    expect(content).toContain('codex exec');
+  });
+
+  test('contains opt-in AskUserQuestion text', () => {
+    expect(content).toContain('second opinion from a different AI model');
+  });
+
+  test('contains cross-model synthesis instructions', () => {
+    expect(content).toMatch(/[Ss]ynthesis/);
+    expect(content).toContain('Where Claude agrees with Codex');
+  });
+
+  test('contains premise revision check', () => {
+    expect(content).toContain('Codex challenged premise');
+  });
+
+  test('contains error handling for auth, timeout, and empty', () => {
+    expect(content).toMatch(/[Aa]uth.*fail/);
+    expect(content).toMatch(/[Tt]imeout/);
+    expect(content).toMatch(/[Ee]mpty response/);
+  });
+
+  test('Codex host variant does NOT contain the Phase 3.5 resolver output', () => {
+    // The resolver returns '' for codex host, so the interactive section is stripped.
+    // Static template references to "Phase 3.5" in prose/conditionals are fine.
+    // Other resolvers (design review lite) may contain CODEX_NOT_AVAILABLE, so we
+    // check for Phase 3.5-specific markers only.
+    expect(codexContent).not.toContain('Phase 3.5: Cross-Model Second Opinion');
+    expect(codexContent).not.toContain('TMPERR_OH');
+    expect(codexContent).not.toContain('gstack-codex-oh-');
+  });
+});
+
 // --- {{BENEFITS_FROM}} resolver tests ---
 
 describe('BENEFITS_FROM resolver', () => {
@@ -731,10 +775,125 @@ describe('BENEFITS_FROM resolver', () => {
   });
 });
 
+// --- {{DESIGN_OUTSIDE_VOICES}} resolver tests ---
+
+describe('DESIGN_OUTSIDE_VOICES resolver', () => {
+  test('plan-design-review contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('CODEX_AVAILABLE');
+    expect(content).toContain('LITMUS SCORECARD');
+  });
+
+  test('design-review contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('source audit');
+  });
+
+  test('design-consultation contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-consultation', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('design direction');
+  });
+
+  test('branches correctly per skillName — different prompts', () => {
+    const planContent = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    const consultContent = fs.readFileSync(path.join(ROOT, 'design-consultation', 'SKILL.md'), 'utf-8');
+    // plan-design-review uses analytical prompt (high reasoning)
+    expect(planContent).toContain('model_reasoning_effort="high"');
+    // design-consultation uses creative prompt (medium reasoning)
+    expect(consultContent).toContain('model_reasoning_effort="medium"');
+  });
+});
+
+// --- {{DESIGN_HARD_RULES}} resolver tests ---
+
+describe('DESIGN_HARD_RULES resolver', () => {
+  test('plan-design-review Pass 4 contains hard rules', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Hard Rules');
+    expect(content).toContain('Classifier');
+    expect(content).toContain('MARKETING/LANDING PAGE');
+    expect(content).toContain('APP UI');
+  });
+
+  test('design-review contains hard rules', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Hard Rules');
+  });
+
+  test('includes all 3 rule sets', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Landing page rules');
+    expect(content).toContain('App UI rules');
+    expect(content).toContain('Universal rules');
+  });
+
+  test('references shared AI slop blacklist items', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('3-column feature grid');
+    expect(content).toContain('Purple/violet/indigo');
+  });
+
+  test('includes OpenAI hard rejection criteria', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Generic SaaS card grid');
+    expect(content).toContain('Carousel with no narrative purpose');
+  });
+
+  test('includes OpenAI litmus checks', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Brand/product unmistakable');
+    expect(content).toContain('premium with all decorative shadows removed');
+  });
+});
+
+// --- Extended DESIGN_SKETCH resolver tests ---
+
+describe('DESIGN_SKETCH extended with outside voices', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+
+  test('contains outside design voices step', () => {
+    expect(content).toContain('Outside design voices');
+  });
+
+  test('offers opt-in via AskUserQuestion', () => {
+    expect(content).toContain('outside design perspectives');
+  });
+
+  test('still contains original wireframe steps', () => {
+    expect(content).toContain('wireframe');
+    expect(content).toContain('$B goto');
+  });
+});
+
+// --- Extended DESIGN_REVIEW_LITE resolver tests ---
+
+describe('DESIGN_REVIEW_LITE extended with Codex', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('contains Codex design voice block', () => {
+    expect(content).toContain('Codex design voice');
+    expect(content).toContain('CODEX (design)');
+  });
+
+  test('still contains original checklist steps', () => {
+    expect(content).toContain('design-checklist.md');
+    expect(content).toContain('SCOPE_FRONTEND');
+  });
+
+});
+
 // ─── Codex Generation Tests ─────────────────────────────────
 
 describe('Codex generation (--host codex)', () => {
   const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
+
+  // .agents/ is gitignored (v0.11.2.0) — generate on demand for tests
+  Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
+    cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
+  });
 
   // Dynamic discovery of expected Codex skills: all templates except /codex
   const CODEX_SKILLS = (() => {
@@ -990,6 +1149,18 @@ describe('Codex generation (--host codex)', () => {
         expect(content).not.toContain('.agents/skills');
       }
     }
+  });
+
+  // ─── Design outside voices: Codex host guard ─────────────────
+
+  test('codex host produces empty outside voices in design-review', () => {
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-design-review', 'SKILL.md'), 'utf-8');
+    expect(codexContent).not.toContain('Design Outside Voices');
+  });
+
+  test('codex host does not include Codex design block in ship', () => {
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-ship', 'SKILL.md'), 'utf-8');
+    expect(codexContent).not.toContain('Codex design voice');
   });
 });
 
