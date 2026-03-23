@@ -1,0 +1,196 @@
+---
+name: meditate
+version: 0.1.0
+description: |
+  Proactive repo consciousness. Scans repo structure, git history,
+  and past AI conversations (Claude Code, Codex, Gemini) to build
+  awareness. Produces .gstack/context.md that makes every other skill smarter.
+  Runs daily in background via preamble, or manually via /meditate for
+  deeper LLM-powered synthesis. Use when asked to "meditate", "scan the repo",
+  "build context", or "what does this repo look like".
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Grep
+  - Glob
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /meditate — Repo Consciousness
+
+Inspired by Vipassana body-scanning meditation. Systematic observation
+builds awareness — /meditate scans the repo and past AI conversations
+(Claude Code, Codex CLI, Gemini CLI) to produce `.gstack/context.md`,
+making every other gstack skill smarter.
+
+**Philosophy:**
+- **Observe, don't judge.** Report what IS, not what should be.
+- **Scan systematically.** Cover the whole repo, not just what's asked about.
+- **Build cumulative awareness.** Each meditation compounds on the last.
+
+---
+
+## Step 1: Check Freshness
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+echo "SLUG=$SLUG"
+```
+
+```bash
+# Check existing context
+if [ -f ".gstack/context.md" ]; then
+  _CTX_MOD=$(stat -f %m .gstack/context.md 2>/dev/null || stat -c %Y .gstack/context.md 2>/dev/null || echo 0)
+  _CTX_AGE=$(( $(date +%s) - _CTX_MOD ))
+  _CTX_DATE=$(date -r "$_CTX_MOD" "+%Y-%m-%d %H:%M" 2>/dev/null || date -d "@$_CTX_MOD" "+%Y-%m-%d %H:%M" 2>/dev/null || echo "unknown")
+  echo "CONTEXT_EXISTS: yes"
+  echo "CONTEXT_AGE_HOURS: $(( _CTX_AGE / 3600 ))"
+  echo "CONTEXT_DATE: $_CTX_DATE"
+else
+  echo "CONTEXT_EXISTS: no"
+fi
+
+# Check latest snapshot
+_SNAP_DIR=~/.gstack/meditations/$SLUG
+if [ -d "$_SNAP_DIR" ]; then
+  _LATEST=$(ls -t "$_SNAP_DIR"/*.json 2>/dev/null | head -1)
+  [ -n "$_LATEST" ] && echo "LATEST_SNAPSHOT: $_LATEST" || echo "LATEST_SNAPSHOT: none"
+else
+  echo "LATEST_SNAPSHOT: none"
+fi
+```
+
+If context exists AND is less than 24 hours old, use AskUserQuestion:
+"Already meditated today (last: {CONTEXT_DATE}). Force re-scan?"
+Options: A) Force re-scan  B) Skip — use existing context
+
+If user chooses B: read `.gstack/context.md` and summarize what it contains, then exit.
+If context is stale (>24h) or missing: continue to Step 2.
+
+---
+
+## Step 2: Run Scanner Binary
+
+Run the meditation scanner. This binary collects data from:
+- Repo structure, git history, TODOs
+- Claude Code sessions
+- Codex CLI sessions
+- Gemini CLI sessions
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+~/.claude/skills/gstack/bin/gstack-meditate --repo "$(pwd)" --output ~/.gstack/meditations/$SLUG/$(date +%Y-%m-%d).json 2>&1
+```
+
+If the scanner fails, show the error and suggest: "Scanner failed. You can still
+build context manually — I'll scan the repo directly."
+
+If the scanner succeeds, read the JSON snapshot it produced:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+ls -t ~/.gstack/meditations/$SLUG/*.json 2>/dev/null | head -1
+```
+
+Read the latest snapshot file with the Read tool.
+
+---
+
+## Step 3: Synthesize Context (LLM-powered)
+
+Now synthesize `.gstack/context.md` from the raw JSON snapshot. This is where
+your intelligence adds value beyond the template-based background scan.
+
+**Write exactly these six sections.** Be concise — the file MUST stay under
+1024 lines. The goal is awareness, not a data dump.
+
+### Section guidance:
+
+**## Architecture Map**
+Don't list files — describe the mental model. How do modules connect? What are
+the layers? What's the data flow? Read CLAUDE.md and README.md (from the
+snapshot's `docs` field) for existing descriptions. Synthesize a 10-20 line
+overview that a new developer could read to understand the system.
+
+**## Hotspots**
+Combine git activity (`activity.hotspots` — most-changed files in 30 days)
+with conversation data (`conversations.most_referenced_files` — files discussed
+across AI sessions). Where is energy flowing right now? List the top 10 with
+one-line context for each.
+
+**## Conventions**
+What does the codebase "believe"? Extract from `docs.claude_md` if present.
+Also infer from code patterns: naming conventions, test organization, commit
+style, error handling idioms, project-specific rules. Keep to 10-15 bullets.
+
+**## User Taste**
+Based on conversation mining across Claude Code, Codex, and Gemini sessions.
+What does the developer correct? What do they ask about repeatedly? What
+preferences emerge from `conversations.workflow_patterns`? Write as:
+"You tend to...", "You care about...", "You frequently..."
+If no conversation data: "No AI session history available yet."
+
+**## Recurring Problems**
+Error messages appearing in 3+ sessions (`conversations.recurring_errors`).
+Areas generating repeated questions. Not bugs to fix — patterns to be aware of.
+If no patterns: "No recurring issues detected."
+
+**## Watch These Next**
+Skill-specific foresight for the next session:
+- /review: files from `activity.hotspots` that have no entry in `repo.test_coverage_map`
+- /qa: flows referenced in `conversations.recurring_errors`
+- /cso: check `activity.todos` for security-related items
+- /ship: blocking TODOs, untested hotspots
+- General: contradictions between code and docs, architectural drift
+
+---
+
+## Step 4: Write Output
+
+Write the synthesized context to `.gstack/context.md`:
+
+```bash
+wc -l .gstack/context.md 2>/dev/null || echo "0"
+```
+
+If the file exceeds 1024 lines, go back and compress each section — keep only
+the top patterns and drop lower-signal entries. The file must be concise enough
+that Claude Code can load it without impacting context window.
+
+If the repo directory is not writable:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+mkdir -p ~/.gstack/projects/$SLUG
+```
+
+Write to `~/.gstack/projects/$SLUG/context.md` instead, and tell the user.
+
+---
+
+## Step 5: Report
+
+Tell the user what was discovered. Format:
+
+```
+Meditation complete.
+
+Scanned: {file_count} files, {commits_30d} commits (30 days)
+AI sessions analyzed: {total} (Claude Code: {n}, Codex: {n}, Gemini: {n})
+Duration: {duration_ms}ms
+
+Top insights:
+- [hotspot 1 — why it matters]
+- [hotspot 2 — why it matters]
+- [most interesting pattern from conversation mining]
+
+Watch out for:
+- [top item from Watch These Next]
+
+Context written to .gstack/context.md ({line_count} lines).
+Other skills will now automatically read this context.
+Try /qa, /review, or /cso to see the difference.
+```
