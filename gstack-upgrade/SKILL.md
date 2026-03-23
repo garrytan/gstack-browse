@@ -28,7 +28,7 @@ First, check if auto-upgrade is enabled:
 ```bash
 _AUTO=""
 [ "${GSTACK_AUTO_UPGRADE:-}" = "1" ] && _AUTO="true"
-[ -z "$_AUTO" ] && _AUTO=$(${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-config get auto_upgrade 2>/dev/null || true)
+[ -z "$_AUTO" ] && _AUTO=$(~/.claude/skills/gstack/bin/gstack-config get auto_upgrade 2>/dev/null || true)
 echo "AUTO_UPGRADE=$_AUTO"
 ```
 
@@ -42,7 +42,7 @@ echo "AUTO_UPGRADE=$_AUTO"
 
 **If "Always keep me up to date":**
 ```bash
-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-config set auto_upgrade true
+~/.claude/skills/gstack/bin/gstack-config set auto_upgrade true
 ```
 Tell user: "Auto-upgrade enabled. Future updates will install automatically." Then proceed to Step 2.
 
@@ -68,17 +68,17 @@ Tell user the snooze duration: "Next reminder in 24h" (or 48h or 1 week, dependi
 
 **If "Never ask again":**
 ```bash
-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-config set update_check false
+~/.claude/skills/gstack/bin/gstack-config set update_check false
 ```
-Tell user: "Update checks disabled. Run `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-config set update_check true` to re-enable."
+Tell user: "Update checks disabled. Run `~/.claude/skills/gstack/bin/gstack-config set update_check true` to re-enable."
 Continue with the current skill.
 
 ### Step 2: Detect install type
 
 ```bash
-if [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/.git" ]; then
+if [ -d "$HOME/.claude/skills/gstack/.git" ]; then
   INSTALL_TYPE="global-git"
-  INSTALL_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack"
+  INSTALL_DIR="$HOME/.claude/skills/gstack"
 elif [ -d "$HOME/.gstack/repos/gstack/.git" ]; then
   INSTALL_TYPE="global-git"
   INSTALL_DIR="$HOME/.gstack/repos/gstack"
@@ -91,9 +91,9 @@ elif [ -d ".agents/skills/gstack/.git" ]; then
 elif [ -d ".claude/skills/gstack" ]; then
   INSTALL_TYPE="vendored"
   INSTALL_DIR=".claude/skills/gstack"
-elif [ -d "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack" ]; then
+elif [ -d "$HOME/.claude/skills/gstack" ]; then
   INSTALL_TYPE="vendored-global"
-  INSTALL_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack"
+  INSTALL_DIR="$HOME/.claude/skills/gstack"
 else
   echo "ERROR: gstack not found"
   exit 1
@@ -207,7 +207,7 @@ When invoked directly as `/gstack-upgrade` (not from a preamble):
 
 1. Force a fresh update check (bypass cache):
 ```bash
-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack/bin/gstack-update-check --force 2>/dev/null || \
+~/.claude/skills/gstack/bin/gstack-update-check --force 2>/dev/null || \
 .claude/skills/gstack/bin/gstack-update-check --force 2>/dev/null || true
 ```
 Use the output to determine if an upgrade is available.

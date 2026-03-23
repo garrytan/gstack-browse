@@ -1119,23 +1119,19 @@ describe('Codex generation (--host codex)', () => {
 
   // ─── Claude output regression guard ─────────────────────────
 
-  test('Claude output unchanged: review skill uses CLAUDE_CONFIG_DIR-aware paths', () => {
+  test('Claude output unchanged: review skill uses ~/.claude paths', () => {
     // Codex changes must NOT affect Claude output
     const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('.claude/skills/review/checklist.md');
-    // Claude output now uses ${CLAUDE_CONFIG_DIR:-$HOME/.claude} instead of hardcoded ~/.claude
-    expect(content).toContain('${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack');
-    expect(content).not.toContain('~/.claude/skills/gstack');
+    expect(content).toContain('~/.claude/skills/gstack');
     // Must NOT contain Codex paths
     expect(content).not.toContain('.agents/skills');
     expect(content).not.toContain('~/.codex/');
   });
 
-  test('Claude output unchanged: ship skill uses CLAUDE_CONFIG_DIR-aware paths', () => {
+  test('Claude output unchanged: ship skill uses ~/.claude paths', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    // Claude output now uses ${CLAUDE_CONFIG_DIR:-$HOME/.claude} instead of hardcoded ~/.claude
-    expect(content).toContain('${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/gstack');
-    expect(content).not.toContain('~/.claude/skills/gstack');
+    expect(content).toContain('~/.claude/skills/gstack');
     expect(content).not.toContain('.agents/skills');
     expect(content).not.toContain('~/.codex/');
   });
@@ -1231,12 +1227,16 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('gstack*');
   });
 
-  test('link_claude_skill_dirs creates relative symlinks', () => {
-    // Claude links should be relative: ln -snf "gstack/skill_name"
+  test('link_claude_skill_dirs copies SKILL.md with path substitution', () => {
     const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
+    // Copies SKILL.md with sed substitution for CLAUDE_CONFIG_DIR support
+    expect(fnBody).toContain('sed -e');
+    expect(fnBody).toContain('~/.claude');
+    expect(fnBody).toContain('SKILL.md');
+    // Symlinks non-SKILL.md entries
+    expect(fnBody).toContain('ln -snf');
   });
 
   test('setup supports --host auto|claude|codex|kiro', () => {

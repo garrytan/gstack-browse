@@ -188,10 +188,13 @@ fi
 # 3. Ensure ~/.gstack global state directory exists
 mkdir -p "$HOME/.gstack/projects"
 
-# ─── Helper: link Claude skill subdirectories into a skills parent directory ──
+# ─── Helper: install Claude skill subdirectories into a skills parent directory ──
+# Copies SKILL.md with ~/.claude path substitution (supports CLAUDE_CONFIG_DIR);
+# symlinks all other files so changes to assets are immediately visible.
 link_claude_skill_dirs() {
   local gstack_dir="$1"
   local skills_dir="$2"
+  local claude_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
   local linked=()
   for skill_dir in "$gstack_dir"/*/; do
     if [ -f "$skill_dir/SKILL.md" ]; then
@@ -199,15 +202,27 @@ link_claude_skill_dirs() {
       # Skip node_modules
       [ "$skill_name" = "node_modules" ] && continue
       target="$skills_dir/$skill_name"
-      # Create or update symlink; skip if a real file/directory exists
-      if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
-        linked+=("$skill_name")
-      fi
+      # Remove old whole-dir symlink from previous installs
+      [ -L "$target" ] && rm -f "$target"
+      mkdir -p "$target"
+      # Copy SKILL.md with path substitution (handles both ~/ and $HOME/ forms)
+      sed -e "s|~/.claude|$claude_dir|g" \
+          -e "s|\$HOME/\.claude|$claude_dir|g" \
+          "$skill_dir/SKILL.md" > "$target/SKILL.md"
+      # Symlink all other entries in the skill directory
+      for item in "$skill_dir"*; do
+        item_name="$(basename "$item")"
+        [ "$item_name" = "SKILL.md" ] && continue
+        dst="$target/$item_name"
+        if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+          ln -snf "$item" "$dst"
+        fi
+      done
+      linked+=("$skill_name")
     fi
   done
   if [ ${#linked[@]} -gt 0 ]; then
-    echo "  linked skills: ${linked[*]}"
+    echo "  installed skills: ${linked[*]}"
   fi
 }
 
@@ -339,6 +354,16 @@ fi
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
     link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    # Also rewrite the root gstack SKILL.md (lives in the gstack dir itself).
+    # Only needed when CLAUDE_CONFIG_DIR differs from the default ~/.claude;
+    # writing the processed copy replaces the source file for this install.
+    _CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+    if [ "$_CLAUDE_DIR" != "$HOME/.claude" ] && [ -f "$SOURCE_GSTACK_DIR/SKILL.md" ]; then
+      sed -e "s|~/.claude|$_CLAUDE_DIR|g" \
+          -e "s|\$HOME/\.claude|$_CLAUDE_DIR|g" \
+          "$SOURCE_GSTACK_DIR/SKILL.md" > "$SOURCE_GSTACK_DIR/SKILL.md.tmp" \
+        && mv "$SOURCE_GSTACK_DIR/SKILL.md.tmp" "$SOURCE_GSTACK_DIR/SKILL.md"
+    fi
     echo "gstack ready (claude)."
     echo "  browse: $BROWSE_BIN"
   else
