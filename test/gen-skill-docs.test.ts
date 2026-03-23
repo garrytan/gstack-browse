@@ -1192,7 +1192,7 @@ describe('Codex generation (--host codex)', () => {
 
   // ─── Claude output regression guard ─────────────────────────
 
-  test('Claude output unchanged: review skill still uses .claude/skills/ paths', () => {
+  test('Claude output unchanged: review skill uses ~/.claude paths', () => {
     // Codex changes must NOT affect Claude output
     const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('.claude/skills/review/checklist.md');
@@ -1202,7 +1202,7 @@ describe('Codex generation (--host codex)', () => {
     expect(content).not.toContain('~/.codex/');
   });
 
-  test('Claude output unchanged: ship skill still uses .claude/skills/ paths', () => {
+  test('Claude output unchanged: ship skill uses ~/.claude paths', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('~/.claude/skills/gstack');
     expect(content).not.toContain('.agents/skills');
@@ -1300,12 +1300,83 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('gstack*');
   });
 
-  test('link_claude_skill_dirs creates relative symlinks', () => {
-    // Claude links should be relative: ln -snf "gstack/skill_name"
+  test('link_claude_skill_dirs copies SKILL.md with path substitution', () => {
     const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
+    // Copies SKILL.md with sed substitution for CLAUDE_CONFIG_DIR support
+    expect(fnBody).toContain('sed -e');
+    expect(fnBody).toContain('~/.claude');
+    expect(fnBody).toContain('SKILL.md');
+    // Symlinks non-SKILL.md entries
+    expect(fnBody).toContain('ln -snf');
+  });
+
+  test('link_claude_skill_dirs copies SKILL.md as-is when CLAUDE_CONFIG_DIR is unset', () => {
+    // When CLAUDE_CONFIG_DIR is not set, ~/.claude should be preserved in the installed SKILL.md
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-test-'));
+    try {
+      const fakeSkill = path.join(tmp, 'gstack', 'fake-skill');
+      const fakeSkillsDir = path.join(tmp, 'skills');
+      fs.mkdirSync(fakeSkill, { recursive: true });
+      fs.mkdirSync(fakeSkillsDir, { recursive: true });
+      fs.writeFileSync(path.join(fakeSkill, 'SKILL.md'),
+        'run ~/.claude/skills/gstack/bin/gstack-config\n');
+
+      const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+      const fnEnd = setupContent.indexOf('\n}', setupContent.indexOf('linked[@]}', fnStart)) + 2;
+      const fnBody = setupContent.slice(fnStart, fnEnd);
+
+      const env = { ...process.env };
+      delete env.CLAUDE_CONFIG_DIR;
+      const script = `${fnBody}\nlink_claude_skill_dirs "${path.join(tmp, 'gstack')}" "${fakeSkillsDir}"`;
+      Bun.spawnSync(['bash', '-c', script], {
+        env: { ...env, HOME: process.env.HOME ?? '/tmp' },
+        stdout: 'pipe', stderr: 'pipe',
+      });
+
+      const installed = path.join(fakeSkillsDir, 'fake-skill', 'SKILL.md');
+      expect(fs.existsSync(installed)).toBe(true);
+      const content = fs.readFileSync(installed, 'utf-8');
+      expect(content).toContain('~/.claude');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('link_claude_skill_dirs substitutes CLAUDE_CONFIG_DIR into installed SKILL.md', () => {
+    // Functional test: run the actual bash function in a temp dir and verify the
+    // SKILL.md written to the skills dir contains the custom path, not ~/.claude.
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-test-'));
+    try {
+      // Create a fake skill dir with a SKILL.md that references ~/.claude
+      const fakeSkill = path.join(tmp, 'gstack', 'fake-skill');
+      const fakeSkillsDir = path.join(tmp, 'skills');
+      fs.mkdirSync(fakeSkill, { recursive: true });
+      fs.mkdirSync(fakeSkillsDir, { recursive: true });
+      fs.writeFileSync(path.join(fakeSkill, 'SKILL.md'),
+        'run ~/.claude/skills/gstack/bin/gstack-config\n');
+
+      // Extract and run link_claude_skill_dirs from setup with CLAUDE_CONFIG_DIR set
+      const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+      const fnEnd = setupContent.indexOf('\n}', setupContent.indexOf('linked[@]}', fnStart)) + 2;
+      const fnBody = setupContent.slice(fnStart, fnEnd);
+
+      const customDir = path.join(tmp, 'custom-claude');
+      const script = `${fnBody}\nlink_claude_skill_dirs "${path.join(tmp, 'gstack')}" "${fakeSkillsDir}"`;
+      const result = Bun.spawnSync(['bash', '-c', script], {
+        env: { ...process.env, CLAUDE_CONFIG_DIR: customDir, HOME: process.env.HOME ?? '/tmp' },
+        stdout: 'pipe', stderr: 'pipe',
+      });
+
+      const installed = path.join(fakeSkillsDir, 'fake-skill', 'SKILL.md');
+      expect(fs.existsSync(installed)).toBe(true);
+      const content = fs.readFileSync(installed, 'utf-8');
+      expect(content).toContain(customDir);
+      expect(content).not.toContain('~/.claude');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   test('setup supports --host auto|claude|codex|kiro', () => {

@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
 import { join } from "path";
-import { tmpdir } from "os";
+import { tmpdir, homedir } from "os";
 import { spawnSync } from "child_process";
 
 // Import normalizeRemoteUrl for unit testing
@@ -183,5 +183,53 @@ describe("gstack-global-discover", () => {
       const uniqueRemotes = new Set(remotes);
       expect(remotes.length).toBe(uniqueRemotes.size);
     });
+  });
+});
+
+describe("find-browse locateBinary", () => {
+  let locateBinary: () => string | null;
+
+  beforeEach(async () => {
+    const mod = await import("../browse/src/find-browse.ts");
+    locateBinary = mod.locateBinary;
+  });
+
+  test("respects CLAUDE_CONFIG_DIR for global binary lookup", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "gstack-find-browse-"));
+    try {
+      // Plant a fake browse binary under a custom CLAUDE_CONFIG_DIR
+      const customDir = join(tmp, "custom-claude");
+      const binPath = join(customDir, "skills", "gstack", "browse", "dist", "browse");
+      mkdirSync(join(customDir, "skills", "gstack", "browse", "dist"), { recursive: true });
+      writeFileSync(binPath, "#!/bin/sh\necho browse", { mode: 0o755 });
+
+      const originalEnv = process.env.CLAUDE_CONFIG_DIR;
+      process.env.CLAUDE_CONFIG_DIR = customDir;
+      try {
+        const result = locateBinary();
+        expect(result).toBe(binPath);
+      } finally {
+        if (originalEnv === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+        else process.env.CLAUDE_CONFIG_DIR = originalEnv;
+      }
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset", () => {
+    // When CLAUDE_CONFIG_DIR is not set, the default ~/.claude path is used.
+    // We can't plant a binary there in tests, so just verify no crash and
+    // the result (if any) is under homedir().
+    const originalEnv = process.env.CLAUDE_CONFIG_DIR;
+    delete process.env.CLAUDE_CONFIG_DIR;
+    try {
+      const result = locateBinary();
+      if (result !== null) {
+        expect(result).toContain(homedir());
+      }
+    } finally {
+      if (originalEnv !== undefined) process.env.CLAUDE_CONFIG_DIR = originalEnv;
+    }
   });
 });
