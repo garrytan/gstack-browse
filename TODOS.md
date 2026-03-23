@@ -338,17 +338,6 @@
 **Depends on:** Video recording
 
 
-### GitHub Actions eval upload
-
-**What:** Run eval suite in CI, upload result JSON as artifact, post summary comment on PR.
-
-**Why:** CI integration catches quality regressions before merge and provides persistent eval records per PR.
-
-**Context:** Requires `ANTHROPIC_API_KEY` in CI secrets. Cost is ~$4/run. Eval persistence system (v0.3.6) writes JSON to `~/.gstack-dev/evals/` — CI would upload as GitHub Actions artifacts and use `eval:compare` to post delta comment.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Eval persistence (shipped in v0.3.6)
 
 ### E2E model pinning — SHIPPED
 
@@ -489,6 +478,20 @@ Shipped in v0.8.3. Step 8.5 added to `/ship` — after creating the PR, `/ship` 
 **Depends on:** gstack-diff-scope (shipped)
 
 
+## Codex
+
+### Codex→Claude reverse buddy check skill
+
+**What:** A Codex-native skill (`.agents/skills/gstack-claude/SKILL.md`) that runs `claude -p` to get an independent second opinion from Claude — the reverse of what `/codex` does today from Claude Code.
+
+**Why:** Codex users deserve the same cross-model challenge that Claude users get via `/codex`. Currently the flow is one-way (Claude→Codex). Codex users have no way to get a Claude second opinion.
+
+**Context:** The `/codex` skill template (`codex/SKILL.md.tmpl`) shows the pattern — it wraps `codex exec` with JSONL parsing, timeout handling, and structured output. The reverse skill would wrap `claude -p` with similar infrastructure. Would be generated into `.agents/skills/gstack-claude/` by `gen-skill-docs --host codex`.
+
+**Effort:** M (human: ~2 weeks / CC: ~30 min)
+**Priority:** P1
+**Depends on:** None
+
 ## Completeness
 
 ### Completeness metrics dashboard
@@ -538,6 +541,14 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Depends on:** Telemetry data showing freeze hook fires in real /investigate sessions
 
 ## Completed
+
+### CI eval pipeline (v0.9.9.0)
+- GitHub Actions eval upload on Ubicloud runners ($0.006/run)
+- Within-file test concurrency (test() → testConcurrentIfSelected())
+- Eval artifact upload + PR comment with pass/fail + cost
+- Baseline comparison via artifact download from main
+- EVALS_CONCURRENCY=40 for ~6min wall clock (was ~18min)
+**Completed:** v0.9.9.0
 
 ### Deploy pipeline (v0.9.8.0)
 - /land-and-deploy — merge PR, wait for CI/deploy, canary verification

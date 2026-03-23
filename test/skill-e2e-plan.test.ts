@@ -66,7 +66,7 @@ We're building a new user dashboard that shows recent activity, notifications, a
     try { fs.rmSync(planDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/plan-ceo-review produces structured review output', async () => {
+  testConcurrentIfSelected('plan-ceo-review', async () => {
     const result = await runSkillTest({
       prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
 
@@ -150,7 +150,7 @@ We're building a new user dashboard that shows recent activity, notifications, a
     try { fs.rmSync(planDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/plan-ceo-review SELECTIVE EXPANSION produces structured review output', async () => {
+  testConcurrentIfSelected('plan-ceo-review-selective', async () => {
     const result = await runSkillTest({
       prompt: `Read plan-ceo-review/SKILL.md for the review workflow.
 
@@ -244,7 +244,7 @@ Replace session-cookie auth with JWT tokens. Currently using express-session + R
     try { fs.rmSync(planDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/plan-eng-review produces structured review output', async () => {
+  testConcurrentIfSelected('plan-eng-review', async () => {
     const result = await runSkillTest({
       prompt: `Read plan-eng-review/SKILL.md for the review workflow.
 
@@ -364,7 +364,7 @@ export function main() { return Dashboard(); }
     } catch {}
   });
 
-  test('/plan-eng-review writes test-plan artifact to ~/.gstack/projects/', async () => {
+  testConcurrentIfSelected('plan-eng-review-artifact', async () => {
     // Count existing test-plan files before
     const beforeFiles = fs.readdirSync(projectDir).filter(f => f.includes('test-plan'));
 
@@ -442,7 +442,7 @@ describeIfSelected('Office Hours Spec Review E2E', ['office-hours-spec-review'],
     try { fs.rmSync(ohDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/office-hours SKILL.md contains spec review loop', async () => {
+  testConcurrentIfSelected('office-hours-spec-review', async () => {
     const result = await runSkillTest({
       prompt: `Read office-hours/SKILL.md. I want to understand the spec review loop.
 
@@ -502,7 +502,7 @@ describeIfSelected('Plan CEO Review Benefits-From E2E', ['plan-ceo-review-benefi
     try { fs.rmSync(benefitsDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/plan-ceo-review SKILL.md contains prerequisite skill offer', async () => {
+  testConcurrentIfSelected('plan-ceo-review-benefits', async () => {
     const result = await runSkillTest({
       prompt: `Read plan-ceo-review/SKILL.md. Search for sections about "Prerequisite" or "office-hours" or "design doc found".
 

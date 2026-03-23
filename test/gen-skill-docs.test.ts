@@ -139,6 +139,25 @@ describe('gen-skill-docs', () => {
     }
   });
 
+  test(`every Codex SKILL.md description stays within ${MAX_SKILL_DESCRIPTION_LENGTH} chars`, () => {
+    const agentsDir = path.join(ROOT, '.agents', 'skills');
+    if (!fs.existsSync(agentsDir)) return; // skip if not generated
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = path.join(agentsDir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const content = fs.readFileSync(skillMd, 'utf-8');
+      const description = extractDescription(content);
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_LENGTH);
+    }
+  });
+
+  test('package.json version matches VERSION file', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+    const version = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf-8').trim();
+    expect(pkg.version).toBe(version);
+  });
+
   test('generated files are fresh (match --dry-run)', () => {
     const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
       cwd: ROOT,
@@ -204,6 +223,17 @@ describe('gen-skill-docs', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('skill-usage.jsonl');
     expect(content).toContain('~/.gstack/analytics');
+  });
+
+  test('preamble .pending-* glob is zsh-safe (uses find, not shell glob)', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      if (!content.includes('.pending-')) continue;
+      // Must NOT have a bare shell glob ".pending-*" outside of find's -name argument
+      expect(content).not.toMatch(/for _PF in [^\n]*\/\.pending-\*/);
+      // Must use find to avoid zsh NOMATCH error on glob expansion
+      expect(content).toContain("find ~/.gstack/analytics -maxdepth 1 -name '.pending-*'");
+    }
   });
 
   test('preamble-using skills have correct skill name in telemetry', () => {
@@ -397,6 +427,20 @@ describe('REVIEW_DASHBOARD resolver', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('reviews.jsonl');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
+  });
+
+  test('dashboard treats review as a valid Eng Review source', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
+    expect(content).toContain('`plan-eng-review` (plan-stage architecture review)');
+    expect(content).toContain('from either \\`review\\` or \\`plan-eng-review\\`');
+  });
+
+  test('shared dashboard propagates review source to plan-eng-review', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
   });
 
   test('resolver output contains key dashboard elements', () => {
@@ -928,6 +972,14 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
+  test('root gstack bundle has OpenAI metadata for Codex skill browsing', () => {
+    const rootMetadata = path.join(ROOT, 'agents', 'openai.yaml');
+    expect(fs.existsSync(rootMetadata)).toBe(true);
+    const content = fs.readFileSync(rootMetadata, 'utf-8');
+    expect(content).toContain('display_name: "gstack"');
+    expect(content).toContain('Use $gstack to locate the bundled gstack skills.');
+  });
+
   test('codexSkillName mapping: root is gstack, others are gstack-{dir}', () => {
     // Root → gstack
     expect(fs.existsSync(path.join(AGENTS_DIR, 'gstack', 'SKILL.md'))).toBe(true);
@@ -954,6 +1006,17 @@ describe('Codex generation (--host codex)', () => {
       expect(frontmatter).not.toContain('allowed-tools:');
       expect(frontmatter).not.toContain('version:');
       expect(frontmatter).not.toContain('hooks:');
+    }
+  });
+
+  test('all Codex skills have agents/openai.yaml metadata', () => {
+    for (const skill of CODEX_SKILLS) {
+      const metadata = path.join(AGENTS_DIR, skill.codexName, 'agents', 'openai.yaml');
+      expect(fs.existsSync(metadata)).toBe(true);
+      const content = fs.readFileSync(metadata, 'utf-8');
+      expect(content).toContain(`display_name: "${skill.codexName}"`);
+      expect(content).toContain('short_description:');
+      expect(content).toContain('allow_implicit_invocation: true');
     }
   });
 

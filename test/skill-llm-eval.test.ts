@@ -56,7 +56,7 @@ function describeIfSelected(name: string, testNames: string[], fn: () => void) {
 /** Skip an individual test if not selected (for multi-test describe blocks). */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
   const shouldRun = selectedTests === null || selectedTests.includes(testName);
-  (shouldRun ? test : test.skip)(testName, fn, timeout);
+  (shouldRun ? test.concurrent : test.skip)(testName, fn, timeout);
 }
 
 describeIfSelected('LLM-as-judge quality evals', [

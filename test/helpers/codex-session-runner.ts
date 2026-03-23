@@ -27,6 +27,7 @@ export interface CodexResult {
   durationMs: number;       // Wall clock time
   sessionId: string | null; // Thread ID for session continuity
   rawLines: string[];       // Raw JSONL lines for debugging
+  stderr: string;           // Stderr output (skill loading errors, auth failures)
 }
 
 // --- JSONL parser (ported from Python in codex/SKILL.md.tmpl) ---
@@ -98,7 +99,8 @@ export function parseCodexJSONL(lines: string[]): ParsedCodexJSONL {
 
 /**
  * Install a SKILL.md into a temp HOME directory for Codex to discover.
- * Creates ~/.codex/skills/{skillName}/SKILL.md in the temp HOME.
+ * Creates ~/.codex/skills/{skillName}/SKILL.md in the temp HOME and copies
+ * agents/openai.yaml when present so Codex sees the same metadata as a real install.
  *
  * Returns the temp HOME path. Caller is responsible for cleanup.
  */
@@ -114,6 +116,13 @@ export function installSkillToTempHome(
   const srcSkill = path.join(skillDir, 'SKILL.md');
   if (fs.existsSync(srcSkill)) {
     fs.copyFileSync(srcSkill, path.join(destDir, 'SKILL.md'));
+  }
+
+  const srcOpenAIYaml = path.join(skillDir, 'agents', 'openai.yaml');
+  if (fs.existsSync(srcOpenAIYaml)) {
+    const destAgentsDir = path.join(destDir, 'agents');
+    fs.mkdirSync(destAgentsDir, { recursive: true });
+    fs.copyFileSync(srcOpenAIYaml, path.join(destAgentsDir, 'openai.yaml'));
   }
 
   return home;
@@ -159,6 +168,7 @@ export async function runCodexSkill(opts: {
       durationMs: Date.now() - startTime,
       sessionId: null,
       rawLines: [],
+      stderr: '',
     };
   }
 
@@ -274,6 +284,7 @@ export async function runCodexSkill(opts: {
       durationMs,
       sessionId: parsed.sessionId,
       rawLines: collectedLines,
+      stderr,
     };
   } finally {
     // Clean up temp HOME

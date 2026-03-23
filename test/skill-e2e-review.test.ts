@@ -51,7 +51,7 @@ describeIfSelected('Review skill E2E', ['review-sql-injection'], () => {
     try { fs.rmSync(reviewDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/review produces findings on SQL injection branch', async () => {
+  testConcurrentIfSelected('review-sql-injection', async () => {
     const result = await runSkillTest({
       prompt: `You are in a git repo on a feature branch with changes against main.
 Read review-SKILL.md for the review workflow instructions.
@@ -125,7 +125,7 @@ describeIfSelected('Review enum completeness E2E', ['review-enum-completeness'],
     try { fs.rmSync(enumDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/review catches missing enum handlers for new status value', async () => {
+  testConcurrentIfSelected('review-enum-completeness', async () => {
     const result = await runSkillTest({
       prompt: `You are in a git repo on branch feature/add-returned-status with changes against main.
 Read review-SKILL.md for the review workflow instructions.
@@ -200,7 +200,7 @@ describeIfSelected('Review design lite E2E', ['review-design-lite'], () => {
     try { fs.rmSync(designDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/review catches design anti-patterns in CSS/HTML diff', async () => {
+  testConcurrentIfSelected('review-design-lite', async () => {
     const result = await runSkillTest({
       prompt: `You are in a git repo on branch feature/add-landing-page with changes against main.
 Read review-SKILL.md for the review workflow instructions.
@@ -497,7 +497,7 @@ describeIfSelected('Retro E2E', ['retro'], () => {
     try { fs.rmSync(retroDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/retro produces analysis from git history', async () => {
+  testConcurrentIfSelected('retro', async () => {
     const result = await runSkillTest({
       prompt: `Read retro/SKILL.md for instructions on how to run a retrospective.
 

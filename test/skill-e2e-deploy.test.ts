@@ -44,7 +44,7 @@ describeIfSelected('Land-and-Deploy skill E2E', ['land-and-deploy-workflow'], ()
     try { fs.rmSync(landDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/land-and-deploy detects Fly.io platform and produces deploy report structure', async () => {
+  testConcurrentIfSelected('land-and-deploy-workflow', async () => {
     const result = await runSkillTest({
       prompt: `Read land-and-deploy/SKILL.md for the /land-and-deploy skill instructions.
 
@@ -110,7 +110,7 @@ describeIfSelected('Canary skill E2E', ['canary-workflow'], () => {
     try { fs.rmSync(canaryDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/canary skill produces monitoring report structure', async () => {
+  testConcurrentIfSelected('canary-workflow', async () => {
     const result = await runSkillTest({
       prompt: `Read canary/SKILL.md for the /canary skill instructions.
 
@@ -171,7 +171,7 @@ describeIfSelected('Benchmark skill E2E', ['benchmark-workflow'], () => {
     try { fs.rmSync(benchDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/benchmark skill produces performance report structure', async () => {
+  testConcurrentIfSelected('benchmark-workflow', async () => {
     const result = await runSkillTest({
       prompt: `Read benchmark/SKILL.md for the /benchmark skill instructions.
 
@@ -237,7 +237,7 @@ describeIfSelected('Setup-Deploy skill E2E', ['setup-deploy-workflow'], () => {
     try { fs.rmSync(setupDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/setup-deploy detects Fly.io and writes config to CLAUDE.md', async () => {
+  testConcurrentIfSelected('setup-deploy-workflow', async () => {
     const result = await runSkillTest({
       prompt: `Read setup-deploy/SKILL.md for the /setup-deploy skill instructions.
 

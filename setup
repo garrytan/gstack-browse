@@ -128,17 +128,13 @@ if [ ! -x "$BROWSE_BIN" ]; then
   exit 1
 fi
 
-# 1b. Generate .agents/ Codex skill docs if missing or stale
+# 1b. Generate .agents/ Codex skill docs — always regenerate to prevent stale descriptions.
 # .agents/ is no longer committed — generated at setup time from .tmpl templates.
-# bun run build already does this, but we need it when NEEDS_BUILD=0 (binary is fresh
-# but .agents/ hasn't been generated yet, e.g., fresh clone).
+# bun run build already does this, but we need it when NEEDS_BUILD=0 (binary is fresh).
+# Always regenerate: generation is fast (<2s) and mtime-based staleness checks are fragile
+# (miss stale files when timestamps match after clone/checkout/upgrade).
 AGENTS_DIR="$SOURCE_GSTACK_DIR/.agents/skills"
-NEEDS_AGENTS_GEN=0
-if [ ! -d "$AGENTS_DIR" ]; then
-  NEEDS_AGENTS_GEN=1
-elif [ -n "$(find "$SOURCE_GSTACK_DIR" -maxdepth 2 -name 'SKILL.md.tmpl' -newer "$AGENTS_DIR" -print -quit 2>/dev/null)" ]; then
-  NEEDS_AGENTS_GEN=1
-fi
+NEEDS_AGENTS_GEN=1
 
 if [ "$NEEDS_AGENTS_GEN" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
   echo "Generating .agents/ skill docs..."

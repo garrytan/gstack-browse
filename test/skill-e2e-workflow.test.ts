@@ -60,7 +60,7 @@ describeIfSelected('Document-Release skill E2E', ['document-release'], () => {
     try { fs.rmSync(docReleaseDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/document-release updates docs without clobbering CHANGELOG', async () => {
+  testConcurrentIfSelected('document-release', async () => {
     const result = await runSkillTest({
       prompt: `Read the file document-release/SKILL.md for the document-release workflow instructions.
 
@@ -461,7 +461,7 @@ describe('processPayment', () => {
     try { fs.rmSync(coverageDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/ship Step 3.4 produces coverage diagram', async () => {
+  testConcurrentIfSelected('ship-coverage-audit', async () => {
     const result = await runSkillTest({
       prompt: `Read the file ship/SKILL.md for the ship workflow instructions.
 
@@ -544,7 +544,7 @@ describeIfSelected('Codex skill E2E', ['codex-review'], () => {
     try { fs.rmSync(codexDir, { recursive: true, force: true }); } catch {}
   });
 
-  test('/codex review produces findings and GATE verdict', async () => {
+  testConcurrentIfSelected('codex-review', async () => {
     // Check codex is available — skip if not installed
     const codexCheck = spawnSync('which', ['codex'], { stdio: 'pipe', timeout: 3000 });
     if (codexCheck.status !== 0) {

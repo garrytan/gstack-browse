@@ -47,7 +47,8 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 echo '{"skill":"review","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-for _PF in ~/.gstack/analytics/.pending-*; do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+# zsh-compatible: use find instead of glob to avoid NOMATCH error
+for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
 ```
 
 If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills — only invoke
@@ -897,6 +898,27 @@ ADVERSARIAL REVIEW SYNTHESIS (auto: TIER, N lines):
 High-confidence findings (agreed on by multiple sources) should be prioritized for fixes.
 
 ---
+
+## Step 5.8: Persist Eng Review result
+
+After all review passes complete, persist the final `/review` outcome so `/ship` can
+recognize that Eng Review was run on this branch.
+
+Run:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"review","timestamp":"TIMESTAMP","status":"STATUS","issues_found":N,"critical":N,"informational":N,"commit":"COMMIT"}'
+```
+
+Substitute:
+- `TIMESTAMP` = ISO 8601 datetime
+- `STATUS` = `"clean"` if there are no remaining unresolved findings after Fix-First handling and adversarial review, otherwise `"issues_found"`
+- `issues_found` = total remaining unresolved findings
+- `critical` = remaining unresolved critical findings
+- `informational` = remaining unresolved informational findings
+- `COMMIT` = output of `git rev-parse --short HEAD`
+
+If the review exits early before a real review completes (for example, no diff against the base branch), do **not** write this entry.
 
 ## Important Rules
 

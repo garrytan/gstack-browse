@@ -139,6 +139,9 @@ describeCodex('Codex E2E', () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.output.length).toBeGreaterThan(0);
+    // Skill loading errors mean our generated SKILL.md files are broken
+    expect(result.stderr).not.toContain('invalid');
+    expect(result.stderr).not.toContain('Skipped loading');
     // The output should reference the skill name in some form
     const outputLower = result.output.toLowerCase();
     expect(
