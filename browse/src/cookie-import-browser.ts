@@ -47,6 +47,11 @@ export interface BrowserInfo {
   aliases: string[];
 }
 
+export interface ProfileEntry {
+  folder: string;    // e.g. "Default", "Profile 1"
+  name: string;      // display name, e.g. "Nik (Nik Redl)"
+}
+
 export interface DomainEntry {
   domain: string;
   count: number;
@@ -101,14 +106,77 @@ const keyCache = new Map<string, Buffer>();
 // ─── Public API ─────────────────────────────────────────────────
 
 /**
- * Find which browsers are installed (have a cookie DB on disk).
+ * Find which browsers are installed (have a cookie DB in any profile).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
-    try { return fs.existsSync(dbPath); } catch { return false; }
+    const browserDir = path.join(appSupport, b.dataDir);
+    try {
+      if (!fs.existsSync(browserDir)) return false;
+      // Check Default profile first, then any Profile N directory
+      if (fs.existsSync(path.join(browserDir, 'Default', 'Cookies'))) return true;
+      return fs.readdirSync(browserDir).some(entry =>
+        entry.startsWith('Profile ') &&
+        fs.existsSync(path.join(browserDir, entry, 'Cookies'))
+      );
+    } catch { return false; }
   });
+}
+
+/**
+ * List profiles for a browser by reading Local State JSON.
+ * Returns folders that have a Cookies DB on disk.
+ */
+export function listProfiles(browserName: string): ProfileEntry[] {
+  const browser = resolveBrowser(browserName);
+  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  const browserDir = path.join(appSupport, browser.dataDir);
+  const localStatePath = path.join(browserDir, 'Local State');
+
+  // Read display names from Local State
+  let profileNames: Record<string, { name?: string; gaia_name?: string }> = {};
+  try {
+    const raw = fs.readFileSync(localStatePath, 'utf-8');
+    const data = JSON.parse(raw);
+    profileNames = data?.profile?.info_cache ?? {};
+  } catch {
+    // No Local State — fall back to folder names only
+  }
+
+  // Find profile folders that have a Cookies DB
+  const profiles: ProfileEntry[] = [];
+  try {
+    const entries = fs.readdirSync(browserDir);
+    for (const folder of entries) {
+      if (folder !== 'Default' && !folder.startsWith('Profile ')) continue;
+      const cookiePath = path.join(browserDir, folder, 'Cookies');
+      if (!fs.existsSync(cookiePath)) continue;
+
+      const info = profileNames[folder];
+      let displayName = folder;
+      if (info) {
+        const parts = [info.name, info.gaia_name].filter(Boolean);
+        displayName = parts.length > 0
+          ? (info.name && info.gaia_name && info.name !== info.gaia_name
+              ? `${info.name} (${info.gaia_name})`
+              : parts[0]!)
+          : folder;
+      }
+      profiles.push({ folder, name: displayName });
+    }
+  } catch {
+    // If we can't read the directory, return empty
+  }
+
+  // Sort: Default first, then by folder name
+  profiles.sort((a, b) => {
+    if (a.folder === 'Default') return -1;
+    if (b.folder === 'Default') return 1;
+    return a.folder.localeCompare(b.folder, undefined, { numeric: true });
+  });
+
+  return profiles;
 }
 
 /**
