@@ -1239,6 +1239,41 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('ln -snf');
   });
 
+  test('link_claude_skill_dirs substitutes CLAUDE_CONFIG_DIR into installed SKILL.md', () => {
+    // Functional test: run the actual bash function in a temp dir and verify the
+    // SKILL.md written to the skills dir contains the custom path, not ~/.claude.
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'gstack-test-'));
+    try {
+      // Create a fake skill dir with a SKILL.md that references ~/.claude
+      const fakeSkill = path.join(tmp, 'gstack', 'fake-skill');
+      const fakeSkillsDir = path.join(tmp, 'skills');
+      fs.mkdirSync(fakeSkill, { recursive: true });
+      fs.mkdirSync(fakeSkillsDir, { recursive: true });
+      fs.writeFileSync(path.join(fakeSkill, 'SKILL.md'),
+        'run ~/.claude/skills/gstack/bin/gstack-config\n');
+
+      // Extract and run link_claude_skill_dirs from setup with CLAUDE_CONFIG_DIR set
+      const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+      const fnEnd = setupContent.indexOf('\n}', setupContent.indexOf('linked[@]}', fnStart)) + 2;
+      const fnBody = setupContent.slice(fnStart, fnEnd);
+
+      const customDir = path.join(tmp, 'custom-claude');
+      const script = `${fnBody}\nlink_claude_skill_dirs "${path.join(tmp, 'gstack')}" "${fakeSkillsDir}"`;
+      const result = Bun.spawnSync(['bash', '-c', script], {
+        env: { ...process.env, CLAUDE_CONFIG_DIR: customDir, HOME: process.env.HOME ?? '/tmp' },
+        stdout: 'pipe', stderr: 'pipe',
+      });
+
+      const installed = path.join(fakeSkillsDir, 'fake-skill', 'SKILL.md');
+      expect(fs.existsSync(installed)).toBe(true);
+      const content = fs.readFileSync(installed, 'utf-8');
+      expect(content).toContain(customDir);
+      expect(content).not.toContain('~/.claude');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   test('setup supports --host auto|claude|codex|kiro', () => {
     expect(setupContent).toContain('--host');
     expect(setupContent).toContain('claude|codex|kiro|auto');
