@@ -15,7 +15,25 @@
  *   restores state. Falls back to clean slate on any failure.
  */
 
-import { chromium, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright';
+import { chromium, firefox, webkit, type Browser, type BrowserContext, type BrowserContextOptions, type Page, type Locator, type Cookie } from 'playwright';
+
+/**
+ * Resolve browser engine from BROWSE_BROWSER env var.
+ * Supported: chromium (default), firefox, webkit (Safari engine).
+ * Edge uses Chromium engine — set BROWSE_BROWSER=chromium (or omit).
+ */
+function getBrowserType() {
+  const name = (process.env.BROWSE_BROWSER || 'chromium').toLowerCase();
+  switch (name) {
+    case 'firefox': return firefox;
+    case 'webkit':
+    case 'safari': return webkit;
+    case 'chromium':
+    case 'chrome':
+    case 'edge':
+    default: return chromium;
+  }
+}
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 import { validateNavigationUrl } from './url-validation';
 
@@ -62,7 +80,9 @@ export class BrowserManager {
   private consecutiveFailures: number = 0;
 
   async launch() {
-    this.browser = await chromium.launch({ headless: true });
+    const browserType = getBrowserType();
+    console.error(`[browse] Launching ${browserType.name()} (headless)`);
+    this.browser = await browserType.launch({ headless: true });
 
     // Chromium crash → exit with clear message
     this.browser.on('disconnected', () => {
@@ -464,7 +484,7 @@ export class BrowserManager {
     // 2. Launch new headed browser (try-catch — if this fails, headless stays running)
     let newBrowser: Browser;
     try {
-      newBrowser = await chromium.launch({ headless: false, timeout: 15000 });
+      newBrowser = await getBrowserType().launch({ headless: false, timeout: 15000 });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return `ERROR: Cannot open headed browser — ${msg}. Headless browser still running.`;
