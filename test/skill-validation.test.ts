@@ -209,7 +209,6 @@ describe('Update check preamble', () => {
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
     'slop-detect/SKILL.md',
-    'eval-skill/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -432,7 +431,6 @@ describe('No hardcoded branch names in SKILL templates', () => {
     'plan-ceo-review/SKILL.md.tmpl',
     'retro/SKILL.md.tmpl',
     'document-release/SKILL.md.tmpl',
-    'eval-skill/SKILL.md.tmpl',
   ];
 
   // Patterns that indicate hardcoded 'main' in git commands
@@ -520,7 +518,6 @@ describe('v0.4.1 preamble features', () => {
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
     'slop-detect/SKILL.md',
-    'eval-skill/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
@@ -637,7 +634,6 @@ describe('Completeness Principle in generated SKILL.md files', () => {
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
     'slop-detect/SKILL.md',
-    'eval-skill/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
