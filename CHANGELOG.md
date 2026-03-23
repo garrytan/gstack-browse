@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.11.11.0] - 2026-03-23 — /meditate: Repo Consciousness
+
+### Added
+
+- **`/meditate` — proactive repo consciousness.** Inspired by Vipassana body-scanning meditation: a compiled binary scans your repo structure, git history, and past AI conversations (Claude Code, Codex CLI, Gemini CLI) to produce `.gstack/context.md`. Every other skill reads this file and becomes smarter — `/qa` knows which flows to hammer, `/review` focuses on high-risk files, `/cso` already knows the attack surface. One command, compound awareness.
+- **Daily background scanning.** The preamble checks context freshness on every skill invocation. When stale (>24h), it nudges you to run `/meditate`. Context builds up over time — each meditation compounds on the last.
+- **Multi-AI conversation mining.** Scans sessions from all three AI CLIs — Claude Code (`~/.claude/projects/`), Codex (`~/.codex/sessions/`), and Gemini (`~/.gemini/tmp/`). Extracts recurring file references, error patterns, workflow habits, and skill usage across tools. Privacy-first: only patterns appearing in 3+ sessions are included, never raw prose.
+- **Six-section context file.** Architecture Map (mental model, not file list), Hotspots (where energy flows), Conventions (what the codebase "believes"), User Taste (what you care about), Recurring Problems (patterns to be aware of), Watch These Next (skill-specific foresight). Capped at 1024 lines.
+- **Template-based `--background` mode.** Scanner binary produces a basic `context.md` directly from JSON data without LLM tokens. Running `/meditate` explicitly adds Claude's deeper synthesis — richer architecture analysis, nuanced convention detection, and skill-specific foresight.
+- **10 unit tests** covering scanner functions, slug derivation, language detection, template synthesis, and CLI integration.
+
+### For contributors
+
+- `bin/gstack-meditate.ts` compiled via `bun build --compile` (same pattern as browse binary)
+- Conversation mining reuses `extractCwdFromJsonl()` pattern from `gstack-global-discover.ts`
+- Touchfile entry: `meditate-scanner` triggers on `bin/gstack-meditate.ts`, `meditate/**`, `test/meditate-scanner.test.ts`
+
 ## [0.11.10.0] - 2026-03-23 — CI Evals on Ubicloud
 
 ### Added
