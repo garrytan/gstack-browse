@@ -47,6 +47,11 @@ export interface BrowserInfo {
   aliases: string[];
 }
 
+export interface ProfileEntry {
+  name: string;         // e.g. "Default", "Profile 1", "Profile 3"
+  displayName: string;  // human-friendly name from Preferences, or falls back to dir name
+}
+
 export interface DomainEntry {
   domain: string;
   count: number;
@@ -101,14 +106,78 @@ const keyCache = new Map<string, Buffer>();
 // ─── Public API ─────────────────────────────────────────────────
 
 /**
- * Find which browsers are installed (have a cookie DB on disk).
+ * Find which browsers are installed (have a cookie DB on disk in any profile).
  */
 export function findInstalledBrowsers(): BrowserInfo[] {
   const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
   return BROWSER_REGISTRY.filter(b => {
-    const dbPath = path.join(appSupport, b.dataDir, 'Default', 'Cookies');
-    try { return fs.existsSync(dbPath); } catch { return false; }
+    const browserDir = path.join(appSupport, b.dataDir);
+    try {
+      if (!fs.existsSync(browserDir)) return false;
+      // Check Default profile
+      if (fs.existsSync(path.join(browserDir, 'Default', 'Cookies'))) return true;
+      // Check numbered profiles (Profile 1, Profile 2, etc.)
+      const entries = fs.readdirSync(browserDir, { withFileTypes: true });
+      return entries.some(e =>
+        e.isDirectory() && e.name.startsWith('Profile ') &&
+        fs.existsSync(path.join(browserDir, e.name, 'Cookies'))
+      );
+    } catch { return false; }
   });
+}
+
+/**
+ * List available profiles for a browser.
+ */
+export function listProfiles(browserName: string): ProfileEntry[] {
+  const browser = resolveBrowser(browserName);
+  const appSupport = path.join(os.homedir(), 'Library', 'Application Support');
+  const browserDir = path.join(appSupport, browser.dataDir);
+
+  if (!fs.existsSync(browserDir)) return [];
+
+  const profiles: ProfileEntry[] = [];
+
+  // Scan for directories that contain a Cookies DB
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(browserDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name !== 'Default' && !entry.name.startsWith('Profile ')) continue;
+    const cookiePath = path.join(browserDir, entry.name, 'Cookies');
+    if (!fs.existsSync(cookiePath)) continue;
+
+    // Try to read display name from Preferences.
+    // Prefer account email — signed-in Chrome profiles often have generic
+    // names like "Person 2" while the email is far more readable.
+    let displayName = entry.name;
+    try {
+      const prefsPath = path.join(browserDir, entry.name, 'Preferences');
+      if (fs.existsSync(prefsPath)) {
+        const prefs = JSON.parse(fs.readFileSync(prefsPath, 'utf-8'));
+        const email = prefs?.account_info?.[0]?.email;
+        if (email && typeof email === 'string') {
+          displayName = email;
+        } else {
+          const profileName = prefs?.profile?.name;
+          if (profileName && typeof profileName === 'string') {
+            displayName = profileName;
+          }
+        }
+      }
+    } catch {
+      // Ignore — fall back to directory name
+    }
+
+    profiles.push({ name: entry.name, displayName });
+  }
+
+  return profiles;
 }
 
 /**

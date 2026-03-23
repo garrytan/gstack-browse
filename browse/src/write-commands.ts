@@ -309,16 +309,18 @@ export async function handleWriteCommand(
 
     case 'cookie-import-browser': {
       // Two modes:
-      // 1. Direct CLI import: cookie-import-browser <browser> --domain <domain>
+      // 1. Direct CLI import: cookie-import-browser <browser> --domain <domain> [--profile <profile>]
       // 2. Open picker UI: cookie-import-browser [browser]
       const browserArg = args[0];
       const domainIdx = args.indexOf('--domain');
+      const profileIdx = args.indexOf('--profile');
+      const profile = (profileIdx !== -1 && profileIdx + 1 < args.length) ? args[profileIdx + 1] : 'Default';
 
       if (domainIdx !== -1 && domainIdx + 1 < args.length) {
         // Direct import mode — no UI
         const domain = args[domainIdx + 1];
         const browser = browserArg || 'comet';
-        const result = await importCookies(browser, [domain]);
+        const result = await importCookies(browser, [domain], profile);
         if (result.cookies.length > 0) {
           await page.context().addCookies(result.cookies);
         }
