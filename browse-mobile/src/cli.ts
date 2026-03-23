@@ -265,13 +265,30 @@ async function startServer(config: Config): Promise<ServerState> {
     }
 
     // Spawn ourselves in server mode (--server flag runs the server in-process)
-    // This works both in dev (bun run cli.ts --server) and compiled binary
-    const selfPath = process.argv[0]; // path to this binary or bun
-    const selfArgs = process.argv[1]?.endsWith(".ts")
-      ? [process.argv[1], "--server"] // dev mode: bun run cli.ts --server
-      : ["--server"]; // compiled binary: browse-mobile --server
+    // Use the bundled JS file (browse-mobile/dist/cli.js) with bun, or source .ts in dev
+    const bundlePath = path.join(path.dirname(process.argv[1] || __filename), "../dist/cli.js");
+    const sourcePath = path.join(path.dirname(process.argv[1] || __filename), "cli.ts");
 
-    const child = spawn(selfPath, selfArgs, {
+    let serverCmd: string;
+    let serverArgs: string[];
+
+    if (fs.existsSync(bundlePath)) {
+      // Production: run the bundled JS with bun
+      serverCmd = "bun";
+      serverArgs = ["run", bundlePath, "--server"];
+    } else if (fs.existsSync(sourcePath)) {
+      // Dev: run source directly
+      serverCmd = "bun";
+      serverArgs = ["run", sourcePath, "--server"];
+    } else {
+      // Fallback: try running ourselves (compiled binary case)
+      serverCmd = process.argv[0];
+      serverArgs = process.argv[1]?.endsWith(".ts")
+        ? [process.argv[1], "--server"]
+        : ["--server"];
+    }
+
+    const child = spawn(serverCmd, serverArgs, {
       detached: true,
       stdio: "ignore",
       env: {

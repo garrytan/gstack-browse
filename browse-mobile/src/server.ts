@@ -288,9 +288,10 @@ function getErrorHint(message: string): string | undefined {
 // ─── Initialize ───
 
 async function init(): Promise<void> {
-  // Parse bundle ID from command line or environment
+  // Parse bundle ID from environment (set by CLI) or command line args (skip --server flag)
+  const cliArgs = process.argv.slice(2).filter(a => a !== "--server");
   const bundleId =
-    process.env.BROWSE_MOBILE_BUNDLE_ID || process.argv[2] || "";
+    process.env.BROWSE_MOBILE_BUNDLE_ID || cliArgs[0] || "";
 
   if (!bundleId) {
     console.error(
