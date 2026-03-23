@@ -10,7 +10,7 @@ import { findInstalledBrowsers, importCookies } from './cookie-import-browser';
 import { validateNavigationUrl } from './url-validation';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TEMP_DIR, isPathWithin } from './platform';
+import { IS_WINDOWS, TEMP_DIR, isPathWithin } from './platform';
 
 export async function handleWriteCommand(
   command: string,
@@ -338,7 +338,10 @@ export async function handleWriteCommand(
 
       const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
       try {
-        Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
+        const openCmd = IS_WINDOWS
+          ? ['cmd', '/c', 'start', '', pickerUrl]
+          : ['open', pickerUrl];
+        Bun.spawn(openCmd, { stdout: 'ignore', stderr: 'ignore' });
       } catch {
         // open may fail silently — URL is in the message below
       }
