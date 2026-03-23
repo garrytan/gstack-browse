@@ -8,7 +8,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { startTestServer } from './test-server';
 import { BrowserManager } from '../src/browser-manager';
-import { resolveServerScript } from '../src/cli';
+import { parseLoopbackResponse, resolveServerScript } from '../src/cli';
 import { handleReadCommand } from '../src/read-commands';
 import { handleWriteCommand } from '../src/write-commands';
 import { handleMetaCommand } from '../src/meta-commands';
@@ -680,6 +680,31 @@ describe('CLI server script resolution', () => {
     expect(resolved).toBe(serverPath);
 
     fs.rmSync(root, { recursive: true, force: true });
+  });
+});
+
+// ─── CLI response parsing ───────────────────────────────────────
+
+describe('CLI response parsing', () => {
+  test('parseLoopbackResponse decodes chunked JSON bodies', () => {
+    const raw = Buffer.from(
+      'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: application/json\r\n\r\n14\r\n{"status":"healthy"}\r\n0\r\n\r\n',
+      'utf8'
+    );
+
+    const response = parseLoopbackResponse(raw);
+    expect(response.status).toBe(200);
+    expect(response.ok).toBe(true);
+    expect(JSON.parse(response.text)).toEqual({ status: 'healthy' });
+  });
+
+  test('parseLoopbackResponse strips chunk framing from command output', () => {
+    const raw = Buffer.from(
+      'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nb\r\nhello world\r\n0\r\n\r\n',
+      'utf8'
+    );
+
+    expect(parseLoopbackResponse(raw).text).toBe('hello world');
   });
 });
 

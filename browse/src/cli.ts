@@ -10,6 +10,7 @@
  */
 
 import * as fs from 'fs';
+import * as net from 'net';
 import * as path from 'path';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
@@ -83,6 +84,143 @@ interface ServerState {
   startedAt: string;
   serverPath: string;
   binaryVersion?: string;
+}
+
+function parseLoopbackHeaders(head: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of head.split('\r\n').slice(1)) {
+    const separator = line.indexOf(':');
+    if (separator === -1) continue;
+    const name = line.slice(0, separator).trim().toLowerCase();
+    const value = line.slice(separator + 1).trim();
+    headers[name] = headers[name] ? `${headers[name]}, ${value}` : value;
+  }
+  return headers;
+}
+
+function decodeChunkedBody(body: Buffer): Buffer {
+  const chunks: Buffer[] = [];
+  let offset = 0;
+
+  while (offset < body.length) {
+    const sizeLineEnd = body.indexOf('\r\n', offset);
+    if (sizeLineEnd === -1) {
+      throw new Error('Malformed chunked loopback response: missing chunk size line');
+    }
+
+    const sizeToken = body.subarray(offset, sizeLineEnd).toString('utf8').trim().split(';', 1)[0];
+    const size = Number.parseInt(sizeToken, 16);
+    if (!Number.isFinite(size) || size < 0) {
+      throw new Error('Malformed chunked loopback response: invalid chunk size');
+    }
+
+    offset = sizeLineEnd + 2;
+    if (size === 0) {
+      if (body.subarray(offset, offset + 2).toString('utf8') === '\r\n') {
+        return Buffer.concat(chunks);
+      }
+      const trailerEnd = body.indexOf('\r\n\r\n', offset);
+      if (trailerEnd === -1) {
+        throw new Error('Malformed chunked loopback response: unterminated trailers');
+      }
+      return Buffer.concat(chunks);
+    }
+
+    const chunkEnd = offset + size;
+    if (chunkEnd > body.length) {
+      throw new Error('Malformed chunked loopback response: truncated chunk body');
+    }
+    chunks.push(body.subarray(offset, chunkEnd));
+    offset = chunkEnd;
+
+    if (body.subarray(offset, offset + 2).toString('utf8') !== '\r\n') {
+      throw new Error('Malformed chunked loopback response: missing chunk terminator');
+    }
+    offset += 2;
+  }
+
+  throw new Error('Malformed chunked loopback response: missing terminating chunk');
+}
+
+export function parseLoopbackResponse(raw: Buffer | string): { status: number; ok: boolean; text: string } {
+  const rawBuffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw, 'utf8');
+  const separator = rawBuffer.indexOf('\r\n\r\n');
+  const head = (separator === -1 ? rawBuffer : rawBuffer.subarray(0, separator)).toString('utf8');
+  const body = separator === -1 ? Buffer.alloc(0) : rawBuffer.subarray(separator + 4);
+  const statusLine = head.split('\r\n', 1)[0] ?? '';
+  const match = statusLine.match(/^HTTP\/\d\.\d\s+(\d{3})/);
+  const status = match ? Number(match[1]) : 0;
+  const headers = parseLoopbackHeaders(head);
+
+  let payload = body;
+  const transferEncoding = headers['transfer-encoding']?.toLowerCase() ?? '';
+  if (transferEncoding.split(',').map(value => value.trim()).includes('chunked')) {
+    payload = decodeChunkedBody(body);
+  } else {
+    const contentLength = Number(headers['content-length']);
+    if (Number.isFinite(contentLength) && contentLength >= 0) {
+      payload = body.subarray(0, contentLength);
+    }
+  }
+
+  return { status, ok: status >= 200 && status < 300, text: payload.toString('utf8') };
+}
+
+async function fetchLoopback(
+  state: Pick<ServerState, 'port'>,
+  pathname: '/health' | '/command',
+  options: {
+    method?: 'GET' | 'POST';
+    body?: string;
+    token?: string;
+    timeoutMs: number;
+  },
+): Promise<{ status: number; ok: boolean; text: string }> {
+  return await new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: '127.0.0.1', port: state.port });
+    const timeout = setTimeout(() => {
+      socket.destroy(Object.assign(new Error('Loopback request timed out'), { name: 'AbortError' }));
+    }, options.timeoutMs);
+
+    const chunks: Buffer[] = [];
+
+    socket.on('connect', () => {
+      const body = options.body ?? '';
+      const headers = [
+        `${options.method ?? 'GET'} ${pathname} HTTP/1.1`,
+        `Host: 127.0.0.1:${state.port}`,
+        'Connection: close',
+        ...(options.token ? [`Authorization: Bearer ${options.token}`] : []),
+        ...(body
+          ? [
+              'Content-Type: application/json',
+              `Content-Length: ${Buffer.byteLength(body)}`,
+            ]
+          : []),
+        '',
+        body,
+      ];
+      socket.write(headers.join('\r\n'));
+    });
+
+    socket.on('data', (chunk) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk);
+    });
+
+    socket.on('end', () => {
+      clearTimeout(timeout);
+      try {
+        resolve(parseLoopbackResponse(Buffer.concat(chunks)));
+      } catch (err) {
+        reject(err);
+      }
+    });
+
+    socket.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
 }
 
 // ─── State File ────────────────────────────────────────────────
@@ -248,11 +386,9 @@ async function ensureServer(): Promise<ServerState> {
 
     // Server appears alive — do a health check
     try {
-      const resp = await fetch(`http://127.0.0.1:${state.port}/health`, {
-        signal: AbortSignal.timeout(2000),
-      });
+      const resp = await fetchLoopback(state, '/health', { timeoutMs: 2000 });
       if (resp.ok) {
-        const health = await resp.json() as any;
+        const health = JSON.parse(resp.text) as any;
         if (health.status === 'healthy') {
           return state;
         }
@@ -299,14 +435,11 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
   const body = JSON.stringify({ command, args });
 
   try {
-    const resp = await fetch(`http://127.0.0.1:${state.port}/command`, {
+    const resp = await fetchLoopback(state, '/command', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${state.token}`,
-      },
       body,
-      signal: AbortSignal.timeout(30000),
+      token: state.token,
+      timeoutMs: 30000,
     });
 
     if (resp.status === 401) {
@@ -319,7 +452,7 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
       throw new Error('Authentication failed');
     }
 
-    const text = await resp.text();
+    const text = resp.text;
 
     if (resp.ok) {
       process.stdout.write(text);
