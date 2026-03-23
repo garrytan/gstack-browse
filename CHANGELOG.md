@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.5.2] - 2026-03-22 — Outside Voice
+
+### Added
+
+- **Plan reviews now offer an independent second opinion.** After all review sections complete in `/plan-ceo-review` or `/plan-eng-review`, you can get a "brutally honest outside voice" from a different AI model (Codex CLI, or a fresh Claude subagent if Codex isn't installed). It reads your plan, finds what the review missed — logical gaps, unstated assumptions, feasibility risks — and presents findings verbatim. Optional, recommended, never blocks shipping.
+- **Cross-model tension detection.** When the outside voice disagrees with the review findings, the disagreements are surfaced automatically and offered as TODOs so nothing gets lost.
+- **Outside Voice in the Review Readiness Dashboard.** `/ship` now shows whether an outside voice ran on the plan, alongside the existing CEO/Eng/Design/Adversarial review rows.
+
+### Changed
+
+- **`/plan-eng-review` Codex integration upgraded.** The old hardcoded Step 0.5 is replaced with a richer resolver that adds Claude subagent fallback, review log persistence, dashboard visibility, and higher reasoning effort (`xhigh`).
+
 ## [0.11.5.1] - 2026-03-23 — Inline Office Hours
 
 ### Changed
