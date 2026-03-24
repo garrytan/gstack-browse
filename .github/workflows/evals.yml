@@ -62,7 +62,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      options: --tmpfs /tmp:exec
+      options: --tmpfs /tmp:exec -e HOME=/home/runner
     timeout-minutes: 20
     strategy:
       fail-fast: false
