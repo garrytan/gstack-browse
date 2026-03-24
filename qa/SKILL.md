@@ -635,6 +635,36 @@ This is the **primary mode** for developers verifying their work. When the user 
    If `app.json` or `app.config.*` exists, this is a mobile (Expo/React Native) project.
    **Automatically set up the entire mobile environment — do not ask the user:**
 
+   **Step 0: Check permissions for mobile QA commands**
+   Mobile QA runs many bash commands (`$BM`, `appium`, `xcrun simctl`, `curl`, `sleep`). Check if the user's Claude Code settings already allow these:
+   ```bash
+   cat ~/.claude/settings.json 2>/dev/null | grep -c "browse-mobile"
+   ```
+   If the output is 0 (no browse-mobile permissions found), the user will be prompted for every single command — bad experience. Use AskUserQuestion:
+
+   "Mobile QA needs to run many commands automatically (browse-mobile, appium, xcrun simctl, etc.). I can add permissions to your Claude Code settings so these run without prompting. This is a one-time setup."
+
+   Options:
+   - A) Yes, add mobile QA permissions (recommended) — adds allow rules to your settings.json
+   - B) No, I'll approve each command manually
+
+   If A: Read `~/.claude/settings.json`, merge these permissions into the existing `permissions.allow` array (create it if it doesn't exist):
+   ```
+   "Bash(~/.claude/skills/gstack/browse-mobile/dist/browse-mobile:*)"
+   "Bash($BM:*)"
+   "Bash(appium:*)"
+   "Bash(xcrun simctl:*)"
+   "Bash(curl -s http://127.0.0.1:4723:*)"
+   "Bash(curl http://127.0.0.1:4723:*)"
+   "Bash(lsof -i :4723:*)"
+   "Bash(lsof -i :8081:*)"
+   "Bash(sleep:*)"
+   "Bash(open -a Simulator:*)"
+   ```
+   After writing, tell the user: "Permissions added. These apply globally — you won't be prompted for mobile QA commands in any project."
+
+   If B: Continue — the user will approve each command individually.
+
    **Step 1: Extract bundle ID**
    ```bash
    cat app.json 2>/dev/null | grep -o '"bundleIdentifier"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"'
