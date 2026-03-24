@@ -361,7 +361,7 @@ If `MOBILE_NOT_AVAILABLE`: mobile testing is not available — web QA works as u
 2. If found AND `$BM` is available (MOBILE_READY): **automatically set up the mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below. Do NOT ask the user — just do it.
 3. If no mobile config found, or `$BM` is not available: use `$B` as usual. This is WEB MODE (default).
 
-**In mobile mode:** `$BM` replaces `$B` for all commands. Skip web-only commands (`console --errors`, `html`, `css`, `js`, `cookies`). Use `$BM click ~"Label"` for elements not detected as interactive. Take screenshots after every interaction and show them to the user via the Read tool.
+**In mobile mode:** `$BM` replaces `$B` for all commands. Skip web-only commands (`console --errors`, `html`, `css`, `js`, `cookies`). Use `$BM click label:Label` for elements not detected as interactive. Take screenshots after every interaction and show them to the user via the Read tool.
 
 **Create output directories:**
 
@@ -508,18 +508,18 @@ This is the **primary mode** for developers verifying their work. When the user 
    **In mobile mode, the QA flow adapts:**
 
    **SPEED IS CRITICAL — batch commands to minimize round trips:**
-   - Combine multiple commands in a single bash call using `&&`: e.g., `$BM click ~"Sign In" && sleep 2 && $BM snapshot -i && $BM screenshot /tmp/screen.png`
+   - Combine multiple commands in a single bash call using `&&`: e.g., `$BM click label:Sign In" && sleep 2 && $BM snapshot -i && $BM screenshot /tmp/screen.png`
    - Do NOT run each command as a separate Bash call — that adds permission prompts and overhead
    - Use `sleep 1` or `sleep 2` between commands (not separate tool calls)
    - Take screenshots only at key milestones (after navigation, after finding a bug), not after every single tap
 
    **Launch and navigate:**
    - Launch the app: `$BM goto app://<bundleId>`
-   - If the first snapshot shows "DEVELOPMENT SERVERS" or "localhost:8081" — this is the Expo dev launcher. Automatically click the localhost URL: `$BM click ~"http://localhost:8081" && sleep 8 && $BM snapshot -i`
+   - If the first snapshot shows "DEVELOPMENT SERVERS" or "localhost:8081" — this is the Expo dev launcher. Automatically click the localhost URL: `$BM click label:http://localhost:8081" && sleep 8 && $BM snapshot -i`
    - Use `$BM snapshot -i` to get the accessibility tree with @e refs
 
    **Interacting with elements:**
-   - If an element is visible in `$BM text` but not detected as interactive (common with RN `Pressable` missing `accessibilityRole`), use `$BM click ~"Label Text"` — this is the primary fallback
+   - If an element is visible in `$BM text` but not detected as interactive (common with RN `Pressable` missing `accessibilityRole`), use `$BM click label:Label Text"` — this is the primary fallback
    - Skip web-only commands: `console --errors`, `html`, `css`, `js`, `cookies` — not available in mobile mode
    - For form filling: `$BM fill @e3 "text"` works — coordinate tap + keyboard if needed
    - Use `$BM scroll down` for content below the fold, `$BM back` for navigation
@@ -761,7 +761,7 @@ Minimum 0 per category.
 - Check for memory leaks (monitor console after extended use)
 
 ### Expo / React Native (mobile mode — `$BM`)
-- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — they won't appear as interactive in `$BM snapshot -i`. Use `$BM text` to find visible labels, then `$BM click ~"Label"` to tap by accessibility label.
+- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — they won't appear as interactive in `$BM snapshot -i`. Use `$BM text` to find visible labels, then `$BM click label:Label"` to tap by accessibility label.
 - After tapping navigation elements, wait 1-2s before taking a snapshot — RN transitions are animated.
 - Test both portrait and landscape orientation: `$BM viewport landscape` / `$BM viewport portrait`.
 - Flag every component without proper accessibility props (`accessibilityRole`, `accessibilityLabel`) as an accessibility finding — these affect both screen readers and automation.

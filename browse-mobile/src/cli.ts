@@ -420,6 +420,8 @@ Usage:
 Commands:
   goto <app://bundle.id>    Launch app or deep link
   click <@e1>               Tap element by ref
+  click label:Sign In       Tap by accessibility label
+  tap <x> <y>               Tap at coordinates
   fill <@e1> <text>         Type into input field
   snapshot [-i] [-D] [-a]   Get accessibility tree with refs
   screenshot <path>         Save screenshot
@@ -436,6 +438,8 @@ Examples:
   browse-mobile goto app://com.example.myapp
   browse-mobile snapshot -i
   browse-mobile click @e3
+  browse-mobile click label:Sign In
+  browse-mobile tap 195 750
   browse-mobile screenshot /tmp/screen.png`);
     return;
   }

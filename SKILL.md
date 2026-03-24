@@ -545,7 +545,7 @@ $BM snapshot -i
 $BM click @e3
 
 # Tap by accessibility label (for elements without accessibilityRole)
-$BM click ~"Sign In"
+$BM click label:Sign In
 
 # Fill a text field
 $BM fill @e3 "test@example.com"

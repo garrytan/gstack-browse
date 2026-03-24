@@ -30,7 +30,7 @@ const READ_COMMANDS = new Set([
 ]);
 
 const WRITE_COMMANDS = new Set([
-  "goto", "click", "fill", "scroll", "back", "viewport",
+  "goto", "click", "tap", "fill", "scroll", "back", "viewport",
   "dialog-accept", "dialog-dismiss",
 ]);
 
@@ -94,8 +94,12 @@ async function handleCommand(
       return mobileDriver.goto(args[0]);
 
     case "click":
-      if (args.length === 0) throw new Error("click requires a ref (e.g., @e1)");
+      if (args.length === 0) throw new Error("click requires a ref (e.g., @e1) or label:Text");
       return mobileDriver.click(args[0]);
+
+    case "tap":
+      if (args.length < 2) throw new Error("tap requires x y coordinates (e.g., tap 195 750)");
+      return mobileDriver.tapCoordinates(parseInt(args[0], 10), parseInt(args[1], 10));
 
     case "fill":
       if (args.length < 2) throw new Error("fill requires a ref and text (e.g., @e1 \"hello\")");

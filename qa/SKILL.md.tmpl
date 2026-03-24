@@ -81,9 +81,9 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 3. If no mobile config found, or `$BM` is not available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
 
 **In mobile mode, these commands change:**
-- `$B goto <url>` → `$BM goto app://<bundleId>` (launch app) or `$BM click ~"Label"` (navigate)
+- `$B goto <url>` → `$BM goto app://<bundleId>` (launch app) or `$BM click label:Label` (navigate)
 - `$B snapshot -i` → `$BM snapshot -i` (accessibility tree from iOS, not ARIA)
-- `$B click @e3` → `$BM click @e3` (tap element) or `$BM click ~"Label Text"` (accessibility label fallback for RN components)
+- `$B click @e3` → `$BM click @e3` (tap element) or `$BM click label:LabelText` (accessibility label fallback for RN components)
 - `$B fill @e3 "text"` → `$BM fill @e3 "text"` (coordinate tap + keyboard if needed)
 - `$B screenshot` → `$BM screenshot` (simulator capture — always use Read tool to show user)
 - `$B console --errors` → SKIP (not available in mobile mode)

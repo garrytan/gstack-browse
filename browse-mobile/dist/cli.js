@@ -2565,12 +2565,13 @@ class MobileDriver {
       }
       return this.performClick(sid, result);
     }
-    if (refOrSelector.startsWith("~")) {
-      const label = refOrSelector.slice(1);
+    const labelMatch = refOrSelector.match(/^(?:~|label:)(.+)$/);
+    if (labelMatch) {
+      const label = labelMatch[1].replace(/^["']|["']$/g, "");
       const elementId2 = await findElement(sid, "accessibility id", label);
       if (elementId2) {
         await appiumPost(sid, `/element/${elementId2}/click`);
-        return `Clicked ~${label}`;
+        return `Clicked label:${label}`;
       }
       throw new Error(`Element with accessibility label "${label}" not found`);
     }
@@ -2603,6 +2604,22 @@ class MobileDriver {
     const refKey = [...this.refs.entries()].find(([, e]) => e.label);
     const label = refKey ? ` (${refKey[1].elementType.replace("XCUIElementType", "")}: "${refKey[1].label}")` : "";
     return `Clicked${label}`;
+  }
+  async tapCoordinates(x, y) {
+    const sid = this.ensureSession();
+    await appiumPost(sid, "/actions", {
+      actions: [{
+        type: "pointer",
+        id: "finger1",
+        parameters: { pointerType: "touch" },
+        actions: [
+          { type: "pointerMove", duration: 0, x, y },
+          { type: "pointerDown", button: 0 },
+          { type: "pointerUp", button: 0 }
+        ]
+      }]
+    });
+    return `Tapped at (${x}, ${y})`;
   }
   async fill(refOrSelector, text) {
     const sid = this.ensureSession();
@@ -2854,8 +2871,12 @@ async function handleCommand(command, args) {
       return mobileDriver.goto(args[0]);
     case "click":
       if (args.length === 0)
-        throw new Error("click requires a ref (e.g., @e1)");
+        throw new Error("click requires a ref (e.g., @e1) or label:Text");
       return mobileDriver.click(args[0]);
+    case "tap":
+      if (args.length < 2)
+        throw new Error("tap requires x y coordinates (e.g., tap 195 750)");
+      return mobileDriver.tapCoordinates(parseInt(args[0], 10), parseInt(args[1], 10));
     case "fill":
       if (args.length < 2)
         throw new Error('fill requires a ref and text (e.g., @e1 "hello")');
@@ -3033,6 +3054,7 @@ var init_server = __esm(() => {
   WRITE_COMMANDS = new Set([
     "goto",
     "click",
+    "tap",
     "fill",
     "scroll",
     "back",
@@ -3405,6 +3427,8 @@ Usage:
 Commands:
   goto <app://bundle.id>    Launch app or deep link
   click <@e1>               Tap element by ref
+  click label:Sign In       Tap by accessibility label
+  tap <x> <y>               Tap at coordinates
   fill <@e1> <text>         Type into input field
   snapshot [-i] [-D] [-a]   Get accessibility tree with refs
   screenshot <path>         Save screenshot
@@ -3421,6 +3445,8 @@ Examples:
   browse-mobile goto app://com.example.myapp
   browse-mobile snapshot -i
   browse-mobile click @e3
+  browse-mobile click label:Sign In
+  browse-mobile tap 195 750
   browse-mobile screenshot /tmp/screen.png`);
     return;
   }

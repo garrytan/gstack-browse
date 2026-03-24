@@ -244,13 +244,15 @@ export class MobileDriver {
       return this.performClick(sid, result);
     }
 
-    // Direct selector: try as accessibility id first, then xpath
-    if (refOrSelector.startsWith("~")) {
-      const label = refOrSelector.slice(1);
+    // Direct selector: try as accessibility label
+    // Supports both ~Label and label:Label syntax (label: preferred to avoid shell ~ expansion)
+    const labelMatch = refOrSelector.match(/^(?:~|label:)(.+)$/);
+    if (labelMatch) {
+      const label = labelMatch[1].replace(/^["']|["']$/g, ""); // strip quotes
       const elementId = await findElement(sid, "accessibility id", label);
       if (elementId) {
         await appiumPost(sid, `/element/${elementId}/click`);
-        return `Clicked ~${label}`;
+        return `Clicked label:${label}`;
       }
       throw new Error(`Element with accessibility label "${label}" not found`);
     }
@@ -290,6 +292,22 @@ export class MobileDriver {
     const refKey = [...this.refs.entries()].find(([, e]) => e.label);
     const label = refKey ? ` (${refKey[1].elementType.replace("XCUIElementType", "")}: "${refKey[1].label}")` : "";
     return `Clicked${label}`;
+  }
+
+  async tapCoordinates(x: number, y: number): Promise<string> {
+    const sid = this.ensureSession();
+    await appiumPost(sid, "/actions", {
+      actions: [{
+        type: "pointer", id: "finger1",
+        parameters: { pointerType: "touch" },
+        actions: [
+          { type: "pointerMove", duration: 0, x, y },
+          { type: "pointerDown", button: 0 },
+          { type: "pointerUp", button: 0 },
+        ],
+      }],
+    });
+    return `Tapped at (${x}, ${y})`;
   }
 
   async fill(refOrSelector: string, text: string): Promise<string> {
