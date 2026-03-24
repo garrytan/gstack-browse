@@ -546,7 +546,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   What alternatives were dismissed too quickly? What competitive or market risks are
   unaddressed? What scope decisions will look foolish in 6 months? Be adversarial.
   No compliments. Just the strategic blind spots.
-  File: <plan_path>" -s read-only --enable web_search_cached`
+  File: <plan_path>" -s read-only --search`
   Timeout: 10 minutes
 
   **Claude CEO subagent** (via Agent tool):
@@ -657,7 +657,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   accessibility requirements (keyboard nav, contrast, touch targets) specified or
   aspirational? Does the plan describe specific UI decisions or generic patterns?
   What design decisions will haunt the implementer if left ambiguous?
-  Be opinionated. No hedging." -s read-only --enable web_search_cached`
+  Be opinionated. No hedging." -s read-only --search`
   Timeout: 10 minutes
 
   **Claude design subagent** (via Agent tool):
@@ -712,7 +712,6 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
 
 **Override rules:**
 - Scope challenge: never reduce (P2)
-<<<<<<< HEAD
 - Dual voices: always run BOTH Claude subagent AND Codex if available (P6).
 
   **Codex eng voice** (via Bash):
@@ -723,7 +722,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   CEO: <insert CEO consensus table summary — key concerns, DISAGREEs>
   Design: <insert Design consensus table summary, or 'skipped, no UI scope'>
 
-  File: <plan_path>" -s read-only --enable web_search_cached`
+  File: <plan_path>" -s read-only --search`
   Timeout: 10 minutes
 
   **Claude eng subagent** (via Agent tool):
@@ -738,12 +737,6 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   NO prior-phase context — subagent must be truly independent.
 
   Error handling: same as Phase 1 (non-blocking, degradation matrix applies).
-
-=======
-- Codex review: always run if available (P6)
-  Command: `codex exec "Review this plan for architectural issues, missing edge cases, and hidden complexity. Be adversarial. File: <plan_path>" -s read-only --search`
-  Timeout: 10 minutes, then proceed with "Codex timed out — single-reviewer mode"
->>>>>>> dd5e707 (fix: correct codex CLI flags for v0.36.0 compatibility)
 - Architecture choices: explicit over clever (P5). If codex disagrees with valid reason → TASTE DECISION.
 - Evals: always include all relevant suites (P1)
 - Test plan: generate artifact at `~/.gstack/projects/$SLUG/{user}-{branch}-test-plan-{datetime}.md`
