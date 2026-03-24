@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+# gstack-skill-share — package a skill for community sharing
+#
+# Creates a shareable .tar.gz archive with metadata for community import.
+# The archive includes the .tmpl file, any supporting files (templates,
+# checklists), and a manifest with validation results.
+#
+# Usage:
+#   gstack-skill-share <skill-dir>              # package for sharing
+#   gstack-skill-share <skill-dir> --validate   # validate before packaging
+#   gstack-skill-share --list                   # list installed community skills
+#
+# Output: <skill-name>.gstack-skill.tar.gz (shareable archive)
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+GSTACK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+case "${1:-}" in
+  --list)
+    echo "Installed skills:"
+    for d in "$GSTACK_DIR"/*/; do
+      [ -f "$d/SKILL.md.tmpl" ] || continue
+      name=$(basename "$d")
+      version=$(grep "^version:" "$d/SKILL.md.tmpl" 2>/dev/null | head -1 | awk '{print $2}' || echo "?")
+      desc=$(grep -A1 "^description:" "$d/SKILL.md.tmpl" 2>/dev/null | tail -1 | sed 's/^ *//' || echo "")
+      printf "  /%-20s v%-8s %s\n" "$name" "$version" "${desc:0:50}"
+    done
+    exit 0
+    ;;
+  --help|-h)
+    echo "Usage: gstack-skill-share <skill-dir> [--validate]"
+    exit 0
+    ;;
+esac
+
+SKILL_DIR="${1:?Usage: gstack-skill-share <skill-dir>}"
+VALIDATE="${2:-}"
+
+# Resolve skill directory
+if [ -d "$GSTACK_DIR/$SKILL_DIR" ]; then
+  FULL_DIR="$GSTACK_DIR/$SKILL_DIR"
+elif [ -d "$SKILL_DIR" ]; then
+  FULL_DIR="$SKILL_DIR"
+else
+  echo "ERROR: Skill directory not found: $SKILL_DIR"
+  exit 1
+fi
+
+SKILL_NAME=$(basename "$FULL_DIR")
+TMPL="$FULL_DIR/SKILL.md.tmpl"
+
+[ -f "$TMPL" ] || { echo "ERROR: No SKILL.md.tmpl in $FULL_DIR"; exit 1; }
+
+# Validate if requested
+if [ "$VALIDATE" = "--validate" ]; then
+  echo "Validating $SKILL_NAME..."
+  "$SCRIPT_DIR/gstack-skill-validate" "$TMPL" || exit 1
+  echo ""
+fi
+
+# Extract metadata
+VERSION=$(grep "^version:" "$TMPL" 2>/dev/null | head -1 | awk '{print $2}' || echo "0.0.0")
+DESC=$(grep -A3 "^description:" "$TMPL" 2>/dev/null | tail -2 | sed 's/^ *//' | tr '\n' ' ' | head -c 200 || echo "")
+
+# Create manifest
+MANIFEST=$(mktemp)
+cat > "$MANIFEST" << MEOF
+{
+  "name": "$SKILL_NAME",
+  "version": "$VERSION",
+  "description": "$(echo "$DESC" | sed 's/"/\\"/g')",
+  "author": "$(git config user.name 2>/dev/null || echo "unknown")",
+  "gstack_version": "$(cat "$GSTACK_DIR/VERSION" 2>/dev/null || echo "unknown")",
+  "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "files": [$(find "$FULL_DIR" -type f -not -name "SKILL.md" -not -path "*/.git/*" | while read f; do echo "\"$(basename "$f")\""; done | tr '\n' ',' | sed 's/,$//')]
+}
+MEOF
+
+# Package
+ARCHIVE="${SKILL_NAME}.gstack-skill.tar.gz"
+TMPDIR_PKG=$(mktemp -d)
+mkdir -p "$TMPDIR_PKG/$SKILL_NAME"
+cp "$TMPL" "$TMPDIR_PKG/$SKILL_NAME/"
+
+# Copy supporting files (templates, checklists, etc.)
+for f in "$FULL_DIR"/*.md "$FULL_DIR"/templates/* "$FULL_DIR"/references/*; do
+  [ -f "$f" ] && [ "$(basename "$f")" != "SKILL.md" ] && cp "$f" "$TMPDIR_PKG/$SKILL_NAME/" 2>/dev/null || true
+done
+
+cp "$MANIFEST" "$TMPDIR_PKG/$SKILL_NAME/manifest.json"
+tar -czf "$ARCHIVE" -C "$TMPDIR_PKG" "$SKILL_NAME"
+rm -rf "$TMPDIR_PKG" "$MANIFEST"
+
+SIZE=$(wc -c < "$ARCHIVE" | tr -d ' ')
+echo "Packaged: $ARCHIVE ($((SIZE / 1024))KB)"
+echo ""
+echo "Share this file. Recipients install with:"
+echo "  tar xzf $ARCHIVE -C ~/.claude/skills/gstack/"
+echo "  bun run gen:skill-docs"
