@@ -626,7 +626,8 @@ BM=""
 # Check 2: vendored skills in project (e.g., .claude/skills/gstack/browse-mobile)
 [ -z "$BM" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/${ctx.paths.localSkillRoot}/browse-mobile/dist/browse-mobile" ] && BM="$_ROOT/${ctx.paths.localSkillRoot}/browse-mobile/dist/browse-mobile"
 # Check 3: global gstack install (works from ANY project directory)
-[ -z "$BM" ] && [ -x ${ctx.paths.browseDir}/../browse-mobile/dist/browse-mobile ] && BM=${ctx.paths.browseDir}/../browse-mobile/dist/browse-mobile
+# browseDir is e.g. ~/.claude/skills/gstack/browse/dist — go up 2 levels to gstack root
+[ -z "$BM" ] && [ -x ${ctx.paths.browseDir}/../../browse-mobile/dist/browse-mobile ] && BM=${ctx.paths.browseDir}/../../browse-mobile/dist/browse-mobile
 if [ -n "$BM" ] && [ -x "$BM" ]; then
   echo "MOBILE_READY: $BM"
 else
