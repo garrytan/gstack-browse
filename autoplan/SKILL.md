@@ -712,6 +712,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
 
 **Override rules:**
 - Scope challenge: never reduce (P2)
+<<<<<<< HEAD
 - Dual voices: always run BOTH Claude subagent AND Codex if available (P6).
 
   **Codex eng voice** (via Bash):
@@ -738,6 +739,11 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
 
   Error handling: same as Phase 1 (non-blocking, degradation matrix applies).
 
+=======
+- Codex review: always run if available (P6)
+  Command: `codex exec "Review this plan for architectural issues, missing edge cases, and hidden complexity. Be adversarial. File: <plan_path>" -s read-only --search`
+  Timeout: 10 minutes, then proceed with "Codex timed out — single-reviewer mode"
+>>>>>>> dd5e707 (fix: correct codex CLI flags for v0.36.0 compatibility)
 - Architecture choices: explicit over clever (P5). If codex disagrees with valid reason → TASTE DECISION.
 - Evals: always include all relevant suites (P1)
 - Test plan: generate artifact at `~/.gstack/projects/$SLUG/{user}-{branch}-test-plan-{datetime}.md`
