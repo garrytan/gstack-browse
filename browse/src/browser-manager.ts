@@ -62,7 +62,39 @@ export class BrowserManager {
   private consecutiveFailures: number = 0;
 
   async launch() {
-    this.browser = await chromium.launch({ headless: true });
+    // ─── Extension Support ────────────────────────────────────
+    // BROWSE_EXTENSIONS_DIR points to an unpacked Chrome extension directory.
+    // Extensions only work in headed mode, so we use an off-screen window.
+    const extensionsDir = process.env.BROWSE_EXTENSIONS_DIR;
+    const launchArgs: string[] = [];
+    let useHeadless = true;
+
+    // Docker/CI: Chromium sandbox requires unprivileged user namespaces which
+    // are typically disabled in containers. Detect container environment and
+    // add --no-sandbox automatically.
+    if (process.env.CI || process.env.CONTAINER) {
+      launchArgs.push('--no-sandbox');
+    }
+
+    if (extensionsDir) {
+      launchArgs.push(
+        `--disable-extensions-except=${extensionsDir}`,
+        `--load-extension=${extensionsDir}`,
+        '--window-position=-9999,-9999',
+        '--window-size=1,1',
+      );
+      useHeadless = false; // extensions require headed mode; off-screen window simulates headless
+      console.log(`[browse] Extensions loaded from: ${extensionsDir}`);
+    }
+
+    this.browser = await chromium.launch({
+      headless: useHeadless,
+      // On Windows, Chromium's sandbox fails when the server is spawned through
+      // the Bun→Node process chain (GitHub #276). Disable it — local daemon
+      // browsing user-specified URLs has marginal sandbox benefit.
+      chromiumSandbox: process.platform !== 'win32',
+      ...(launchArgs.length > 0 ? { args: launchArgs } : {}),
+    });
 
     // Chromium crash → exit with clear message
     this.browser.on('disconnected', () => {
@@ -464,7 +496,11 @@ export class BrowserManager {
     // 2. Launch new headed browser (try-catch — if this fails, headless stays running)
     let newBrowser: Browser;
     try {
-      newBrowser = await chromium.launch({ headless: false, timeout: 15000 });
+      newBrowser = await chromium.launch({
+        headless: false,
+        timeout: 15000,
+        chromiumSandbox: process.platform !== 'win32',
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return `ERROR: Cannot open headed browser — ${msg}. Headless browser still running.`;
