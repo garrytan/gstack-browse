@@ -70,6 +70,7 @@ gstack/
 ├── ship/            # Ship workflow skill
 ├── review/          # PR review skill
 ├── plan-ceo-review/ # /plan-ceo-review skill
+├── feature-scope/   # /feature-scope skill (v1 scope, acceptance criteria, PR slicing)
 ├── plan-eng-review/ # /plan-eng-review skill
 ├── autoplan/        # /autoplan skill (auto-review pipeline: CEO → design → eng)
 ├── benchmark/       # /benchmark skill (performance regression detection)

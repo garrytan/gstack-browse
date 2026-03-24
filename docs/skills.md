@@ -5,6 +5,7 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | Skill | Your specialist | What they do |
 |-------|----------------|--------------|
 | [`/office-hours`](#office-hours) | **YC Office Hours** | Start here. Six forcing questions that reframe your product before you write code. Pushes back on your framing, challenges premises, generates implementation alternatives. Design doc feeds into every downstream skill. |
+| [`/feature-scope`](#feature-scope) | **Product Manager** | Turn a promising idea into a concrete v1. Defines in-scope vs out-of-scope, acceptance criteria, and shippable PR slices. |
 | [`/plan-ceo-review`](#plan-ceo-review) | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
 | [`/plan-eng-review`](#plan-eng-review) | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
 | [`/plan-design-review`](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
@@ -84,9 +85,29 @@ Recommends A because you learn from real usage. CRM data comes naturally in week
 
 ### The design doc
 
-Both modes end with a design doc written to `~/.gstack/projects/` — and that doc feeds directly into `/plan-ceo-review` and `/plan-eng-review`. The full lifecycle is now: `office-hours → plan → implement → review → QA → ship → retro`.
+Both modes end with a design doc written to `~/.gstack/projects/` — and that doc feeds directly into `/feature-scope`, `/plan-ceo-review`, and `/plan-eng-review`. The full lifecycle is now: `office-hours → feature-scope → plan → implement → review → QA → ship → retro`.
 
 After the design doc is approved, `/office-hours` reflects on what it noticed about how you think — not generic praise, but specific callbacks to things you said during the session. The observations appear in the design doc too, so you re-encounter them when you re-read later.
+
+---
+
+## `/feature-scope`
+
+This is the missing middle between ideation and implementation.
+
+Sometimes `/office-hours` gives you the right problem framing, but the very next thing you need is not strategy review — it is a hard v1 boundary. What exactly ships now? What is explicitly out of scope? What would count as done? How do you break the work into slices that do not explode halfway through implementation?
+
+That is what `/feature-scope` does. It reads the design doc if you have one, maps the existing code it will touch, then forces concrete decisions:
+
+- who v1 is for right now
+- what success looks like
+- what the smallest valuable version is
+- what should be deferred on purpose
+- what order the slices should land in
+
+The output is a scoped feature doc in `~/.gstack/projects/` with acceptance criteria and 1-5 shippable PR slices. That doc is meant to be handed directly to `/plan-eng-review` or, if the scope still feels strategically wrong, back to `/plan-ceo-review`.
+
+Use this when the idea feels real but implementation scope is still fuzzy.
 
 ---
 

@@ -25,6 +25,7 @@ const SKILL_FILES = [
   'review/SKILL.md',
   'retro/SKILL.md',
   'plan-ceo-review/SKILL.md',
+  'feature-scope/SKILL.md',
   'plan-eng-review/SKILL.md',
   'setup-browser-cookies/SKILL.md',
   'plan-design-review/SKILL.md',

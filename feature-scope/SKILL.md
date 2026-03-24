@@ -1,24 +1,23 @@
 ---
-name: gstack
-version: 1.1.0
+name: feature-scope
+version: 1.0.0
 description: |
-  Fast headless browser for QA testing and site dogfooding. Navigate pages, interact with
-  elements, verify state, diff before/after, take annotated screenshots, test responsive
-  layouts, forms, uploads, dialogs, and capture bug evidence. Use when asked to open or
-  test a site, verify a deployment, dogfood a user flow, or file a bug with screenshots.
-  Also suggest adjacent gstack skills by stage: brainstorm /office-hours; scope
-  /feature-scope; strategy /plan-ceo-review; architecture /plan-eng-review; design /plan-design-review or
-  /design-consultation; auto-review /autoplan; debugging /investigate; QA /qa; code review
-  /review; visual audit /design-review; shipping /ship; docs /document-release; retro
-  /retro; second opinion /codex; prod safety /careful or /guard; scoped edits /freeze or
-  /unfreeze; gstack upgrades /gstack-upgrade. If the user opts out of suggestions, stop
-  and run gstack-config set proactive false; if they opt back in, run gstack-config set
-  proactive true.
+  Guided feature scoping before implementation. Defines the v1 slice, acceptance
+  criteria, explicit deferrals, and ordered PR slices, then saves a scoping doc.
+  Use when asked to "scope this feature", "define v1", "write acceptance criteria",
+  "break this into shippable slices", or when a design doc exists but implementation
+  scope is still fuzzy.
+  Proactively suggest when the user has an idea or design doc and is about to start
+  coding without a crisp v1 boundary or PR plan.
 allowed-tools:
   - Bash
   - Read
+  - Grep
+  - Glob
+  - Write
+  - Edit
   - AskUserQuestion
-
+benefits-from: [office-hours]
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -49,7 +48,7 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-echo '{"skill":"gstack","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"feature-scope","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
 ```
@@ -299,370 +298,178 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-If `PROACTIVE` is `false`: do NOT proactively suggest other gstack skills during this session.
-Only run skills the user explicitly invokes. This preference persists across sessions via
-`gstack-config`.
+# Feature Scope
 
-# gstack browse: QA Testing & Dogfooding
+You are a **feature scoping lead**. Your job is to turn a promising idea into a
+decision-complete v1 scope that an engineer or agent can implement without reopening
+product questions every 20 minutes.
 
-Persistent headless Chromium. First call auto-starts (~3s), then ~100-200ms per command.
-Auto-shuts down after 30 min idle. State persists between calls (cookies, tabs, sessions).
+**HARD GATE:** Do NOT write code, scaffold a project, or start implementation. Your
+only output is a scoped feature document.
 
-## SETUP (run this check BEFORE any browse command)
+## Phase 1: Context Gathering
 
-```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-B=""
-[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
-[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
-if [ -x "$B" ]; then
-  echo "READY: $B"
-else
-  echo "NEEDS_SETUP"
-fi
-```
-
-If `NEEDS_SETUP`:
-1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: `cd <SKILL_DIR> && ./setup`
-3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
-
-## IMPORTANT
-
-- Use the compiled binary via Bash: `$B <command>`
-- NEVER use `mcp__claude-in-chrome__*` tools. They are slow and unreliable.
-- Browser persists between calls — cookies, login sessions, and tabs carry over.
-- Dialogs (alert/confirm/prompt) are auto-accepted by default — no browser lockup.
-- **Show screenshots:** After `$B screenshot`, `$B snapshot -a -o`, or `$B responsive`, always use the Read tool on the output PNG(s) so the user can see them. Without this, screenshots are invisible.
-
-## QA Workflows
-
-### Test a user flow (login, signup, checkout, etc.)
+Understand the repo, the prior thinking, and the code you would touch.
 
 ```bash
-# 1. Go to the page
-$B goto https://app.example.com/login
-
-# 2. See what's interactive
-$B snapshot -i
-
-# 3. Fill the form using refs
-$B fill @e3 "test@example.com"
-$B fill @e4 "password123"
-$B click @e5
-
-# 4. Verify it worked
-$B snapshot -D              # diff shows what changed after clicking
-$B is visible ".dashboard"  # assert the dashboard appeared
-$B screenshot /tmp/after-login.png
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+git log --oneline -30
+git diff origin/main --stat 2>/dev/null || true
 ```
 
-### Verify a deployment / check prod
+1. Read `CLAUDE.md` and `TODOS.md` if they exist.
+2. Check for a recent design doc:
+   ```bash
+   BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
+   DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+   [ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
+   [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
+   ```
+3. Use Grep/Glob to find the existing code paths, components, routes, or jobs that already touch this workflow.
+4. Note any TODOs or prior design docs that overlap this feature.
+
+If a design doc exists, read it first and treat it as the source of truth for the
+problem and the high-level approach.
+
+If no design doc exists and the user is still exploring the problem rather than
+narrowing v1, recommend `/office-hours` before continuing.
+
+Output: "Here's what already exists, what prior thinking I found, and where this feature would land."
+
+## Phase 2: Goal Clarification
+
+Ask one question at a time via AskUserQuestion. If the design doc already answers a
+question clearly, confirm instead of re-asking from scratch.
+
+Lock these decisions:
+
+1. **Who is v1 for right now?**
+   Not the broad category — the specific user or workflow you are optimizing for first.
+
+2. **What does "done" mean?**
+   Define the user-visible outcome. What should be true when this feature ships?
+
+3. **What is the smallest version worth shipping?**
+   Force the wedge. One workflow, one loop, one thing that creates value.
+
+4. **What absolutely does NOT need to be in v1?**
+   Name the tempting extras early so they do not sneak back in.
+
+When answers are vague, push for specifics. "Better onboarding" is not scope. "A new
+user can connect one account, complete setup, and land on a working dashboard in under
+5 minutes" is scope.
+
+## Phase 3: Scope Definition
+
+Turn the clarified intent into a concrete v1 contract.
+
+Produce:
+
+- **In Scope (v1):** the exact behaviors that ship now
+- **Out of Scope:** explicit deferrals and non-goals
+- **Existing Code Touchpoints:** files, modules, commands, or workflows to reuse
+- **Acceptance Criteria:** 5-10 concrete checks that prove the feature is done
+- **Open Questions:** only the questions that block implementation
+- **Dependencies / Risks:** external blockers, migrations, or sequencing constraints
+
+Bias toward completeness inside the chosen wedge. A narrow v1 should still have
+complete error handling, state handling, and test expectations.
+
+## Phase 4: Implementation Slices
+
+Break the scoped feature into **1-5 independently shippable slices**.
+
+For each slice, define:
+
+- **Goal:** what user or system capability lands in this slice
+- **Touchpoints:** the main files/systems likely to change
+- **Tests:** what must be verified in this slice
+- **Exit Condition:** what must be true before moving to the next slice
+
+Rules:
+
+- Prefer slices small enough for one focused implementation session
+- Prefer vertical slices over infrastructure-first slices
+- Every slice should leave the repo in a valid, testable state
+- If a slice exists only because the overall feature is too big, cut scope again
+
+## Phase 5: Scoping Doc
+
+Write the scoped feature doc to the project directory.
 
 ```bash
-$B goto https://yourapp.com
-$B text                          # read the page — does it load?
-$B console                       # any JS errors?
-$B network                       # any failed requests?
-$B js "document.title"           # correct title?
-$B is visible ".hero-section"    # key elements present?
-$B screenshot /tmp/prod-check.png
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+DATETIME=$(date +%Y%m%d-%H%M%S)
 ```
 
-### Dogfood a feature end-to-end
+Write to `~/.gstack/projects/$SLUG/feature-scope-{feature-slug}-$DATETIME.md` using this format:
 
-```bash
-# Navigate to the feature
-$B goto https://app.example.com/new-feature
+```markdown
+# Feature Scope: {Feature Name}
 
-# Take annotated screenshot — shows every interactive element with labels
-$B snapshot -i -a -o /tmp/feature-annotated.png
+Generated by /feature-scope on {date}
+Branch: {branch}
+Repo: {owner/repo}
+Status: DRAFT
+Design Doc: {path or "none"}
 
-# Find ALL clickable things (including divs with cursor:pointer)
-$B snapshot -C
+## Goal
+{the v1 outcome}
 
-# Walk through the flow
-$B snapshot -i          # baseline
-$B click @e3            # interact
-$B snapshot -D          # what changed? (unified diff)
+## Target User / Workflow
+{who this is for right now}
 
-# Check element states
-$B is visible ".success-toast"
-$B is enabled "#next-step-btn"
-$B is checked "#agree-checkbox"
+## In Scope (v1)
+- {exact behaviors}
 
-# Check console for errors after interactions
-$B console
+## Out of Scope
+- {explicit deferrals}
+
+## Existing Code Touchpoints
+- {reuse opportunities and relevant files/systems}
+
+## Acceptance Criteria
+1. {criterion}
+2. {criterion}
+
+## Open Questions
+- {blocking ambiguities only}
+
+## Dependencies / Risks
+- {blockers, migrations, sequencing concerns}
+
+## Implementation Slices
+### Slice 1 — {name}
+- Goal: {goal}
+- Touchpoints: {files/systems}
+- Tests: {verification}
+- Exit Condition: {done signal}
+
+### Slice 2 — {name}
+...
+
+## Recommended Next Step
+{usually /plan-eng-review, sometimes /plan-ceo-review if product questions remain}
 ```
 
-### Test responsive layouts
+## Phase 6: Approval And Handoff
 
-```bash
-# Quick: 3 screenshots at mobile/tablet/desktop
-$B goto https://yourapp.com
-$B responsive /tmp/layout
+Present the scoped doc to the user via AskUserQuestion:
 
-# Manual: specific viewport
-$B viewport 375x812     # iPhone
-$B screenshot /tmp/mobile.png
-$B viewport 1440x900    # Desktop
-$B screenshot /tmp/desktop.png
+- **A)** Approve scope as-is
+- **B)** Revise the scope
+- **C)** This still needs product/strategy work — run `/plan-ceo-review`
+- **D)** Stop here
 
-# Element screenshot (crop to specific element)
-$B screenshot "#hero-banner" /tmp/hero.png
-$B snapshot -i
-$B screenshot @e3 /tmp/button.png
+If approved:
 
-# Region crop
-$B screenshot --clip 0,0,800,600 /tmp/above-fold.png
+- Mark `Status: APPROVED`
+- If the v1 is clear and implementable, recommend `/plan-eng-review` next
+- If the scope is still strategically fuzzy or the wedge feels wrong, recommend `/plan-ceo-review` next
 
-# Viewport only (no scroll)
-$B screenshot --viewport /tmp/viewport.png
-```
+## Completion Status
 
-### Test file upload
-
-```bash
-$B goto https://app.example.com/upload
-$B snapshot -i
-$B upload @e3 /path/to/test-file.pdf
-$B is visible ".upload-success"
-$B screenshot /tmp/upload-result.png
-```
-
-### Test forms with validation
-
-```bash
-$B goto https://app.example.com/form
-$B snapshot -i
-
-# Submit empty — check validation errors appear
-$B click @e10                        # submit button
-$B snapshot -D                       # diff shows error messages appeared
-$B is visible ".error-message"
-
-# Fill and resubmit
-$B fill @e3 "valid input"
-$B click @e10
-$B snapshot -D                       # diff shows errors gone, success state
-```
-
-### Test dialogs (delete confirmations, prompts)
-
-```bash
-# Set up dialog handling BEFORE triggering
-$B dialog-accept              # will auto-accept next alert/confirm
-$B click "#delete-button"     # triggers confirmation dialog
-$B dialog                     # see what dialog appeared
-$B snapshot -D                # verify the item was deleted
-
-# For prompts that need input
-$B dialog-accept "my answer"  # accept with text
-$B click "#rename-button"     # triggers prompt
-```
-
-### Test authenticated pages (import real browser cookies)
-
-```bash
-# Import cookies from your real browser (opens interactive picker)
-$B cookie-import-browser
-
-# Or import a specific domain directly
-$B cookie-import-browser comet --domain .github.com
-
-# Now test authenticated pages
-$B goto https://github.com/settings/profile
-$B snapshot -i
-$B screenshot /tmp/github-profile.png
-```
-
-### Compare two pages / environments
-
-```bash
-$B diff https://staging.app.com https://prod.app.com
-```
-
-### Multi-step chain (efficient for long flows)
-
-```bash
-echo '[
-  ["goto","https://app.example.com"],
-  ["snapshot","-i"],
-  ["fill","@e3","test@test.com"],
-  ["fill","@e4","password"],
-  ["click","@e5"],
-  ["snapshot","-D"],
-  ["screenshot","/tmp/result.png"]
-]' | $B chain
-```
-
-## Quick Assertion Patterns
-
-```bash
-# Element exists and is visible
-$B is visible ".modal"
-
-# Button is enabled/disabled
-$B is enabled "#submit-btn"
-$B is disabled "#submit-btn"
-
-# Checkbox state
-$B is checked "#agree"
-
-# Input is editable
-$B is editable "#name-field"
-
-# Element has focus
-$B is focused "#search-input"
-
-# Page contains text
-$B js "document.body.textContent.includes('Success')"
-
-# Element count
-$B js "document.querySelectorAll('.list-item').length"
-
-# Specific attribute value
-$B attrs "#logo"    # returns all attributes as JSON
-
-# CSS property
-$B css ".button" "background-color"
-```
-
-## Snapshot System
-
-The snapshot is your primary tool for understanding and interacting with pages.
-
-```
--i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs
--c        --compact               Compact (no empty structural nodes)
--d <N>    --depth                 Limit tree depth (0 = root only, default: unlimited)
--s <sel>  --selector              Scope to CSS selector
--D        --diff                  Unified diff against previous snapshot (first call stores baseline)
--a        --annotate              Annotated screenshot with red overlay boxes and ref labels
--o <path> --output                Output path for annotated screenshot (default: <temp>/browse-annotated.png)
--C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick)
-```
-
-All flags can be combined freely. `-o` only applies when `-a` is also used.
-Example: `$B snapshot -i -a -C -o /tmp/annotated.png`
-
-**Ref numbering:** @e refs are assigned sequentially (@e1, @e2, ...) in tree order.
-@c refs from `-C` are numbered separately (@c1, @c2, ...).
-
-After snapshot, use @refs as selectors in any command:
-```bash
-$B click @e3       $B fill @e4 "value"     $B hover @e1
-$B html @e2        $B css @e5 "color"      $B attrs @e6
-$B click @c1       # cursor-interactive ref (from -C)
-```
-
-**Output format:** indented accessibility tree with @ref IDs, one element per line.
-```
-  @e1 [heading] "Welcome" [level=1]
-  @e2 [textbox] "Email"
-  @e3 [button] "Submit"
-```
-
-Refs are invalidated on navigation — run `snapshot` again after `goto`.
-
-## Command Reference
-
-### Navigation
-| Command | Description |
-|---------|-------------|
-| `back` | History back |
-| `forward` | History forward |
-| `goto <url>` | Navigate to URL |
-| `reload` | Reload page |
-| `url` | Print current URL |
-
-### Reading
-| Command | Description |
-|---------|-------------|
-| `accessibility` | Full ARIA tree |
-| `forms` | Form fields as JSON |
-| `html [selector]` | innerHTML of selector (throws if not found), or full page HTML if no selector given |
-| `links` | All links as "text → href" |
-| `text` | Cleaned page text |
-
-### Interaction
-| Command | Description |
-|---------|-------------|
-| `click <sel>` | Click element |
-| `cookie <name>=<value>` | Set cookie on current page domain |
-| `cookie-import <json>` | Import cookies from JSON file |
-| `cookie-import-browser [browser] [--domain d]` | Import cookies from Comet, Chrome, Arc, Brave, or Edge (opens picker, or use --domain for direct import) |
-| `dialog-accept [text]` | Auto-accept next alert/confirm/prompt. Optional text is sent as the prompt response |
-| `dialog-dismiss` | Auto-dismiss next dialog |
-| `fill <sel> <val>` | Fill input |
-| `header <name>:<value>` | Set custom request header (colon-separated, sensitive values auto-redacted) |
-| `hover <sel>` | Hover element |
-| `press <key>` | Press key — Enter, Tab, Escape, ArrowUp/Down/Left/Right, Backspace, Delete, Home, End, PageUp, PageDown, or modifiers like Shift+Enter |
-| `scroll [sel]` | Scroll element into view, or scroll to page bottom if no selector |
-| `select <sel> <val>` | Select dropdown option by value, label, or visible text |
-| `type <text>` | Type into focused element |
-| `upload <sel> <file> [file2...]` | Upload file(s) |
-| `useragent <string>` | Set user agent |
-| `viewport <WxH>` | Set viewport size |
-| `wait <sel|--networkidle|--load>` | Wait for element, network idle, or page load (timeout: 15s) |
-
-### Inspection
-| Command | Description |
-|---------|-------------|
-| `attrs <sel|@ref>` | Element attributes as JSON |
-| `console [--clear|--errors]` | Console messages (--errors filters to error/warning) |
-| `cookies` | All cookies as JSON |
-| `css <sel> <prop>` | Computed CSS value |
-| `dialog [--clear]` | Dialog messages |
-| `eval <file>` | Run JavaScript from file and return result as string (path must be under /tmp or cwd) |
-| `is <prop> <sel>` | State check (visible/hidden/enabled/disabled/checked/editable/focused) |
-| `js <expr>` | Run JavaScript expression and return result as string |
-| `network [--clear]` | Network requests |
-| `perf` | Page load timings |
-| `storage [set k v]` | Read all localStorage + sessionStorage as JSON, or set <key> <value> to write localStorage |
-
-### Visual
-| Command | Description |
-|---------|-------------|
-| `diff <url1> <url2>` | Text diff between pages |
-| `pdf [path]` | Save as PDF |
-| `responsive [prefix]` | Screenshots at mobile (375x812), tablet (768x1024), desktop (1280x720). Saves as {prefix}-mobile.png etc. |
-| `screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]` | Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport) |
-
-### Snapshot
-| Command | Description |
-|---------|-------------|
-| `snapshot [flags]` | Accessibility tree with @e refs for element selection. Flags: -i interactive only, -c compact, -d N depth limit, -s sel scope, -D diff vs previous, -a annotated screenshot, -o path output, -C cursor-interactive @c refs |
-
-### Meta
-| Command | Description |
-|---------|-------------|
-| `chain` | Run commands from JSON stdin. Format: [["cmd","arg1",...],...] |
-
-### Tabs
-| Command | Description |
-|---------|-------------|
-| `closetab [id]` | Close tab |
-| `newtab [url]` | Open new tab |
-| `tab <id>` | Switch to tab |
-| `tabs` | List open tabs |
-
-### Server
-| Command | Description |
-|---------|-------------|
-| `handoff [message]` | Open visible Chrome at current page for user takeover |
-| `restart` | Restart server |
-| `resume` | Re-snapshot after user takeover, return control to AI |
-| `status` | Health check |
-| `stop` | Shutdown server |
-
-## Tips
-
-1. **Navigate once, query many times.** `goto` loads the page; then `text`, `js`, `screenshot` all hit the loaded page instantly.
-2. **Use `snapshot -i` first.** See all interactive elements, then click/fill by ref. No CSS selector guessing.
-3. **Use `snapshot -D` to verify.** Baseline → action → diff. See exactly what changed.
-4. **Use `is` for assertions.** `is visible .modal` is faster and more reliable than parsing page text.
-5. **Use `snapshot -a` for evidence.** Annotated screenshots are great for bug reports.
-6. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-7. **Check `console` after actions.** Catch JS errors that don't surface visually.
-8. **Use `chain` for long flows.** Single command, no per-step CLI overhead.
+- `DONE` — scoping doc approved
+- `DONE_WITH_CONCERNS` — approved, but with listed open questions or risks
+- `BLOCKED` — cannot scope cleanly because core intent is still unresolved
+- `NEEDS_CONTEXT` — missing design doc, target workflow, or repo context needed to proceed

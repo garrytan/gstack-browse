@@ -230,7 +230,7 @@ describe('Update check preamble', () => {
     'qa-only/SKILL.md',
     'setup-browser-cookies/SKILL.md',
     'ship/SKILL.md', 'review/SKILL.md',
-    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'feature-scope/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
     'office-hours/SKILL.md', 'investigate/SKILL.md',
     'plan-design-review/SKILL.md',
@@ -731,6 +731,39 @@ describe('investigate skill structure', () => {
   }
 });
 
+describe('feature-scope skill structure', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'feature-scope', 'SKILL.md'), 'utf-8');
+
+  for (const section of ['Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Phase 6']) {
+    test(`contains ${section}`, () => expect(content).toContain(section));
+  }
+
+  test('contains hard gate against implementation', () => {
+    expect(content).toContain('HARD GATE');
+    expect(content).toContain('only output is a scoped feature document');
+  });
+
+  test('contains acceptance criteria and out-of-scope contract', () => {
+    expect(content).toContain('Acceptance Criteria');
+    expect(content).toContain('Out of Scope');
+  });
+
+  test('contains implementation slices and PR slicing guidance', () => {
+    expect(content).toContain('Implementation Slices');
+    expect(content).toContain('independently shippable slices');
+  });
+
+  test('contains next-step handoff to plan-eng-review or plan-ceo-review', () => {
+    expect(content).toContain('/plan-eng-review');
+    expect(content).toContain('/plan-ceo-review');
+  });
+
+  test('writes a feature scope doc to ~/.gstack/projects/', () => {
+    expect(content).toContain('feature-scope-{feature-slug}');
+    expect(content).toContain('~/.gstack/projects/');
+  });
+});
+
 // --- Contributor mode preamble structure validation ---
 
 describe('Contributor mode preamble structure', () => {
@@ -739,7 +772,7 @@ describe('Contributor mode preamble structure', () => {
     'qa-only/SKILL.md',
     'setup-browser-cookies/SKILL.md',
     'ship/SKILL.md', 'review/SKILL.md',
-    'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
+    'plan-ceo-review/SKILL.md', 'feature-scope/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
     'plan-design-review/SKILL.md',
     'design-review/SKILL.md',
@@ -1396,7 +1429,7 @@ describe('Skill trigger phrases', () => {
   // humanizer (text tool)
   const SKILLS_REQUIRING_TRIGGERS = [
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
-    'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
+    'feature-scope', 'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
     'codex', 'browse', 'setup-browser-cookies',
   ];
@@ -1416,7 +1449,7 @@ describe('Skill trigger phrases', () => {
   // Skills with proactive triggers should have "Proactively suggest" in description
   const SKILLS_REQUIRING_PROACTIVE = [
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
-    'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
+    'feature-scope', 'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
   ];
 

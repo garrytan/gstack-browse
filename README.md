@@ -33,7 +33,7 @@ Fork it. Improve it. Make it yours. And if you want to hate on free open source 
 
 1. Install gstack (30 seconds — see below)
 2. Run `/office-hours` — describe what you're building
-3. Run `/plan-ceo-review` on any feature idea
+3. Run `/feature-scope` — define the v1 slice before you code
 4. Run `/review` on any branch with changes
 5. Run `/qa` on your staging URL
 6. Stop there. You'll know if this is for you.
@@ -46,11 +46,11 @@ Fork it. Improve it. Make it yours. And if you want to hate on free open source 
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install gstack: run **`git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /autoplan, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run **`git clone https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /feature-scope, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /autoplan, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /feature-scope, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
@@ -134,13 +134,14 @@ You said "daily briefing app." The agent said "you're building a chief of staff 
 
 gstack is a process, not a collection of tools. The skills run in the order a sprint runs:
 
-**Think → Plan → Build → Review → Test → Ship → Reflect**
+**Think → Scope → Plan → Build → Review → Test → Ship → Reflect**
 
-Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-ceo-review` reads. `/plan-eng-review` writes a test plan that `/qa` picks up. `/review` catches bugs that `/ship` verifies are fixed. Nothing falls through the cracks because every step knows what came before it.
+Each skill feeds into the next. `/office-hours` writes a design doc that `/feature-scope` turns into a concrete v1 contract. `/plan-eng-review` writes a test plan that `/qa` picks up. `/review` catches bugs that `/ship` verifies are fixed. Nothing falls through the cracks because every step knows what came before it.
 
 | Skill | Your specialist | What they do |
 |-------|----------------|--------------|
 | `/office-hours` | **YC Office Hours** | Start here. Six forcing questions that reframe your product before you write code. Pushes back on your framing, challenges premises, generates implementation alternatives. Design doc feeds into every downstream skill. |
+| `/feature-scope` | **Product Manager** | Turns a promising idea into a concrete v1. Defines in-scope vs out-of-scope, acceptance criteria, and shippable PR slices. |
 | `/plan-ceo-review` | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
 | `/plan-eng-review` | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
 | `/plan-design-review` | **Senior Designer** | Rates each design dimension 0-10, explains what a 10 looks like, then edits the plan to get there. AI Slop detection. Interactive — one AskUserQuestion per design choice. |
@@ -234,7 +235,7 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 ## gstack
 Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
 Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
-/design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse,
+/feature-scope, /design-consultation, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse,
 /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro,
 /investigate, /document-release, /codex, /cso, /autoplan, /careful, /freeze, /guard,
 /unfreeze, /gstack-upgrade.
