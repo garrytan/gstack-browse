@@ -98,17 +98,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Bun needs a writable tmpdir — GH Actions container user may not own the default.
-      # Force /tmp writable for all users (container default may be root-only).
+      # Bun needs a writable tmpdir — GH Actions container maps HOME=/github/home
+      # and the runner user can't write to the default /tmp in some container configs.
       - name: Fix temp dirs
         run: |
-          chmod 1777 /tmp 2>/dev/null || sudo chmod 1777 /tmp 2>/dev/null || true
-          mkdir -p "$HOME/tmp" && chmod 1777 "$HOME/tmp"
+          mkdir -p "$HOME/tmp"
           echo "TMPDIR=$HOME/tmp" >> "$GITHUB_ENV"
           echo "BUN_TMPDIR=$HOME/tmp" >> "$GITHUB_ENV"
 
       # Restore pre-installed node_modules from Docker image via symlink (~0s vs ~15s install)
       # If package.json changed since image was built, fall back to fresh install
+      # Note: GITHUB_ENV vars from previous step are now active
       - name: Restore deps
         run: |
           if [ -d /opt/node_modules_cache ] && diff -q /opt/node_modules_cache/.package.json package.json >/dev/null 2>&1; then
@@ -122,7 +122,10 @@ jobs:
       # Verify Playwright can launch Chromium (fails fast if sandbox/deps are broken)
       - name: Verify Chromium
         if: matrix.suite.name == 'e2e-browse'
-        run: bun -e "import {chromium} from 'playwright';const b=await chromium.launch({args:['--no-sandbox']});console.log('Chromium OK');await b.close()"
+        run: |
+          echo "TMPDIR=$TMPDIR BUN_TMPDIR=$BUN_TMPDIR HOME=$HOME"
+          ls -la "$TMPDIR" || echo "TMPDIR not accessible"
+          TMPDIR="$HOME/tmp" BUN_TMPDIR="$HOME/tmp" bun -e "import {chromium} from 'playwright';const b=await chromium.launch({args:['--no-sandbox']});console.log('Chromium OK');await b.close()"
 
       - name: Run ${{ matrix.suite.name }}
         env:
