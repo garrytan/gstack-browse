@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# gstack-skill-search — discover community skills on GitHub
+#
+# Uses GitHub's search API to find gstack skill repositories.
+# Skills are GitHub repos with topic "gstack-skill" and a SKILL.md.tmpl.
+#
+# Usage:
+#   gstack-skill-search                    # browse all community skills
+#   gstack-skill-search security           # search by keyword
+#   gstack-skill-search --popular          # sort by stars
+#   gstack-skill-search --recent           # sort by recently updated
+#   gstack-skill-search --json             # machine-readable output
+#
+# Publishing: add topic "gstack-skill" to your repo:
+#   gh repo edit --add-topic gstack-skill
+set -euo pipefail
+
+QUERY=""
+SORT="stars"
+JSON_MODE=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --popular) SORT="stars" ;;
+    --recent) SORT="updated" ;;
+    --json) JSON_MODE=1 ;;
+    --help|-h) echo "Usage: gstack-skill-search [query] [--popular|--recent] [--json]"; exit 0 ;;
+    -*) ;;
+    *) QUERY="$arg" ;;
+  esac
+done
+
+# Build search query
+SEARCH="topic:gstack-skill"
+[ -n "$QUERY" ] && SEARCH="$QUERY $SEARCH"
+
+# Search GitHub
+RESULTS=$(gh search repos "$SEARCH" --sort "$SORT" --limit 20 \
+  --json fullName,description,stargazersCount,updatedAt,url \
+  2>/dev/null || echo "[]")
+
+if [ "$JSON_MODE" = "1" ]; then
+  echo "$RESULTS"
+  exit 0
+fi
+
+COUNT=$(echo "$RESULTS" | python3 -c "import json,sys;print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
+
+if [ "$COUNT" = "0" ]; then
+  echo "No community skills found."
+  echo ""
+  echo "Publish yours: add topic 'gstack-skill' to your repo"
+  echo "  gh repo edit --add-topic gstack-skill"
+  exit 0
+fi
+
+echo "COMMUNITY SKILLS ($COUNT found, sorted by $SORT)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+echo "$RESULTS" | python3 -c "
+import json, sys
+results = json.load(sys.stdin)
+for r in results:
+    stars = r.get('stargazersCount', 0)
+    name = r.get('fullName', '')
+    desc = (r.get('description', '') or '')[:60]
+    updated = r.get('updatedAt', '')[:10]
+    star_icon = '★' if stars > 10 else '☆'
+    print(f'  {star_icon} {stars:3d}  {name}')
+    print(f'         {desc}')
+    print(f'         Updated: {updated}  Install: gstack-skill-install {name}')
+    print()
+" 2>/dev/null
+
+echo "Install: gstack-skill-install <owner/repo>"
+echo "Publish: gh repo edit --add-topic gstack-skill"
