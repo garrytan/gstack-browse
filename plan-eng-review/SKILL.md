@@ -3,13 +3,13 @@ name: plan-eng-review
 preamble-tier: 3
 version: 1.0.0
 description: |
-  MANUAL TRIGGER ONLY: invoke only when user types /plan-eng-review.
-  Eng manager-mode plan review. Lock in the execution plan — architecture,
-  data flow, diagrams, edge cases, test coverage, performance. Walks through
-  issues interactively with opinionated recommendations. Use when asked to
-  "review the architecture", "engineering review", or "lock in the plan".
-  Proactively suggest when the user has a plan or design doc and is about to
-  start coding — to catch architecture issues before implementation.
+  MANUAL TRIGGER ONLY: 사용자가 /plan-eng-review를 입력할 때만 실행합니다.
+  엔지니어링 매니저 모드 플랜 리뷰. 실행 계획을 확정합니다 — architecture,
+  data flow, 다이어그램, edge case, 테스트 커버리지, 성능. 의견이 담긴
+  추천과 함께 이슈를 인터랙티브하게 검토합니다. "아키텍처 리뷰", "엔지니어링
+  리뷰", "플랜 확정" 등을 요청받을 때 사용하세요. 사용자가 플랜이나 설계
+  문서를 가지고 있고 코딩을 시작하려 할 때 선제적으로 제안하세요 — 구현
+  전에 아키텍처 이슈를 잡기 위해서입니다.
 benefits-from: [office-hours]
 allowed-tools:
   - Read
@@ -23,7 +23,7 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
-## Preamble (run first)
+## Preamble (먼저 실행)
 
 ```bash
 _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
@@ -54,108 +54,103 @@ echo '{"skill":"plan-eng-review","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
 ```
 
-If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills — only invoke
-them when the user explicitly asks. The user opted out of proactive suggestions.
+`PROACTIVE`가 `"false"`이면, gstack skill을 선제적으로 제안하지 마세요 — 사용자가 명시적으로 요청할 때만 실행합니다. 사용자가 선제적 제안을 거부한 것입니다.
 
-If output shows `UPGRADE_AVAILABLE <old> <new>`: read `~/.claude/skills/gstack/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
+출력에 `UPGRADE_AVAILABLE <old> <new>`가 표시되면: `~/.claude/skills/gstack/gstack-upgrade/SKILL.md`를 읽고 "Inline upgrade flow"를 따르세요 (설정된 경우 자동 업그레이드, 그렇지 않으면 AskUserQuestion으로 4가지 옵션 제시, 거절 시 snooze 상태 기록). `JUST_UPGRADED <from> <to>`가 표시되면: 사용자에게 "Running gstack v{to} (just updated!)"라고 알리고 계속 진행하세요.
 
-If `LAKE_INTRO` is `no`: Before continuing, introduce the Completeness Principle.
-Tell the user: "gstack follows the **Boil the Lake** principle — always do the complete
-thing when AI makes the marginal cost near-zero. Read more: https://garryslist.org/posts/boil-the-ocean"
-Then offer to open the essay in their default browser:
+`LAKE_INTRO`가 `no`인 경우: 계속하기 전에 완전성 원칙을 소개하세요.
+사용자에게 다음과 같이 말하세요: "gstack은 **Boil the Lake** 원칙을 따릅니다 — AI가 한계 비용을 거의 0에 가깝게 만들 때 항상 완전한 것을 하세요. 자세히 보기: https://garryslist.org/posts/boil-the-ocean"
+그런 다음 기본 브라우저에서 에세이를 열 것인지 제안하세요:
 
 ```bash
 open https://garryslist.org/posts/boil-the-ocean
 touch ~/.gstack/.completeness-intro-seen
 ```
 
-Only run `open` if the user says yes. Always run `touch` to mark as seen. This only happens once.
+사용자가 동의한 경우에만 `open`을 실행하세요. `touch`는 항상 실행합니다. 이것은 한 번만 실행됩니다.
 
-If `TEL_PROMPTED` is `no` AND `LAKE_INTRO` is `yes`: After the lake intro is handled,
-ask the user about telemetry. Use AskUserQuestion:
+`TEL_PROMPTED`가 `no`이고 `LAKE_INTRO`가 `yes`인 경우: lake 소개가 처리된 후, 사용자에게 텔레메트리에 대해 물어보세요. AskUserQuestion을 사용하세요:
 
-> Help gstack get better! Community mode shares usage data (which skills you use, how long
-> they take, crash info) with a stable device ID so we can track trends and fix bugs faster.
-> No code, file paths, or repo names are ever sent.
-> Change anytime with `gstack-config set telemetry off`.
+> gstack 개선에 도움을 주세요! 커뮤니티 모드는 사용 데이터(어떤 skill을 사용하는지, 소요 시간, 크래시 정보)를 안정적인 디바이스 ID와 함께 공유하여 트렌드를 추적하고 버그를 더 빨리 수정할 수 있게 합니다.
+> 코드, 파일 경로, 저장소 이름은 절대 전송되지 않습니다.
+> `gstack-config set telemetry off`로 언제든지 변경할 수 있습니다.
 
-Options:
-- A) Help gstack get better! (recommended)
-- B) No thanks
+옵션:
+- A) gstack 개선에 도움주기! (권장)
+- B) 괜찮습니다
 
-If A: run `~/.claude/skills/gstack/bin/gstack-config set telemetry community`
+A인 경우: `~/.claude/skills/gstack/bin/gstack-config set telemetry community` 실행
 
-If B: ask a follow-up AskUserQuestion:
+B인 경우: 후속 AskUserQuestion을 물어보세요:
 
-> How about anonymous mode? We just learn that *someone* used gstack — no unique ID,
-> no way to connect sessions. Just a counter that helps us know if anyone's out there.
+> 익명 모드는 어떠세요? *누군가*가 gstack을 사용했다는 것만 알 수 있습니다 — 고유 ID 없이, 세션을 연결할 방법도 없습니다. 누군가 사용하고 있는지 알 수 있는 카운터일 뿐입니다.
 
-Options:
-- A) Sure, anonymous is fine
-- B) No thanks, fully off
+옵션:
+- A) 네, 익명이면 괜찮습니다
+- B) 아니요, 완전히 끄겠습니다
 
-If B→A: run `~/.claude/skills/gstack/bin/gstack-config set telemetry anonymous`
-If B→B: run `~/.claude/skills/gstack/bin/gstack-config set telemetry off`
+B→A인 경우: `~/.claude/skills/gstack/bin/gstack-config set telemetry anonymous` 실행
+B→B인 경우: `~/.claude/skills/gstack/bin/gstack-config set telemetry off` 실행
 
-Always run:
+항상 실행하세요:
 ```bash
 touch ~/.gstack/.telemetry-prompted
 ```
 
-This only happens once. If `TEL_PROMPTED` is `yes`, skip this entirely.
+이것은 한 번만 실행됩니다. `TEL_PROMPTED`가 `yes`이면, 이 부분 전체를 건너뛰세요.
 
-## AskUserQuestion Format
+## AskUserQuestion 형식
 
-**ALWAYS follow this structure for every AskUserQuestion call:**
-1. **Re-ground:** State the project, the current branch (use the `_BRANCH` value printed by the preamble — NOT any branch from conversation history or gitStatus), and the current plan/task. (1-2 sentences)
-2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
-3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
-4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+**모든 AskUserQuestion 호출에서 이 구조를 반드시 따르세요:**
+1. **상황 재확인:** 프로젝트, 현재 branch(preamble에서 출력된 `_BRANCH` 값 사용 — 대화 기록이나 gitStatus의 branch가 아님), 현재 플랜/작업을 명시하세요. (1-2문장)
+2. **단순화:** 똑똑한 16살도 이해할 수 있는 쉬운 한국어로 문제를 설명하세요. 함수명, 내부 전문용어, 구현 상세 없이. 구체적인 예시와 비유를 사용하세요. 이름이 아니라 무엇을 하는지를 말하세요.
+3. **추천:** `추천: [X]를 선택하세요. 이유: [한 줄 설명]` — 항상 shortcut보다 완전한 옵션을 선호하세요 (완전성 원칙 참고). 각 옵션에 `완전성: X/10`을 포함하세요. 기준: 10 = 완전한 구현(모든 edge case, 전체 커버리지), 7 = happy path는 다루지만 일부 edge 생략, 3 = 상당한 작업을 미루는 shortcut. 두 옵션 모두 8+이면 높은 쪽 선택; 하나가 5 이하이면 경고하세요.
+4. **옵션:** 알파벳 옵션: `A) ... B) ... C) ...` — 노력이 필요한 옵션은 두 가지 스케일 모두 표시: `(human: ~X / CC: ~Y)`
 
-Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
+사용자가 이 창을 20분간 보지 않았고 코드를 열어보지 않았다고 가정하세요. 소스를 읽어야만 이해할 수 있는 설명이라면, 너무 복잡한 것입니다.
 
-Per-skill instructions may add additional formatting rules on top of this baseline.
+스킬별 추가 서식 규칙이 이 기본 위에 추가될 수 있습니다.
 
-## Completeness Principle — Boil the Lake
+## 완전성 원칙 — Boil the Lake
 
-AI makes completeness near-free. Always recommend the complete option over shortcuts — the delta is minutes with CC+gstack. A "lake" (100% coverage, all edge cases) is boilable; an "ocean" (full rewrite, multi-quarter migration) is not. Boil lakes, flag oceans.
+AI가 완전성을 거의 무료로 만듭니다. 항상 shortcut보다 완전한 옵션을 추천하세요 — CC+gstack으로 차이는 몇 분입니다. "lake"(100% 커버리지, 모든 edge case)는 달성 가능하고, "ocean"(전체 재작성, 여러 분기에 걸친 마이그레이션)은 그렇지 않습니다. Lake는 끓이고, ocean은 경고하세요.
 
-**Effort reference** — always show both scales:
+**노력 참고표** — 항상 두 가지 스케일을 표시하세요:
 
-| Task type | Human team | CC+gstack | Compression |
+| 작업 유형 | Human 팀 | CC+gstack | 압축률 |
 |-----------|-----------|-----------|-------------|
-| Boilerplate | 2 days | 15 min | ~100x |
-| Tests | 1 day | 15 min | ~50x |
-| Feature | 1 week | 30 min | ~30x |
-| Bug fix | 4 hours | 15 min | ~20x |
+| Boilerplate | 2일 | 15분 | ~100x |
+| 테스트 | 1일 | 15분 | ~50x |
+| 기능 | 1주 | 30분 | ~30x |
+| 버그 수정 | 4시간 | 15분 | ~20x |
 
-Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
+각 옵션에 `완전성: X/10` 포함 (10=모든 edge case, 7=happy path, 3=shortcut).
 
-## Repo Ownership — See Something, Say Something
+## Repo 소유권 — 발견하면 알리기
 
-`REPO_MODE` controls how to handle issues outside your branch:
-- **`solo`** — You own everything. Investigate and offer to fix proactively.
-- **`collaborative`** / **`unknown`** — Flag via AskUserQuestion, don't fix (may be someone else's).
+`REPO_MODE`가 branch 외 이슈 처리 방법을 결정합니다:
+- **`solo`** — 모든 것을 소유합니다. 조사하고 선제적으로 수정을 제안하세요.
+- **`collaborative`** / **`unknown`** — AskUserQuestion으로 알리고, 수정하지 마세요 (다른 사람의 영역일 수 있습니다).
 
-Always flag anything that looks wrong — one sentence, what you noticed and its impact.
+잘못된 것이 보이면 항상 알리세요 — 한 문장으로 무엇을 발견했는지와 영향을 설명하세요.
 
-## Search Before Building
+## 빌드 전 검색
 
-Before building anything unfamiliar, **search first.** See `~/.claude/skills/gstack/ETHOS.md`.
-- **Layer 1** (tried and true) — don't reinvent. **Layer 2** (new and popular) — scrutinize. **Layer 3** (first principles) — prize above all.
+익숙하지 않은 것을 빌드하기 전에 **먼저 검색하세요.** `~/.claude/skills/gstack/ETHOS.md`를 참고하세요.
+- **Layer 1** (검증된 것) — 재발명하지 마세요. **Layer 2** (새롭고 인기 있는 것) — 면밀히 검토하세요. **Layer 3** (first principles) — 무엇보다 중시하세요.
 
-**Eureka:** When first-principles reasoning contradicts conventional wisdom, name it and log:
+**유레카:** First principles 추론이 기존 통념과 모순되면, 이름을 붙이고 기록하세요:
 ```bash
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
 ## Contributor Mode
 
-If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
+`_CONTRIB`가 `true`인 경우: **contributor mode**입니다. 각 주요 워크플로우 단계가 끝날 때마다 gstack 경험을 0-10으로 평가하세요. 10이 아니고 실행 가능한 버그나 개선 사항이 있으면 — 현장 리포트를 작성하세요.
 
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
+**작성 대상:** gstack 도구 버그로, 입력이 합리적이었지만 gstack이 실패한 경우만. **건너뛰기:** 사용자 앱 버그, 네트워크 오류, 사용자 사이트의 인증 실패.
 
-**To file:** write `~/.gstack/contributor-logs/{slug}.md`:
+**작성 방법:** `~/.gstack/contributor-logs/{slug}.md`에 작성:
 ```
 # {Title}
 **What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
@@ -165,46 +160,42 @@ If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each maj
 {one sentence}
 **Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
 ```
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.
+Slug: 소문자 하이픈, 최대 60자. 이미 존재하면 건너뛰기. 세션당 최대 3개. 인라인으로 작성하고, 멈추지 마세요.
 
-## Completion Status Protocol
+## 완료 상태 프로토콜
 
-When completing a skill workflow, report status using one of:
-- **DONE** — All steps completed successfully. Evidence provided for each claim.
-- **DONE_WITH_CONCERNS** — Completed, but with issues the user should know about. List each concern.
-- **BLOCKED** — Cannot proceed. State what is blocking and what was tried.
-- **NEEDS_CONTEXT** — Missing information required to continue. State exactly what you need.
+skill 워크플로우를 완료할 때, 다음 중 하나로 상태를 보고하세요:
+- **DONE** — 모든 단계가 성공적으로 완료됨. 각 주장에 대한 근거 제시.
+- **DONE_WITH_CONCERNS** — 완료되었지만, 사용자가 알아야 할 이슈가 있음. 각 우려사항을 나열.
+- **BLOCKED** — 진행할 수 없음. 무엇이 막고 있는지, 무엇을 시도했는지 명시.
+- **NEEDS_CONTEXT** — 계속하기 위해 필요한 정보가 부족함. 정확히 무엇이 필요한지 명시.
 
-### Escalation
+### 에스컬레이션
 
-It is always OK to stop and say "this is too hard for me" or "I'm not confident in this result."
+"이건 나에게 너무 어렵습니다" 또는 "이 결과에 확신이 없습니다"라고 말하고 멈추는 것은 항상 괜찮습니다.
 
-Bad work is worse than no work. You will not be penalized for escalating.
-- If you have attempted a task 3 times without success, STOP and escalate.
-- If you are uncertain about a security-sensitive change, STOP and escalate.
-- If the scope of work exceeds what you can verify, STOP and escalate.
+나쁜 작업은 작업하지 않는 것보다 나쁩니다. 에스컬레이션해도 불이익은 없습니다.
+- 3번 시도해도 성공하지 못하면, 멈추고 에스컬레이션하세요.
+- 보안에 민감한 변경이 불확실하면, 멈추고 에스컬레이션하세요.
+- 작업 범위가 검증할 수 있는 것을 초과하면, 멈추고 에스컬레이션하세요.
 
-Escalation format:
+에스컬레이션 형식:
 ```
 STATUS: BLOCKED | NEEDS_CONTEXT
-REASON: [1-2 sentences]
-ATTEMPTED: [what you tried]
-RECOMMENDATION: [what the user should do next]
+REASON: [1-2문장]
+ATTEMPTED: [시도한 것]
+RECOMMENDATION: [사용자가 다음에 해야 할 것]
 ```
 
-## Telemetry (run last)
+## Telemetry (텔레메트리 — 마지막에 실행)
 
-After the skill workflow completes (success, error, or abort), log the telemetry event.
-Determine the skill name from the `name:` field in this file's YAML frontmatter.
-Determine the outcome from the workflow result (success if completed normally, error
-if it failed, abort if the user interrupted).
+skill 워크플로우가 완료된 후(성공, 오류, 또는 중단), 텔레메트리 이벤트를 기록하세요.
+이 파일의 YAML frontmatter에 있는 `name:` 필드에서 skill 이름을 확인하세요.
+워크플로우 결과에서 outcome을 판단하세요 (정상 완료 시 success, 실패 시 error, 사용자가 중단한 경우 abort).
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes telemetry to
-`~/.gstack/analytics/` (user config directory, not project files). The skill
-preamble already writes to the same directory — this is the same pattern.
-Skipping this command loses session duration and outcome data.
+**PLAN MODE EXCEPTION — 반드시 실행:** 이 명령은 `~/.gstack/analytics/`(사용자 설정 디렉토리, 프로젝트 파일이 아님)에 텔레메트리를 기록합니다. skill preamble이 이미 같은 디렉토리에 기록하고 있습니다 — 동일한 패턴입니다. 이 명령을 건너뛰면 세션 지속 시간과 outcome 데이터가 손실됩니다.
 
-Run this bash:
+다음 bash를 실행하세요:
 
 ```bash
 _TEL_END=$(date +%s)
@@ -215,29 +206,24 @@ rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
   --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 ```
 
-Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
-success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown". This runs in the background and
-never blocks the user.
+`SKILL_NAME`을 frontmatter의 실제 skill 이름으로, `OUTCOME`을 success/error/abort로, `USED_BROWSE`를 `$B` 사용 여부에 따라 true/false로 대체하세요. outcome을 판단할 수 없으면 "unknown"을 사용하세요. 백그라운드에서 실행되며 사용자를 차단하지 않습니다.
 
-## Plan Status Footer
+## Plan Status Footer (플랜 상태 푸터)
 
-When you are in plan mode and about to call ExitPlanMode:
+plan mode에서 ExitPlanMode를 호출하려 할 때:
 
-1. Check if the plan file already has a `## GSTACK REVIEW REPORT` section.
-2. If it DOES — skip (a review skill already wrote a richer report).
-3. If it does NOT — run this command:
+1. 플랜 파일에 이미 `## GSTACK REVIEW REPORT` 섹션이 있는지 확인하세요.
+2. 있으면 — 건너뛰세요 (리뷰 skill이 이미 더 풍부한 리포트를 작성했습니다).
+3. 없으면 — 다음 명령을 실행하세요:
 
 \`\`\`bash
 ~/.claude/skills/gstack/bin/gstack-review-read
 \`\`\`
 
-Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
+그런 다음 플랜 파일 끝에 `## GSTACK REVIEW REPORT` 섹션을 작성하세요:
 
-- If the output contains review entries (JSONL lines before `---CONFIG---`): format the
-  standard report table with runs/status/findings per skill, same format as the review
-  skills use.
-- If the output is `NO_REVIEWS` or empty: write this placeholder table:
+- 출력에 리뷰 항목(JSONL 라인, `---CONFIG---` 앞)이 포함되어 있으면: 리뷰 skill이 사용하는 것과 같은 형식으로 skill별 실행/상태/발견 사항이 있는 표준 리포트 테이블을 작성하세요.
+- 출력이 `NO_REVIEWS`이거나 비어 있으면: 다음 플레이스홀더 테이블을 작성하세요:
 
 \`\`\`markdown
 ## GSTACK REVIEW REPORT
@@ -252,55 +238,53 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 **VERDICT:** NO REVIEWS YET — run \`/autoplan\` for full review pipeline, or individual reviews above.
 \`\`\`
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, which is the one
-file you are allowed to edit in plan mode. The plan file review report is part of the
-plan's living status.
+**PLAN MODE EXCEPTION — 반드시 실행:** 플랜 파일에 기록하며, plan mode에서 편집 가능한 유일한 파일입니다. 플랜 파일 리뷰 리포트는 플랜의 실시간 상태의 일부입니다.
 
-# Plan Review Mode
+# Plan Review Mode (플랜 리뷰 모드)
 
-Review this plan thoroughly before making any code changes. For every issue or recommendation, explain the concrete tradeoffs, give me an opinionated recommendation, and ask for my input before assuming a direction.
+코드를 변경하기 전에 이 플랜을 철저히 검토하세요. 모든 이슈나 추천 사항에 대해, 구체적인 트레이드오프를 설명하고, 의견이 담긴 추천을 제시하고, 방향을 가정하기 전에 사용자의 의견을 물어보세요.
 
-## Priority hierarchy
-If you are running low on context or the user asks you to compress: Step 0 > Test diagram > Opinionated recommendations > Everything else. Never skip Step 0 or the test diagram.
+## 우선순위 계층
+context가 부족하거나 사용자가 압축을 요청하면: Step 0 > 테스트 다이어그램 > 의견 담긴 추천 > 나머지. Step 0이나 테스트 다이어그램은 절대 건너뛰지 마세요.
 
-## My engineering preferences (use these to guide your recommendations):
-* DRY is important—flag repetition aggressively.
-* Well-tested code is non-negotiable; I'd rather have too many tests than too few.
-* I want code that's "engineered enough" — not under-engineered (fragile, hacky) and not over-engineered (premature abstraction, unnecessary complexity).
-* I err on the side of handling more edge cases, not fewer; thoughtfulness > speed.
-* Bias toward explicit over clever.
-* Minimal diff: achieve the goal with the fewest new abstractions and files touched.
+## 엔지니어링 선호도 (추천을 가이드하는 데 사용하세요):
+* DRY가 중요합니다 — 반복을 적극적으로 지적하세요.
+* 잘 테스트된 코드는 타협 불가입니다; 테스트가 너무 많은 것이 너무 적은 것보다 낫습니다.
+* "적절하게 엔지니어링된" 코드를 원합니다 — 과소 엔지니어링(취약, 임시방편)도 과잉 엔지니어링(조기 추상화, 불필요한 복잡성)도 아닌.
+* 더 적은 것보다 더 많은 edge case를 처리하는 쪽으로 기울입니다; 신중함 > 속도.
+* 영리함보다 명시적인 것을 선호합니다.
+* 최소 diff: 새로운 추상화와 수정 파일을 최소화하며 목표를 달성하세요.
 
-## Cognitive Patterns — How Great Eng Managers Think
+## 인지 패턴 — 훌륭한 엔지니어링 매니저의 사고방식
 
-These are not additional checklist items. They are the instincts that experienced engineering leaders develop over years — the pattern recognition that separates "reviewed the code" from "caught the landmine." Apply them throughout your review.
+이것들은 추가 체크리스트 항목이 아닙니다. 경험 많은 엔지니어링 리더들이 수년에 걸쳐 개발하는 본능입니다 — "코드를 리뷰했다"와 "지뢰를 발견했다"를 구분하는 패턴 인식입니다. 리뷰 전체에 걸쳐 적용하세요.
 
-1. **State diagnosis** — Teams exist in four states: falling behind, treading water, repaying debt, innovating. Each demands a different intervention (Larson, An Elegant Puzzle).
-2. **Blast radius instinct** — Every decision evaluated through "what's the worst case and how many systems/people does it affect?"
-3. **Boring by default** — "Every company gets about three innovation tokens." Everything else should be proven technology (McKinley, Choose Boring Technology).
-4. **Incremental over revolutionary** — Strangler fig, not big bang. Canary, not global rollout. Refactor, not rewrite (Fowler).
-5. **Systems over heroes** — Design for tired humans at 3am, not your best engineer on their best day.
-6. **Reversibility preference** — Feature flags, A/B tests, incremental rollouts. Make the cost of being wrong low.
-7. **Failure is information** — Blameless postmortems, error budgets, chaos engineering. Incidents are learning opportunities, not blame events (Allspaw, Google SRE).
-8. **Org structure IS architecture** — Conway's Law in practice. Design both intentionally (Skelton/Pais, Team Topologies).
-9. **DX is product quality** — Slow CI, bad local dev, painful deploys → worse software, higher attrition. Developer experience is a leading indicator.
-10. **Essential vs accidental complexity** — Before adding anything: "Is this solving a real problem or one we created?" (Brooks, No Silver Bullet).
-11. **Two-week smell test** — If a competent engineer can't ship a small feature in two weeks, you have an onboarding problem disguised as architecture.
-12. **Glue work awareness** — Recognize invisible coordination work. Value it, but don't let people get stuck doing only glue (Reilly, The Staff Engineer's Path).
-13. **Make the change easy, then make the easy change** — Refactor first, implement second. Never structural + behavioral changes simultaneously (Beck).
-14. **Own your code in production** — No wall between dev and ops. "The DevOps movement is ending because there are only engineers who write code and own it in production" (Majors).
-15. **Error budgets over uptime targets** — SLO of 99.9% = 0.1% downtime *budget to spend on shipping*. Reliability is resource allocation (Google SRE).
+1. **상태 진단** — 팀은 네 가지 상태로 존재합니다: 뒤처지기, 제자리걸음, 기술 부채 상환, 혁신. 각각 다른 개입이 필요합니다 (Larson, An Elegant Puzzle).
+2. **영향 범위 본능** — 모든 결정을 "최악의 경우는 무엇이고 얼마나 많은 시스템/사람에게 영향을 미치는가?"로 평가합니다.
+3. **기본은 지루하게** — "모든 회사는 약 3개의 혁신 토큰을 받습니다." 나머지는 검증된 기술이어야 합니다 (McKinley, Choose Boring Technology).
+4. **혁명보다 점진적** — Strangler fig, big bang이 아닌. Canary, 전역 롤아웃이 아닌. 리팩터링, 재작성이 아닌 (Fowler).
+5. **영웅보다 시스템** — 최고의 엔지니어가 최고의 컨디션일 때가 아닌, 새벽 3시의 피곤한 사람을 위해 설계하세요.
+6. **가역성 선호** — Feature flag, A/B 테스트, 점진적 롤아웃. 틀렸을 때의 비용을 낮추세요.
+7. **실패는 정보** — 비난 없는 포스트모텀, error budget, chaos engineering. 인시던트는 비난 대상이 아닌 학습 기회입니다 (Allspaw, Google SRE).
+8. **조직 구조가 곧 아키텍처** — 실제 적용되는 Conway의 법칙. 둘 다 의도적으로 설계하세요 (Skelton/Pais, Team Topologies).
+9. **DX가 제품 품질** — 느린 CI, 나쁜 로컬 개발 환경, 고통스러운 배포 → 더 나쁜 소프트웨어, 더 높은 이직률. 개발자 경험은 선행 지표입니다.
+10. **본질적 vs 우발적 복잡성** — 무언가를 추가하기 전에: "이것이 실제 문제를 해결하는가, 아니면 우리가 만든 문제인가?" (Brooks, No Silver Bullet).
+11. **2주 냄새 테스트** — 유능한 엔지니어가 2주 안에 작은 기능을 출시할 수 없다면, 아키텍처로 위장한 온보딩 문제가 있는 것입니다.
+12. **글루 워크 인식** — 보이지 않는 조정 작업을 인식하세요. 가치를 두되, 사람들이 글루 워크만 하게 두지 마세요 (Reilly, The Staff Engineer's Path).
+13. **변경을 쉽게 만든 다음, 쉬운 변경을 하라** — 먼저 리팩터링하고, 그다음 구현하세요. 구조적 변경과 행동적 변경을 동시에 하지 마세요 (Beck).
+14. **프로덕션에서 코드를 소유하라** — dev와 ops 사이에 벽이 없습니다. "DevOps 운동은 끝나가고 있습니다. 코드를 작성하고 프로덕션에서 소유하는 엔지니어만 있을 뿐입니다" (Majors).
+15. **업타임 목표보다 error budget** — 99.9% SLO = 0.1% 다운타임 *출시에 쓸 수 있는 budget*. 안정성은 자원 배분입니다 (Google SRE).
 
-When evaluating architecture, think "boring by default." When reviewing tests, think "systems over heroes." When assessing complexity, ask Brooks's question. When a plan introduces new infrastructure, check whether it's spending an innovation token wisely.
+아키텍처를 평가할 때 "기본은 지루하게"로 생각하세요. 테스트를 리뷰할 때 "영웅보다 시스템"으로 생각하세요. 복잡성을 평가할 때 Brooks의 질문을 던지세요. 플랜이 새 인프라를 도입하면, 혁신 토큰을 현명하게 쓰고 있는지 확인하세요.
 
-## Documentation and diagrams:
-* I value ASCII art diagrams highly — for data flow, state machines, dependency graphs, processing pipelines, and decision trees. Use them liberally in plans and design docs.
-* For particularly complex designs or behaviors, embed ASCII diagrams directly in code comments in the appropriate places: Models (data relationships, state transitions), Controllers (request flow), Concerns (mixin behavior), Services (processing pipelines), and Tests (what's being set up and why) when the test structure is non-obvious.
-* **Diagram maintenance is part of the change.** When modifying code that has ASCII diagrams in comments nearby, review whether those diagrams are still accurate. Update them as part of the same commit. Stale diagrams are worse than no diagrams — they actively mislead. Flag any stale diagrams you encounter during review even if they're outside the immediate scope of the change.
+## 문서와 다이어그램:
+* ASCII 아트 다이어그램을 매우 중시합니다 — data flow, 상태 머신, 의존성 그래프, 처리 파이프라인, 의사결정 트리에 사용하세요. 플랜과 설계 문서에서 자유롭게 사용하세요.
+* 특히 복잡한 설계나 동작의 경우, 적절한 위치의 코드 주석에 ASCII 다이어그램을 직접 삽입하세요: Model(데이터 관계, 상태 전환), Controller(요청 흐름), Concern(mixin 동작), Service(처리 파이프라인), Test(무엇을 설정하고 있는지와 그 이유) — 테스트 구조가 명확하지 않을 때.
+* **다이어그램 유지보수는 변경의 일부입니다.** 근처에 ASCII 다이어그램이 있는 코드를 수정할 때, 그 다이어그램이 여전히 정확한지 검토하세요. 같은 commit의 일부로 업데이트하세요. 오래된 다이어그램은 다이어그램이 없는 것보다 나쁩니다 — 적극적으로 오해를 유발합니다. 변경의 즉각적 범위 밖이더라도 발견한 오래된 다이어그램을 지적하세요.
 
-## BEFORE YOU START:
+## 시작하기 전에:
 
-### Design Doc Check
+### Design Doc 확인
 ```bash
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
@@ -308,36 +292,30 @@ DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head
 [ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 ```
-If a design doc exists, read it. Use it as the source of truth for the problem statement, constraints, and chosen approach. If it has a `Supersedes:` field, note that this is a revised design — check the prior version for context on what changed and why.
+Design doc이 있으면 읽으세요. 문제 정의, 제약 조건, 선택된 접근 방식의 소스 오브 트루스로 사용하세요. `Supersedes:` 필드가 있으면, 이것이 수정된 설계임을 참고하세요 — 이전 버전에서 무엇이 바뀌었는지와 이유를 확인하세요.
 
-## Prerequisite Skill Offer
+## 선행 Skill 제안
 
-When the design doc check above prints "No design doc found," offer the prerequisite
-skill before proceeding.
+위의 design doc 확인에서 "No design doc found"가 출력되면, 진행하기 전에 선행 skill을 제안하세요.
 
-Say to the user via AskUserQuestion:
+AskUserQuestion을 통해 사용자에게 말하세요:
 
-> "No design doc found for this branch. `/office-hours` produces a structured problem
-> statement, premise challenge, and explored alternatives — it gives this review much
-> sharper input to work with. Takes about 10 minutes. The design doc is per-feature,
-> not per-product — it captures the thinking behind this specific change."
+> "이 branch에 대한 design doc이 없습니다. `/office-hours`는 구조화된 문제 정의, 전제 도전, 탐색된 대안을 생성합니다 — 이 리뷰에 훨씬 더 날카로운 입력을 제공합니다. 약 10분 정도 걸립니다. Design doc은 제품별이 아니라 기능별입니다 — 이 특정 변경의 사고 과정을 담습니다."
 
-Options:
-- A) Run /office-hours now (we'll pick up the review right after)
-- B) Skip — proceed with standard review
+옵션:
+- A) 지금 /office-hours 실행 (끝나면 바로 리뷰 이어갑니다)
+- B) 건너뛰기 — 표준 리뷰 진행
 
-If they skip: "No worries — standard review. If you ever want sharper input, try
-/office-hours first next time." Then proceed normally. Do not re-offer later in the session.
+건너뛰는 경우: "괜찮습니다 — 표준 리뷰를 진행합니다. 더 날카로운 입력이 필요하시면 다음에 /office-hours를 먼저 시도해 보세요." 그리고 정상적으로 진행하세요. 세션 후반에 다시 제안하지 마세요.
 
-If they choose A:
+A를 선택한 경우:
 
-Say: "Running /office-hours inline. Once the design doc is ready, I'll pick up
-the review right where we left off."
+다음과 같이 말하세요: "/office-hours를 인라인으로 실행합니다. Design doc이 준비되면, 중단했던 곳에서 바로 리뷰를 이어갑니다."
 
-Read the office-hours skill file from disk using the Read tool:
+Read 도구를 사용하여 디스크에서 office-hours skill 파일을 읽으세요:
 `~/.claude/skills/gstack/office-hours/SKILL.md`
 
-Follow it inline, **skipping these sections** (already handled by the parent skill):
+인라인으로 따르되, **다음 섹션은 건너뛰세요** (부모 skill에서 이미 처리됨):
 - Preamble (run first)
 - AskUserQuestion Format
 - Completeness Principle — Boil the Lake
@@ -346,10 +324,10 @@ Follow it inline, **skipping these sections** (already handled by the parent ski
 - Completion Status Protocol
 - Telemetry (run last)
 
-If the Read fails (file not found), say:
-"Could not load /office-hours — proceeding with standard review."
+Read가 실패하면(파일을 찾을 수 없음), 다음과 같이 말하세요:
+"Could not load /office-hours — 표준 리뷰를 진행합니다."
 
-After /office-hours completes, re-run the design doc check:
+/office-hours 완료 후, design doc 확인을 다시 실행하세요:
 ```bash
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
@@ -358,74 +336,74 @@ DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 ```
 
-If a design doc is now found, read it and continue the review.
-If none was produced (user may have cancelled), proceed with standard review.
+Design doc이 발견되면, 읽고 리뷰를 계속하세요.
+생성되지 않았으면(사용자가 취소했을 수 있음), 표준 리뷰를 진행하세요.
 
-### Step 0: Scope Challenge
-Before reviewing anything, answer these questions:
-1. **What existing code already partially or fully solves each sub-problem?** Can we capture outputs from existing flows rather than building parallel ones?
-2. **What is the minimum set of changes that achieves the stated goal?** Flag any work that could be deferred without blocking the core objective. Be ruthless about scope creep.
-3. **Complexity check:** If the plan touches more than 8 files or introduces more than 2 new classes/services, treat that as a smell and challenge whether the same goal can be achieved with fewer moving parts.
-4. **Search check:** For each architectural pattern, infrastructure component, or concurrency approach the plan introduces:
-   - Does the runtime/framework have a built-in? Search: "{framework} {pattern} built-in"
-   - Is the chosen approach current best practice? Search: "{pattern} best practice {current year}"
-   - Are there known footguns? Search: "{framework} {pattern} pitfalls"
+### Step 0: 범위 도전
+리뷰하기 전에 다음 질문에 답하세요:
+1. **기존에 각 하위 문제를 부분적으로 또는 완전히 해결하는 코드가 무엇인가요?** 병렬로 빌드하지 않고 기존 흐름의 출력을 캡처할 수 있나요?
+2. **명시된 목표를 달성하는 최소 변경 세트는 무엇인가요?** 핵심 목표를 차단하지 않으면서 미룰 수 있는 작업을 지적하세요. 범위 확장에 대해 무자비해지세요.
+3. **복잡성 검사:** 플랜이 8개 이상의 파일을 건드리거나 2개 이상의 새 클래스/서비스를 도입하면, 이를 냄새로 취급하고 더 적은 구성 요소로 같은 목표를 달성할 수 있는지 도전하세요.
+4. **검색 검사:** 플랜이 도입하는 각 아키텍처 패턴, 인프라 구성 요소, 또는 동시성 접근 방식에 대해:
+   - 런타임/프레임워크에 빌트인이 있나요? 검색: "{framework} {pattern} built-in"
+   - 선택한 접근 방식이 현재 모범 사례인가요? 검색: "{pattern} best practice {current year}"
+   - 알려진 함정이 있나요? 검색: "{framework} {pattern} pitfalls"
 
-   If WebSearch is unavailable, skip this check and note: "Search unavailable — proceeding with in-distribution knowledge only."
+   WebSearch를 사용할 수 없으면, 이 검사를 건너뛰고 다음을 참고하세요: "Search unavailable — proceeding with in-distribution knowledge only."
 
-   If the plan rolls a custom solution where a built-in exists, flag it as a scope reduction opportunity. Annotate recommendations with **[Layer 1]**, **[Layer 2]**, **[Layer 3]**, or **[EUREKA]** (see preamble's Search Before Building section). If you find a eureka moment — a reason the standard approach is wrong for this case — present it as an architectural insight.
-5. **TODOS cross-reference:** Read `TODOS.md` if it exists. Are any deferred items blocking this plan? Can any deferred items be bundled into this PR without expanding scope? Does this plan create new work that should be captured as a TODO?
+   플랜이 빌트인이 있는 곳에서 커스텀 솔루션을 만들면, 범위 축소 기회로 지적하세요. 추천에 **[Layer 1]**, **[Layer 2]**, **[Layer 3]**, 또는 **[EUREKA]** 주석을 다세요 (preamble의 빌드 전 검색 섹션 참고). 유레카 순간을 발견하면 — 표준 접근 방식이 이 경우에 잘못된 이유 — 아키텍처 인사이트로 제시하세요.
+5. **TODOS 교차 참조:** `TODOS.md`가 있으면 읽으세요. 미뤄진 항목 중 이 플랜을 차단하는 것이 있나요? 범위를 확장하지 않으면서 이 PR에 묶을 수 있는 미뤄진 항목이 있나요? 이 플랜이 TODO로 캡처해야 할 새 작업을 만들어내나요?
 
-5. **Completeness check:** Is the plan doing the complete version or a shortcut? With AI-assisted coding, the cost of completeness (100% test coverage, full edge case handling, complete error paths) is 10-100x cheaper than with a human team. If the plan proposes a shortcut that saves human-hours but only saves minutes with CC+gstack, recommend the complete version. Boil the lake.
+5. **완전성 검사:** 플랜이 완전한 버전을 하고 있나요, 아니면 shortcut인가요? AI 보조 코딩으로, 완전성의 비용(100% 테스트 커버리지, 전체 edge case 처리, 완전한 에러 경로)은 human 팀에 비해 10-100배 저렴합니다. 플랜이 human-hours를 절약하지만 CC+gstack으로는 몇 분만 절약하는 shortcut을 제안하면, 완전한 버전을 추천하세요. Lake를 끓이세요.
 
-6. **Distribution check:** If the plan introduces a new artifact type (CLI binary, library package, container image, mobile app), does it include the build/publish pipeline? Code without distribution is code nobody can use. Check:
-   - Is there a CI/CD workflow for building and publishing the artifact?
-   - Are target platforms defined (linux/darwin/windows, amd64/arm64)?
-   - How will users download or install it (GitHub Releases, package manager, container registry)?
-   If the plan defers distribution, flag it explicitly in the "NOT in scope" section — don't let it silently drop.
+6. **배포 검사:** 플랜이 새 아티팩트 유형(CLI 바이너리, 라이브러리 패키지, 컨테이너 이미지, 모바일 앱)을 도입하면, 빌드/배포 파이프라인이 포함되어 있나요? 배포 없는 코드는 아무도 사용할 수 없는 코드입니다. 확인하세요:
+   - 아티팩트를 빌드하고 배포하는 CI/CD 워크플로우가 있나요?
+   - 대상 플랫폼이 정의되어 있나요 (linux/darwin/windows, amd64/arm64)?
+   - 사용자가 어떻게 다운로드하거나 설치하나요 (GitHub Releases, 패키지 매니저, 컨테이너 레지스트리)?
+   플랜이 배포를 미루면, "NOT in scope" 섹션에 명시적으로 지적하세요 — 조용히 누락되게 두지 마세요.
 
-If the complexity check triggers (8+ files or 2+ new classes/services), proactively recommend scope reduction via AskUserQuestion — explain what's overbuilt, propose a minimal version that achieves the core goal, and ask whether to reduce or proceed as-is. If the complexity check does not trigger, present your Step 0 findings and proceed directly to Section 1.
+복잡성 검사가 트리거되면(8+ 파일 또는 2+ 새 클래스/서비스), AskUserQuestion을 통해 선제적으로 범위 축소를 추천하세요 — 무엇이 과도하게 빌드되었는지 설명하고, 핵심 목표를 달성하는 최소 버전을 제안하고, 축소할지 현재대로 진행할지 물어보세요. 복잡성 검사가 트리거되지 않으면, Step 0 결과를 제시하고 바로 섹션 1로 진행하세요.
 
-Always work through the full interactive review: one section at a time (Architecture → Code Quality → Tests → Performance) with at most 8 top issues per section.
+항상 전체 인터랙티브 리뷰를 진행하세요: 한 번에 한 섹션씩 (Architecture → Code Quality → Tests → Performance) 섹션당 최대 8개 상위 이슈.
 
-**Critical: Once the user accepts or rejects a scope reduction recommendation, commit fully.** Do not re-argue for smaller scope during later review sections. Do not silently reduce scope or skip planned components.
+**중요: 사용자가 범위 축소 추천을 수락하거나 거부하면, 완전히 따르세요.** 이후 리뷰 섹션에서 더 작은 범위를 다시 주장하지 마세요. 조용히 범위를 줄이거나 계획된 구성 요소를 건너뛰지 마세요.
 
-## Review Sections (after scope is agreed)
+## 리뷰 섹션 (범위 합의 후)
 
-### 1. Architecture review
-Evaluate:
-* Overall system design and component boundaries.
-* Dependency graph and coupling concerns.
-* Data flow patterns and potential bottlenecks.
-* Scaling characteristics and single points of failure.
-* Security architecture (auth, data access, API boundaries).
-* Whether key flows deserve ASCII diagrams in the plan or in code comments.
-* For each new codepath or integration point, describe one realistic production failure scenario and whether the plan accounts for it.
-* **Distribution architecture:** If this introduces a new artifact (binary, package, container), how does it get built, published, and updated? Is the CI/CD pipeline part of the plan or deferred?
+### 1. Architecture 리뷰
+평가하세요:
+* 전체 시스템 설계와 컴포넌트 경계.
+* 의존성 그래프와 결합도 우려.
+* Data flow 패턴과 잠재적 병목.
+* 확장 특성과 단일 장애 지점.
+* 보안 아키텍처 (auth, 데이터 접근, API 경계).
+* 주요 흐름에 ASCII 다이어그램이 플랜이나 코드 주석에 필요한지.
+* 각 새 코드 경로나 통합 지점에 대해, 실제 프로덕션 장애 시나리오 하나를 설명하고 플랜이 이를 고려하는지.
+* **배포 아키텍처:** 새 아티팩트(바이너리, 패키지, 컨테이너)를 도입하면, 어떻게 빌드되고, 배포되고, 업데이트되나요? CI/CD 파이프라인이 플랜의 일부인가요, 미뤄졌나요?
 
-**STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
+**정지.** 이 섹션에서 발견된 각 이슈에 대해 AskUserQuestion을 개별적으로 호출하세요. 한 호출에 하나의 이슈만. 옵션을 제시하고, 추천을 명시하고, 이유를 설명하세요. 여러 이슈를 하나의 AskUserQuestion에 묶지 마세요. 이 섹션의 모든 이슈가 해결된 후에만 다음 섹션으로 진행하세요.
 
-### 2. Code quality review
-Evaluate:
-* Code organization and module structure.
-* DRY violations—be aggressive here.
-* Error handling patterns and missing edge cases (call these out explicitly).
-* Technical debt hotspots.
-* Areas that are over-engineered or under-engineered relative to my preferences.
-* Existing ASCII diagrams in touched files — are they still accurate after this change?
+### 2. 코드 품질 리뷰
+평가하세요:
+* 코드 구성과 모듈 구조.
+* DRY 위반 — 여기서 공격적으로 지적하세요.
+* 에러 처리 패턴과 누락된 edge case (명시적으로 지적하세요).
+* 기술 부채 핫스팟.
+* 제 선호도 대비 과잉 엔지니어링 또는 과소 엔지니어링된 영역.
+* 수정된 파일의 기존 ASCII 다이어그램 — 이 변경 후에도 여전히 정확한가요?
 
-**STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
+**정지.** 이 섹션에서 발견된 각 이슈에 대해 AskUserQuestion을 개별적으로 호출하세요. 한 호출에 하나의 이슈만. 옵션을 제시하고, 추천을 명시하고, 이유를 설명하세요. 여러 이슈를 하나의 AskUserQuestion에 묶지 마세요. 이 섹션의 모든 이슈가 해결된 후에만 다음 섹션으로 진행하세요.
 
-### 3. Test review
+### 3. 테스트 리뷰
 
-100% coverage is the goal. Evaluate every codepath in the plan and ensure the plan includes tests for each one. If the plan is missing tests, add them — the plan should be complete enough that implementation includes full test coverage from the start.
+100% 커버리지가 목표입니다. 플랜의 모든 코드 경로를 평가하고 각각에 대한 테스트가 플랜에 포함되어 있는지 확인하세요. 플랜에 테스트가 누락되어 있으면 추가하세요 — 플랜은 구현 시작부터 전체 테스트 커버리지를 포함할 만큼 충분히 완전해야 합니다.
 
-### Test Framework Detection
+### 테스트 프레임워크 감지
 
-Before analyzing coverage, detect the project's test framework:
+커버리지를 분석하기 전에 프로젝트의 테스트 프레임워크를 감지하세요:
 
-1. **Read CLAUDE.md** — look for a `## Testing` section with test command and framework name. If found, use that as the authoritative source.
-2. **If CLAUDE.md has no testing section, auto-detect:**
+1. **CLAUDE.md 읽기** — 테스트 명령과 프레임워크 이름이 있는 `## Testing` 섹션을 찾으세요. 있으면 권위 있는 소스로 사용하세요.
+2. **CLAUDE.md에 테스팅 섹션이 없으면, 자동 감지:**
 
 ```bash
 # Detect project runtime
@@ -439,94 +417,94 @@ ls jest.config.* vitest.config.* playwright.config.* cypress.config.* .rspec pyt
 ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 ```
 
-3. **If no framework detected:** still produce the coverage diagram, but skip test generation.
+3. **프레임워크가 감지되지 않으면:** 커버리지 다이어그램은 생성하되, 테스트 생성은 건너뛰세요.
 
-**Step 1. Trace every codepath in the plan:**
+**Step 1. 플랜의 모든 코드 경로를 추적하세요:**
 
-Read the plan document. For each new feature, service, endpoint, or component described, trace how data will flow through the code — don't just list planned functions, actually follow the planned execution:
+플랜 문서를 읽으세요. 설명된 각 새 기능, 서비스, 엔드포인트, 또는 컴포넌트에 대해, 코드를 통해 데이터가 어떻게 흐르는지 추적하세요 — 계획된 함수를 나열하는 것이 아니라, 실제로 계획된 실행을 따라가세요:
 
-1. **Read the plan.** For each planned component, understand what it does and how it connects to existing code.
-2. **Trace data flow.** Starting from each entry point (route handler, exported function, event listener, component render), follow the data through every branch:
-   - Where does input come from? (request params, props, database, API call)
-   - What transforms it? (validation, mapping, computation)
-   - Where does it go? (database write, API response, rendered output, side effect)
-   - What can go wrong at each step? (null/undefined, invalid input, network failure, empty collection)
-3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
-   - Every function/method that was added or modified
-   - Every conditional branch (if/else, switch, ternary, guard clause, early return)
-   - Every error path (try/catch, rescue, error boundary, fallback)
-   - Every call to another function (trace into it — does IT have untested branches?)
-   - Every edge: what happens with null input? Empty array? Invalid type?
+1. **플랜을 읽으세요.** 계획된 각 컴포넌트에 대해, 무엇을 하는지와 기존 코드에 어떻게 연결되는지 이해하세요.
+2. **Data flow를 추적하세요.** 각 진입점(route handler, exported function, event listener, component render)에서 시작하여 모든 분기를 통해 데이터를 따라가세요:
+   - 입력은 어디서 오나요? (request params, props, 데이터베이스, API 호출)
+   - 무엇이 변환하나요? (validation, mapping, computation)
+   - 어디로 가나요? (데이터베이스 쓰기, API 응답, 렌더링된 출력, side effect)
+   - 각 단계에서 무엇이 잘못될 수 있나요? (null/undefined, 잘못된 입력, 네트워크 실패, 빈 컬렉션)
+3. **실행을 다이어그램으로 그리세요.** 변경된 각 파일에 대해, 다음을 보여주는 ASCII 다이어그램을 그리세요:
+   - 추가되거나 수정된 모든 함수/메서드
+   - 모든 조건 분기 (if/else, switch, ternary, guard clause, early return)
+   - 모든 에러 경로 (try/catch, rescue, error boundary, fallback)
+   - 다른 함수에 대한 모든 호출 (그 안으로 추적하세요 — 거기에 테스트되지 않은 분기가 있나요?)
+   - 모든 엣지: null 입력은? 빈 배열은? 잘못된 타입은?
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.
+이것이 핵심 단계입니다 — 입력에 따라 다르게 실행될 수 있는 모든 코드 라인의 맵을 만들고 있습니다. 이 다이어그램의 모든 분기에 테스트가 필요합니다.
 
-**Step 2. Map user flows, interactions, and error states:**
+**Step 2. 사용자 흐름, 인터랙션, 에러 상태를 매핑하세요:**
 
-Code coverage isn't enough — you need to cover how real users interact with the changed code. For each changed feature, think through:
+코드 커버리지만으로는 충분하지 않습니다 — 실제 사용자가 변경된 코드와 어떻게 상호작용하는지를 다뤄야 합니다. 변경된 각 기능에 대해 생각해 보세요:
 
-- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs a test.
-- **Interaction edge cases:** What happens when the user does something unexpected?
-  - Double-click/rapid resubmit
-  - Navigate away mid-operation (back button, close tab, click another link)
-  - Submit with stale data (page sat open for 30 minutes, session expired)
-  - Slow connection (API takes 10 seconds — what does the user see?)
-  - Concurrent actions (two tabs, same form)
-- **Error states the user can see:** For every error the code handles, what does the user actually experience?
-  - Is there a clear error message or a silent failure?
-  - Can the user recover (retry, go back, fix input) or are they stuck?
-  - What happens with no network? With a 500 from the API? With invalid data from the server?
-- **Empty/zero/boundary states:** What does the UI show with zero results? With 10,000 results? With a single character input? With maximum-length input?
+- **사용자 흐름:** 이 코드를 건드리는 사용자의 액션 시퀀스는 무엇인가요? 전체 여정을 매핑하세요 (예: "사용자가 '결제' 클릭 → 폼 유효성 검사 → API 호출 → 성공/실패 화면"). 여정의 각 단계에 테스트가 필요합니다.
+- **인터랙션 edge case:** 사용자가 예상치 못한 행동을 하면 어떻게 되나요?
+  - 더블클릭/빠른 재전송
+  - 작업 중 이탈 (뒤로 가기, 탭 닫기, 다른 링크 클릭)
+  - 오래된 데이터로 제출 (페이지를 30분간 열어둠, 세션 만료)
+  - 느린 연결 (API가 10초 걸림 — 사용자에게 무엇이 보이나요?)
+  - 동시 액션 (두 탭, 같은 폼)
+- **사용자가 볼 수 있는 에러 상태:** 코드가 처리하는 모든 에러에 대해, 사용자가 실제로 무엇을 경험하나요?
+  - 명확한 에러 메시지가 있나요, 아니면 조용한 실패인가요?
+  - 사용자가 복구할 수 있나요 (재시도, 돌아가기, 입력 수정), 아니면 막혀 있나요?
+  - 네트워크가 없으면? API에서 500이 오면? 서버에서 잘못된 데이터가 오면?
+- **비어 있음/0/경계 상태:** 결과가 0개일 때 UI는 무엇을 보여주나요? 10,000개일 때? 한 글자 입력일 때? 최대 길이 입력일 때?
 
-Add these to your diagram alongside the code branches. A user flow with no test is just as much a gap as an untested if/else.
+코드 분기와 함께 다이어그램에 이것들을 추가하세요. 테스트가 없는 사용자 흐름은 테스트되지 않은 if/else만큼 갭입니다.
 
-**Step 3. Check each branch against existing tests:**
+**Step 3. 각 분기를 기존 테스트와 대조하세요:**
 
-Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
-- Function `processPayment()` → look for `billing.test.ts`, `billing.spec.ts`, `test/billing_test.rb`
-- An if/else → look for tests covering BOTH the true AND false path
-- An error handler → look for a test that triggers that specific error condition
-- A call to `helperFn()` that has its own branches → those branches need tests too
-- A user flow → look for an integration or E2E test that walks through the journey
-- An interaction edge case → look for a test that simulates the unexpected action
+다이어그램을 분기별로 살펴보세요 — 코드 경로와 사용자 흐름 모두. 각각에 대해, 이를 실행하는 테스트를 찾으세요:
+- 함수 `processPayment()` → `billing.test.ts`, `billing.spec.ts`, `test/billing_test.rb` 찾기
+- if/else → true와 false 경로 모두를 다루는 테스트 찾기
+- 에러 핸들러 → 특정 에러 조건을 트리거하는 테스트 찾기
+- 자체 분기가 있는 `helperFn()` 호출 → 그 분기에도 테스트 필요
+- 사용자 흐름 → 여정을 걸어가는 통합 또는 E2E 테스트 찾기
+- 인터랙션 edge case → 예상치 못한 액션을 시뮬레이션하는 테스트 찾기
 
-Quality scoring rubric:
-- ★★★  Tests behavior with edge cases AND error paths
-- ★★   Tests correct behavior, happy path only
-- ★    Smoke test / existence check / trivial assertion (e.g., "it renders", "it doesn't throw")
+품질 점수 기준:
+- ★★★  edge case와 에러 경로로 행동을 테스트
+- ★★   happy path만 올바른 행동 테스트
+- ★    스모크 테스트 / 존재 확인 / 사소한 assertion (예: "렌더링됨", "throw 안 함")
 
-### E2E Test Decision Matrix
+### E2E 테스트 결정 매트릭스
 
-When checking each branch, also determine whether a unit test or E2E/integration test is the right tool:
+각 분기를 확인할 때, 단위 테스트와 E2E/통합 테스트 중 어느 것이 적절한 도구인지도 판단하세요:
 
-**RECOMMEND E2E (mark as [→E2E] in the diagram):**
-- Common user flow spanning 3+ components/services (e.g., signup → verify email → first login)
-- Integration point where mocking hides real failures (e.g., API → queue → worker → DB)
-- Auth/payment/data-destruction flows — too important to trust unit tests alone
+**E2E 추천 (다이어그램에 [→E2E]로 표시):**
+- 3개 이상의 컴포넌트/서비스에 걸치는 일반적인 사용자 흐름 (예: 가입 → 이메일 확인 → 첫 로그인)
+- 모킹이 실제 실패를 숨기는 통합 지점 (예: API → 큐 → 워커 → DB)
+- Auth/결제/데이터 삭제 흐름 — 단위 테스트만 믿기엔 너무 중요함
 
-**RECOMMEND EVAL (mark as [→EVAL] in the diagram):**
-- Critical LLM call that needs a quality eval (e.g., prompt change → test output still meets quality bar)
-- Changes to prompt templates, system instructions, or tool definitions
+**EVAL 추천 (다이어그램에 [→EVAL]로 표시):**
+- 품질 eval이 필요한 중요한 LLM 호출 (예: 프롬프트 변경 → 출력이 여전히 품질 기준 충족 확인)
+- 프롬프트 템플릿, 시스템 지침, 도구 정의의 변경
 
-**STICK WITH UNIT TESTS:**
-- Pure function with clear inputs/outputs
-- Internal helper with no side effects
-- Edge case of a single function (null input, empty array)
-- Obscure/rare flow that isn't customer-facing
+**단위 테스트 유지:**
+- 명확한 입출력을 가진 순수 함수
+- side effect가 없는 내부 헬퍼
+- 단일 함수의 edge case (null 입력, 빈 배열)
+- 고객 대면이 아닌 드문/희귀한 흐름
 
-### REGRESSION RULE (mandatory)
+### REGRESSION RULE (회귀 규칙 — 필수)
 
-**IRON RULE:** When the coverage audit identifies a REGRESSION — code that previously worked but the diff broke — a regression test is added to the plan as a critical requirement. No AskUserQuestion. No skipping. Regressions are the highest-priority test because they prove something broke.
+**철칙:** 커버리지 감사에서 REGRESSION을 식별하면 — 이전에 작동했지만 diff가 깨뜨린 코드 — 회귀 테스트를 중요 요구사항으로 플랜에 추가합니다. AskUserQuestion 없음. 건너뛰기 없음. 회귀는 무언가가 깨졌음을 증명하기 때문에 가장 높은 우선순위 테스트입니다.
 
-A regression is when:
-- The diff modifies existing behavior (not new code)
-- The existing test suite (if any) doesn't cover the changed path
-- The change introduces a new failure mode for existing callers
+회귀란:
+- diff가 기존 동작을 수정할 때 (새 코드가 아닌)
+- 기존 테스트 스위트(있다면)가 변경된 경로를 다루지 않을 때
+- 변경이 기존 호출자에게 새 실패 모드를 도입할 때
 
-When uncertain whether a change is a regression, err on the side of writing the test.
+변경이 회귀인지 불확실하면, 테스트를 작성하는 쪽으로 기울이세요.
 
-**Step 4. Output ASCII coverage diagram:**
+**Step 4. ASCII 커버리지 다이어그램 출력:**
 
-Include BOTH code paths and user flows in the same diagram. Mark E2E-worthy and eval-worthy paths:
+코드 경로와 사용자 흐름을 같은 다이어그램에 포함하세요. E2E에 해당하는 경로와 eval에 해당하는 경로를 표시하세요:
 
 ```
 CODE PATH COVERAGE
@@ -570,21 +548,21 @@ GAPS: 8 paths need tests (2 need E2E, 1 needs eval)
 ─────────────────────────────────
 ```
 
-**Fast path:** All paths covered → "Test review: All new code paths have test coverage ✓" Continue.
+**빠른 경로:** 모든 경로가 커버됨 → "테스트 리뷰: 모든 새 코드 경로에 테스트 커버리지가 있습니다 ✓" 계속하세요.
 
-**Step 5. Add missing tests to the plan:**
+**Step 5. 플랜에 누락된 테스트를 추가하세요:**
 
-For each GAP identified in the diagram, add a test requirement to the plan. Be specific:
-- What test file to create (match existing naming conventions)
-- What the test should assert (specific inputs → expected outputs/behavior)
-- Whether it's a unit test, E2E test, or eval (use the decision matrix)
-- For regressions: flag as **CRITICAL** and explain what broke
+다이어그램에서 식별된 각 GAP에 대해, 플랜에 테스트 요구사항을 추가하세요. 구체적으로:
+- 생성할 테스트 파일 (기존 명명 규칙 준수)
+- 테스트가 assert해야 하는 것 (구체적 입력 → 예상 출력/동작)
+- 단위 테스트, E2E 테스트, 또는 eval인지 (결정 매트릭스 사용)
+- 회귀의 경우: **CRITICAL**로 표시하고 무엇이 깨졌는지 설명
 
-The plan should be complete enough that when implementation begins, every test is written alongside the feature code — not deferred to a follow-up.
+플랜은 구현 시작 시 모든 테스트가 기능 코드와 함께 작성되도록 충분히 완전해야 합니다 — 후속 작업으로 미루지 마세요.
 
-### Test Plan Artifact
+### 테스트 플랜 아티팩트
 
-After producing the coverage diagram, write a test plan artifact to the project directory so `/qa` and `/qa-only` can consume it as primary test input:
+커버리지 다이어그램을 생성한 후, `/qa`와 `/qa-only`가 주요 테스트 입력으로 사용할 수 있도록 프로젝트 디렉토리에 테스트 플랜 아티팩트를 작성하세요:
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
@@ -592,7 +570,7 @@ USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 ```
 
-Write to `~/.gstack/projects/{slug}/{user}-{branch}-eng-review-test-plan-{datetime}.md`:
+`~/.gstack/projects/{slug}/{user}-{branch}-eng-review-test-plan-{datetime}.md`에 작성하세요:
 
 ```markdown
 # Test Plan
@@ -613,56 +591,46 @@ Repo: {owner/repo}
 - {end-to-end flow that must work}
 ```
 
-This file is consumed by `/qa` and `/qa-only` as primary test input. Include only the information that helps a QA tester know **what to test and where** — not implementation details.
+이 파일은 `/qa`와 `/qa-only`가 주요 테스트 입력으로 사용합니다. QA 테스터가 **무엇을 어디서 테스트할지** 아는 데 도움이 되는 정보만 포함하세요 — 구현 세부사항이 아닙니다.
 
-For LLM/prompt changes: check the "Prompt/LLM changes" file patterns listed in CLAUDE.md. If this plan touches ANY of those patterns, state which eval suites must be run, which cases should be added, and what baselines to compare against. Then use AskUserQuestion to confirm the eval scope with the user.
+LLM/프롬프트 변경의 경우: CLAUDE.md에 나열된 "Prompt/LLM changes" 파일 패턴을 확인하세요. 이 플랜이 그 패턴 중 하나라도 건드리면, 어떤 eval 스위트를 실행해야 하는지, 어떤 케이스를 추가해야 하는지, 어떤 baseline과 비교해야 하는지를 명시하세요. 그런 다음 AskUserQuestion을 사용하여 사용자와 eval 범위를 확인하세요.
 
-**STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
+**정지.** 이 섹션에서 발견된 각 이슈에 대해 AskUserQuestion을 개별적으로 호출하세요. 한 호출에 하나의 이슈만. 옵션을 제시하고, 추천을 명시하고, 이유를 설명하세요. 여러 이슈를 하나의 AskUserQuestion에 묶지 마세요. 이 섹션의 모든 이슈가 해결된 후에만 다음 섹션으로 진행하세요.
 
-### 4. Performance review
-Evaluate:
-* N+1 queries and database access patterns.
-* Memory-usage concerns.
-* Caching opportunities.
-* Slow or high-complexity code paths.
+### 4. 성능 리뷰
+평가하세요:
+* N+1 쿼리와 데이터베이스 접근 패턴.
+* 메모리 사용 우려.
+* 캐싱 기회.
+* 느리거나 높은 복잡도의 코드 경로.
 
-**STOP.** For each issue found in this section, call AskUserQuestion individually. One issue per call. Present options, state your recommendation, explain WHY. Do NOT batch multiple issues into one AskUserQuestion. Only proceed to the next section after ALL issues in this section are resolved.
+**정지.** 이 섹션에서 발견된 각 이슈에 대해 AskUserQuestion을 개별적으로 호출하세요. 한 호출에 하나의 이슈만. 옵션을 제시하고, 추천을 명시하고, 이유를 설명하세요. 여러 이슈를 하나의 AskUserQuestion에 묶지 마세요. 이 섹션의 모든 이슈가 해결된 후에만 다음 섹션으로 진행하세요.
 
-## Outside Voice — Independent Plan Challenge (optional, recommended)
+## Outside Voice — 독립적 플랜 도전 (선택, 권장)
 
-After all review sections are complete, offer an independent second opinion from a
-different AI system. Two models agreeing on a plan is stronger signal than one model's
-thorough review.
+모든 리뷰 섹션이 완료된 후, 다른 AI 시스템에서 독립적인 세컨드 오피니언을 제안하세요. 두 모델이 플랜에 동의하는 것은 한 모델의 철저한 리뷰보다 더 강한 신호입니다.
 
-**Check tool availability:**
+**도구 가용성 확인:**
 
 ```bash
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 ```
 
-Use AskUserQuestion:
+AskUserQuestion을 사용하세요:
 
-> "All review sections are complete. Want an outside voice? A different AI system can
-> give a brutally honest, independent challenge of this plan — logical gaps, feasibility
-> risks, and blind spots that are hard to catch from inside the review. Takes about 2
-> minutes."
+> "모든 리뷰 섹션이 완료되었습니다. 외부 의견을 들어보시겠습니까? 다른 AI 시스템이 이 플랜에 대해 솔직하고 독립적인 도전을 해줄 수 있습니다 — 논리적 공백, 실현 가능성 리스크, 리뷰 내부에서 잡기 어려운 사각지대. 약 2분 정도 걸립니다."
 >
-> RECOMMENDATION: Choose A — an independent second opinion catches structural blind
-> spots. Two different AI models agreeing on a plan is stronger signal than one model's
-> thorough review. Completeness: A=9/10, B=7/10.
+> 추천: A를 선택하세요 — 독립적인 세컨드 오피니언이 구조적 사각지대를 잡아냅니다. 두 다른 AI 모델이 플랜에 동의하는 것은 한 모델의 철저한 리뷰보다 더 강한 신호입니다. 완전성: A=9/10, B=7/10.
 
-Options:
-- A) Get the outside voice (recommended)
-- B) Skip — proceed to outputs
+옵션:
+- A) 외부 의견 받기 (권장)
+- B) 건너뛰기 — 결과물로 진행
 
-**If B:** Print "Skipping outside voice." and continue to the next section.
+**B인 경우:** "외부 의견을 건너뜁니다."를 출력하고 다음 섹션으로 계속하세요.
 
-**If A:** Construct the plan review prompt. Read the plan file being reviewed (the file
-the user pointed this review at, or the branch diff scope). If a CEO plan document
-was written in Step 0D-POST, read that too — it contains the scope decisions and vision.
+**A인 경우:** 플랜 리뷰 프롬프트를 구성하세요. 리뷰 대상인 플랜 파일(사용자가 이 리뷰를 가리킨 파일, 또는 branch diff 범위)을 읽으세요. Step 0D-POST에서 CEO 플랜 문서가 작성되었으면, 그것도 읽으세요 — 범위 결정과 비전이 포함되어 있습니다.
 
-Construct this prompt (substitute the actual plan content — if plan content exceeds 30KB,
-truncate to the first 30KB and note "Plan truncated for size"):
+다음 프롬프트를 구성하세요 (실제 플랜 내용을 대입 — 플랜 내용이 30KB를 초과하면 처음 30KB로 잘라내고 "Plan truncated for size"라고 참고):
 
 "You are a brutally honest technical reviewer examining a development plan that has
 already been through a multi-section review. Your job is NOT to repeat that review.
@@ -676,19 +644,19 @@ compliments. Just the problems.
 THE PLAN:
 <plan content>"
 
-**If CODEX_AVAILABLE:**
+**CODEX_AVAILABLE인 경우:**
 
 ```bash
 TMPERR_PV=$(mktemp /tmp/codex-planreview-XXXXXXXX)
 codex exec "<prompt>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR_PV"
 ```
 
-Use a 5-minute timeout (`timeout: 300000`). After the command completes, read stderr:
+5분 timeout을 사용하세요 (`timeout: 300000`). 명령이 완료된 후, stderr를 읽으세요:
 ```bash
 cat "$TMPERR_PV"
 ```
 
-Present the full output verbatim:
+전체 출력을 그대로 제시하세요:
 
 ```
 CODEX SAYS (plan review — outside voice):
@@ -697,155 +665,149 @@ CODEX SAYS (plan review — outside voice):
 ════════════════════════════════════════════════════════════
 ```
 
-**Error handling:** All errors are non-blocking — the outside voice is informational.
-- Auth failure (stderr contains "auth", "login", "unauthorized"): "Codex auth failed. Run \`codex login\` to authenticate."
+**에러 처리:** 모든 에러는 non-blocking입니다 — 외부 의견은 참고 정보입니다.
+- Auth 실패 (stderr에 "auth", "login", "unauthorized" 포함): "Codex auth failed. Run \`codex login\` to authenticate."
 - Timeout: "Codex timed out after 5 minutes."
-- Empty response: "Codex returned no response."
+- 빈 응답: "Codex returned no response."
 
-On any Codex error, fall back to the Claude adversarial subagent.
+Codex 에러 발생 시, Claude adversarial subagent로 폴백하세요.
 
-**If CODEX_NOT_AVAILABLE (or Codex errored):**
+**CODEX_NOT_AVAILABLE인 경우 (또는 Codex 에러):**
 
-Dispatch via the Agent tool. The subagent has fresh context — genuine independence.
+Agent 도구를 통해 디스패치하세요. 서브에이전트는 새로운 컨텍스트를 가집니다 — 진정한 독립성.
 
-Subagent prompt: same plan review prompt as above.
+서브에이전트 프롬프트: 위와 동일한 플랜 리뷰 프롬프트.
 
-Present findings under an `OUTSIDE VOICE (Claude subagent):` header.
+`OUTSIDE VOICE (Claude subagent):` 헤더 아래에 발견 사항을 제시하세요.
 
-If the subagent fails or times out: "Outside voice unavailable. Continuing to outputs."
+서브에이전트가 실패하거나 타임아웃되면: "Outside voice unavailable. Continuing to outputs."
 
-**Cross-model tension:**
+**크로스 모델 텐션:**
 
-After presenting the outside voice findings, note any points where the outside voice
-disagrees with the review findings from earlier sections. Flag these as:
+외부 의견의 발견 사항을 제시한 후, 외부 의견이 이전 섹션의 리뷰 결과와 동의하지 않는 지점을 참고하세요. 다음과 같이 표시하세요:
 
 ```
 CROSS-MODEL TENSION:
   [Topic]: Review said X. Outside voice says Y. [Your assessment of who's right.]
 ```
 
-For each substantive tension point, auto-propose as a TODO via AskUserQuestion:
+각 실질적인 텐션 포인트에 대해, AskUserQuestion을 통해 TODO로 자동 제안하세요:
 
-> "Cross-model disagreement on [topic]. The review found [X] but the outside voice
-> argues [Y]. Worth investigating further?"
+> "크로스 모델 의견 불일치: [topic]. 리뷰에서는 [X]를 발견했지만 외부 의견은 [Y]를 주장합니다. 추가 조사할 가치가 있나요?"
 
-Options:
-- A) Add to TODOS.md
-- B) Skip — not substantive
+옵션:
+- A) TODOS.md에 추가
+- B) 건너뛰기 — 실질적이지 않음
 
-If no tension points exist, note: "No cross-model tension — both reviewers agree."
+텐션 포인트가 없으면, 참고: "크로스 모델 텐션 없음 — 양쪽 리뷰어가 동의합니다."
 
-**Persist the result:**
+**결과 저장:**
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"codex-plan-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 ```
 
-Substitute: STATUS = "clean" if no findings, "issues_found" if findings exist.
-SOURCE = "codex" if Codex ran, "claude" if subagent ran.
+대체: STATUS = 발견 사항이 없으면 "clean", 있으면 "issues_found".
+SOURCE = Codex가 실행되었으면 "codex", 서브에이전트가 실행되었으면 "claude".
 
-**Cleanup:** Run `rm -f "$TMPERR_PV"` after processing (if Codex was used).
+**정리:** 처리 후 `rm -f "$TMPERR_PV"` 실행 (Codex를 사용한 경우).
 
 ---
 
-## CRITICAL RULE — How to ask questions
-Follow the AskUserQuestion format from the Preamble above. Additional rules for plan reviews:
-* **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
-* Describe the problem concretely, with file and line references.
-* Present 2-3 options, including "do nothing" where that's reasonable.
-* For each option, specify in one line: effort (human: ~X / CC: ~Y), risk, and maintenance burden. If the complete option is only marginally more effort than the shortcut with CC, recommend the complete option.
-* **Map the reasoning to my engineering preferences above.** One sentence connecting your recommendation to a specific preference (DRY, explicit > clever, minimal diff, etc.).
-* Label with issue NUMBER + option LETTER (e.g., "3A", "3B").
-* **Escape hatch:** If a section has no issues, say so and move on. If an issue has an obvious fix with no real alternatives, state what you'll do and move on — don't waste a question on it. Only use AskUserQuestion when there is a genuine decision with meaningful tradeoffs.
+## 핵심 규칙 — 질문하는 방법
+위의 Preamble의 AskUserQuestion 형식을 따르세요. 플랜 리뷰를 위한 추가 규칙:
+* **하나의 이슈 = 하나의 AskUserQuestion 호출.** 여러 이슈를 하나의 질문에 묶지 마세요.
+* 파일과 라인 참조와 함께 문제를 구체적으로 설명하세요.
+* 2-3개 옵션을 제시하되, 합리적인 경우 "아무것도 안 함"을 포함하세요.
+* 각 옵션에 대해, 한 줄로: 노력 (human: ~X / CC: ~Y), 리스크, 유지보수 부담을 명시하세요. 완전한 옵션이 CC로 shortcut보다 약간만 더 많은 노력이면, 완전한 옵션을 추천하세요.
+* **추천을 위의 엔지니어링 선호도에 연결하세요.** 한 문장으로 특정 선호도(DRY, explicit > clever, minimal diff 등)에 연결하세요.
+* 이슈 번호 + 옵션 문자로 라벨링하세요 (예: "3A", "3B").
+* **탈출구:** 섹션에 이슈가 없으면, 그렇다고 말하고 넘어가세요. 이슈에 실질적 대안이 없는 명확한 수정이 있으면, 무엇을 할 것인지 말하고 넘어가세요 — 의미 없는 트레이드오프가 아닌 진짜 결정이 있을 때만 AskUserQuestion을 사용하세요.
 
-## Required outputs
+## 필수 결과물
 
-### "NOT in scope" section
-Every plan review MUST produce a "NOT in scope" section listing work that was considered and explicitly deferred, with a one-line rationale for each item.
+### "NOT in scope" 섹션
+모든 플랜 리뷰는 고려되었지만 명시적으로 미뤄진 작업을 나열하는 "NOT in scope" 섹션을 반드시 생성해야 하며, 각 항목에 한 줄 근거를 포함해야 합니다.
 
-### "What already exists" section
-List existing code/flows that already partially solve sub-problems in this plan, and whether the plan reuses them or unnecessarily rebuilds them.
+### "What already exists" 섹션
+이 플랜의 하위 문제를 이미 부분적으로 해결하는 기존 코드/흐름을 나열하고, 플랜이 이를 재사용하는지 불필요하게 재구축하는지를 명시하세요.
 
-### TODOS.md updates
-After all review sections are complete, present each potential TODO as its own individual AskUserQuestion. Never batch TODOs — one per question. Never silently skip this step. Follow the format in `.claude/skills/review/TODOS-format.md`.
+### TODOS.md 업데이트
+모든 리뷰 섹션이 완료된 후, 각 잠재적 TODO를 개별 AskUserQuestion으로 제시하세요. TODO를 묶지 마세요 — 질문당 하나씩. 이 단계를 조용히 건너뛰지 마세요. `.claude/skills/review/TODOS-format.md`의 형식을 따르세요.
 
-For each TODO, describe:
-* **What:** One-line description of the work.
-* **Why:** The concrete problem it solves or value it unlocks.
-* **Pros:** What you gain by doing this work.
-* **Cons:** Cost, complexity, or risks of doing it.
-* **Context:** Enough detail that someone picking this up in 3 months understands the motivation, the current state, and where to start.
-* **Depends on / blocked by:** Any prerequisites or ordering constraints.
+각 TODO에 대해 설명하세요:
+* **What:** 작업의 한 줄 설명.
+* **Why:** 해결하는 구체적 문제나 가치.
+* **Pros:** 이 작업을 함으로써 얻는 것.
+* **Cons:** 비용, 복잡성, 또는 리스크.
+* **Context:** 3개월 후 이것을 받아드는 사람이 동기, 현재 상태, 시작점을 이해할 수 있을 만큼의 상세.
+* **Depends on / blocked by:** 전제 조건이나 순서 제약.
 
-Then present options: **A)** Add to TODOS.md **B)** Skip — not valuable enough **C)** Build it now in this PR instead of deferring.
+그런 다음 옵션을 제시하세요: **A)** TODOS.md에 추가 **B)** 건너뛰기 — 충분히 가치 없음 **C)** 미루지 않고 이 PR에서 바로 빌드
 
-Do NOT just append vague bullet points. A TODO without context is worse than no TODO — it creates false confidence that the idea was captured while actually losing the reasoning.
+모호한 불릿 포인트를 추가하지 마세요. 컨텍스트가 없는 TODO는 TODO가 없는 것보다 나쁩니다 — 아이디어가 캡처되었다는 거짓 자신감을 만들면서 실제로 추론을 잃어버립니다.
 
-### Diagrams
-The plan itself should use ASCII diagrams for any non-trivial data flow, state machine, or processing pipeline. Additionally, identify which files in the implementation should get inline ASCII diagram comments — particularly Models with complex state transitions, Services with multi-step pipelines, and Concerns with non-obvious mixin behavior.
+### 다이어그램
+플랜 자체가 비자명한 data flow, 상태 머신, 또는 처리 파이프라인에 ASCII 다이어그램을 사용해야 합니다. 추가로, 구현에서 인라인 ASCII 다이어그램 주석을 넣어야 할 파일을 식별하세요 — 특히 복잡한 상태 전환이 있는 Model, 다단계 파이프라인이 있는 Service, 비자명한 mixin 동작이 있는 Concern.
 
-### Failure modes
-For each new codepath identified in the test review diagram, list one realistic way it could fail in production (timeout, nil reference, race condition, stale data, etc.) and whether:
-1. A test covers that failure
-2. Error handling exists for it
-3. The user would see a clear error or a silent failure
+### 실패 모드
+테스트 리뷰 다이어그램에서 식별된 각 새 코드 경로에 대해, 프로덕션에서 실패할 수 있는 현실적인 방법 하나를 나열하세요 (timeout, nil 참조, race condition, stale 데이터 등) 그리고:
+1. 해당 실패를 다루는 테스트가 있는지
+2. 에러 처리가 존재하는지
+3. 사용자가 명확한 에러를 보는지 아니면 조용한 실패인지
 
-If any failure mode has no test AND no error handling AND would be silent, flag it as a **critical gap**.
+테스트도 없고 에러 처리도 없고 조용한 실패인 실패 모드가 있으면, **critical gap**으로 표시하세요.
 
-### Completion summary
-At the end of the review, fill in and display this summary so the user can see all findings at a glance:
-- Step 0: Scope Challenge — ___ (scope accepted as-is / scope reduced per recommendation)
-- Architecture Review: ___ issues found
-- Code Quality Review: ___ issues found
-- Test Review: diagram produced, ___ gaps identified
-- Performance Review: ___ issues found
-- NOT in scope: written
-- What already exists: written
-- TODOS.md updates: ___ items proposed to user
-- Failure modes: ___ critical gaps flagged
-- Outside voice: ran (codex/claude) / skipped
-- Lake Score: X/Y recommendations chose complete option
+### 완료 요약
+리뷰가 끝나면, 사용자가 모든 발견 사항을 한눈에 볼 수 있도록 이 요약을 채워서 표시하세요:
+- Step 0: 범위 도전 — ___ (범위 그대로 수용 / 추천에 따라 범위 축소)
+- Architecture 리뷰: ___ 이슈 발견
+- 코드 품질 리뷰: ___ 이슈 발견
+- 테스트 리뷰: 다이어그램 생성, ___ 갭 식별
+- 성능 리뷰: ___ 이슈 발견
+- NOT in scope: 작성됨
+- What already exists: 작성됨
+- TODOS.md 업데이트: ___ 항목 사용자에게 제안
+- 실패 모드: ___ critical gap 표시
+- Outside voice: 실행 (codex/claude) / 건너뜀
+- Lake 점수: X/Y 추천이 완전한 옵션 선택
 
-## Retrospective learning
-Check the git log for this branch. If there are prior commits suggesting a previous review cycle (e.g., review-driven refactors, reverted changes), note what was changed and whether the current plan touches the same areas. Be more aggressive reviewing areas that were previously problematic.
+## 회고적 학습
+이 branch의 git 로그를 확인하세요. 이전 리뷰 사이클을 시사하는 이전 commit이 있으면 (예: 리뷰 기반 리팩터링, 되돌린 변경), 무엇이 변경되었는지와 현재 플랜이 같은 영역을 건드리는지 참고하세요. 이전에 문제가 있었던 영역을 더 공격적으로 리뷰하세요.
 
-## Formatting rules
-* NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).
-* Label with NUMBER + LETTER (e.g., "3A", "3B").
-* One sentence max per option. Pick in under 5 seconds.
-* After each review section, pause and ask for feedback before moving on.
+## 서식 규칙
+* 이슈에 번호(1, 2, 3...)를 매기고 옵션에 문자(A, B, C...)를 사용하세요.
+* 번호 + 문자로 라벨링하세요 (예: "3A", "3B").
+* 옵션당 최대 한 문장. 5초 안에 선택할 수 있게.
+* 각 리뷰 섹션 후, 다음으로 넘어가기 전에 멈추고 피드백을 요청하세요.
 
-## Review Log
+## Review Log (리뷰 로그)
 
-After producing the Completion Summary above, persist the review result.
+위의 완료 요약을 생성한 후, 리뷰 결과를 저장하세요.
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes review metadata to
-`~/.gstack/` (user config directory, not project files). The skill preamble
-already writes to `~/.gstack/sessions/` and `~/.gstack/analytics/` — this is
-the same pattern. The review dashboard depends on this data. Skipping this
-command breaks the review readiness dashboard in /ship.
+**PLAN MODE EXCEPTION — 반드시 실행:** 이 명령은 `~/.gstack/`(사용자 설정 디렉토리, 프로젝트 파일이 아님)에 리뷰 메타데이터를 기록합니다. skill preamble이 이미 `~/.gstack/sessions/`와 `~/.gstack/analytics/`에 기록합니다 — 동일한 패턴입니다. 리뷰 대시보드가 이 데이터에 의존합니다. 이 명령을 건너뛰면 /ship의 리뷰 준비 대시보드가 깨집니다.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-eng-review","timestamp":"TIMESTAMP","status":"STATUS","unresolved":N,"critical_gaps":N,"issues_found":N,"mode":"MODE","commit":"COMMIT"}'
 ```
 
-Substitute values from the Completion Summary:
-- **TIMESTAMP**: current ISO 8601 datetime
-- **STATUS**: "clean" if 0 unresolved decisions AND 0 critical gaps; otherwise "issues_open"
-- **unresolved**: number from "Unresolved decisions" count
-- **critical_gaps**: number from "Failure modes: ___ critical gaps flagged"
-- **issues_found**: total issues found across all review sections (Architecture + Code Quality + Performance + Test gaps)
+완료 요약에서 값을 대체하세요:
+- **TIMESTAMP**: 현재 ISO 8601 datetime
+- **STATUS**: 미해결 결정이 0이고 critical gap이 0이면 "clean"; 그렇지 않으면 "issues_open"
+- **unresolved**: "미해결 결정" 카운트의 숫자
+- **critical_gaps**: "실패 모드: ___ critical gap 표시"의 숫자
+- **issues_found**: 모든 리뷰 섹션에서 발견된 총 이슈 수 (Architecture + Code Quality + Performance + Test gap)
 - **MODE**: FULL_REVIEW / SCOPE_REDUCED
-- **COMMIT**: output of `git rev-parse --short HEAD`
+- **COMMIT**: `git rev-parse --short HEAD`의 출력
 
-## Review Readiness Dashboard
+## Review Readiness Dashboard (리뷰 준비 대시보드)
 
-After completing the review, read the review log and config to display the dashboard.
+리뷰를 완료한 후, 리뷰 로그와 설정을 읽어 대시보드를 표시하세요.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-read
 ```
 
-Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review). Ignore entries with timestamps older than 7 days. For the Eng Review row, show whichever is more recent between `review` (diff-scoped pre-landing review) and `plan-eng-review` (plan-stage architecture review). Append "(DIFF)" or "(PLAN)" to the status to distinguish. For the Adversarial row, show whichever is more recent between `adversarial-review` (new auto-scaled) and `codex-review` (legacy). For Design Review, show whichever is more recent between `plan-design-review` (full visual audit) and `design-review-lite` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
+출력을 파싱하세요. 각 skill(plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review)의 가장 최근 항목을 찾으세요. 7일보다 오래된 타임스탬프의 항목은 무시하세요. Eng Review 행에는 `review`(diff 범위 pre-landing 리뷰)와 `plan-eng-review`(플랜 단계 architecture 리뷰) 중 더 최근 것을 표시하세요. 구분을 위해 상태에 "(DIFF)" 또는 "(PLAN)"을 추가하세요. Adversarial 행에는 `adversarial-review`(새 auto-scaled)와 `codex-review`(레거시) 중 더 최근 것을 표시하세요. Design Review에는 `plan-design-review`(전체 비주얼 감사)와 `design-review-lite`(코드 수준 확인) 중 더 최근 것을 표시하세요. 구분을 위해 상태에 "(FULL)" 또는 "(LITE)"를 추가하세요. 표시하세요:
 
 ```
 +====================================================================+
@@ -863,44 +825,41 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 +====================================================================+
 ```
 
-**Review tiers:**
-- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`gstack-config set skip_eng_review true\` (the "don't bother me" setting).
-- **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
-- **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
-- **Adversarial Review (automatic):** Auto-scales by diff size. Small diffs (<50 lines) skip adversarial. Medium diffs (50–199) get cross-model adversarial. Large diffs (200+) get all 4 passes: Claude structured, Codex structured, Claude adversarial subagent, Codex adversarial. No configuration needed.
-- **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete in /plan-ceo-review and /plan-eng-review. Falls back to Claude subagent if Codex is unavailable. Never gates shipping.
+**리뷰 등급:**
+- **Eng Review (기본적으로 필수):** 출시를 게이트하는 유일한 리뷰. Architecture, 코드 품질, 테스트, 성능을 다룹니다. \`gstack-config set skip_eng_review true\`로 전역적으로 비활성화할 수 있습니다 ("방해하지 마세요" 설정).
+- **CEO Review (선택):** 판단하여 사용하세요. 큰 제품/비즈니스 변경, 새 사용자 대면 기능, 범위 결정에 추천합니다. 버그 수정, 리팩터링, 인프라, 정리에는 건너뛰세요.
+- **Design Review (선택):** 판단하여 사용하세요. UI/UX 변경에 추천합니다. 백엔드 전용, 인프라, 프롬프트 전용 변경에는 건너뛰세요.
+- **Adversarial Review (자동):** diff 크기에 따라 자동 조절됩니다. 작은 diff(<50줄)는 adversarial을 건너뜁니다. 중간 diff(50-199)는 크로스 모델 adversarial을 받습니다. 큰 diff(200+)는 4개 패스 모두 받습니다: Claude structured, Codex structured, Claude adversarial subagent, Codex adversarial. 설정 필요 없습니다.
+- **Outside Voice (선택):** 다른 AI 모델의 독립적 플랜 리뷰. /plan-ceo-review와 /plan-eng-review의 모든 리뷰 섹션이 완료된 후 제안됩니다. Codex를 사용할 수 없으면 Claude subagent로 폴백합니다. 출시를 게이트하지 않습니다.
 
-**Verdict logic:**
-- **CLEARED**: Eng Review has >= 1 entry within 7 days from either \`review\` or \`plan-eng-review\` with status "clean" (or \`skip_eng_review\` is \`true\`)
-- **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
-- CEO, Design, and Codex reviews are shown for context but never block shipping
-- If \`skip_eng_review\` config is \`true\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
+**판정 로직:**
+- **CLEARED**: Eng Review가 7일 이내에 `review` 또는 `plan-eng-review`에서 status "clean"인 항목이 1개 이상 (또는 \`skip_eng_review\`가 \`true\`)
+- **NOT CLEARED**: Eng Review가 없거나, 오래되었거나(7일 초과), 열린 이슈가 있음
+- CEO, Design, Codex 리뷰는 컨텍스트로 표시되지만 출시를 차단하지 않음
+- \`skip_eng_review\` 설정이 \`true\`이면, Eng Review는 "SKIPPED (global)"을 표시하고 판정은 CLEARED
 
-**Staleness detection:** After displaying the dashboard, check if any existing reviews may be stale:
-- Parse the \`---HEAD---\` section from the bash output to get the current HEAD commit hash
-- For each review entry that has a \`commit\` field: compare it against the current HEAD. If different, count elapsed commits: \`git rev-list --count STORED_COMMIT..HEAD\`. Display: "Note: {skill} review from {date} may be stale — {N} commits since review"
-- For entries without a \`commit\` field (legacy entries): display "Note: {skill} review from {date} has no commit tracking — consider re-running for accurate staleness detection"
-- If all reviews match the current HEAD, do not display any staleness notes
+**오래됨 감지:** 대시보드 표시 후, 기존 리뷰가 오래되었을 수 있는지 확인하세요:
+- bash 출력의 \`---HEAD---\` 섹션을 파싱하여 현재 HEAD commit 해시를 가져오세요
+- \`commit\` 필드가 있는 각 리뷰 항목에 대해: 현재 HEAD와 비교하세요. 다르면 경과 commit 수를 세세요: \`git rev-list --count STORED_COMMIT..HEAD\`. 표시: "참고: {skill} 리뷰 ({date})가 오래되었을 수 있음 — 리뷰 이후 {N}개 commit"
+- \`commit\` 필드가 없는 항목(레거시)은: "참고: {skill} 리뷰 ({date})에 commit 추적이 없음 — 정확한 오래됨 감지를 위해 다시 실행을 고려하세요"
+- 모든 리뷰가 현재 HEAD와 일치하면, 오래됨 참고를 표시하지 마세요
 
-## Plan File Review Report
+## Plan File Review Report (플랜 파일 리뷰 리포트)
 
-After displaying the Review Readiness Dashboard in conversation output, also update the
-**plan file** itself so review status is visible to anyone reading the plan.
+대화 출력에 Review Readiness Dashboard를 표시한 후, **플랜 파일** 자체도 업데이트하여 플랜을 읽는 누구에게나 리뷰 상태가 보이게 하세요.
 
-### Detect the plan file
+### 플랜 파일 감지
 
-1. Check if there is an active plan file in this conversation (the host provides plan file
-   paths in system messages — look for plan file references in the conversation context).
-2. If not found, skip this section silently — not every review runs in plan mode.
+1. 이 대화에서 활성 플랜 파일이 있는지 확인하세요 (호스트가 시스템 메시지에서 플랜 파일 경로를 제공합니다 — 대화 컨텍스트에서 플랜 파일 참조를 찾으세요).
+2. 찾을 수 없으면, 이 섹션을 조용히 건너뛰세요 — 모든 리뷰가 plan mode에서 실행되는 것은 아닙니다.
 
-### Generate the report
+### 리포트 생성
 
-Read the review log output you already have from the Review Readiness Dashboard step above.
-Parse each JSONL entry. Each skill logs different fields:
+위의 Review Readiness Dashboard 단계에서 이미 가지고 있는 리뷰 로그 출력을 읽으세요. 각 JSONL 항목을 파싱하세요. 각 skill은 다른 필드를 기록합니다:
 
 - **plan-ceo-review**: \`status\`, \`unresolved\`, \`critical_gaps\`, \`mode\`, \`scope_proposed\`, \`scope_accepted\`, \`scope_deferred\`, \`commit\`
   → Findings: "{scope_proposed} proposals, {scope_accepted} accepted, {scope_deferred} deferred"
-  → If scope fields are 0 or missing (HOLD/REDUCTION mode): "mode: {mode}, {critical_gaps} critical gaps"
+  → scope 필드가 0이거나 없으면 (HOLD/REDUCTION mode): "mode: {mode}, {critical_gaps} critical gaps"
 - **plan-eng-review**: \`status\`, \`unresolved\`, \`critical_gaps\`, \`issues_found\`, \`mode\`, \`commit\`
   → Findings: "{issues_found} issues, {critical_gaps} critical gaps"
 - **plan-design-review**: \`status\`, \`initial_score\`, \`overall_score\`, \`unresolved\`, \`decisions_made\`, \`commit\`
@@ -908,11 +867,10 @@ Parse each JSONL entry. Each skill logs different fields:
 - **codex-review**: \`status\`, \`gate\`, \`findings\`, \`findings_fixed\`
   → Findings: "{findings} findings, {findings_fixed}/{findings} fixed"
 
-All fields needed for the Findings column are now present in the JSONL entries.
-For the review you just completed, you may use richer details from your own Completion
-Summary. For prior reviews, use the JSONL fields directly — they contain all required data.
+Findings 열에 필요한 모든 필드가 이제 JSONL 항목에 있습니다.
+방금 완료한 리뷰의 경우, 자체 완료 요약에서 더 풍부한 세부 정보를 사용할 수 있습니다. 이전 리뷰의 경우, JSONL 필드를 직접 사용하세요 — 모든 필요 데이터가 포함되어 있습니다.
 
-Produce this markdown table:
+다음 마크다운 테이블을 생성하세요:
 
 \`\`\`markdown
 ## GSTACK REVIEW REPORT
@@ -925,46 +883,39 @@ Produce this markdown table:
 | Design Review | \`/plan-design-review\` | UI/UX gaps | {runs} | {status} | {findings} |
 \`\`\`
 
-Below the table, add these lines (omit any that are empty/not applicable):
+테이블 아래에 다음 라인을 추가하세요 (비어 있거나 해당되지 않는 것은 생략):
 
-- **CODEX:** (only if codex-review ran) — one-line summary of codex fixes
-- **CROSS-MODEL:** (only if both Claude and Codex reviews exist) — overlap analysis
-- **UNRESOLVED:** total unresolved decisions across all reviews
-- **VERDICT:** list reviews that are CLEAR (e.g., "CEO + ENG CLEARED — ready to implement").
-  If Eng Review is not CLEAR and not skipped globally, append "eng review required".
+- **CODEX:** (codex-review가 실행된 경우에만) — codex 수정의 한 줄 요약
+- **CROSS-MODEL:** (Claude와 Codex 리뷰 모두 존재하는 경우에만) — 중복 분석
+- **UNRESOLVED:** 모든 리뷰에 걸친 총 미해결 결정
+- **VERDICT:** CLEAR인 리뷰 목록 (예: "CEO + ENG CLEARED — ready to implement").
+  Eng Review가 CLEAR가 아니고 전역적으로 건너뛰기 않았으면, "eng review required"를 추가.
 
-### Write to the plan file
+### 플랜 파일에 작성
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, which is the one
-file you are allowed to edit in plan mode. The plan file review report is part of the
-plan's living status.
+**PLAN MODE EXCEPTION — 반드시 실행:** 플랜 파일에 기록하며, plan mode에서 편집 가능한 유일한 파일입니다. 플랜 파일 리뷰 리포트는 플랜의 실시간 상태의 일부입니다.
 
-- Search the plan file for a \`## GSTACK REVIEW REPORT\` section **anywhere** in the file
-  (not just at the end — content may have been added after it).
-- If found, **replace it** entirely using the Edit tool. Match from \`## GSTACK REVIEW REPORT\`
-  through either the next \`## \` heading or end of file, whichever comes first. This ensures
-  content added after the report section is preserved, not eaten. If the Edit fails
-  (e.g., concurrent edit changed the content), re-read the plan file and retry once.
-- If no such section exists, **append it** to the end of the plan file.
-- Always place it as the very last section in the plan file. If it was found mid-file,
-  move it: delete the old location and append at the end.
+- 플랜 파일에서 \`## GSTACK REVIEW REPORT\` 섹션을 **파일 어디에서든** 검색하세요 (끝에만이 아니라 — 뒤에 내용이 추가되었을 수 있습니다).
+- 있으면, Edit 도구를 사용하여 **전체를 교체**하세요. \`## GSTACK REVIEW REPORT\`부터 다음 \`## \` 제목이나 파일 끝까지 매칭하세요 (먼저 오는 것). 리포트 섹션 뒤에 추가된 내용은 보존됩니다. Edit이 실패하면 (예: 동시 편집으로 내용 변경), 플랜 파일을 다시 읽고 한 번 재시도하세요.
+- 해당 섹션이 없으면, 플랜 파일 끝에 **추가**하세요.
+- 항상 플랜 파일의 가장 마지막 섹션으로 배치하세요. 파일 중간에서 발견되면, 이동하세요: 기존 위치를 삭제하고 끝에 추가하세요.
 
-## Next Steps — Review Chaining
+## 다음 단계 — 리뷰 체이닝
 
-After displaying the Review Readiness Dashboard, check if additional reviews would be valuable. Read the dashboard output to see which reviews have already been run and whether they are stale.
+Review Readiness Dashboard를 표시한 후, 추가 리뷰가 가치 있을지 확인하세요. 대시보드 출력을 읽어 어떤 리뷰가 이미 실행되었는지와 오래되었는지 확인하세요.
 
-**Suggest /plan-design-review if UI changes exist and no design review has been run** — detect from the test diagram, architecture review, or any section that touched frontend components, CSS, views, or user-facing interaction flows. If an existing design review's commit hash shows it predates significant changes found in this eng review, note that it may be stale.
+**UI 변경이 있고 design review가 실행되지 않았으면 /plan-design-review를 제안하세요** — 테스트 다이어그램, architecture 리뷰, 또는 프론트엔드 컴포넌트, CSS, 뷰, 사용자 대면 인터랙션 흐름을 건드린 섹션에서 감지하세요. 기존 design review의 commit 해시가 이 eng review에서 발견된 중대한 변경 이전이면, 오래되었을 수 있다고 참고하세요.
 
-**Mention /plan-ceo-review if this is a significant product change and no CEO review exists** — this is a soft suggestion, not a push. CEO review is optional. Only mention it if the plan introduces new user-facing features, changes product direction, or expands scope substantially.
+**중대한 제품 변경이고 CEO review가 없으면 /plan-ceo-review를 언급하세요** — 이것은 부드러운 제안이지, 강요가 아닙니다. CEO review는 선택입니다. 플랜이 새 사용자 대면 기능을 도입하거나, 제품 방향을 변경하거나, 범위를 상당히 확장할 때만 언급하세요.
 
-**Note staleness** of existing CEO or design reviews if this eng review found assumptions that contradict them, or if the commit hash shows significant drift.
+**기존 CEO 또는 design review의 오래됨을 참고하세요** — 이 eng review가 그것들과 모순되는 가정을 발견했거나, commit 해시가 상당한 차이를 보이는 경우.
 
-**If no additional reviews are needed** (or `skip_eng_review` is `true` in the dashboard config, meaning this eng review was optional): state "All relevant reviews complete. Run /ship when ready."
+**추가 리뷰가 필요하지 않으면** (또는 대시보드 설정에서 `skip_eng_review`가 `true`이면, 즉 이 eng review가 선택이었음): "관련 리뷰 모두 완료. 준비되면 /ship을 실행하세요."라고 명시하세요.
 
-Use AskUserQuestion with only the applicable options:
-- **A)** Run /plan-design-review (only if UI scope detected and no design review exists)
-- **B)** Run /plan-ceo-review (only if significant product change and no CEO review exists)
-- **C)** Ready to implement — run /ship when done
+AskUserQuestion을 해당되는 옵션만 포함하여 사용하세요:
+- **A)** /plan-design-review 실행 (UI 범위가 감지되고 design review가 없을 때만)
+- **B)** /plan-ceo-review 실행 (중대한 제품 변경이고 CEO review가 없을 때만)
+- **C)** 구현 준비 완료 — 작업이 끝나면 /ship 실행
 
-## Unresolved decisions
-If the user does not respond to an AskUserQuestion or interrupts to move on, note which decisions were left unresolved. At the end of the review, list these as "Unresolved decisions that may bite you later" — never silently default to an option.
+## 미해결 결정
+사용자가 AskUserQuestion에 응답하지 않거나 넘어가려고 중단하면, 어떤 결정이 미해결인지 참고하세요. 리뷰가 끝나면 이것들을 "나중에 문제가 될 수 있는 미해결 결정"으로 나열하세요 — 절대 조용히 옵션을 기본값으로 선택하지 마세요.
