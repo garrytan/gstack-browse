@@ -139,23 +139,24 @@ gstack is a process, not a collection of tools. The skills run in the order a sp
 Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-ceo-review` reads. `/plan-eng-review` writes a test plan that `/qa` picks up. `/review` catches bugs that `/ship` verifies are fixed. Nothing falls through the cracks because every step knows what came before it.
 
 ## Sprint sequence
+
 ```mermaid
 flowchart TD
   OH["/office-hours"] --> DD["design doc"]
   DD --> CEO["/plan-ceo-review"]
-  DD --> ENG["/plan-eng-review — required gate"]
+  DD --> ENG["/plan-eng-review"]
   DD --> DES["/plan-design-review"]
   CEO --> CODE["User + AI codes"]
   ENG --> CODE
   DES --> CODE
   ENG --> QAP["test plan artifact"]
-  QAP --> QA
   CODE --> REV["/review"]
   CODE --> INV["/investigate"]
   CODE --> CSO["/cso"]
   REV --> QA["/qa"]
   INV --> QA
   CSO --> QA
+  QAP --> QA
   QA --> SHIP["/ship"]
   SHIP --> LD["/land-and-deploy"]
   LD --> CAN["/canary"]
