@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+# gstack-community-benchmarks — compare your metrics against the community
+#
+# Reads local analytics (skill-usage.jsonl) and computes your metrics,
+# then compares against community averages from the Supabase API.
+# If community API is unavailable, shows local-only metrics.
+#
+# Usage:
+#   gstack-community-benchmarks             # full comparison
+#   gstack-community-benchmarks --local     # local metrics only
+#   gstack-community-benchmarks --json      # machine-readable
+#
+# Viral mechanic: "Your /review catch rate is top 20% of gstack users"
+set -uo pipefail
+
+GSTACK_DIR="${GSTACK_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
+STATE_DIR="${GSTACK_STATE_DIR:-$HOME/.gstack}"
+ANALYTICS_DIR="$STATE_DIR/analytics"
+JSONL_FILE="$ANALYTICS_DIR/skill-usage.jsonl"
+LOCAL_ONLY=""
+JSON_MODE=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) LOCAL_ONLY=1 ;;
+    --json) JSON_MODE=1 ;;
+  esac
+done
+
+python3 - "$JSONL_FILE" "$LOCAL_ONLY" "$JSON_MODE" "$GSTACK_DIR" << 'PYEOF'
+import json, sys, os
+from collections import defaultdict, Counter
+from datetime import datetime, timedelta
+
+jsonl_file = sys.argv[1]
+local_only = sys.argv[2] == '1'
+json_mode = sys.argv[3] == '1'
+gstack_dir = sys.argv[4]
+
+# ─── Read local analytics ────────────────────────────────────
+events = []
+if os.path.exists(jsonl_file):
+    for line in open(jsonl_file):
+        try:
+            events.append(json.loads(line.strip()))
+        except:
+            continue
+
+# Filter to last 30 days
+cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+recent = [e for e in events if e.get('ts', '') >= cutoff]
+
+if not recent:
+    if json_mode:
+        print(json.dumps({"error": "no_data", "message": "No usage data in last 30 days"}))
+    else:
+        print("No usage data in the last 30 days.")
+        print("Use gstack skills to start building your profile.")
+    sys.exit(0)
+
+# ─── Compute local metrics ───────────────────────────────────
+skill_counts = Counter(e.get('skill', 'unknown') for e in recent)
+total_sessions = len(recent)
+total_duration = sum(e.get('duration_s', 0) or 0 for e in recent if isinstance(e.get('duration_s'), (int, float)))
+avg_duration = round(total_duration / max(total_sessions, 1))
+success_rate = round(sum(1 for e in recent if e.get('outcome') == 'success') / max(total_sessions, 1) * 100)
+browse_pct = round(sum(1 for e in recent if e.get('used_browse')) / max(total_sessions, 1) * 100)
+unique_skills = len(skill_counts)
+top_skills = skill_counts.most_common(5)
+
+# Sessions per day
+days_active = len(set(e.get('ts', '')[:10] for e in recent if e.get('ts')))
+sessions_per_day = round(total_sessions / max(days_active, 1), 1)
+
+# Skill diversity score (0-100): how many of the available skills do you use?
+available_skills = len([d for d in os.listdir(gstack_dir)
+    if os.path.isdir(os.path.join(gstack_dir, d))
+    and os.path.exists(os.path.join(gstack_dir, d, 'SKILL.md.tmpl'))
+    and not d.startswith('.')])
+diversity = round(min(unique_skills / max(available_skills, 1) * 100, 100))
+
+local_metrics = {
+    'total_sessions': total_sessions,
+    'days_active': days_active,
+    'sessions_per_day': sessions_per_day,
+    'avg_duration_s': avg_duration,
+    'success_rate': success_rate,
+    'browse_usage_pct': browse_pct,
+    'unique_skills': unique_skills,
+    'available_skills': available_skills,
+    'skill_diversity': diversity,
+    'top_skills': [{'skill': s, 'count': c} for s, c in top_skills],
+}
+
+# ─── Fetch community benchmarks (if available) ──────────────
+community = None
+if not local_only:
+    try:
+        config_file = os.path.join(gstack_dir, 'supabase', 'config.sh')
+        endpoint = os.environ.get('GSTACK_SUPABASE_URL', '')
+        anon_key = os.environ.get('GSTACK_SUPABASE_ANON_KEY', '')
+
+        if not endpoint and os.path.exists(config_file):
+            for line in open(config_file):
+                if 'SUPABASE_URL' in line and '=' in line:
+                    endpoint = line.split('=', 1)[1].strip().strip('"').strip("'")
+                elif 'ANON_KEY' in line and '=' in line:
+                    anon_key = line.split('=', 1)[1].strip().strip('"').strip("'")
+
+        if endpoint and anon_key:
+            import urllib.request
+            req = urllib.request.Request(
+                f"{endpoint}/functions/v1/community-pulse",
+                headers={"Authorization": f"Bearer {anon_key}"}
+            )
+            resp = urllib.request.urlopen(req, timeout=5)
+            community = json.loads(resp.read())
+    except:
+        pass  # community data unavailable — show local only
+
+# ─── Output ──────────────────────────────────────────────────
+output = {
+    'period': 'last_30_days',
+    'local': local_metrics,
+    'community': community,
+}
+
+if json_mode:
+    print(json.dumps(output, indent=2))
+    sys.exit(0)
+
+# Human-readable
+print("YOUR GSTACK PROFILE (last 30 days)")
+print("═" * 50)
+print(f"  Sessions:          {total_sessions}")
+print(f"  Days active:       {days_active}")
+print(f"  Sessions/day:      {sessions_per_day}")
+print(f"  Avg duration:      {avg_duration}s")
+print(f"  Success rate:      {success_rate}%")
+print(f"  Browse usage:      {browse_pct}%")
+print(f"  Skill diversity:   {diversity}% ({unique_skills}/{available_skills} skills used)")
+print()
+
+print("TOP SKILLS:")
+for s, c in top_skills:
+    bar = "█" * min(c, 30)
+    print(f"  /%-18s %3d  {bar}" % (s, c))
+print()
+
+if community:
+    wa = community.get('weekly_active', 0)
+    change = community.get('change_pct', 0)
+    print("COMMUNITY:")
+    print(f"  Weekly active users: {wa} ({'+' if change >= 0 else ''}{change}%)")
+    print()
+    if sessions_per_day > 5:
+        print("  🔥 You're a power user — top tier session frequency")
+    elif sessions_per_day > 2:
+        print("  ⚡ Active user — above average engagement")
+    if diversity >= 50:
+        print("  🎯 High skill diversity — exploring the full toolkit")
+    elif diversity < 20:
+        print("  💡 Tip: try /cso (security), /retro (retrospective), /qa (testing)")
+else:
+    print("COMMUNITY: Not available (telemetry not configured)")
+    print("  Enable with: gstack-config set telemetry basic")
+PYEOF
