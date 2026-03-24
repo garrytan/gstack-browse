@@ -20,15 +20,34 @@ SNOOZE_FILE="$STATE_DIR/update-snoozed"
 VERSION_FILE="$GSTACK_DIR/VERSION"
 REMOTE_URL="${GSTACK_REMOTE_URL:-https://raw.githubusercontent.com/garrytan/gstack/main/VERSION}"
 
-# ─── Force flag (busts cache for standalone /gstack-upgrade) ──
+# ─── Force flag (busts cache + snooze for standalone /gstack-upgrade) ──
 if [ "${1:-}" = "--force" ]; then
   rm -f "$CACHE_FILE"
+  rm -f "$SNOOZE_FILE"
 fi
 
 # ─── Step 0: Check if updates are disabled ────────────────────
 _UC=$("$GSTACK_DIR/bin/gstack-config" get update_check 2>/dev/null || true)
 if [ "$_UC" = "false" ]; then
   exit 0
+fi
+
+# ─── Migration: fix stale Codex descriptions (one-time) ───────
+# Existing installs may have .agents/skills/gstack/SKILL.md with oversized
+# descriptions (>1024 chars) that Codex rejects. We can't regenerate from
+# the runtime root (no bun/scripts), so delete oversized files — the next
+# ./setup or /gstack-upgrade will regenerate them properly.
+# Marker file ensures this runs at most once per install.
+if [ ! -f "$STATE_DIR/.codex-desc-healed" ]; then
+  for _AGENTS_SKILL in "$GSTACK_DIR"/.agents/skills/*/SKILL.md; do
+    [ -f "$_AGENTS_SKILL" ] || continue
+    _DESC=$(awk '/^---$/{n++;next}n==1&&/^description:/{d=1;sub(/^description:\s*/,"");if(length>0)print;next}d&&/^  /{sub(/^  /,"");print;next}d{d=0}' "$_AGENTS_SKILL" | wc -c | tr -d ' ')
+    if [ "${_DESC:-0}" -gt 1024 ]; then
+      rm -f "$_AGENTS_SKILL"
+    fi
+  done
+  mkdir -p "$STATE_DIR"
+  touch "$STATE_DIR/.codex-desc-healed"
 fi
 
 # ─── Snooze helper ──────────────────────────────────────────

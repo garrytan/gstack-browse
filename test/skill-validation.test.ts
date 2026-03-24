@@ -99,6 +99,20 @@ describe('SKILL.md command validation', () => {
     const result = validateSkill(skill);
     expect(result.snapshotFlagErrors).toHaveLength(0);
   });
+
+  test('all $B commands in autoplan/SKILL.md are valid browse commands', () => {
+    const skill = path.join(ROOT, 'autoplan', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.invalid).toHaveLength(0);
+  });
+
+  test('all snapshot flags in autoplan/SKILL.md are valid', () => {
+    const skill = path.join(ROOT, 'autoplan', 'SKILL.md');
+    if (!fs.existsSync(skill)) return;
+    const result = validateSkill(skill);
+    expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
 });
 
 describe('Command registry consistency', () => {
@@ -223,6 +237,11 @@ describe('Update check preamble', () => {
     'design-review/SKILL.md',
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
+    'canary/SKILL.md',
+    'benchmark/SKILL.md',
+    'land-and-deploy/SKILL.md',
+    'setup-deploy/SKILL.md',
+    'cso/SKILL.md',
   ];
 
   for (const skill of skillsWithUpdateCheck) {
@@ -535,6 +554,11 @@ describe('v0.4.1 preamble features', () => {
     'design-review/SKILL.md',
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
+    'canary/SKILL.md',
+    'benchmark/SKILL.md',
+    'land-and-deploy/SKILL.md',
+    'setup-deploy/SKILL.md',
+    'cso/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
@@ -721,6 +745,10 @@ describe('Contributor mode preamble structure', () => {
     'design-review/SKILL.md',
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
+    'canary/SKILL.md',
+    'benchmark/SKILL.md',
+    'land-and-deploy/SKILL.md',
+    'setup-deploy/SKILL.md',
   ];
 
   for (const skill of skillsWithPreamble) {
@@ -809,7 +837,7 @@ describe('Completeness Principle in generated SKILL.md files', () => {
     'design-review/SKILL.md',
     'design-consultation/SKILL.md',
     'document-release/SKILL.md',
-  ];
+    'cso/SKILL.md',  ];
 
   for (const skill of skillsWithPreamble) {
     test(`${skill} contains Completeness Principle section`, () => {
@@ -966,6 +994,34 @@ describe('gstack-slug', () => {
     expect(lines.length).toBe(2);
     expect(lines[0]).toMatch(/^SLUG=.+/);
     expect(lines[1]).toMatch(/^BRANCH=.+/);
+  });
+
+  test('output values contain only safe characters (no shell metacharacters)', () => {
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' });
+    const slug = result.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
+    const branch = result.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
+    // Only alphanumeric, dot, dash, underscore are allowed (#133)
+    expect(slug).toMatch(/^[a-zA-Z0-9._-]+$/);
+    expect(branch).toMatch(/^[a-zA-Z0-9._-]+$/);
+  });
+  test('eval sets variables under bash with set -euo pipefail', () => {
+    const result = Bun.spawnSync(
+      ['bash', '-c', 'set -euo pipefail; eval "$(./bin/gstack-slug 2>/dev/null)"; echo "SLUG=$SLUG"; echo "BRANCH=$BRANCH"'],
+      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+    );
+    expect(result.exitCode).toBe(0);
+    const output = result.stdout.toString();
+    expect(output).toMatch(/^SLUG=.+/m);
+    expect(output).toMatch(/^BRANCH=.+/m);
+  });
+
+  test('no templates or bin scripts use source process substitution for gstack-slug', () => {
+    const result = Bun.spawnSync(
+      ['grep', '-r', 'source <(.*gstack-slug', '--include=*.tmpl', '--include=gstack-review-*', '.'],
+      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe' }
+    );
+    // grep returns exit code 1 when no matches found — that's what we want
+    expect(result.stdout.toString().trim()).toBe('');
   });
 });
 
@@ -1256,35 +1312,54 @@ describe('Codex skill', () => {
     expect(content).toContain('mktemp');
   });
 
-  test('codex integration in /review has config-driven review step', () => {
+  test('adversarial review in /review auto-scales by diff size', () => {
     const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Codex review');
-    expect(content).toContain('codex_reviews');
-    expect(content).toContain('codex review');
-    expect(content).toContain('adversarial');
+    expect(content).toContain('Adversarial review (auto-scaled)');
+    // Diff size thresholds
+    expect(content).toContain('< 50');
+    expect(content).toContain('50–199');
+    expect(content).toContain('200+');
+    // All three tiers present
+    expect(content).toContain('Small');
+    expect(content).toContain('Medium tier');
+    expect(content).toContain('Large tier');
+    // Claude adversarial subagent dispatch
+    expect(content).toContain('Agent tool');
+    expect(content).toContain('FIXABLE');
+    expect(content).toContain('INVESTIGATE');
+    // Codex fallback logic
+    expect(content).toContain('CODEX_NOT_AVAILABLE');
+    expect(content).toContain('fall back to the Claude adversarial subagent');
+    // Review log uses new skill name
+    expect(content).toContain('adversarial-review');
     expect(content).toContain('xhigh');
-    expect(content).toContain('Investigate and fix');
-    expect(content).toContain('CROSS-MODEL');
+    expect(content).toContain('ADVERSARIAL REVIEW SYNTHESIS');
   });
 
-  test('codex integration in /ship has config-driven review step', () => {
+  test('adversarial review in /ship auto-scales by diff size', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Codex review');
-    expect(content).toContain('codex_reviews');
-    expect(content).toContain('codex review');
-    expect(content).toContain('codex-review');
+    expect(content).toContain('Adversarial review (auto-scaled)');
+    expect(content).toContain('< 50');
+    expect(content).toContain('200+');
+    expect(content).toContain('adversarial-review');
     expect(content).toContain('xhigh');
     expect(content).toContain('Investigate and fix');
   });
 
-  test('codex-host ship/review do NOT contain codex review step', () => {
+  test('codex-host ship/review do NOT contain adversarial review step', () => {
+    // .agents/ is gitignored — generate on demand
+    Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
+      cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
+    });
     const shipContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-ship', 'SKILL.md'), 'utf-8');
     expect(shipContent).not.toContain('codex review --base');
-    expect(shipContent).not.toContain('Investigate and fix');
+    expect(shipContent).not.toContain('CODEX_REVIEWS');
 
     const reviewContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-review', 'SKILL.md'), 'utf-8');
     expect(reviewContent).not.toContain('codex review --base');
     expect(reviewContent).not.toContain('codex_reviews');
+    expect(reviewContent).not.toContain('CODEX_REVIEWS');
+    expect(reviewContent).not.toContain('adversarial-review');
     expect(reviewContent).not.toContain('Investigate and fix');
   });
 
@@ -1294,9 +1369,21 @@ describe('Codex skill', () => {
     expect(content).toContain('codex exec');
   });
 
-  test('Review Readiness Dashboard includes Codex Review row', () => {
+  test('/review persists a review-log entry for ship readiness', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('"skill":"review"');
+    expect(content).toContain('"issues_found":N');
+    expect(content).toContain('Persist Eng Review result');
+  });
+
+  test('/ship gate suggests /review or /plan-eng-review when Eng Review is missing', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Codex Review');
+    expect(content).toContain('Abort — run /review or /plan-eng-review first');
+  });
+
+  test('Review Readiness Dashboard includes Adversarial Review row', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Adversarial');
     expect(content).toContain('codex-review');
   });
 });
@@ -1349,6 +1436,11 @@ describe('Skill trigger phrases', () => {
 
 describe('Codex skill validation', () => {
   const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
+
+  // .agents/ is gitignored (v0.11.2.0) — generate on demand for tests
+  Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
+    cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
+  });
 
   // Discover all Claude skills with templates (except /codex which is Claude-only)
   const CLAUDE_SKILLS_WITH_TEMPLATES = (() => {
@@ -1409,5 +1501,60 @@ describe('Codex skill validation', () => {
       const result = validateSkill(skillMd);
       expect(result.invalid).toHaveLength(0);
     }
+  });
+});
+
+// --- Repo mode and test failure triage validation ---
+
+describe('Repo mode preamble validation', () => {
+  test('generated SKILL.md preamble contains REPO_MODE output', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('REPO_MODE:');
+    expect(content).toContain('gstack-repo-mode');
+  });
+
+  test('generated SKILL.md contains See Something Say Something section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('See Something, Say Something');
+    expect(content).toContain('REPO_MODE');
+    expect(content).toContain('solo');
+    expect(content).toContain('collaborative');
+  });
+});
+
+describe('Test failure triage in ship skill', () => {
+  test('ship/SKILL.md contains Test Failure Ownership Triage', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Test Failure Ownership Triage');
+  });
+
+  test('ship/SKILL.md triage uses git diff for classification', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('git diff origin/<base>...HEAD --name-only');
+  });
+
+  test('ship/SKILL.md triage has solo and collaborative paths', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('REPO_MODE');
+    expect(content).toContain('solo');
+    expect(content).toContain('collaborative');
+    expect(content).toContain('Investigate and fix now');
+    expect(content).toContain('Add as P0 TODO');
+  });
+
+  test('ship/SKILL.md triage has GitHub issue assignment for collaborative mode', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('gh issue create');
+    expect(content).toContain('--assignee');
+  });
+
+  test('{{TEST_FAILURE_TRIAGE}} placeholder is fully resolved in ship/SKILL.md', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('{{TEST_FAILURE_TRIAGE}}');
+  });
+
+  test('ship/SKILL.md uses in-branch language for stop condition', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('In-branch test failures');
   });
 });

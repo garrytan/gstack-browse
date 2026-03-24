@@ -1,5 +1,19 @@
 # TODOS
 
+## Builder Ethos
+
+### First-time Search Before Building intro
+
+**What:** Add a `generateSearchIntro()` function (like `generateLakeIntro()`) that introduces the Search Before Building principle on first use, with a link to the blog essay.
+
+**Why:** Boil the Lake has an intro flow that links to the essay and marks `.completeness-intro-seen`. Search Before Building should have the same pattern for discoverability.
+
+**Context:** Blocked on a blog post to link to. When the essay exists, add the intro flow with a `.search-intro-seen` marker file. Pattern: `generateLakeIntro()` at gen-skill-docs.ts:176.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Blog post about Search Before Building
+
 ## Browse
 
 ### Bundle server.ts into compiled binary
@@ -140,14 +154,17 @@
 **Effort:** M
 **Priority:** P4
 
-### Linux/Windows cookie decryption
+### Linux cookie decryption — PARTIALLY SHIPPED
 
-**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.
+~~**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.~~
 
-**Why:** Cross-platform cookie import. Currently macOS-only (Keychain).
+Linux cookie import shipped in v0.11.11.0 (Wave 3). Supports Chrome, Chromium, Brave, Edge on Linux with GNOME Keyring (libsecret) and "peanuts" fallback. Windows DPAPI support remains deferred.
 
-**Effort:** L
+**Remaining:** Windows cookie decryption (DPAPI). Needs complete rewrite — PR #64 was 1346 lines and stale.
+
+**Effort:** L (Windows only)
 **Priority:** P4
+**Completed (Linux):** v0.11.11.0 (2026-03-23)
 
 ## Ship
 
@@ -163,17 +180,6 @@
 **Priority:** P2
 **Depends on:** None
 
-### Post-deploy verification (ship + browse)
-
-**What:** After push, browse staging/preview URL, screenshot key pages, check console for JS errors, compare staging vs prod via snapshot diff. Include verification screenshots in PR body. STOP if critical errors found.
-
-**Why:** Catch deployment-time regressions (JS errors, broken layouts) before merge.
-
-**Context:** Requires S3 upload infrastructure for PR screenshots. Pairs with visual PR annotations.
-
-**Effort:** L
-**Priority:** P2
-**Depends on:** /setup-gstack-upload, visual PR annotations
 
 ### Visual verification with screenshots in PR body
 
@@ -334,35 +340,13 @@
 **Priority:** P3
 **Depends on:** Video recording
 
-### Deploy-verify skill
 
-**What:** Lightweight post-deploy smoke test: hit key URLs, verify 200s, screenshot critical pages, console error check, compare against baseline snapshots. Pass/fail with evidence.
 
-**Why:** Fast post-deploy confidence check, separate from full QA.
+### E2E model pinning — SHIPPED
 
-**Effort:** M
-**Priority:** P2
+~~**What:** Pin E2E tests to claude-sonnet-4-6 for cost efficiency, add retry:2 for flaky LLM responses.~~
 
-### GitHub Actions eval upload
-
-**What:** Run eval suite in CI, upload result JSON as artifact, post summary comment on PR.
-
-**Why:** CI integration catches quality regressions before merge and provides persistent eval records per PR.
-
-**Context:** Requires `ANTHROPIC_API_KEY` in CI secrets. Cost is ~$4/run. Eval persistence system (v0.3.6) writes JSON to `~/.gstack-dev/evals/` — CI would upload as GitHub Actions artifacts and use `eval:compare` to post delta comment.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Eval persistence (shipped in v0.3.6)
-
-### E2E model pinning
-
-**What:** Pin E2E tests to claude-sonnet-4-6 for cost efficiency, add retry:2 for flaky LLM responses.
-
-**Why:** Reduce E2E test cost and flakiness.
-
-**Effort:** XS
-**Priority:** P2
+Shipped: Default model changed to Sonnet for structure tests (~30), Opus retained for quality tests (~10). `--retry 2` added. `EVALS_MODEL` env var for override. `test:e2e:fast` tier added. Rate-limit telemetry (first_response_ms, max_inter_turn_ms) and wall_clock_ms tracking added to eval-store.
 
 ### Eval web dashboard
 
@@ -440,6 +424,30 @@
 
 Shipped as v0.5.0 on main. Includes `/plan-design-review` (report-only design audit), `/qa-design-review` (audit + fix loop), and `/design-consultation` (interactive DESIGN.md creation). `{{DESIGN_METHODOLOGY}}` resolver provides shared 80-item design audit checklist.
 
+### Design outside voices in /plan-eng-review
+
+**What:** Extend the parallel dual-voice pattern (Codex + Claude subagent) to /plan-eng-review's architecture review section.
+
+**Why:** The design beachhead (v0.11.3.0) proves cross-model consensus works for subjective reviews. Architecture reviews have similar subjectivity in tradeoff decisions.
+
+**Context:** Depends on learnings from the design beachhead. If the litmus scorecard format proves useful, adapt it for architecture dimensions (coupling, scaling, reversibility).
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Design outside voices shipped (v0.11.3.0)
+
+### Outside voices in /qa visual regression detection
+
+**What:** Add Codex design voice to /qa for detecting visual regressions during bug-fix verification.
+
+**Why:** When fixing bugs, the fix can introduce visual regressions that code-level checks miss. Codex could flag "the fix broke the responsive layout" during re-test.
+
+**Context:** Depends on /qa having design awareness. Currently /qa focuses on functional testing.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Design outside voices shipped (v0.11.3.0)
+
 ## Document-Release
 
 ### Auto-invoke /document-release from /ship — SHIPPED
@@ -472,17 +480,20 @@ Shipped in v0.8.3. Step 8.5 added to `/ship` — after creating the PR, `/ship` 
 **Priority:** P3
 **Depends on:** gstack-diff-scope (shipped)
 
-### /merge skill — review-gated PR merge
 
-**What:** Create a `/merge` skill that merges an approved PR, but first checks the Review Readiness Dashboard and runs `/review` (Fix-First) if code review hasn't been done. Separates "ship" (create PR) from "merge" (land it).
+## Codex
 
-**Why:** Currently `/review` runs inside `/ship` Step 3.5 but isn't tracked as a gate. A `/merge` skill ensures code review always happens before landing, and enables workflows where someone else reviews the PR first.
+### Codex→Claude reverse buddy check skill
 
-**Context:** `/ship` creates the PR. `/merge` would: check dashboard → run `/review` if needed → `gh pr merge`. This is where code review tracking belongs — at merge time, not at plan time.
+**What:** A Codex-native skill (`.agents/skills/gstack-claude/SKILL.md`) that runs `claude -p` to get an independent second opinion from Claude — the reverse of what `/codex` does today from Claude Code.
 
-**Effort:** M
-**Priority:** P2
-**Depends on:** Ship Confidence Dashboard (shipped)
+**Why:** Codex users deserve the same cross-model challenge that Claude users get via `/codex`. Currently the flow is one-way (Claude→Codex). Codex users have no way to get a Claude second opinion.
+
+**Context:** The `/codex` skill template (`codex/SKILL.md.tmpl`) shows the pattern — it wraps `codex exec` with JSONL parsing, timeout handling, and structured output. The reverse skill would wrap `claude -p` with similar infrastructure. Would be generated into `.agents/skills/gstack-claude/` by `gen-skill-docs --host codex`.
+
+**Effort:** M (human: ~2 weeks / CC: ~30 min)
+**Priority:** P1
+**Depends on:** None
 
 ## Completeness
 
@@ -533,6 +544,25 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Depends on:** Telemetry data showing freeze hook fires in real /investigate sessions
 
 ## Completed
+
+### CI eval pipeline (v0.9.9.0)
+- GitHub Actions eval upload on Ubicloud runners ($0.006/run)
+- Within-file test concurrency (test() → testConcurrentIfSelected())
+- Eval artifact upload + PR comment with pass/fail + cost
+- Baseline comparison via artifact download from main
+- EVALS_CONCURRENCY=40 for ~6min wall clock (was ~18min)
+**Completed:** v0.9.9.0
+
+### Deploy pipeline (v0.9.8.0)
+- /land-and-deploy — merge PR, wait for CI/deploy, canary verification
+- /canary — post-deploy monitoring loop with anomaly detection
+- /benchmark — performance regression detection with Core Web Vitals
+- /setup-deploy — one-time deploy platform configuration
+- /review Performance & Bundle Impact pass
+- E2E model pinning (Sonnet default, Opus for quality tests)
+- E2E timing telemetry (first_response_ms, max_inter_turn_ms, wall_clock_ms)
+- test:e2e:fast tier, --retry 2 on all E2E scripts
+**Completed:** v0.9.8.0
 
 ### Phase 1: Foundations (v0.2.0)
 - Rename to gstack

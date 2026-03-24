@@ -79,8 +79,9 @@ describe('selectTests', () => {
     expect(result.selected).toContain('plan-ceo-review');
     expect(result.selected).toContain('plan-ceo-review-selective');
     expect(result.selected).toContain('plan-ceo-review-benefits');
-    expect(result.selected.length).toBe(3);
-    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length - 3);
+    expect(result.selected).toContain('autoplan-core');
+    expect(result.selected.length).toBe(4);
+    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length - 4);
   });
 
   test('global touchfile triggers ALL tests', () => {
@@ -191,14 +192,17 @@ describe('detectBaseBranch', () => {
   });
 });
 
-// --- Completeness: every testName in skill-e2e.test.ts has a TOUCHFILES entry ---
+// --- Completeness: every testName in skill-e2e-*.test.ts has a TOUCHFILES entry ---
 
 describe('TOUCHFILES completeness', () => {
   test('every E2E testName has a TOUCHFILES entry', () => {
-    const e2eContent = fs.readFileSync(
-      path.join(ROOT, 'test', 'skill-e2e.test.ts'),
-      'utf-8',
-    );
+    // Read all split E2E test files
+    const testDir = path.join(ROOT, 'test');
+    const e2eFiles = fs.readdirSync(testDir).filter(f => f.startsWith('skill-e2e-') && f.endsWith('.test.ts'));
+    let e2eContent = '';
+    for (const f of e2eFiles) {
+      e2eContent += fs.readFileSync(path.join(testDir, f), 'utf-8') + '\n';
+    }
 
     // Extract all testName: 'value' entries
     const testNameRegex = /testName:\s*['"`]([^'"`]+)['"`]/g;

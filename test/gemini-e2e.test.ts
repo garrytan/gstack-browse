@@ -76,7 +76,7 @@ if (evalsEnabled && !process.env.EVALS_ALL) {
 /** Skip an individual test if not selected by diff-based selection. */
 function testIfSelected(testName: string, fn: () => Promise<void>, timeout: number) {
   const shouldRun = selectedTests === null || selectedTests.includes(testName);
-  (shouldRun ? test : test.skip)(testName, fn, timeout);
+  (shouldRun ? test.concurrent : test.skip)(testName, fn, timeout);
 }
 
 // --- Eval result collector ---
