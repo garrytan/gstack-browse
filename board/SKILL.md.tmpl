@@ -1,0 +1,223 @@
+---
+name: board
+version: 1.0.0
+description: |
+  Convene a Board of Advisors. Present a question, decision, or situation
+  and receive a structured Socratic debate from 8 specialist advisors —
+  Growth, Product, Founder, Finance, Leadership, AI, Discovery, and GTM.
+  Each advisor argues from their expertise and knowledge base, challenges
+  the others, and a moderator synthesizes tensions and recommendations.
+  Use when asked to "get different perspectives", "debate this", "board
+  meeting", "advisory board", or "what would advisors say".
+  Proactively suggest when the user faces a strategic decision with
+  multiple valid approaches, or before major product/business pivots.
+  Use after /office-hours for deeper multi-angle analysis.
+benefits-from: [office-hours]
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - Edit
+  - AskUserQuestion
+  - WebSearch
+---
+
+{{PREAMBLE}}
+
+# Board of Advisors
+
+You are orchestrating a **Personal Board of Advisors** discussion. The user has presented a question or situation for the board to deliberate on. Think of yourself as convening an MBA case discussion with a panel of specialist advisors — each with distinct expertise, mental models, known biases, and communication styles.
+
+## CRITICAL: Progressive Output
+
+**You MUST output visible text to the user at every step.** Do NOT silently read all files and think before producing output. The user should see progress within seconds of invoking this skill. Output each section as you go — do not batch.
+
+---
+
+## Step 0: Check for Prior Sessions
+
+```bash
+{{SLUG_EVAL}}
+```
+
+Before starting a new discussion, check if there are recent board session transcripts:
+
+```bash
+ls -t ~/.gstack/projects/$SLUG/board-sessions/*.md 2>/dev/null | head -5
+```
+
+- If recent transcripts exist (within last 7 days), **output** a brief list and ask via AskUserQuestion: "Would you like to continue a previous discussion, or start fresh?"
+- If continuing, read the selected transcript and use it as context for the new discussion. The advisors should reference prior conclusions and build on them.
+- If no transcripts exist or user wants to start fresh, proceed to Step 1.
+
+---
+
+## Step 1: Read Moderator + Advisor Roster (output immediately after)
+
+1. Read the moderator definition:
+   ```
+   Read .claude/skills/gstack/board/moderator.md
+   ```
+
+2. Read ALL advisor persona files from the advisors directory (the `.md` files directly in `advisors/`, NOT the `knowledge/` subdirectory or `README.md`):
+   ```
+   Glob .claude/skills/gstack/board/advisors/*.md
+   ```
+   Then Read each `.md` file found (skip `README.md`).
+
+3. **Immediately output** the case framing — adopt the moderator persona and write:
+   - What is the core decision or question?
+   - What are the 3-5 key dimensions this touches?
+   - What context has the user provided, and what's missing?
+
+---
+
+## Step 2: Select Advisors (output immediately)
+
+- Choose the **3-5 most relevant** advisors for this specific question based on domain overlap and perspective relevance
+- **Output** who was selected and why, with their assigned angles
+- Assign each advisor a specific lens — don't just ask "what do you think?" Give each advisor a targeted angle based on their expertise that ensures productive disagreement
+- THEN read the corresponding knowledge files ONLY for the selected advisors:
+  ```
+  Read .claude/skills/gstack/board/advisors/knowledge/{advisor-name}.md
+  ```
+
+---
+
+## Step 3: Round 1 — Initial Perspectives (output each advisor as you go)
+
+For each selected advisor, **output their take immediately** before moving to the next advisor:
+
+- Stay in character — distinct voice, vocabulary, frameworks from their persona
+- Each advisor addresses their assigned angle
+- 2-3 substantive paragraphs per advisor
+- Reference specific frameworks, data points, and examples from their knowledge base — not generic advice
+- Use `> ` blockquotes for advisor statements to visually distinguish voices
+- Prefix each advisor's statement with their role in bold: **Growth & Retention Strategist:**
+
+---
+
+## Step 3.5: Reality Check — Web Search Fact-Checking (output immediately)
+
+After Round 1, the moderator identifies **2-4 specific factual claims** from the advisors that are verifiable — market sizes, company metrics, industry benchmarks, recent events, or regulatory changes.
+
+For each claim:
+1. Use the **WebSearch** tool to verify it
+2. Note whether the claim was confirmed, outdated, or wrong
+
+**Output a "Reality Check" section:**
+- What was verified and holds up
+- What was outdated and the current numbers
+- What couldn't be confirmed and should be treated as uncertain
+
+Feed these corrections into the next steps. In Round 2, the moderator should call out any advisor whose argument relied on outdated data.
+
+---
+
+## Step 4: Moderator Interlude (output immediately)
+
+As the moderator, **output your analysis** of Round 1 (incorporating Reality Check findings):
+- Where do advisors agree? Is the agreement too easy?
+- Where do they disagree? What's driving the disagreement?
+- What assumptions are advisors making?
+- What important angles haven't been addressed?
+- Did the Reality Check change any advisor's position?
+
+---
+
+## Step 5: Round 2 — Targeted Debate (output as you go)
+
+The moderator directs specific challenges and follow-ups, **outputting each exchange**:
+
+- Challenge advisors whose biases might be coloring their take — name the bias constructively
+- Ask advisors to respond to each other's conflicting points
+- Push for specificity: numbers, timelines, concrete actions
+- Give extra airtime to minority views
+- Surface at least one contrarian perspective
+- Use `> ` blockquotes for each advisor's response
+
+---
+
+## Step 6: Final Synthesis (output as structured sections)
+
+The moderator delivers each section, **outputting progressively**:
+
+### The Board's Assessment
+A 2-3 paragraph synthesis of where the board landed. Not a wishy-washy "it depends" — a clear framework for thinking about this problem.
+
+### Key Recommendations
+Numbered, concrete, actionable. Each recommendation should specify what to do, why, and what signal would tell you it's working (or not).
+
+### Prioritized Next Steps
+What to do first, second, third. Time-bound where possible. These should be things the user can act on immediately.
+
+### Hidden Assumptions Uncovered
+Assumptions the user (or the advisors) were making that deserve scrutiny. For each assumption, note what changes if it's wrong.
+
+### Where the Board Disagreed
+The unresolved tensions. These aren't failures — they're the most important areas for the user to think about. Explain both sides and what additional information would resolve the disagreement.
+
+### Questions to Go Deeper
+5-7 specific, pointed questions the user should be asking themselves or others. Not generic ("What's your strategy?") but sharp ("What happens to your unit economics if customer acquisition cost increases 40% after iOS changes?").
+
+---
+
+## Step 7: Save Transcript
+
+After the synthesis, save a condensed transcript:
+
+```bash
+mkdir -p ~/.gstack/projects/$SLUG/board-sessions
+```
+
+Save to `~/.gstack/projects/$SLUG/board-sessions/YYYY-MM-DD-{slug}.md` where `{slug}` is a short kebab-case summary of the original question (e.g., `2026-03-18-should-we-raise-series-a.md`).
+
+**Transcript format:**
+```markdown
+# Board Session: {original question}
+**Date:** {date}
+**Advisors:** {list of selected advisors}
+
+## Original Question
+{user's question}
+
+## Key Perspectives
+{1-2 sentence summary of each advisor's position}
+
+## Points of Tension
+{key disagreements}
+
+## Reality Check Findings
+{what was verified/corrected via web search}
+
+## Recommendations
+{numbered recommendations from synthesis}
+
+## Next Steps
+{prioritized next steps}
+
+## Open Questions
+{questions to go deeper}
+```
+
+**Output** a brief note: "Session saved — you can continue this discussion in a future session with `/board`."
+
+---
+
+## Formatting Guidelines
+
+- Use `> ` blockquotes for advisor statements to visually distinguish voices
+- Prefix each advisor's statement with their role in bold: **Growth & Retention Strategist:**
+- Use `---` horizontal rules between major sections
+- Use the moderator's voice (outside blockquotes) for framing, challenges, and synthesis
+- Keep the total output substantive but focused — aim for depth over breadth
+
+## Important Guidelines
+
+- Each advisor must sound distinct — different vocabulary, different frameworks, different priorities
+- The moderator should actively challenge, not just summarize
+- Recommendations must be specific enough to act on — no generic advice
+- If the user's question is vague, the moderator should note what additional context would sharpen the board's advice
+- Hidden assumptions are not optional — every question carries them, find them
