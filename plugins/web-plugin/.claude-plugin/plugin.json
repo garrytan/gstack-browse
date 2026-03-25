@@ -6,7 +6,7 @@
     "name": "Hoyoung Jung"
   },
   "homepage": "https://lucydata.ai",
-  "repository": "https://bitbucket.org/ezardev-admin/marketplace-for-claude",
+  "repository": "https://github.com/Jungbam/my_claude",
   "license": "MIT",
   "keywords": ["nextjs", "react", "frontend", "testing"],
   "skills": "./skills/"

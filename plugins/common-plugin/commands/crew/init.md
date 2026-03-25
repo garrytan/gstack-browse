@@ -471,7 +471,7 @@ README.md가 없으면, 수집된 모든 컨텍스트(Step 3 프로젝트 컨텍
 
 ## 개발
 
-이 프로젝트는 AI 기반 개발을 위해 [Crew](https://bitbucket.org/ezardev-admin/marketplace-for-claude)를 사용합니다:
+이 프로젝트는 AI 기반 개발을 위해 [Crew](https://github.com/Jungbam/my_claude)를 사용합니다:
 
 - `/crew:plan <feature>` - 피처 플래닝
 - `/crew:dev <feature>` - 풀 개발 파이프라인
