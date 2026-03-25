@@ -1,4 +1,4 @@
-# /wwsd — What Would Steve Do? (Domain Expert Persona Critique)
+# /wwsd — What Would Steve (Jobs) Do? (Domain Expert Persona Critique)
 
 Run any plan, idea, product, or decision through the mental models of the world's
 best domain experts. Not impersonation — school-of-thought distillation.
