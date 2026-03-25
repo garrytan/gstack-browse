@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.10.0] - 2026-03-25 — Mobile QA via Revyl Cloud Devices
+
+### Changed
+
+- **Mobile QA now uses Revyl cloud devices instead of local Appium.** No more Java 17, Appium server, XCUITest driver, or Xcode CLI tools required. `/qa` and `/qa-only` automatically detect mobile projects and provision cloud-hosted iOS or Android devices via Revyl MCP tools. AI-grounded element targeting replaces the old ref system — describe elements in natural language instead of using `@e3` refs.
+- **Revyl auth check now shows diagnostic info on failure.** If `revyl auth status` fails, the agent sees the actual error message instead of just "not available."
+- **Session keepalive hint added.** The QA template now instructs agents to reset the 5-minute idle timer before long analysis phases, preventing silent session loss.
+
+### Removed
+
+- **`browse-mobile/` deleted entirely** (~6,000 lines). The Appium-backed local mobile QA binary, its HTTP server, ref system, platform drivers, and all tests have been removed. Replaced by Revyl MCP integration with zero local dependencies.
+
 ## [0.11.9.0] - 2026-03-23 — Codex Skill Loading Fix
 
 ### Fixed
