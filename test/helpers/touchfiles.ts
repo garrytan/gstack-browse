@@ -107,11 +107,16 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'gemini-review-findings': ['review/**', '.agents/skills/gstack-review/**', 'test/helpers/gemini-session-runner.ts', 'lib/worktree.ts'],
 
 
-  // Coverage audit (shared fixture) + triage
+  // Coverage audit (shared fixture) + triage + gates
   'ship-coverage-audit': ['ship/**', 'test/fixtures/coverage-audit-fixture.ts', 'bin/gstack-repo-mode'],
   'review-coverage-audit': ['review/**', 'test/fixtures/coverage-audit-fixture.ts'],
   'plan-eng-coverage-audit': ['plan-eng-review/**', 'test/fixtures/coverage-audit-fixture.ts'],
   'ship-triage': ['ship/**', 'bin/gstack-repo-mode'],
+
+  // Plan completion audit + verification
+  'ship-plan-completion': ['ship/**', 'scripts/gen-skill-docs.ts'],
+  'ship-plan-verification': ['ship/**', 'qa-only/**', 'scripts/gen-skill-docs.ts'],
+  'review-plan-completion': ['review/**', 'scripts/gen-skill-docs.ts'],
 
   // Design
   'design-consultation-core':       ['design-consultation/**', 'scripts/gen-skill-docs.ts', 'test/helpers/llm-judge.ts'],

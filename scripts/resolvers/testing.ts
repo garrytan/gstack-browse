@@ -454,7 +454,40 @@ find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec
 \`\`\`
 
 For PR body: \`Tests: {before} → {after} (+{delta} new)\`
-Coverage line: \`Test Coverage Audit: N new code paths. M covered (X%). K tests generated, J committed.\``);
+Coverage line: \`Test Coverage Audit: N new code paths. M covered (X%). K tests generated, J committed.\`
+
+**7. Coverage gate:**
+
+Before proceeding, check CLAUDE.md for a \`## Test Coverage\` section with \`Minimum:\` and \`Target:\` fields. If found, use those percentages. Otherwise use defaults: Minimum = 60%, Target = 80%.
+
+Using the coverage percentage from the diagram in substep 4 (the \`COVERAGE: X/Y (Z%)\` line):
+
+- **>= target:** Pass. "Coverage gate: PASS ({X}%)." Continue.
+- **>= minimum, < target:** Use AskUserQuestion:
+  - "AI-assessed coverage is {X}%. {N} code paths are untested. Target is {target}%."
+  - RECOMMENDATION: Choose A because untested code paths are where production bugs hide.
+  - Options:
+    A) Generate more tests for remaining gaps (recommended)
+    B) Ship anyway — I accept the coverage risk
+    C) These paths don't need tests — mark as intentionally uncovered
+  - If A: Loop back to substep 5 (generate tests) targeting the remaining gaps. After second pass, if still below target, present AskUserQuestion again with updated numbers. Maximum 2 generation passes total.
+  - If B: Continue. Include in PR body: "Coverage gate: {X}% — user accepted risk."
+  - If C: Continue. Include in PR body: "Coverage gate: {X}% — {N} paths intentionally uncovered."
+
+- **< minimum:** Use AskUserQuestion:
+  - "AI-assessed coverage is critically low ({X}%). {N} of {M} code paths have no tests. Minimum threshold is {minimum}%."
+  - RECOMMENDATION: Choose A because less than {minimum}% means more code is untested than tested.
+  - Options:
+    A) Generate tests for remaining gaps (recommended)
+    B) Override — ship with low coverage (I understand the risk)
+  - If A: Loop back to substep 5. Maximum 2 passes. If still below minimum after 2 passes, present the override choice again.
+  - If B: Continue. Include in PR body: "Coverage gate: OVERRIDDEN at {X}%."
+
+**Coverage percentage undetermined:** If the coverage diagram doesn't produce a clear numeric percentage (ambiguous output, parse error), **skip the gate** with: "Coverage gate: could not determine percentage — skipping." Do not default to 0% or block.
+
+**Test-only diffs:** Skip the gate (same as the existing fast-path).
+
+**100% coverage:** "Coverage gate: PASS (100%)." Continue.`);
 
     // ── Test plan artifact (ship mode) ──
     sections.push(`
@@ -504,7 +537,22 @@ If test framework is detected and gaps were identified:
 
 If no test framework detected → include gaps as INFORMATIONAL findings only, no generation.
 
-**Diff is test-only changes:** Skip Step 4.75 entirely: "No new application code paths to audit."`);
+**Diff is test-only changes:** Skip Step 4.75 entirely: "No new application code paths to audit."
+
+### Coverage Warning
+
+After producing the coverage diagram, check the coverage percentage. Read CLAUDE.md for a \`## Test Coverage\` section with a \`Minimum:\` field. If not found, use default: 60%.
+
+If coverage is below the minimum threshold, output a prominent warning **before** the regular review findings:
+
+\`\`\`
+⚠️ COVERAGE WARNING: AI-assessed coverage is {X}%. {N} code paths untested.
+Consider writing tests before running /ship.
+\`\`\`
+
+This is INFORMATIONAL — does not block /review. But it makes low coverage visible early so the developer can address it before reaching the /ship coverage gate.
+
+If coverage percentage cannot be determined, skip the warning silently.`);
   }
 
   return sections.join('\n');

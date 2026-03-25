@@ -3,7 +3,6 @@ name: ship
 preamble-tier: 4
 version: 1.0.0
 description: |
-  MANUAL TRIGGER ONLY: invoke only when user types /ship.
   Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy", "push to main", "create a PR", or "merge and push".
   Proactively suggest when the user says code is ready or asks about deploying.
 allowed-tools:
@@ -108,6 +107,7 @@ This only happens once. If `TEL_PROMPTED` is `yes`, skip this entirely.
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
 4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and often preferred. Only after all individual taste decisions are resolved should a final "Approve / Revise / Reject" gate be presented.
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -115,54 +115,97 @@ Per-skill instructions may add additional formatting rules on top of this baseli
 
 ## Completeness Principle — Boil the Lake
 
-AI makes completeness near-free. Always recommend the complete option over shortcuts — the delta is minutes with CC+gstack. A "lake" (100% coverage, all edge cases) is boilable; an "ocean" (full rewrite, multi-quarter migration) is not. Boil lakes, flag oceans.
+AI-assisted coding makes the marginal cost of completeness near-zero. When you present options:
 
-**Effort reference** — always show both scales:
+- If Option A is the complete implementation (full parity, all edge cases, 100% coverage) and Option B is a shortcut that saves modest effort — **always recommend A**. The delta between 80 lines and 150 lines is meaningless with CC+gstack. "Good enough" is the wrong instinct when "complete" costs minutes more.
+- **Lake vs. ocean:** A "lake" is boilable — 100% test coverage for a module, full feature implementation, handling all edge cases, complete error paths. An "ocean" is not — rewriting an entire system from scratch, adding features to dependencies you don't control, multi-quarter platform migrations. Recommend boiling lakes. Flag oceans as out of scope.
+- **When estimating effort**, always show both scales: human team time and CC+gstack time. The compression ratio varies by task type — use this reference:
 
 | Task type | Human team | CC+gstack | Compression |
 |-----------|-----------|-----------|-------------|
-| Boilerplate | 2 days | 15 min | ~100x |
-| Tests | 1 day | 15 min | ~50x |
-| Feature | 1 week | 30 min | ~30x |
-| Bug fix | 4 hours | 15 min | ~20x |
+| Boilerplate / scaffolding | 2 days | 15 min | ~100x |
+| Test writing | 1 day | 15 min | ~50x |
+| Feature implementation | 1 week | 30 min | ~30x |
+| Bug fix + regression test | 4 hours | 15 min | ~20x |
+| Architecture / design | 2 days | 4 hours | ~5x |
+| Research / exploration | 1 day | 3 hours | ~3x |
 
-Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
+- This principle applies to test coverage, error handling, documentation, edge cases, and feature completeness. Don't skip the last 10% to "save time" — with AI, that 10% costs seconds.
 
-## Repo Ownership — See Something, Say Something
+**Anti-patterns — DON'T do this:**
+- BAD: "Choose B — it covers 90% of the value with less code." (If A is only 70 lines more, choose A.)
+- BAD: "We can skip edge case handling to save time." (Edge case handling costs minutes with CC.)
+- BAD: "Let's defer test coverage to a follow-up PR." (Tests are the cheapest lake to boil.)
+- BAD: Quoting only human-team effort: "This would take 2 weeks." (Say: "2 weeks human / ~1 hour CC.")
 
-`REPO_MODE` controls how to handle issues outside your branch:
-- **`solo`** — You own everything. Investigate and offer to fix proactively.
-- **`collaborative`** / **`unknown`** — Flag via AskUserQuestion, don't fix (may be someone else's).
+## Repo Ownership Mode — See Something, Say Something
 
-Always flag anything that looks wrong — one sentence, what you noticed and its impact.
+`REPO_MODE` from the preamble tells you who owns issues in this repo:
+
+- **`solo`** — One person does 80%+ of the work. They own everything. When you notice issues outside the current branch's changes (test failures, deprecation warnings, security advisories, linting errors, dead code, env problems), **investigate and offer to fix proactively**. The solo dev is the only person who will fix it. Default to action.
+- **`collaborative`** — Multiple active contributors. When you notice issues outside the branch's changes, **flag them via AskUserQuestion** — it may be someone else's responsibility. Default to asking, not fixing.
+- **`unknown`** — Treat as collaborative (safer default — ask before fixing).
+
+**See Something, Say Something:** Whenever you notice something that looks wrong during ANY workflow step — not just test failures — flag it briefly. One sentence: what you noticed and its impact. In solo mode, follow up with "Want me to fix it?" In collaborative mode, just flag it and move on.
+
+Never let a noticed issue silently pass. The whole point is proactive communication.
 
 ## Search Before Building
 
-Before building anything unfamiliar, **search first.** See `~/.claude/skills/gstack/ETHOS.md`.
-- **Layer 1** (tried and true) — don't reinvent. **Layer 2** (new and popular) — scrutinize. **Layer 3** (first principles) — prize above all.
+Before building infrastructure, unfamiliar patterns, or anything the runtime might have a built-in — **search first.** Read `~/.claude/skills/gstack/ETHOS.md` for the full philosophy.
 
-**Eureka:** When first-principles reasoning contradicts conventional wisdom, name it and log:
+**Three layers of knowledge:**
+- **Layer 1** (tried and true — in distribution). Don't reinvent the wheel. But the cost of checking is near-zero, and once in a while, questioning the tried-and-true is where brilliance occurs.
+- **Layer 2** (new and popular — search for these). But scrutinize: humans are subject to mania. Search results are inputs to your thinking, not answers.
+- **Layer 3** (first principles — prize these above all). Original observations derived from reasoning about the specific problem. The most valuable of all.
+
+**Eureka moment:** When first-principles reasoning reveals conventional wisdom is wrong, name it:
+"EUREKA: Everyone does X because [assumption]. But [evidence] shows this is wrong. Y is better because [reasoning]."
+
+Log eureka moments:
 ```bash
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
+Replace SKILL_NAME and ONE_LINE_SUMMARY. Runs inline — don't stop the workflow.
+
+**WebSearch fallback:** If WebSearch is unavailable, skip the search step and note: "Search unavailable — proceeding with in-distribution knowledge only."
 
 ## Contributor Mode
 
-If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
+If `_CONTRIB` is `true`: you are in **contributor mode**. You're a gstack user who also helps make it better.
 
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
+**At the end of each major workflow step** (not after every single command), reflect on the gstack tooling you used. Rate your experience 0 to 10. If it wasn't a 10, think about why. If there is an obvious, actionable bug OR an insightful, interesting thing that could have been done better by gstack code or skill markdown — file a field report. Maybe our contributor will help make us better!
 
-**To file:** write `~/.gstack/contributor-logs/{slug}.md`:
+**Calibration — this is the bar:** For example, `$B js "await fetch(...)"` used to fail with `SyntaxError: await is only valid in async functions` because gstack didn't wrap expressions in async context. Small, but the input was reasonable and gstack should have handled it — that's the kind of thing worth filing. Things less consequential than this, ignore.
+
+**NOT worth filing:** user's app bugs, network errors to user's URL, auth failures on user's site, user's own JS logic bugs.
+
+**To file:** write `~/.gstack/contributor-logs/{slug}.md` with **all sections below** (do not truncate — include every section through the Date/Version footer):
+
 ```
 # {Title}
-**What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
-## Repro
+
+Hey gstack team — ran into this while using /{skill-name}:
+
+**What I was trying to do:** {what the user/agent was attempting}
+**What happened instead:** {what actually happened}
+**My rating:** {0-10} — {one sentence on why it wasn't a 10}
+
+## Steps to reproduce
 1. {step}
-## What would make this a 10
-{one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
+
+## Raw output
 ```
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.
+{paste the actual error or unexpected output here}
+```
+
+## What would make this a 10
+{one sentence: what gstack should have done differently}
+
+**Date:** {YYYY-MM-DD} | **Version:** {gstack version} | **Skill:** /{skill}
+```
+
+Slug: lowercase, hyphens, max 60 chars (e.g. `browse-js-no-await`). Skip if file already exists. Max 3 reports per session. File inline and continue — don't stop the workflow. Tell user: "Filed gstack field report: {title}"
 
 ## Completion Status Protocol
 
@@ -283,6 +326,9 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 - Pre-landing review finds ASK items that need user judgment
 - MINOR or MAJOR version bump needed (ask — see Step 4)
 - Greptile review comments that need user decision (complex fixes, false positives)
+- AI-assessed coverage below minimum threshold (hard gate with user override — see Step 3.4)
+- Plan items NOT DONE with no user override (see Step 3.45)
+- Plan verification failures (see Step 3.47)
 - TODOS.md missing and user wants to create one (ask — see Step 5.5)
 - TODOS.md disorganized and user wants to reorganize (ask — see Step 5.5)
 
@@ -294,7 +340,7 @@ You are running the `/ship` workflow. This is a **non-interactive, fully automat
 - Multi-file changesets (auto-split into bisectable commits)
 - TODOS.md completed-item detection (auto-mark)
 - Auto-fixable review findings (dead code, N+1, stale comments — fixed automatically)
-- Test coverage gaps (auto-generate and commit, or flag in PR body)
+- Test coverage gaps within target threshold (auto-generate and commit, or flag in PR body)
 
 ---
 
@@ -986,6 +1032,181 @@ Repo: {owner/repo}
 
 ---
 
+## Step 3.45: Plan Completion Audit
+
+### Plan File Discovery
+
+1. **Conversation context (primary):** Check if there is an active plan file in this conversation — Claude Code system messages include plan file paths when in plan mode. Look for references like `~/.claude/plans/*.md` in system messages. If found, use it directly — this is the most reliable signal.
+
+2. **Content-based search (fallback):** If no plan file is referenced in conversation context, search by content:
+
+```bash
+BRANCH=$(git branch --show-current 2>/dev/null | tr '/' '-')
+REPO=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")
+# Try branch name match first (most specific)
+PLAN=$(ls -t ~/.claude/plans/*.md 2>/dev/null | xargs grep -l "$BRANCH" 2>/dev/null | head -1)
+# Fall back to repo name match
+[ -z "$PLAN" ] && PLAN=$(ls -t ~/.claude/plans/*.md 2>/dev/null | xargs grep -l "$REPO" 2>/dev/null | head -1)
+# Last resort: most recent plan modified in the last 24 hours
+[ -z "$PLAN" ] && PLAN=$(find ~/.claude/plans -name '*.md' -mmin -1440 -maxdepth 1 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+[ -n "$PLAN" ] && echo "PLAN_FILE: $PLAN" || echo "NO_PLAN_FILE"
+```
+
+3. **Validation:** If a plan file was found via content-based search (not conversation context), read the first 20 lines and verify it is relevant to the current branch's work. If it appears to be from a different project or feature, treat as "no plan file found."
+
+**Error handling:**
+- No plan file found → skip with "No plan file detected — skipping."
+- Plan file found but unreadable (permissions, encoding) → skip with "Plan file found but unreadable — skipping."
+
+### Actionable Item Extraction
+
+Read the plan file. Extract every actionable item — anything that describes work to be done. Look for:
+
+- **Checkbox items:** `- [ ] ...` or `- [x] ...`
+- **Numbered steps** under implementation headings: "1. Create ...", "2. Add ...", "3. Modify ..."
+- **Imperative statements:** "Add X to Y", "Create a Z service", "Modify the W controller"
+- **File-level specifications:** "New file: path/to/file.ts", "Modify path/to/existing.rb"
+- **Test requirements:** "Test that X", "Add test for Y", "Verify Z"
+- **Data model changes:** "Add column X to table Y", "Create migration for Z"
+
+**Ignore:**
+- Context/Background sections (`## Context`, `## Background`, `## Problem`)
+- Questions and open items (marked with ?, "TBD", "TODO: decide")
+- Review report sections (`## GSTACK REVIEW REPORT`)
+- Explicitly deferred items ("Future:", "Out of scope:", "NOT in scope:", "P2:", "P3:", "P4:")
+- CEO Review Decisions sections (these record choices, not work items)
+
+**Cap:** Extract at most 50 items. If the plan has more, note: "Showing top 50 of N plan items — full list in plan file."
+
+**No items found:** If the plan contains no extractable actionable items, skip with: "Plan file contains no actionable items — skipping completion audit."
+
+For each item, note:
+- The item text (verbatim or concise summary)
+- Its category: CODE | TEST | MIGRATION | CONFIG | DOCS
+
+### Cross-Reference Against Diff
+
+Run `git diff origin/<base>...HEAD` and `git log origin/<base>..HEAD --oneline` to understand what was implemented.
+
+For each extracted plan item, check the diff and classify:
+
+- **DONE** — Clear evidence in the diff that this item was implemented. Cite the specific file(s) changed.
+- **PARTIAL** — Some work toward this item exists in the diff but it's incomplete (e.g., model created but controller missing, function exists but edge cases not handled).
+- **NOT DONE** — No evidence in the diff that this item was addressed.
+- **CHANGED** — The item was implemented using a different approach than the plan described, but the same goal is achieved. Note the difference.
+
+**Be conservative with DONE** — require clear evidence in the diff. A file being touched is not enough; the specific functionality described must be present.
+**Be generous with CHANGED** — if the goal is met by different means, that counts as addressed.
+
+### Output Format
+
+```
+PLAN COMPLETION AUDIT
+═══════════════════════════════
+Plan: {plan file path}
+
+## Implementation Items
+  [DONE]      Create UserService — src/services/user_service.rb (+142 lines)
+  [PARTIAL]   Add validation — model validates but missing controller checks
+  [NOT DONE]  Add caching layer — no cache-related changes in diff
+  [CHANGED]   "Redis queue" → implemented with Sidekiq instead
+
+## Test Items
+  [DONE]      Unit tests for UserService — test/services/user_service_test.rb
+  [NOT DONE]  E2E test for signup flow
+
+## Migration Items
+  [DONE]      Create users table — db/migrate/20240315_create_users.rb
+
+─────────────────────────────────
+COMPLETION: 4/7 DONE, 1 PARTIAL, 1 NOT DONE, 1 CHANGED
+─────────────────────────────────
+```
+
+### Gate Logic
+
+After producing the completion checklist:
+
+- **All DONE or CHANGED:** Pass. "Plan completion: PASS — all items addressed." Continue.
+- **Only PARTIAL items (no NOT DONE):** Continue with a note in the PR body. Not blocking.
+- **Any NOT DONE items:** Use AskUserQuestion:
+  - Show the completion checklist above
+  - "{N} items from the plan are NOT DONE. These were part of the original plan but are missing from the implementation."
+  - RECOMMENDATION: depends on item count and severity. If 1-2 minor items (docs, config), recommend B. If core functionality is missing, recommend A.
+  - Options:
+    A) Stop — implement the missing items before shipping
+    B) Ship anyway — defer these to a follow-up (will create P1 TODOs in Step 5.5)
+    C) These items were intentionally dropped — remove from scope
+  - If A: STOP. List the missing items for the user to implement.
+  - If B: Continue. For each NOT DONE item, create a P1 TODO in Step 5.5 with "Deferred from plan: {plan file path}".
+  - If C: Continue. Note in PR body: "Plan items intentionally dropped: {list}."
+
+**No plan file found:** Skip entirely. "No plan file detected — skipping plan completion audit."
+
+**Include in PR body (Step 8):** Add a `## Plan Completion` section with the checklist summary.
+
+---
+
+## Step 3.47: Plan Verification
+
+Automatically verify the plan's testing/verification steps using the `/qa-only` skill.
+
+### 1. Check for verification section
+
+Using the plan file already discovered in Step 3.45, look for a verification section. Match any of these headings: `## Verification`, `## Test plan`, `## Testing`, `## How to test`, `## Manual testing`, or any section with verification-flavored items (URLs to visit, things to check visually, interactions to test).
+
+**If no verification section found:** Skip with "No verification steps found in plan — skipping auto-verification."
+**If no plan file was found in Step 3.45:** Skip (already handled).
+
+### 2. Check for running dev server
+
+Before invoking browse-based verification, check if a dev server is reachable:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || \
+curl -s -o /dev/null -w '%{http_code}' http://localhost:8080 2>/dev/null || \
+curl -s -o /dev/null -w '%{http_code}' http://localhost:5173 2>/dev/null || \
+curl -s -o /dev/null -w '%{http_code}' http://localhost:4000 2>/dev/null || echo "NO_SERVER"
+```
+
+**If NO_SERVER:** Skip with "No dev server detected — skipping plan verification. Run /qa separately after deploying."
+
+### 3. Invoke /qa-only inline
+
+Read the `/qa-only` skill from disk:
+
+```bash
+cat ${CLAUDE_SKILL_DIR}/../qa-only/SKILL.md
+```
+
+**If unreadable:** Skip with "Could not load /qa-only — skipping plan verification."
+
+Follow the /qa-only workflow with these modifications:
+- **Skip the preamble** (already handled by /ship)
+- **Use the plan's verification section as the primary test input** — treat each verification item as a test case
+- **Use the detected dev server URL** as the base URL
+- **Skip the fix loop** — this is report-only verification during /ship
+- **Cap at the verification items from the plan** — do not expand into general site QA
+
+### 4. Gate logic
+
+- **All verification items PASS:** Continue silently. "Plan verification: PASS."
+- **Any FAIL:** Use AskUserQuestion:
+  - Show the failures with screenshot evidence
+  - RECOMMENDATION: Choose A if failures indicate broken functionality. Choose B if cosmetic only.
+  - Options:
+    A) Fix the failures before shipping (recommended for functional issues)
+    B) Ship anyway — known issues (acceptable for cosmetic issues)
+- **No verification section / no server / unreadable skill:** Skip (non-blocking).
+
+### 5. Include in PR body
+
+Add a `## Verification Results` section to the PR body (Step 8):
+- If verification ran: summary of results (N PASS, M FAIL, K SKIPPED)
+- If skipped: reason for skipping (no plan, no server, no verification section)
+
+---
+
 ## Step 3.5: Pre-Landing Review
 
 Review the diff for structural issues that tests don't catch.
@@ -1448,6 +1669,16 @@ gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
 <If no Greptile comments found: "No Greptile comments.">
 <If no PR existed during Step 3.75: omit this section entirely>
 
+## Plan Completion
+<If plan file found: completion checklist summary from Step 3.45>
+<If no plan file: "No plan file detected.">
+<If plan items deferred: list deferred items>
+
+## Verification Results
+<If verification ran: summary from Step 3.47 (N PASS, M FAIL, K SKIPPED)>
+<If skipped: reason (no plan, no server, no verification section)>
+<If not applicable: omit this section>
+
 ## TODOS
 <If items marked complete: bullet list of completed items with version>
 <If no items completed: "No TODO items completed in this PR.">
@@ -1485,6 +1716,32 @@ execute its full workflow:
 
 This step is automatic. Do not ask the user for confirmation. The goal is zero-friction
 doc updates — the user runs `/ship` and documentation stays current without a separate command.
+
+---
+
+## Step 8.75: Persist ship metrics
+
+Log coverage and plan completion data so `/retro` can track trends:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+```
+
+Append to `~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl`:
+
+```bash
+echo '{"skill":"ship","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","coverage_pct":COVERAGE_PCT,"plan_items_total":PLAN_TOTAL,"plan_items_done":PLAN_DONE,"verification_result":"VERIFY_RESULT","version":"VERSION","branch":"BRANCH"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+```
+
+Substitute from earlier steps:
+- **COVERAGE_PCT**: coverage percentage from Step 3.4 diagram (integer, or -1 if undetermined)
+- **PLAN_TOTAL**: total plan items extracted in Step 3.45 (0 if no plan file)
+- **PLAN_DONE**: count of DONE + CHANGED items from Step 3.45 (0 if no plan file)
+- **VERIFY_RESULT**: "pass", "fail", or "skipped" from Step 3.47
+- **VERSION**: from the VERSION file
+- **BRANCH**: current branch name
+
+This step is automatic — never skip it, never ask for confirmation.
 
 ---
 

@@ -234,9 +234,9 @@ async function startServer(): Promise<ServerState> {
     const launcherCode =
       `const{spawn}=require('child_process');` +
       `spawn(process.execPath,[${JSON.stringify(NODE_SERVER_SCRIPT)}],` +
-      `{detached:true,stdio:'ignore',env:Object.assign({},process.env,` +
+      `{detached:true,stdio:['ignore','ignore','ignore'],env:Object.assign({},process.env,` +
       `{BROWSE_STATE_FILE:${JSON.stringify(config.stateFile)}})}).unref()`;
-    Bun.spawnSync(['node', '-e', launcherCode], { stdio: 'ignore' });
+    Bun.spawnSync(['node', '-e', launcherCode], { stdio: ['ignore', 'ignore', 'ignore'] });
   } else {
     // macOS/Linux: Bun.spawn + unref works correctly
     proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {

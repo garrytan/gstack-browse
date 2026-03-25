@@ -460,6 +460,28 @@ Narrative covering:
 - If prior retro exists and has `test_health`: show delta "Test count: {last} → {now} (+{delta})"
 - If test ratio < 20%: flag as growth area — "100% test coverage is the goal. Tests make vibe coding safe."
 
+### Plan Completion
+Check review JSONL logs for plan completion data from /ship runs this period:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+cat ~/.gstack/projects/$SLUG/*-reviews.jsonl 2>/dev/null | grep '"skill":"ship"' | grep '"plan_items_total"' || echo "NO_PLAN_DATA"
+```
+
+If plan completion data exists within the retro time window:
+- Count branches shipped with plans (entries that have `plan_items_total` > 0)
+- Compute average completion: sum of `plan_items_done` / sum of `plan_items_total`
+- Identify most-skipped item category if data supports it
+
+Output:
+```
+Plan Completion This Period:
+  {N} branches shipped with plans
+  Average completion: {X}% ({done}/{total} items)
+```
+
+If no plan data exists, skip this section silently.
+
 ### Focus & Highlights
 (from Step 8)
 - Focus score with interpretation

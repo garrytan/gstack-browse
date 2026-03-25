@@ -207,7 +207,7 @@ export async function finalizeEvalCollector(evalCollector: EvalCollector | null)
 if (evalsEnabled) {
   const gstackDir = path.join(os.homedir(), '.gstack');
   fs.mkdirSync(gstackDir, { recursive: true });
-  for (const f of ['.completeness-intro-seen', '.telemetry-prompted']) {
+  for (const f of ['.completeness-intro-seen', '.telemetry-prompted', '.proactive-prompted']) {
     const p = path.join(gstackDir, f);
     if (!fs.existsSync(p)) fs.writeFileSync(p, '');
   }
