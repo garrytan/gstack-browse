@@ -16,6 +16,8 @@ Skills live in `.agents/skills/`. Invoke them by name (e.g., `/office-hours`).
 | `/plan-design-review` | Rate each design dimension 0-10, explain what a 10 looks like. |
 | `/design-consultation` | Build a complete design system from scratch. |
 | `/review` | Pre-landing PR review. Finds bugs that pass CI but break in prod. |
+| `/deslop` | Code quality analysis and focused cleanup against a compact engineering-principles reference. |
+| `/addtodeslop` | Extend the `/deslop` principles reference with a missing engineering rule. |
 | `/debug` | Systematic root-cause debugging. No fixes without investigation. |
 | `/design-review` | Design audit + fix loop with atomic commits. |
 | `/qa` | Open a real browser, find bugs, fix them, re-verify. |

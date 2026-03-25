@@ -1353,7 +1353,7 @@ describe('setup script validation', () => {
   });
 
   test('create_agents_sidecar links runtime assets', () => {
-    // Sidecar must link bin, browse, review, qa
+    // Sidecar must link bin, browse, review, qa, and deslop reference assets.
     const fnStart = setupContent.indexOf('create_agents_sidecar()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
@@ -1361,6 +1361,8 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('browse');
     expect(fnBody).toContain('review');
     expect(fnBody).toContain('qa');
+    expect(fnBody).toContain('deslop/references');
+    expect(fnBody).toContain('deslop/SKILL.md.tmpl');
   });
 
   test('create_codex_runtime_root exposes only runtime assets', () => {
@@ -1376,6 +1378,9 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('design-checklist.md');
     expect(fnBody).toContain('greptile-triage.md');
     expect(fnBody).toContain('TODOS-format.md');
+    expect(fnBody).toContain('deslop/references/principles.md');
+    expect(fnBody).toContain('deslop/SKILL.md.tmpl');
+    expect(fnBody).not.toContain('ln -snf "$gstack_dir/deslop/SKILL.md"');
     expect(fnBody).not.toContain('ln -snf "$gstack_dir" "$codex_gstack"');
   });
 

@@ -1,0 +1,111 @@
+---
+name: deslop
+preamble-tier: 2
+version: 1.0.0
+description: |
+  Code quality analyzer. Review a file, directory, or current diff against a
+  compact engineering-principles reference, report the highest-value fixes with
+  concrete before/after guidance, and implement approved cleanup. Use when asked
+  to "deslop" code, tighten a module, improve maintainability, or pressure-test
+  code quality against engineering principles.
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+{{BASE_BRANCH_DETECT}}
+
+# /deslop — Code Quality Analysis
+
+Use this skill when the user explicitly wants a code-quality pass rather than a
+bug hunt or product review.
+
+## Arguments
+
+- `/deslop` — analyze the current repo, current folder, or changed files
+- `/deslop path/to/file` — analyze one file
+- `/deslop src/server` — analyze one directory or subsystem
+- `/deslop current diff` — focus on the active changes against the base branch
+
+Interpret freeform target text sensibly. If the user gives a repo area, stay
+inside it.
+
+## Reference
+
+Read `~/.claude/skills/gstack/deslop/references/principles.md` before
+analyzing. For repo-local installs, use
+`.claude/skills/gstack/deslop/references/principles.md` instead.
+
+Keep context tight:
+
+1. Start with the Quick Diagnostic Guide, Principle Tensions, and Priority Matrix.
+2. Then load only the principle sections that match the smells you find.
+3. Do not dump the whole reference back to the user.
+
+## Workflow
+
+1. Determine the target and scope.
+   - If the user named a file or directory, stay inside it.
+   - If the user said "current diff", inspect `git diff <base>...HEAD`.
+   - If no target was given, prefer changed files against the base branch. If there are no changed files, prefer the current directory or the files already in discussion.
+2. Read the relevant files end to end. Use `git diff`, `rg`, and file reads to gather enough context before judging.
+3. Map each real issue to one or more principles from the reference.
+4. Report only the highest-signal findings. Default to 3-8 findings; go higher only if the code is clearly degraded.
+5. Offer concrete, minimal fixes. Prefer local cleanup over sweeping refactors.
+6. If the user asked only for analysis, stop after the report. Otherwise ask whether to implement the recommended changes.
+7. If the user approves implementation, make the smallest changes that materially improve the code and run the smallest relevant verification commands.
+
+## Output Format
+
+### Summary
+
+Give a 1-2 sentence overview of code health and the dominant themes.
+
+### Violations Found
+
+For each issue use this shape:
+
+`##### [Principle] - [Issue]`
+
+`**Location**: path:line`
+
+`**Problem**: one short description`
+
+`**Before**:` short snippet
+
+`**After**:` short snippet
+
+`**Why**:` one sentence tying the fix back to the principle
+
+### Recommendations
+
+Provide a prioritized numbered list, highest value first.
+
+Then ask:
+
+`Implement A) all recommended fixes, B) a subset, or C) report only?`
+
+## Guardrails
+
+- Do not recommend abstractions for one-off code. Respect KISS, YAGNI, and the rule of three.
+- Do not confuse incidental similarity with meaningful duplication.
+- Treat test code differently: prefer setup clarity over forced DRY.
+- Prefer the smallest change that materially improves the code.
+- Separate objective bugs from taste-only nits.
+- If a deeper refactor is warranted but too large for the current scope, label it as follow-up work instead of sneaking it into a small cleanup.
+
+## Implementation Mode
+
+If the user says to implement:
+
+1. Fix P0 and P1 issues first.
+2. Keep the diff tight and readable.
+3. Add or adjust focused tests when behavior changes or the cleanup removes real risk.
+4. Re-run relevant checks and summarize what changed.

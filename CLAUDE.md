@@ -69,6 +69,8 @@ gstack/
 ├── design-review/    # /design-review skill (design audit + fix loop)
 ├── ship/            # Ship workflow skill
 ├── review/          # PR review skill
+├── deslop/          # /deslop skill (engineering-principles cleanup analyzer)
+├── addtodeslop/     # /addtodeslop skill (extends the shared deslop principles reference)
 ├── plan-ceo-review/ # /plan-ceo-review skill
 ├── plan-eng-review/ # /plan-eng-review skill
 ├── autoplan/        # /autoplan skill (auto-review pipeline: CEO → design → eng)

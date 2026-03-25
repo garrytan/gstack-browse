@@ -1,0 +1,87 @@
+---
+name: addtodeslop
+preamble-tier: 2
+version: 1.0.0
+description: |
+  Extend the deslop engineering-principles reference. Research a missing
+  principle, draft a compact new section, merge it into the local deslop
+  reference, and keep the surrounding guide consistent. Use when asked to add a
+  principle to deslop, expand the cleanup playbook, or extend the deslop
+  reference with a missing engineering rule.
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - AskUserQuestion
+  - WebSearch
+---
+
+{{PREAMBLE}}
+
+# /addtodeslop — Extend the Deslop Reference
+
+Use this skill when the user asks to add a coding principle to deslop or wants
+the next missing principle researched and merged into the local reference.
+
+## Arguments
+
+- `/addtodeslop` — pick the most valuable missing principle
+- `/addtodeslop idempotency` — add a named principle
+- `/addtodeslop "something about API contracts"` — infer the best principle from a freeform description
+
+## Canonical Files
+
+Edit the canonical gstack files in the active checkout:
+
+- `~/.claude/skills/gstack/deslop/SKILL.md.tmpl`
+- `~/.claude/skills/gstack/deslop/references/principles.md`
+
+For repo-local installs, use:
+
+- `.claude/skills/gstack/deslop/SKILL.md.tmpl`
+- `.claude/skills/gstack/deslop/references/principles.md`
+
+Do not edit generated outputs by hand. If the deslop workflow changes, regenerate:
+
+```bash
+bun run gen:skill-docs
+bun run gen:skill-docs --host codex
+```
+
+## Workflow
+
+1. Read the canonical deslop principles reference listed above and build a list of principles already covered.
+2. Determine the target principle:
+   - If the user specified one, use it.
+   - If not, choose the highest-value missing principle that is well known, battle tested, and practically useful.
+3. Research the principle with the best available sources or tools in the current harness.
+4. Draft a compact section that matches the existing reference style:
+   - one-sentence definition
+   - why it matters
+   - common smells
+   - default fix
+   - caveats or tensions when needed
+5. Merge the new section into the appropriate category in the canonical principles reference.
+6. Update the Quick Diagnostic Guide, Principle Tensions, or other nearby sections if the new principle changes the navigation or decision framework.
+7. If the new principle changes how `/deslop` should operate, update the canonical `deslop/SKILL.md.tmpl` in the same change and regenerate the generated skill docs.
+8. Summarize what was added, where it was placed, and any adjacent sections that were updated.
+
+## Guardrails
+
+- Keep the reference compact. This is an operator guide, not a textbook.
+- Do not add synonyms for principles that are already represented under another name.
+- Prefer principles with direct code-review and refactoring value over abstract theory.
+- Match the tone and density of the existing reference.
+- If web access is unavailable, say so and proceed with clearly labeled limitations.
+
+## Output
+
+Report:
+
+1. The principle added or chosen
+2. Where it was placed in the reference
+3. Any guide sections updated alongside it
+4. Any open questions or follow-up principles worth adding later

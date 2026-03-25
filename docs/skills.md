@@ -10,6 +10,8 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | [`/plan-design-review`](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
 | [`/design-consultation`](#design-consultation) | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic product mockups. Design at the heart of all other phases. |
 | [`/review`](#review) | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
+| [`/deslop`](#deslop) | **Cleanup Reviewer** | Pressure-test a file, directory, or diff against a compact engineering-principles reference. Reports the highest-value maintainability fixes and can implement approved cleanup. |
+| [`/addtodeslop`](#addtodeslop) | **Principles Curator** | Research a missing cleanup principle and merge it into the shared `/deslop` reference. Keeps the guide compact and battle-tested. |
 | [`/investigate`](#investigate) | **Debugger** | Systematic root-cause debugging. Iron Law: no fixes without investigation. Traces data flow, tests hypotheses, stops after 3 failed fixes. |
 | [`/design-review`](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
 | [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
@@ -448,6 +450,53 @@ That is the point of `/review`.
 
 I do not want flattery here.
 I want the model imagining the production incident before it happens.
+
+---
+
+## `/deslop`
+
+This is the maintainability pressure test.
+
+`/review` is about production bugs and release risk. `/deslop` is about whether
+the code has started to rot even if it still technically works. It reads a file,
+directory, or diff against a compact engineering-principles reference and
+reports the highest-value cleanup moves.
+
+The emphasis is not "style." It is signal:
+
+* cognitive load that makes code hard to hold in your head
+* duplication that is now expensive enough to consolidate
+* mixed responsibilities that make a module brittle
+* hidden ownership problems that create drift
+* error handling that is technically present but operationally vague
+
+The output is concrete. For each issue it gives the principle, the location, a
+short before/after example, and the smallest fix that actually improves the
+code. If you approve, it implements the cleanup and runs the narrowest useful
+verification.
+
+In practice I use `/deslop` when a file "feels bad" but I want a disciplined
+cleanup pass instead of an improvised refactor.
+
+---
+
+## `/addtodeslop`
+
+This is the curator for the `/deslop` playbook itself.
+
+Over time you notice recurring cleanup patterns that are not yet in the shared
+reference. `/addtodeslop` researches one missing principle, writes a compact new
+section in the same voice as the existing guide, and updates nearby navigation
+if the new idea changes how `/deslop` should triage issues.
+
+It is intentionally conservative:
+
+* no textbook-sized essays
+* no duplicate principles under new names
+* no speculative theory with weak code-review value
+
+If the new principle changes how `/deslop` should operate, it updates the
+template and regenerates the Claude and Codex outputs in the same change.
 
 ---
 

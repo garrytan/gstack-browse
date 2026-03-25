@@ -262,7 +262,7 @@ link_codex_skill_dirs() {
 
 # ─── Helper: create .agents/skills/gstack/ sidecar symlinks ──────────
 # Codex/Gemini/Cursor read skills from .agents/skills/. We link runtime
-# assets (bin/, browse/dist/, review/, qa/, etc.) so skill templates can
+# assets (bin/, browse/dist/, review/, qa/, deslop reference files, etc.) so skill templates can
 # resolve paths like $SKILL_ROOT/review/design-checklist.md.
 create_agents_sidecar() {
   local repo_root="$1"
@@ -290,6 +290,15 @@ create_agents_sidecar() {
       fi
     fi
   done
+
+  # deslop reference assets (template + principles reference, but not SKILL.md)
+  mkdir -p "$agents_gstack/deslop/references"
+  if [ -f "$SOURCE_GSTACK_DIR/deslop/SKILL.md.tmpl" ]; then
+    ln -snf "$SOURCE_GSTACK_DIR/deslop/SKILL.md.tmpl" "$agents_gstack/deslop/SKILL.md.tmpl"
+  fi
+  if [ -f "$SOURCE_GSTACK_DIR/deslop/references/principles.md" ]; then
+    ln -snf "$SOURCE_GSTACK_DIR/deslop/references/principles.md" "$agents_gstack/deslop/references/principles.md"
+  fi
 }
 
 # ─── Helper: create a minimal ~/.codex/skills/gstack runtime root ───────────
@@ -309,7 +318,7 @@ create_codex_runtime_root() {
     rm -rf "$codex_gstack"
   fi
 
-  mkdir -p "$codex_gstack" "$codex_gstack/browse" "$codex_gstack/gstack-upgrade" "$codex_gstack/review"
+  mkdir -p "$codex_gstack" "$codex_gstack/browse" "$codex_gstack/gstack-upgrade" "$codex_gstack/review" "$codex_gstack/deslop/references"
 
   if [ -f "$agents_dir/gstack/SKILL.md" ]; then
     ln -snf "$agents_dir/gstack/SKILL.md" "$codex_gstack/SKILL.md"
@@ -335,6 +344,13 @@ create_codex_runtime_root() {
   # ETHOS.md — referenced by "Search Before Building" in all skill preambles
   if [ -f "$gstack_dir/ETHOS.md" ]; then
     ln -snf "$gstack_dir/ETHOS.md" "$codex_gstack/ETHOS.md"
+  fi
+  # deslop reference assets (template + principles reference, but not SKILL.md)
+  if [ -f "$gstack_dir/deslop/SKILL.md.tmpl" ]; then
+    ln -snf "$gstack_dir/deslop/SKILL.md.tmpl" "$codex_gstack/deslop/SKILL.md.tmpl"
+  fi
+  if [ -f "$gstack_dir/deslop/references/principles.md" ]; then
+    ln -snf "$gstack_dir/deslop/references/principles.md" "$codex_gstack/deslop/references/principles.md"
   fi
 }
 
@@ -394,7 +410,7 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
   KIRO_GSTACK="$KIRO_SKILLS/gstack"
   # Remove old whole-dir symlink from previous installs
   [ -L "$KIRO_GSTACK" ] && rm -f "$KIRO_GSTACK"
-  mkdir -p "$KIRO_GSTACK" "$KIRO_GSTACK/browse" "$KIRO_GSTACK/gstack-upgrade" "$KIRO_GSTACK/review"
+  mkdir -p "$KIRO_GSTACK" "$KIRO_GSTACK/browse" "$KIRO_GSTACK/gstack-upgrade" "$KIRO_GSTACK/review" "$KIRO_GSTACK/deslop/references"
   ln -snf "$SOURCE_GSTACK_DIR/bin" "$KIRO_GSTACK/bin"
   ln -snf "$SOURCE_GSTACK_DIR/browse/dist" "$KIRO_GSTACK/browse/dist"
   ln -snf "$SOURCE_GSTACK_DIR/browse/bin" "$KIRO_GSTACK/browse/bin"
@@ -412,6 +428,13 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
       ln -snf "$SOURCE_GSTACK_DIR/review/$f" "$KIRO_GSTACK/review/$f"
     fi
   done
+  # deslop reference assets (template + principles reference, but not SKILL.md)
+  if [ -f "$SOURCE_GSTACK_DIR/deslop/SKILL.md.tmpl" ]; then
+    ln -snf "$SOURCE_GSTACK_DIR/deslop/SKILL.md.tmpl" "$KIRO_GSTACK/deslop/SKILL.md.tmpl"
+  fi
+  if [ -f "$SOURCE_GSTACK_DIR/deslop/references/principles.md" ]; then
+    ln -snf "$SOURCE_GSTACK_DIR/deslop/references/principles.md" "$KIRO_GSTACK/deslop/references/principles.md"
+  fi
 
   # Rewrite root SKILL.md paths for Kiro
   sed -e "s|~/.claude/skills/gstack|~/.kiro/skills/gstack|g" \
