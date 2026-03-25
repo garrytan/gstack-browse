@@ -5,6 +5,39 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
+
+function extractDescription(content: string): string {
+  const fmEnd = content.indexOf('\n---', 4);
+  expect(fmEnd).toBeGreaterThan(0);
+  const frontmatter = content.slice(4, fmEnd);
+  const lines = frontmatter.split('\n');
+  let description = '';
+  let inDescription = false;
+  const descLines: string[] = [];
+
+  for (const line of lines) {
+    if (line.match(/^description:\s*\|?\s*$/)) {
+      inDescription = true;
+      continue;
+    }
+    if (line.match(/^description:\s*\S/)) {
+      return line.replace(/^description:\s*/, '').trim();
+    }
+    if (inDescription) {
+      if (line === '' || line.match(/^\s/)) {
+        descLines.push(line.replace(/^  /, ''));
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (descLines.length > 0) {
+    description = descLines.join('\n').trim();
+  }
+  return description;
+}
 
 // Dynamic template discovery — matches the generator's findTemplates() behavior.
 // New skills automatically get test coverage without updating a static list.
@@ -98,6 +131,33 @@ describe('gen-skill-docs', () => {
     }
   });
 
+  test(`every generated SKILL.md description stays within ${MAX_SKILL_DESCRIPTION_LENGTH} chars`, () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      const description = extractDescription(content);
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_LENGTH);
+    }
+  });
+
+  test(`every Codex SKILL.md description stays within ${MAX_SKILL_DESCRIPTION_LENGTH} chars`, () => {
+    const agentsDir = path.join(ROOT, '.agents', 'skills');
+    if (!fs.existsSync(agentsDir)) return; // skip if not generated
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = path.join(agentsDir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const content = fs.readFileSync(skillMd, 'utf-8');
+      const description = extractDescription(content);
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_LENGTH);
+    }
+  });
+
+  test('package.json version matches VERSION file', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+    const version = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf-8').trim();
+    expect(pkg.version).toBe(version);
+  });
+
   test('generated files are fresh (match --dry-run)', () => {
     const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
       cwd: ROOT,
@@ -153,16 +213,35 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('git branch --show-current');
   });
 
-  test('generated SKILL.md contains ELI16 simplification rules', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+  test('tier 2+ skills contain ELI16 simplification rules (AskUserQuestion format)', () => {
+    // Root SKILL.md is tier 1 (no AskUserQuestion format). Check a tier 2+ skill instead.
+    const content = fs.readFileSync(path.join(ROOT, 'cso', 'SKILL.md'), 'utf-8');
     expect(content).toContain('No raw function names');
     expect(content).toContain('plain English');
+  });
+
+  test('tier 1 skills do NOT contain AskUserQuestion format', () => {
+    // Use benchmark (tier 1) instead of root — root SKILL.md gets overwritten by Codex test setup
+    const content = fs.readFileSync(path.join(ROOT, 'benchmark', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('## AskUserQuestion Format');
+    expect(content).not.toContain('## Completeness Principle');
   });
 
   test('generated SKILL.md contains telemetry line', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('skill-usage.jsonl');
     expect(content).toContain('~/.gstack/analytics');
+  });
+
+  test('preamble .pending-* glob is zsh-safe (uses find, not shell glob)', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      if (!content.includes('.pending-')) continue;
+      // Must NOT have a bare shell glob ".pending-*" outside of find's -name argument
+      expect(content).not.toMatch(/for _PF in [^\n]*\/\.pending-\*/);
+      // Must use find to avoid zsh NOMATCH error on glob expansion
+      expect(content).toContain("find ~/.gstack/analytics -maxdepth 1 -name '.pending-*'");
+    }
   });
 
   test('preamble-using skills have correct skill name in telemetry', () => {
@@ -358,6 +437,20 @@ describe('REVIEW_DASHBOARD resolver', () => {
     expect(content).toContain('REVIEW READINESS DASHBOARD');
   });
 
+  test('dashboard treats review as a valid Eng Review source', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
+    expect(content).toContain('`plan-eng-review` (plan-stage architecture review)');
+    expect(content).toContain('from either \\`review\\` or \\`plan-eng-review\\`');
+  });
+
+  test('shared dashboard propagates review source to plan-eng-review', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
+  });
+
   test('resolver output contains key dashboard elements', () => {
     const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('VERDICT');
@@ -413,6 +506,350 @@ describe('REVIEW_DASHBOARD resolver', () => {
   test('ship does NOT contain review chaining', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).not.toContain('Review Chaining');
+  });
+});
+
+// ─── Test Coverage Audit Resolver Tests ─────────────────────
+
+describe('TEST_COVERAGE_AUDIT placeholders', () => {
+  const planSkill = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('all three modes share codepath tracing methodology', () => {
+    const sharedPhrases = [
+      'Trace data flow',
+      'Diagram the execution',
+      'Quality scoring rubric',
+      '★★★',
+      '★★',
+      'GAP',
+    ];
+    for (const phrase of sharedPhrases) {
+      expect(planSkill).toContain(phrase);
+      expect(shipSkill).toContain(phrase);
+      expect(reviewSkill).toContain(phrase);
+    }
+    // Plan mode traces the plan, not a git diff
+    expect(planSkill).toContain('Trace every codepath in the plan');
+    expect(planSkill).not.toContain('git diff origin');
+    // Ship and review modes trace the diff
+    expect(shipSkill).toContain('Trace every codepath changed');
+    expect(reviewSkill).toContain('Trace every codepath changed');
+  });
+
+  test('all three modes include E2E decision matrix', () => {
+    for (const skill of [planSkill, shipSkill, reviewSkill]) {
+      expect(skill).toContain('E2E Test Decision Matrix');
+      expect(skill).toContain('→E2E');
+      expect(skill).toContain('→EVAL');
+    }
+  });
+
+  test('all three modes include regression rule', () => {
+    for (const skill of [planSkill, shipSkill, reviewSkill]) {
+      expect(skill).toContain('REGRESSION RULE');
+      expect(skill).toContain('IRON RULE');
+    }
+  });
+
+  test('all three modes include test framework detection', () => {
+    for (const skill of [planSkill, shipSkill, reviewSkill]) {
+      expect(skill).toContain('Test Framework Detection');
+      expect(skill).toContain('CLAUDE.md');
+    }
+  });
+
+  test('plan mode adds tests to plan + includes test plan artifact', () => {
+    expect(planSkill).toContain('Add missing tests to the plan');
+    expect(planSkill).toContain('eng-review-test-plan');
+    expect(planSkill).toContain('Test Plan Artifact');
+  });
+
+  test('ship mode auto-generates tests + includes before/after count', () => {
+    expect(shipSkill).toContain('Generate tests for uncovered paths');
+    expect(shipSkill).toContain('Before/after test count');
+    expect(shipSkill).toContain('30 code paths max');
+    expect(shipSkill).toContain('ship-test-plan');
+  });
+
+  test('review mode generates via Fix-First + gaps are INFORMATIONAL', () => {
+    expect(reviewSkill).toContain('Fix-First');
+    expect(reviewSkill).toContain('INFORMATIONAL');
+    expect(reviewSkill).toContain('Step 4.75');
+    expect(reviewSkill).toContain('subsumes the "Test Gaps" category');
+  });
+
+  test('plan mode does NOT include ship-specific content', () => {
+    expect(planSkill).not.toContain('Before/after test count');
+    expect(planSkill).not.toContain('30 code paths max');
+    expect(planSkill).not.toContain('ship-test-plan');
+  });
+
+  test('review mode does NOT include test plan artifact', () => {
+    expect(reviewSkill).not.toContain('Test Plan Artifact');
+    expect(reviewSkill).not.toContain('eng-review-test-plan');
+    expect(reviewSkill).not.toContain('ship-test-plan');
+  });
+
+  // Regression guard: ship output contains key phrases from before the refactor
+  test('ship SKILL.md regression guard — key phrases preserved', () => {
+    const regressionPhrases = [
+      '100% coverage is the goal',
+      'ASCII coverage diagram',
+      'processPayment',
+      'refundPayment',
+      'billing.test.ts',
+      'checkout.e2e.ts',
+      'COVERAGE:',
+      'QUALITY:',
+      'GAPS:',
+      'Code paths:',
+      'User flows:',
+    ];
+    for (const phrase of regressionPhrases) {
+      expect(shipSkill).toContain(phrase);
+    }
+  });
+});
+
+// --- {{TEST_FAILURE_TRIAGE}} resolver tests ---
+
+describe('TEST_FAILURE_TRIAGE resolver', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('contains all 4 triage steps', () => {
+    expect(shipSkill).toContain('Step T1: Classify each failure');
+    expect(shipSkill).toContain('Step T2: Handle in-branch failures');
+    expect(shipSkill).toContain('Step T3: Handle pre-existing failures');
+    expect(shipSkill).toContain('Step T4: Execute the chosen action');
+  });
+
+  test('T1 includes classification criteria (in-branch vs pre-existing)', () => {
+    expect(shipSkill).toContain('In-branch');
+    expect(shipSkill).toContain('Likely pre-existing');
+    expect(shipSkill).toContain('git diff origin/');
+  });
+
+  test('T3 branches on REPO_MODE (solo vs collaborative)', () => {
+    expect(shipSkill).toContain('REPO_MODE');
+    expect(shipSkill).toContain('solo');
+    expect(shipSkill).toContain('collaborative');
+  });
+
+  test('solo mode offers fix-now, TODO, and skip options', () => {
+    expect(shipSkill).toContain('Investigate and fix now');
+    expect(shipSkill).toContain('Add as P0 TODO');
+    expect(shipSkill).toContain('Skip');
+  });
+
+  test('collaborative mode offers blame + assign option', () => {
+    expect(shipSkill).toContain('Blame + assign GitHub issue');
+    expect(shipSkill).toContain('gh issue create');
+  });
+
+  test('defaults ambiguous failures to in-branch (safety)', () => {
+    expect(shipSkill).toContain('When ambiguous, default to in-branch');
+  });
+});
+
+// --- {{PLAN_FILE_REVIEW_REPORT}} resolver tests ---
+
+describe('PLAN_FILE_REVIEW_REPORT resolver', () => {
+  const REVIEW_SKILLS = ['plan-ceo-review', 'plan-eng-review', 'plan-design-review', 'codex'];
+
+  for (const skill of REVIEW_SKILLS) {
+    test(`plan file review report appears in ${skill} generated file`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
+      expect(content).toContain('GSTACK REVIEW REPORT');
+    });
+  }
+
+  test('resolver output contains key report elements', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-ceo-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Trigger');
+    expect(content).toContain('Findings');
+    expect(content).toContain('VERDICT');
+    expect(content).toContain('/plan-ceo-review');
+    expect(content).toContain('/plan-eng-review');
+    expect(content).toContain('/plan-design-review');
+    expect(content).toContain('/codex review');
+  });
+});
+
+// --- {{PLAN_COMPLETION_AUDIT}} resolver tests ---
+
+describe('PLAN_COMPLETION_AUDIT placeholders', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan completion audit step', () => {
+    expect(shipSkill).toContain('Plan Completion Audit');
+    expect(shipSkill).toContain('Step 3.45');
+  });
+
+  test('review SKILL.md contains plan completion in scope drift', () => {
+    expect(reviewSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Actionable Item Extraction');
+    expect(reviewSkill).toContain('Integration with Scope Drift Detection');
+  });
+
+  test('both modes share plan file discovery methodology', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+    // Both should have conversation context first
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+    // Both should have grep fallback
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+
+  test('ship mode has gate logic for NOT DONE items', () => {
+    expect(shipSkill).toContain('NOT DONE');
+    expect(shipSkill).toContain('Stop — implement the missing items');
+    expect(shipSkill).toContain('Ship anyway — defer');
+    expect(shipSkill).toContain('intentionally dropped');
+  });
+
+  test('review mode is INFORMATIONAL only', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+    expect(reviewSkill).toContain('MISSING REQUIREMENTS');
+    expect(reviewSkill).toContain('SCOPE CREEP');
+  });
+
+  test('item extraction has 50-item cap', () => {
+    expect(shipSkill).toContain('at most 50 items');
+  });
+
+  test('uses file-level traceability (not commit-level)', () => {
+    expect(shipSkill).toContain('Cite the specific file');
+    expect(shipSkill).not.toContain('commit-level traceability');
+  });
+});
+
+// --- {{PLAN_VERIFICATION_EXEC}} resolver tests ---
+
+describe('PLAN_VERIFICATION_EXEC placeholder', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan verification step', () => {
+    expect(shipSkill).toContain('Step 3.47');
+    expect(shipSkill).toContain('Plan Verification');
+  });
+
+  test('references /qa-only invocation', () => {
+    expect(shipSkill).toContain('qa-only/SKILL.md');
+    expect(shipSkill).toContain('qa-only');
+  });
+
+  test('contains localhost reachability check', () => {
+    expect(shipSkill).toContain('localhost:3000');
+    expect(shipSkill).toContain('NO_SERVER');
+  });
+
+  test('skips gracefully when no verification section', () => {
+    expect(shipSkill).toContain('No verification steps found in plan');
+  });
+
+  test('skips gracefully when no dev server', () => {
+    expect(shipSkill).toContain('No dev server detected');
+  });
+});
+
+// --- Coverage gate tests ---
+
+describe('Coverage gate in ship', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains coverage gate with thresholds', () => {
+    expect(shipSkill).toContain('Coverage gate');
+    expect(shipSkill).toContain('>= target');
+    expect(shipSkill).toContain('< minimum');
+  });
+
+  test('ship SKILL.md supports configurable thresholds via CLAUDE.md', () => {
+    expect(shipSkill).toContain('## Test Coverage');
+    expect(shipSkill).toContain('Minimum:');
+    expect(shipSkill).toContain('Target:');
+  });
+
+  test('coverage gate skips on parse failure (not block)', () => {
+    expect(shipSkill).toContain('could not determine percentage — skipping');
+  });
+
+  test('review SKILL.md contains coverage WARNING', () => {
+    expect(reviewSkill).toContain('COVERAGE WARNING');
+    expect(reviewSkill).toContain('Consider writing tests before running /ship');
+  });
+
+  test('review coverage warning is INFORMATIONAL', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+  });
+});
+
+// --- Ship metrics logging ---
+
+describe('Ship metrics logging', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains metrics persistence step', () => {
+    expect(shipSkill).toContain('Step 8.75');
+    expect(shipSkill).toContain('coverage_pct');
+    expect(shipSkill).toContain('plan_items_total');
+    expect(shipSkill).toContain('plan_items_done');
+    expect(shipSkill).toContain('verification_result');
+  });
+});
+
+// --- Plan file discovery shared helper ---
+
+describe('Plan file discovery shared helper', () => {
+  // The shared helper should appear in ship (via PLAN_COMPLETION_AUDIT_SHIP)
+  // and in review (via PLAN_COMPLETION_AUDIT_REVIEW)
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('plan file discovery appears in both ship and review', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+  });
+
+  test('both include conversation context first', () => {
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+  });
+
+  test('both include content-based fallback', () => {
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+});
+
+// --- Retro plan completion ---
+
+describe('Retro plan completion section', () => {
+  const retroSkill = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+
+  test('retro SKILL.md contains plan completion section', () => {
+    expect(retroSkill).toContain('### Plan Completion');
+    expect(retroSkill).toContain('plan_items_total');
+    expect(retroSkill).toContain('Plan Completion This Period');
+  });
+});
+
+// --- Plan status footer in preamble ---
+
+describe('Plan status footer in preamble', () => {
+  test('preamble contains plan status footer', () => {
+    // Read any skill that uses PREAMBLE
+    const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Plan Status Footer');
+    expect(content).toContain('GSTACK REVIEW REPORT');
+    expect(content).toContain('gstack-review-read');
+    expect(content).toContain('ExitPlanMode');
+    expect(content).toContain('NO REVIEWS YET');
   });
 });
 
@@ -482,6 +919,50 @@ describe('DESIGN_SKETCH resolver', () => {
   });
 });
 
+// --- {{CODEX_SECOND_OPINION}} resolver tests ---
+
+describe('CODEX_SECOND_OPINION resolver', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+  const codexContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'gstack-office-hours', 'SKILL.md'), 'utf-8');
+
+  test('Phase 3.5 section appears in office-hours SKILL.md', () => {
+    expect(content).toContain('Phase 3.5: Cross-Model Second Opinion');
+  });
+
+  test('contains codex exec invocation', () => {
+    expect(content).toContain('codex exec');
+  });
+
+  test('contains opt-in AskUserQuestion text', () => {
+    expect(content).toContain('second opinion from a different AI model');
+  });
+
+  test('contains cross-model synthesis instructions', () => {
+    expect(content).toMatch(/[Ss]ynthesis/);
+    expect(content).toContain('Where Claude agrees with Codex');
+  });
+
+  test('contains premise revision check', () => {
+    expect(content).toContain('Codex challenged premise');
+  });
+
+  test('contains error handling for auth, timeout, and empty', () => {
+    expect(content).toMatch(/[Aa]uth.*fail/);
+    expect(content).toMatch(/[Tt]imeout/);
+    expect(content).toMatch(/[Ee]mpty response/);
+  });
+
+  test('Codex host variant does NOT contain the Phase 3.5 resolver output', () => {
+    // The resolver returns '' for codex host, so the interactive section is stripped.
+    // Static template references to "Phase 3.5" in prose/conditionals are fine.
+    // Other resolvers (design review lite) may contain CODEX_NOT_AVAILABLE, so we
+    // check for Phase 3.5-specific markers only.
+    expect(codexContent).not.toContain('Phase 3.5: Cross-Model Second Opinion');
+    expect(codexContent).not.toContain('TMPERR_OH');
+    expect(codexContent).not.toContain('gstack-codex-oh-');
+  });
+});
+
 // --- {{BENEFITS_FROM}} resolver tests ---
 
 describe('BENEFITS_FROM resolver', () => {
@@ -506,12 +987,137 @@ describe('BENEFITS_FROM resolver', () => {
     const qaContent = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
     expect(qaContent).not.toContain('Prerequisite Skill Offer');
   });
+
+  test('inline invocation — no "another window" language', () => {
+    expect(ceoContent).not.toContain('another window');
+    expect(engContent).not.toContain('another window');
+  });
+
+  test('inline invocation — read-and-follow path present', () => {
+    expect(ceoContent).toContain('office-hours/SKILL.md');
+    expect(engContent).toContain('office-hours/SKILL.md');
+  });
+});
+
+// --- {{DESIGN_OUTSIDE_VOICES}} resolver tests ---
+
+describe('DESIGN_OUTSIDE_VOICES resolver', () => {
+  test('plan-design-review contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('CODEX_AVAILABLE');
+    expect(content).toContain('LITMUS SCORECARD');
+  });
+
+  test('design-review contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('source audit');
+  });
+
+  test('design-consultation contains outside voices section', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-consultation', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Outside Voices');
+    expect(content).toContain('design direction');
+  });
+
+  test('branches correctly per skillName — different prompts', () => {
+    const planContent = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    const consultContent = fs.readFileSync(path.join(ROOT, 'design-consultation', 'SKILL.md'), 'utf-8');
+    // plan-design-review uses analytical prompt (high reasoning)
+    expect(planContent).toContain('model_reasoning_effort="high"');
+    // design-consultation uses creative prompt (medium reasoning)
+    expect(consultContent).toContain('model_reasoning_effort="medium"');
+  });
+});
+
+// --- {{DESIGN_HARD_RULES}} resolver tests ---
+
+describe('DESIGN_HARD_RULES resolver', () => {
+  test('plan-design-review Pass 4 contains hard rules', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Hard Rules');
+    expect(content).toContain('Classifier');
+    expect(content).toContain('MARKETING/LANDING PAGE');
+    expect(content).toContain('APP UI');
+  });
+
+  test('design-review contains hard rules', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Design Hard Rules');
+  });
+
+  test('includes all 3 rule sets', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Landing page rules');
+    expect(content).toContain('App UI rules');
+    expect(content).toContain('Universal rules');
+  });
+
+  test('references shared AI slop blacklist items', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('3-column feature grid');
+    expect(content).toContain('Purple/violet/indigo');
+  });
+
+  test('includes OpenAI hard rejection criteria', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Generic SaaS card grid');
+    expect(content).toContain('Carousel with no narrative purpose');
+  });
+
+  test('includes OpenAI litmus checks', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Brand/product unmistakable');
+    expect(content).toContain('premium with all decorative shadows removed');
+  });
+});
+
+// --- Extended DESIGN_SKETCH resolver tests ---
+
+describe('DESIGN_SKETCH extended with outside voices', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+
+  test('contains outside design voices step', () => {
+    expect(content).toContain('Outside design voices');
+  });
+
+  test('offers opt-in via AskUserQuestion', () => {
+    expect(content).toContain('outside design perspectives');
+  });
+
+  test('still contains original wireframe steps', () => {
+    expect(content).toContain('wireframe');
+    expect(content).toContain('$B goto');
+  });
+});
+
+// --- Extended DESIGN_REVIEW_LITE resolver tests ---
+
+describe('DESIGN_REVIEW_LITE extended with Codex', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('contains Codex design voice block', () => {
+    expect(content).toContain('Codex design voice');
+    expect(content).toContain('CODEX (design)');
+  });
+
+  test('still contains original checklist steps', () => {
+    expect(content).toContain('design-checklist.md');
+    expect(content).toContain('SCOPE_FRONTEND');
+  });
+
 });
 
 // ─── Codex Generation Tests ─────────────────────────────────
 
 describe('Codex generation (--host codex)', () => {
   const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
+
+  // .agents/ is gitignored (v0.11.2.0) — generate on demand for tests
+  Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
+    cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
+  });
 
   // Dynamic discovery of expected Codex skills: all templates except /codex
   const CODEX_SKILLS = (() => {
@@ -534,6 +1140,14 @@ describe('Codex generation (--host codex)', () => {
       const skillMd = path.join(AGENTS_DIR, skill.codexName, 'SKILL.md');
       expect(fs.existsSync(skillMd)).toBe(true);
     }
+  });
+
+  test('root gstack bundle has OpenAI metadata for Codex skill browsing', () => {
+    const rootMetadata = path.join(ROOT, 'agents', 'openai.yaml');
+    expect(fs.existsSync(rootMetadata)).toBe(true);
+    const content = fs.readFileSync(rootMetadata, 'utf-8');
+    expect(content).toContain('display_name: "gstack"');
+    expect(content).toContain('Use $gstack to locate the bundled gstack skills.');
   });
 
   test('codexSkillName mapping: root is gstack, others are gstack-{dir}', () => {
@@ -565,6 +1179,17 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
+  test('all Codex skills have agents/openai.yaml metadata', () => {
+    for (const skill of CODEX_SKILLS) {
+      const metadata = path.join(AGENTS_DIR, skill.codexName, 'agents', 'openai.yaml');
+      expect(fs.existsSync(metadata)).toBe(true);
+      const content = fs.readFileSync(metadata, 'utf-8');
+      expect(content).toContain(`display_name: "${skill.codexName}"`);
+      expect(content).toContain('short_description:');
+      expect(content).toContain('allow_implicit_invocation: true');
+    }
+  });
+
   test('no .claude/skills/ in Codex output', () => {
     for (const skill of CODEX_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
@@ -587,11 +1212,11 @@ describe('Codex generation (--host codex)', () => {
   test('Codex review step stripped from Codex-host ship and review', () => {
     const shipContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-ship', 'SKILL.md'), 'utf-8');
     expect(shipContent).not.toContain('codex review --base');
-    expect(shipContent).not.toContain('Investigate and fix');
+    expect(shipContent).not.toContain('CODEX_REVIEWS');
 
     const reviewContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
     expect(reviewContent).not.toContain('codex review --base');
-    expect(reviewContent).not.toContain('Investigate and fix');
+    expect(reviewContent).not.toContain('CODEX_REVIEWS');
   });
 
   test('--host codex --dry-run freshness', () => {
@@ -659,11 +1284,14 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
-  test('Codex preamble uses codex paths', () => {
+  test('Codex preamble resolves runtime assets from repo-local or global gstack roots', () => {
     // Check a skill that has a preamble (review is a good candidate)
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('~/.codex/skills/gstack');
-    expect(content).toContain('.agents/skills/gstack');
+    expect(content).toContain('GSTACK_ROOT');
+    expect(content).toContain('$_ROOT/.agents/skills/gstack');
+    expect(content).toContain('$GSTACK_BIN/gstack-config');
+    expect(content).toContain('$GSTACK_ROOT/gstack-upgrade/SKILL.md');
+    expect(content).not.toContain('~/.codex/skills/gstack/bin/gstack-config get telemetry');
   });
 
   // ─── Path rewriting regression tests ─────────────────────────
@@ -701,9 +1329,9 @@ describe('Codex generation (--host codex)', () => {
     // Test each of the 4 path rewrite rules individually
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
 
-    // Rule 1: ~/.claude/skills/gstack → ~/.codex/skills/gstack
+    // Rule 1: ~/.claude/skills/gstack → $GSTACK_ROOT
     expect(content).not.toContain('~/.claude/skills/gstack');
-    expect(content).toContain('~/.codex/skills/gstack');
+    expect(content).toContain('$GSTACK_ROOT');
 
     // Rule 2: .claude/skills/gstack → .agents/skills/gstack
     expect(content).not.toContain('.claude/skills/gstack');
@@ -722,6 +1350,9 @@ describe('Codex generation (--host codex)', () => {
       // No skill should reference Claude paths
       expect(content).not.toContain('~/.claude/skills');
       expect(content).not.toContain('.claude/skills');
+      if (content.includes('gstack-config') || content.includes('gstack-update-check') || content.includes('gstack-telemetry-log')) {
+        expect(content).toContain('$GSTACK_ROOT');
+      }
       // If a skill references checklist.md, it must use the correct sidecar path
       if (content.includes('checklist.md') && !content.includes('design-checklist.md')) {
         expect(content).not.toContain('gstack-review/checklist.md');
@@ -752,8 +1383,23 @@ describe('Codex generation (--host codex)', () => {
     for (const skill of ALL_SKILLS) {
       const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
       expect(content).not.toContain('~/.codex/');
-      expect(content).not.toContain('.agents/skills');
+      // gstack-upgrade legitimately references .agents/skills for cross-platform detection
+      if (skill.dir !== 'gstack-upgrade') {
+        expect(content).not.toContain('.agents/skills');
+      }
     }
+  });
+
+  // ─── Design outside voices: Codex host guard ─────────────────
+
+  test('codex host produces empty outside voices in design-review', () => {
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-design-review', 'SKILL.md'), 'utf-8');
+    expect(codexContent).not.toContain('Design Outside Voices');
+  });
+
+  test('codex host does not include Codex design block in ship', () => {
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-ship', 'SKILL.md'), 'utf-8');
+    expect(codexContent).not.toContain('Codex design voice');
   });
 });
 
@@ -788,8 +1434,31 @@ describe('setup script validation', () => {
       setupContent.indexOf('# 5. Install for Codex'),
       setupContent.indexOf('# 6. Create')
     );
+    expect(codexSection).toContain('create_codex_runtime_root');
     expect(codexSection).toContain('link_codex_skill_dirs');
     expect(codexSection).not.toContain('link_claude_skill_dirs');
+    expect(codexSection).not.toContain('ln -snf "$GSTACK_DIR" "$CODEX_GSTACK"');
+  });
+
+  test('Codex install prefers repo-local .agents/skills when setup runs from there', () => {
+    expect(setupContent).toContain('SKILLS_PARENT_BASENAME');
+    expect(setupContent).toContain('CODEX_REPO_LOCAL=0');
+    expect(setupContent).toContain('[ "$SKILLS_PARENT_BASENAME" = ".agents" ]');
+    expect(setupContent).toContain('CODEX_REPO_LOCAL=1');
+    expect(setupContent).toContain('CODEX_SKILLS="$INSTALL_SKILLS_DIR"');
+  });
+
+  test('setup separates install path from source path for symlinked repo-local installs', () => {
+    expect(setupContent).toContain('INSTALL_GSTACK_DIR=');
+    expect(setupContent).toContain('SOURCE_GSTACK_DIR=');
+    expect(setupContent).toContain('INSTALL_SKILLS_DIR=');
+    expect(setupContent).toContain('CODEX_GSTACK="$INSTALL_GSTACK_DIR"');
+    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"');
+  });
+
+  test('Codex installs always create sidecar runtime assets for the real skill target', () => {
+    expect(setupContent).toContain('if [ "$INSTALL_CODEX" -eq 1 ]; then');
+    expect(setupContent).toContain('create_agents_sidecar "$SOURCE_GSTACK_DIR"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
@@ -809,14 +1478,40 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
   });
 
-  test('setup supports --host auto|claude|codex', () => {
+  test('setup supports --host auto|claude|codex|kiro', () => {
     expect(setupContent).toContain('--host');
-    expect(setupContent).toContain('claude|codex|auto');
+    expect(setupContent).toContain('claude|codex|kiro|auto');
   });
 
-  test('auto mode detects claude and codex binaries', () => {
+  test('auto mode detects claude, codex, and kiro binaries', () => {
     expect(setupContent).toContain('command -v claude');
     expect(setupContent).toContain('command -v codex');
+    expect(setupContent).toContain('command -v kiro-cli');
+  });
+
+  // T1: Sidecar skip guard — prevents .agents/skills/gstack from being linked as a skill
+  test('link_codex_skill_dirs skips the gstack sidecar directory', () => {
+    const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('[ "$skill_name" = "gstack" ] && continue');
+  });
+
+  // T2: Dynamic $GSTACK_ROOT paths in generated Codex preambles
+  test('generated Codex preambles use dynamic GSTACK_ROOT paths', () => {
+    const codexSkillDir = path.join(ROOT, '.agents', 'skills', 'gstack-ship');
+    if (!fs.existsSync(codexSkillDir)) return; // skip if .agents/ not generated
+    const content = fs.readFileSync(path.join(codexSkillDir, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('GSTACK_ROOT=');
+    expect(content).toContain('$GSTACK_BIN/');
+  });
+
+  // T3: Kiro host support in setup script
+  test('setup supports --host kiro with install section and sed rewrites', () => {
+    expect(setupContent).toContain('INSTALL_KIRO=');
+    expect(setupContent).toContain('kiro-cli');
+    expect(setupContent).toContain('KIRO_SKILLS=');
+    expect(setupContent).toContain('~/.kiro/skills/gstack');
   });
 
   test('create_agents_sidecar links runtime assets', () => {
@@ -828,6 +1523,28 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('browse');
     expect(fnBody).toContain('review');
     expect(fnBody).toContain('qa');
+  });
+
+  test('create_codex_runtime_root exposes only runtime assets', () => {
+    const fnStart = setupContent.indexOf('create_codex_runtime_root()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', setupContent.indexOf('review/', fnStart)));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('gstack/SKILL.md');
+    expect(fnBody).toContain('browse/dist');
+    expect(fnBody).toContain('browse/bin');
+    expect(fnBody).toContain('gstack-upgrade/SKILL.md');
+    // Review runtime assets (individual files, not the whole dir)
+    expect(fnBody).toContain('checklist.md');
+    expect(fnBody).toContain('design-checklist.md');
+    expect(fnBody).toContain('greptile-triage.md');
+    expect(fnBody).toContain('TODOS-format.md');
+    expect(fnBody).not.toContain('ln -snf "$gstack_dir" "$codex_gstack"');
+  });
+
+  test('direct Codex installs are migrated out of ~/.codex/skills/gstack', () => {
+    expect(setupContent).toContain('migrate_direct_codex_install');
+    expect(setupContent).toContain('$HOME/.gstack/repos/gstack');
+    expect(setupContent).toContain('avoid duplicate skill discovery');
   });
 });
 

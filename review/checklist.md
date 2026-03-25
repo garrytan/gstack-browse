@@ -108,6 +108,35 @@ To do this: use Grep to find all references to the sibling values (e.g., grep fo
 - O(n*m) lookups in views (`Array#find` in a loop instead of `index_by` hash)
 - Ruby-side `.select{}` filtering on DB results that could be a `WHERE` clause (unless intentionally avoiding leading-wildcard `LIKE`)
 
+#### Performance & Bundle Impact
+- New `dependencies` entries in package.json that are known-heavy: moment.js (→ date-fns, 330KB→22KB), lodash full (→ lodash-es or per-function imports), jquery, core-js full polyfill
+- Significant lockfile growth (many new transitive dependencies from a single addition)
+- Images added without `loading="lazy"` or explicit width/height attributes (causes layout shift / CLS)
+- Large static assets committed to repo (>500KB per file)
+- Synchronous `<script>` tags without async/defer
+- CSS `@import` in stylesheets (blocks parallel loading — use bundler imports instead)
+- `useEffect` with fetch that depends on another fetch result (request waterfall — combine or parallelize)
+- Named → default import switches on tree-shakeable libraries (breaks tree-shaking)
+- New `require()` calls in ESM codebases
+
+**DO NOT flag:**
+- devDependencies additions (don't affect production bundle)
+- Dynamic `import()` calls (code splitting — these are good)
+- Small utility additions (<5KB gzipped)
+- Server-side-only dependencies
+
+#### Distribution & CI/CD Pipeline
+- CI/CD workflow changes (`.github/workflows/`): verify build tool versions match project requirements, artifact names/paths are correct, secrets use `${{ secrets.X }}` not hardcoded values
+- New artifact types (CLI binary, library, package): verify a publish/release workflow exists and targets correct platforms
+- Cross-platform builds: verify CI matrix covers all target OS/arch combinations, or documents which are untested
+- Version tag format consistency: `v1.2.3` vs `1.2.3` — must match across VERSION file, git tags, and publish scripts
+- Publish step idempotency: re-running the publish workflow should not fail (e.g., `gh release delete` before `gh release create`)
+
+**DO NOT flag:**
+- Web services with existing auto-deploy pipelines (Docker build + K8s deploy)
+- Internal tools not distributed outside the team
+- Test-only CI changes (adding test steps, not publish steps)
+
 ---
 
 ## Severity Classification
@@ -123,7 +152,9 @@ CRITICAL (highest severity):      INFORMATIONAL (lower severity):
                                    ├─ Crypto & Entropy
                                    ├─ Time Window Safety
                                    ├─ Type Coercion at Boundaries
-                                   └─ View/Frontend
+                                   ├─ View/Frontend
+                                   ├─ Performance & Bundle Impact
+                                   └─ Distribution & CI/CD Pipeline
 
 All findings are actioned via Fix-First Review. Severity determines
 presentation order and classification of AUTO-FIX vs ASK — critical
