@@ -11,11 +11,26 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'node:os';
+import { request as httpRequest } from 'node:http';
+import { spawn as nodeSpawn } from 'node:child_process';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
 const config = resolveConfig();
+
+export function isWsl(
+  env: Record<string, string | undefined> = process.env,
+  platform: string = process.platform,
+  release: string = os.release()
+): boolean {
+  if (platform !== 'linux') return false;
+  const lowerRelease = release.toLowerCase();
+  return Boolean(env.WSL_DISTRO_NAME || env.WSL_INTEROP || lowerRelease.includes('microsoft'));
+}
+
 const IS_WINDOWS = process.platform === 'win32';
-const MAX_START_WAIT = IS_WINDOWS ? 15000 : 8000; // Node+Chromium takes longer on Windows
+const IS_WSL = isWsl();
+const MAX_START_WAIT = IS_WINDOWS || IS_WSL ? 15000 : 8000; // Node+Chromium and WSL startup can take longer
 
 export function resolveServerScript(
   env: Record<string, string | undefined> = process.env,
@@ -75,6 +90,20 @@ export function resolveNodeServerScript(
 }
 
 const NODE_SERVER_SCRIPT = IS_WINDOWS ? resolveNodeServerScript() : null;
+const SERVER_LOG_PATH = path.join(config.stateDir, 'browse-server.log');
+
+type ServerStartStrategy = 'bun' | 'node' | 'detached-bun';
+
+export function getServerStartStrategy(
+  nodeServerScript: string | null = NODE_SERVER_SCRIPT,
+  env: Record<string, string | undefined> = process.env,
+  platform: string = process.platform,
+  release: string = os.release()
+): ServerStartStrategy {
+  if (platform === 'win32' && nodeServerScript) return 'node';
+  if (isWsl(env, platform, release)) return 'detached-bun';
+  return 'bun';
+}
 
 interface ServerState {
   pid: number;
@@ -83,6 +112,18 @@ interface ServerState {
   startedAt: string;
   serverPath: string;
   binaryVersion?: string;
+}
+
+interface LoopbackRequestOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}
+
+interface LoopbackResponse {
+  status: number;
+  text: string;
 }
 
 // ─── State File ────────────────────────────────────────────────
@@ -102,6 +143,83 @@ function isProcessAlive(pid: number): boolean {
   } catch {
     return false;
   }
+}
+
+function readServerLogTail(maxChars = 4000): string | null {
+  try {
+    const content = fs.readFileSync(SERVER_LOG_PATH, 'utf-8').trim();
+    return content ? content.slice(-maxChars) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function readStderrChunk(stderr: ReadableStream<Uint8Array> | null | undefined): Promise<string | null> {
+  if (!stderr) return null;
+
+  const reader = stderr.getReader();
+  try {
+    const result = await Promise.race([
+      reader.read(),
+      Bun.sleep(100).then(() => ({ value: undefined, done: false })),
+    ]);
+    if (result.value) {
+      return new TextDecoder().decode(result.value).trim() || null;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+export async function requestLoopback(
+  port: number,
+  pathname: string,
+  options: LoopbackRequestOptions = {}
+): Promise<LoopbackResponse> {
+  const timeoutMs = options.timeoutMs ?? 0;
+
+  return await new Promise((resolve, reject) => {
+    const req = httpRequest(
+      {
+        hostname: '127.0.0.1',
+        port,
+        path: pathname,
+        method: options.method ?? 'GET',
+        headers: options.headers,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        res.on('end', () => {
+          resolve({
+            status: res.statusCode ?? 0,
+            text: Buffer.concat(chunks).toString('utf-8'),
+          });
+        });
+      }
+    );
+
+    req.on('error', reject);
+
+    if (timeoutMs > 0) {
+      req.setTimeout(timeoutMs, () => {
+        const err = new Error(`Loopback request timed out after ${timeoutMs}ms`);
+        err.name = 'AbortError';
+        req.destroy(err);
+      });
+    }
+
+    if (options.body !== undefined) {
+      req.write(options.body);
+    }
+
+    req.end();
+  });
 }
 
 // ─── Process Management ─────────────────────────────────────────
@@ -167,20 +285,47 @@ async function startServer(): Promise<ServerState> {
   // Clean up stale state file
   try { fs.unlinkSync(config.stateFile); } catch {}
 
-  // Start server as detached background process.
-  // On Windows, Bun can't launch/connect to Playwright's Chromium (oven-sh/bun#4253, #9911).
-  // Fall back to running the server under Node.js with Bun API polyfills.
-  const useNode = IS_WINDOWS && NODE_SERVER_SCRIPT;
-  const serverCmd = useNode
-    ? ['node', NODE_SERVER_SCRIPT]
-    : ['bun', 'run', SERVER_SCRIPT];
-  const proc = Bun.spawn(serverCmd, {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
-  });
+  // Clear the startup log so timeout errors report the latest attempt only.
+  fs.writeFileSync(SERVER_LOG_PATH, '');
 
-  // Don't hold the CLI open
-  proc.unref();
+  // Start server as detached background process.
+  // On Windows, Bun can't launch/connect to Playwright's Chromium (oven-sh/bun#4253, #9911),
+  // so we use the Node-compatible server bundle. On WSL, compiled Bun.spawn pipe wiring can
+  // hang even when the child process starts successfully, so use node:child_process instead.
+  const strategy = getServerStartStrategy();
+  const serverCmd =
+    strategy === 'node' && NODE_SERVER_SCRIPT
+      ? ['node', NODE_SERVER_SCRIPT]
+      : ['bun', 'run', SERVER_SCRIPT];
+  let stderr: ReadableStream<Uint8Array> | null | undefined;
+
+  if (strategy === 'bun') {
+    const proc = Bun.spawn(serverCmd, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+    });
+    proc.unref();
+    stderr = proc.stderr;
+  } else {
+    const logFd = fs.openSync(SERVER_LOG_PATH, 'a');
+    try {
+      const proc = nodeSpawn(serverCmd[0], serverCmd.slice(1), {
+        detached: true,
+        stdio: ['ignore', logFd, logFd],
+        env: { ...process.env, BROWSE_STATE_FILE: config.stateFile },
+      });
+      proc.on('error', (err) => {
+        try {
+          fs.appendFileSync(SERVER_LOG_PATH, `[browse] Failed to spawn server: ${err.message}\n`);
+        } catch {
+          // Best effort logging only
+        }
+      });
+      proc.unref();
+    } finally {
+      fs.closeSync(logFd);
+    }
+  }
 
   // Wait for state file to appear
   const start = Date.now();
@@ -193,16 +338,15 @@ async function startServer(): Promise<ServerState> {
   }
 
   // If we get here, server didn't start in time
-  // Try to read stderr for error message
-  const stderr = proc.stderr;
-  if (stderr) {
-    const reader = stderr.getReader();
-    const { value } = await reader.read();
-    if (value) {
-      const errText = new TextDecoder().decode(value);
-      throw new Error(`Server failed to start:\n${errText}`);
-    }
+  const errText = await readStderrChunk(stderr);
+  if (errText) {
+    throw new Error(`Server failed to start:\n${errText}`);
   }
+  const serverLog = readServerLogTail();
+  if (serverLog) {
+    throw new Error(`Server failed to start:\n${serverLog}`);
+  }
+
   throw new Error(`Server failed to start within ${MAX_START_WAIT / 1000}s`);
 }
 
@@ -210,8 +354,13 @@ async function startServer(): Promise<ServerState> {
  * Acquire an exclusive lockfile to prevent concurrent ensureServer() races (TOCTOU).
  * Returns a cleanup function that releases the lock.
  */
-function acquireServerLock(): (() => void) | null {
-  const lockPath = `${config.stateFile}.lock`;
+export function acquireLockFile(lockPath: string): (() => void) | null {
+  try {
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+  } catch {
+    return null;
+  }
+
   try {
     // O_CREAT | O_EXCL — fails if file already exists (atomic check-and-create)
     const fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY);
@@ -227,11 +376,15 @@ function acquireServerLock(): (() => void) | null {
       }
       // Stale lock — remove and retry
       fs.unlinkSync(lockPath);
-      return acquireServerLock();
+      return acquireLockFile(lockPath);
     } catch {
       return null;
     }
   }
+}
+
+function acquireServerLock(): (() => void) | null {
+  return acquireLockFile(`${config.stateFile}.lock`);
 }
 
 async function ensureServer(): Promise<ServerState> {
@@ -248,11 +401,9 @@ async function ensureServer(): Promise<ServerState> {
 
     // Server appears alive — do a health check
     try {
-      const resp = await fetch(`http://127.0.0.1:${state.port}/health`, {
-        signal: AbortSignal.timeout(2000),
-      });
-      if (resp.ok) {
-        const health = await resp.json() as any;
+      const resp = await requestLoopback(state.port, '/health', { timeoutMs: 2000 });
+      if (resp.status >= 200 && resp.status < 300) {
+        const health = JSON.parse(resp.text) as any;
         if (health.status === 'healthy') {
           return state;
         }
@@ -299,14 +450,14 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
   const body = JSON.stringify({ command, args });
 
   try {
-    const resp = await fetch(`http://127.0.0.1:${state.port}/command`, {
+    const resp = await requestLoopback(state.port, '/command', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${state.token}`,
       },
       body,
-      signal: AbortSignal.timeout(30000),
+      timeoutMs: 30000,
     });
 
     if (resp.status === 401) {
@@ -319,9 +470,9 @@ async function sendCommand(state: ServerState, command: string, args: string[], 
       throw new Error('Authentication failed');
     }
 
-    const text = await resp.text();
+    const text = resp.text;
 
-    if (resp.ok) {
+    if (resp.status >= 200 && resp.status < 300) {
       process.stdout.write(text);
       if (!text.endsWith('\n')) process.stdout.write('\n');
     } else {
