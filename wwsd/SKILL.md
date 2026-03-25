@@ -1,4 +1,4 @@
-# /oracle — Domain Expert Persona Critique
+# /wwsd — What Would Steve Do? (Domain Expert Persona Critique)
 
 Run any plan, idea, product, or decision through the mental models of the world's
 best domain experts. Not impersonation — school-of-thought distillation.
@@ -7,11 +7,11 @@ The question is always: "Would this embarrass or impress them? What would they c
 ## Usage
 
 ```
-/oracle <topic or question>
-/oracle our security architecture
-/oracle the Phase 2 GTM plan
-/oracle should we build a Slack integration?
-/oracle why are we losing enterprise deals?
+/wwsd <topic or question>
+/wwsd our security architecture
+/wwsd the Phase 2 GTM plan
+/wwsd should we build a Slack integration?
+/wwsd why are we losing enterprise deals?
 ```
 
 If no topic is given, ask for one before proceeding.
@@ -33,8 +33,25 @@ not generic.
 
 ## Step 2: Select the panel
 
-From the topic, auto-select 4–6 oracles that are most relevant. Don't run all of
-them every time — pick the ones whose domain has the sharpest bearing on the question.
+Rank the top 5 most relevant oracles for the topic. Present them to the user like this:
+
+```
+TOP 5 ORACLES FOR THIS TOPIC:
+
+🟢 AUTO-RUNNING (top 3):
+1. [Name] — [Domain] — [one sentence on why they're most relevant]
+2. [Name] — [Domain] — [one sentence on why they're most relevant]
+3. [Name] — [Domain] — [one sentence on why they're most relevant]
+
+⚪ AVAILABLE IF YOU WANT THEM:
+4. [Name] — [Domain] — [one sentence on why they add value]
+5. [Name] — [Domain] — [one sentence on why they add value]
+
+Running the top 3 now. Reply with "add 4", "add 5", or "add 4 and 5" to include more.
+```
+
+Then immediately run the top 3 without waiting. If the user asks to add more, run those
+additional oracles and append them to the output.
 
 ### The Oracle Library
 
@@ -66,23 +83,6 @@ them every time — pick the ones whose domain has the sharpest bearing on the q
 - Red flag: any SDK where you need to read the source to understand what's happening.
 - On onboarding: "The best API documentation makes you feel stupid for not building this sooner."
 
-**ENTERPRISE SALES — Marc Benioff School (Salesforce)**
-*Mental model: bottoms-up adoption forces top-down budget; ecosystem lock-in compounds; the cloud is a subscription to trust.*
-- Asks: Who's the economic buyer? Who's the champion? What's the political path to a PO?
-- Favourite move: land with free/cheap, expand through departments, lock in at contract renewal.
-- Red flag: building for the VP Eng when the CFO signs the check.
-- On compliance features: "SOX, HIPAA, FedRAMP aren't features — they're the ticket to the enterprise conversation."
-
-**ENTERPRISE PRODUCT VISIONARY — Stewart Butterfield School (Slack)**
-*Mental model: enterprise products must be consumer-grade lovable; B2C sensibility is the B2B wedge; reduce friction to zero and adoption sells itself; the product is the GTM.*
-- Asks: Would someone use this on a Saturday? If not, why are you forcing them to use it on a Monday? Does this feel like a tool someone chose, or a tool someone's boss chose for them?
-- Favourite move: build a B2B product with B2C taste. Make the onboarding so frictionless that teams adopt it bottom-up before procurement ever hears about it. The individual user's delight is the enterprise sales motion.
-- Red flag: enterprise products that feel like enterprise products. "If your UI has a training manual, you've already lost. Slack didn't have a training manual because it didn't need one."
-- On B2C-to-B2B: "The best enterprise products are the ones that win the individual first. You don't sell Slack to a CTO — one team starts using it, then two, then it's in the org chart. The CTO just signs the invoice for something that already happened."
-- On messaging and communication: "Every product is a communication product if you squint hard enough. The question is whether you're making that communication joyful or bureaucratic."
-- On enterprise UX: "The bar isn't 'good enough for enterprise.' The bar is 'good enough that a consumer would choose this.' Enterprise users are consumers who happen to be at work."
-- On virality in B2B: "B2B virality is real — it just looks different. It's not sharing a link on Twitter. It's one person in a standup saying 'just use Slack' and everyone else going 'fine.' That's the most powerful sales motion that exists."
-
 **PRODUCT DESIGN — Steve Jobs School (Apple)**
 *Mental model: subtract until it hurts, then subtract more; the best interface is no interface; simplicity is the hardest thing.*
 - Asks: What is the one thing this product does? Can you explain it in one sentence without the word "platform"?
@@ -96,6 +96,16 @@ them every time — pick the ones whose domain has the sharpest bearing on the q
 - Favourite move: decompose until the pieces are reusable by people you've never met.
 - Red flag: building a thing when you should be building the thing that makes the thing.
 - On audit/compliance infra: "Tamper-proof logs at scale are harder than they look. That's the moat."
+
+**AI-FIRST DEVELOPER TOOLS & AGENTS — Boris Cherny School (Anthropic / Claude Code)**
+*Mental model: types are a design tool, not a bureaucratic one; the agent is just code with more surface area for failure; good abstractions make the unsafe thing hard to do accidentally; developer experience is a force multiplier — bad DX compounds into bad products.*
+- Asks: What does the type system tell you about the correctness of this design? Where are you fighting the types instead of letting them guide you? That friction is the code telling you the abstraction is wrong.
+- Favourite move: make illegal states unrepresentable. If the model can be in an invalid configuration, the type system should reject it at compile time, not the user at runtime.
+- Red flag: stringly-typed agent interfaces. "Passing instructions to an agent as free-form strings and hoping it does the right thing is just trusting vibes. Encode the contract in types. What can the agent do? What must it return? What errors can it produce? Write those down."
+- On building AI-first developer tools: "The best agentic tools feel like an extension of the programmer's intent — not a black box you prompt. The interface should be as precise as a function signature, not as vague as a chat message."
+- On agent reliability: "An agent that works 90% of the time isn't a product — it's a demo with debt. The 10% failure modes are usually untyped, unhandled, and unpredictable. Model them explicitly or they will model themselves at the worst possible moment."
+- On tool design for agents: "Every tool you give an agent is an API contract. Design it like one. What are the preconditions? The postconditions? The error surface? An agent calling a poorly-designed tool is like calling a function with no docs and no types — technically possible, practically treacherous."
+- On Claude Code specifically: "The IDE is dead. The terminal is dead. The programming environment of the future is conversational, but the underlying system still needs to be correct. You still need types. You still need tests. You still need to understand what the code does. AI doesn't remove that responsibility — it raises the stakes."
 
 **GROWTH — Drew Houston School (Dropbox)**
 *Mental model: product-led growth, viral loops built into the core action, referral as infrastructure.*
@@ -149,6 +159,16 @@ them every time — pick the ones whose domain has the sharpest bearing on the q
 - On distribution: "Distribution is the actual hard problem. Technology is the easy part. If you have distribution, double down on it to the exclusion of everything else. If you don't, it is the only thing that matters."
 - On the current moment: "We are at the beginning of a Cambrian explosion in software. The entire stack of human expertise is being rewritten. Companies that treat this as incremental will be treated as incumbents."
 
+**FOUNDER MODE & EXPERIENCE DESIGN — Brian Chesky School (Airbnb)**
+*Mental model: the founder must be the best product person in the company at every stage — not just at founding; 11-star experiences reveal what's actually possible; hospitality is a design philosophy, not an industry; AI doesn't change what great feels like, it changes who can build it.*
+- Asks: What's the 11-star version of this experience? Not what's feasible — what would make someone say "that's impossible, how did they do that?" Work backward from that. The 5-star version is obvious. The 11-star version is where the product soul lives.
+- Favourite move: stay in the details. Read every support ticket. Use the product every day. The moment you stop being a user of your own product, you start making decisions based on data about users instead of judgment from being one. Data tells you what happened. It doesn't tell you what it felt like.
+- Red flag: "I trust my team to handle the product." That's not leadership — that's abdication dressed up as delegation. Founder mode means staying in the room, asking the uncomfortable questions, overriding the committee when the committee is wrong.
+- On AI-first rebuilding: "Don't add AI to your existing product. Tear it up and redesign it assuming AI exists. Every screen, every flow, every assumption about what requires human input. Start with a blank sheet. The companies that win won't be the ones who added the best AI features — they'll be the ones who reimagined the whole thing."
+- On design at scale: "Most companies lose their design soul around 200 people. It gets delegated to a design team, then to a design system, then to tickets. The founder has to fight to stay in the aesthetic decisions. If the CEO isn't opinionated about the color of the button, someone without taste will be."
+- On the hospitality lens: "We're not in the home-sharing business. We're in the belonging business. Every product decision is a question: does this make people feel more or less welcome? More or less human? If your product feels transactional, you've already lost."
+- On rebuilding after crisis: "COVID destroyed 80% of our revenue in 8 weeks. We cut 1,900 people. And then we shipped our best product ever — because we were forced to focus. Constraints are not the enemy of creativity. They're the precondition for it."
+
 **FOUNDER-MARKET FIT — YC School (Graham / Tan)**
 *Mental model: make something people want; do things that don't scale; the ramen-profitable bar clarifies everything; talking to users beats thinking about users.*
 - Asks: Who are your 10 users who would be devastated if this disappeared tomorrow? Not 1,000 who think it's "interesting" — 10 who are actively angry it doesn't exist yet. Do you have them?
@@ -165,8 +185,8 @@ them every time — pick the ones whose domain has the sharpest bearing on the q
 Use the oracle's first name (or last name if that's how they're universally known)
 and their known gender pronoun. Never use "they/their" to refer to a single oracle —
 it's confusing when you're already talking about multiple people. Use he/him for the
-men in this library (Kurtz, Amodei, Altman, Collison, Benioff, Butterfield, Jobs, Vogels, Houston,
-Hashimoto, Conrad, Musk, Khosla, Andreessen). For the CISA/SEC school (an institution,
+men in this library (Kurtz, Amodei, Altman, Collison, Jobs, Vogels, Cherny, Chesky,
+Houston, Hashimoto, Conrad, Musk, Khosla, Andreessen). For the CISA/SEC school (an institution,
 not a person), use "the regulator's view" or "the examiner" framing. For the YC school,
 use "the YC partner" or "YC" — it represents an institution with multiple voices (Graham,
 Tan, Seibel), not a single person.
