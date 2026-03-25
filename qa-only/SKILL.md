@@ -349,12 +349,12 @@ claude mcp get revyl 2>&1 && echo "REVYL_MCP_OK" || echo "REVYL_MCP_MISSING"
 
 1. **Both OK** → `REVYL_READY`. Mobile QA uses Revyl MCP tools for cloud-hosted iOS/Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required. Revyl MCP tools (`start_device_session`, `device_tap`, `screenshot`, etc.) are available as MCP tools in this session — call them directly like any other tool. If a tool call fails with "tool not found", try `ToolSearch(query="revyl", max_results=50)` to load deferred schemas, then retry.
 
-2. **CLI OK but MCP missing** → Run in terminal: `claude mcp add revyl -- revyl mcp serve`, then **restart Claude Code** and retry `/qa --mobile`.
+2. **CLI OK but MCP missing** → Run in terminal: `claude mcp add revyl -s user -- revyl mcp serve`, then **restart Claude Code** and retry `/qa --mobile`.
 
 3. **CLI missing** → Mobile testing not available. To enable:
    - Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
    - Authenticate: `revyl auth login`
-   - Register MCP: `claude mcp add revyl -- revyl mcp serve`
+   - Register MCP: `claude mcp add revyl -s user -- revyl mcp serve`
    - **Restart Claude Code**
 
 Web QA works as usual with `$B` regardless of Revyl status.
