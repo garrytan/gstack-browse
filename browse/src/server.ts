@@ -321,13 +321,15 @@ async function start() {
       }
 
       // Health check — no auth required (now async)
+      // Note: currentUrl omitted from unauthenticated response to prevent
+      // information disclosure (any localhost process could see what page
+      // the user is browsing). Use /command with auth for full status.
       if (url.pathname === '/health') {
         const healthy = await browserManager.isHealthy();
         return new Response(JSON.stringify({
           status: healthy ? 'healthy' : 'unhealthy',
           uptime: Math.floor((Date.now() - startTime) / 1000),
           tabs: browserManager.getTabCount(),
-          currentUrl: browserManager.getCurrentUrl(),
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
