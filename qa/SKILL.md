@@ -382,43 +382,36 @@ If `NEEDS_SETUP`:
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
 
-## MOBILE SETUP (optional — check for browse-mobile binary)
+## MOBILE SETUP (optional — check for Revyl cloud devices)
 
 ```bash
-_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-BM=""
-# Check 1: project-local build (dev mode in gstack repo itself)
-[ -n "$_ROOT" ] && [ -x "$_ROOT/browse-mobile/dist/browse-mobile" ] && BM="$_ROOT/browse-mobile/dist/browse-mobile"
-# Check 2: vendored skills in project (e.g., .claude/skills/gstack/browse-mobile)
-[ -z "$BM" ] && [ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse-mobile/dist/browse-mobile" ] && BM="$_ROOT/.claude/skills/gstack/browse-mobile/dist/browse-mobile"
-# Check 3: global gstack install (works from ANY project directory)
-# browseDir is e.g. ~/.claude/skills/gstack/browse/dist — go up 2 levels to gstack root
-[ -z "$BM" ] && [ -x ~/.claude/skills/gstack/browse/dist/../../browse-mobile/dist/browse-mobile ] && BM=~/.claude/skills/gstack/browse/dist/../../browse-mobile/dist/browse-mobile
-if [ -n "$BM" ] && [ -x "$BM" ]; then
-  echo "MOBILE_READY: $BM"
-else
-  echo "MOBILE_NOT_AVAILABLE"
-fi
+_revyl_out=$(revyl auth status 2>&1) && echo "REVYL_READY" || echo "REVYL_NOT_AVAILABLE: $_revyl_out"
 ```
 
-If `MOBILE_READY`: the `$BM` variable points to the browse-mobile binary for mobile app automation via Appium.
-If `MOBILE_NOT_AVAILABLE`: mobile testing is not available — web QA works as usual with `$B`.
+If `REVYL_READY`: Revyl is authenticated. Mobile QA uses Revyl MCP tools for cloud-hosted iOS and Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required.
+
+If `REVYL_NOT_AVAILABLE`: mobile testing is not available. To enable it:
+1. Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
+2. Authenticate: `revyl auth login`
+3. Add MCP: `claude mcp add revyl -- revyl mcp serve`
+
+Web QA works as usual with `$B` regardless of Revyl status.
 
 **Detect platform and auto-setup (mobile vs web):**
 
 1. Check if `app.json` or `app.config.js`/`app.config.ts` exists in the project root.
-2. If found AND `$BM` is available (MOBILE_READY): **automatically set up the mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below. Do NOT ask the user — just do it.
-3. If no mobile config found, or `$BM` is not available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
+2. If found AND Revyl is available (REVYL_READY): **automatically start a Revyl cloud device session** — no local setup needed. Follow the "Mobile project detection" steps in the QA Methodology below. Do NOT ask the user — just do it.
+3. If no mobile config found, or Revyl is not available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
 
-**In mobile mode, these commands change:**
-- `$B goto <url>` → `$BM goto app://<bundleId>` (launch app) or `$BM click label:Label` (navigate)
-- `$B snapshot -i` → `$BM snapshot -i` (accessibility tree from iOS, not ARIA)
-- `$B click @e3` → `$BM click @e3` (tap element) or `$BM click label:LabelText` (accessibility label fallback for RN components)
-- `$B fill @e3 "text"` → `$BM fill @e3 "text"` (coordinate tap + keyboard if needed)
-- `$B screenshot` → `$BM screenshot` (simulator capture — always use Read tool to show user)
+**In mobile mode, use Revyl MCP tools instead of `$B`:**
+- `$B goto <url>` → `launch_app(bundle_id="<bundleId>")` or `device_navigate(url="<deeplink>")`
+- `$B snapshot -i` → `screenshot()` (Revyl captures the screen; AI grounding resolves elements)
+- `$B click @e3` → `device_tap(target="element description")` (describe in natural language)
+- `$B fill @e3 "text"` → `device_type(target="field description", text="text")`
+- `$B screenshot` → `screenshot()`
 - `$B console --errors` → SKIP (not available in mobile mode)
-- `$B links` → `$BM links` (tap targets from last snapshot)
-- `$B scroll` → `$BM scroll down/up` (swipe gestures for ScrollView/FlatList)
+- `$B links` → `screenshot()` (visual inspection for tap targets)
+- `$B scroll` → `device_swipe(target="screen center", direction="up/down")`
 
 **Check test framework (bootstrap if needed):**
 
@@ -629,51 +622,12 @@ This is the **primary mode** for developers verifying their work. When the user 
    ```
    If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
 
-3b. **Mobile project detection** — if `$BM` is available (MOBILE_READY from setup):
+3b. **Mobile project detection** — if Revyl is available (REVYL_READY from setup):
    ```bash
    ls app.json app.config.js app.config.ts 2>/dev/null
    ```
    If `app.json` or `app.config.*` exists, this is a mobile (Expo/React Native) project.
-   **Automatically set up the entire mobile environment — do not ask the user:**
-
-   **Step 0: Check permissions for mobile QA commands**
-   Mobile QA runs many bash commands (`$BM`, `appium`, `xcrun simctl`, `curl`, `sleep`). Check if the user's Claude Code settings already allow these:
-   ```bash
-   cat ~/.claude/settings.json 2>/dev/null | grep -c "browse-mobile"
-   ```
-   If the output is 0 (no browse-mobile permissions found), the user will be prompted for every single command — bad experience. Use AskUserQuestion:
-
-   "Mobile QA needs to run many commands automatically (browse-mobile, appium, xcrun simctl, etc.). I can add permissions to your Claude Code settings so these run without prompting. This is a one-time setup."
-
-   Options:
-   - A) Yes, add mobile QA permissions (recommended) — adds allow rules to your settings.json
-   - B) No, I'll approve each command manually
-
-   If A: Read `~/.claude/settings.json`, merge these permissions into the existing `permissions.allow` array (create it if it doesn't exist):
-   ```
-   "Bash(~/.claude/skills/gstack/browse-mobile/dist/browse-mobile:*)"
-   "Bash($BM:*)"
-   "Bash(BM=:*)"
-   "Bash(appium:*)"
-   "Bash(xcrun:*)"
-   "Bash(curl -s http://127.0.0.1:*)"
-   "Bash(curl -X POST http://127.0.0.1:*)"
-   "Bash(curl http://127.0.0.1:*)"
-   "Bash(lsof:*)"
-   "Bash(sleep:*)"
-   "Bash(open -a Simulator:*)"
-   "Bash(SID=:*)"
-   "Bash(JAVA_HOME=:*)"
-   "Bash(cat app.json:*)"
-   "Bash(cat app.config:*)"
-   "Bash(ls app.json:*)"
-   "Bash(mkdir -p .gstack:*)"
-   "Bash(cat .gstack:*)"
-   "Bash(kill:*)"
-   ```
-   After writing, tell the user: "Permissions added. These apply globally — you won't be prompted for mobile QA commands in any project."
-
-   If B: Continue — the user will approve each command individually.
+   **Automatically set up Revyl cloud device — do not ask the user.**
 
    **Step 1: Extract bundle ID**
    ```bash
@@ -681,66 +635,55 @@ This is the **primary mode** for developers verifying their work. When the user 
    ```
    If no bundleIdentifier found, check `app.config.js` or `app.config.ts` for it.
 
-   **Step 2: Start Appium if not running**
-   ```bash
-   curl -s http://127.0.0.1:4723/status | grep -q '"ready":true' 2>/dev/null
-   ```
-   If Appium is NOT running, start it automatically:
-   ```bash
-   JAVA_HOME=/opt/homebrew/opt/openjdk@17 appium --relaxed-security > /tmp/appium-qa.log 2>&1 &
-   sleep 3
-   curl -s http://127.0.0.1:4723/status | grep -q '"ready":true' && echo "Appium started" || echo "Appium failed to start"
-   ```
-   If Appium fails to start, run `$BM setup-check` to diagnose missing dependencies and show the user what to install. Then continue with web QA as fallback.
+   **Step 2: Start a Revyl cloud device session**
+   Use the Revyl MCP tool: `start_device_session(platform="ios")`
+   - Default to iOS. If the user specifies `--mobile android`, use `platform="android"`.
+   - This provisions a cloud-hosted device — no local simulator, Appium, or Java required.
+   - Note the `viewer_url` returned — share it with the user so they can watch the session live.
 
-   **Step 3: Boot simulator if none running**
-   ```bash
-   xcrun simctl list devices booted | grep -q "Booted"
-   ```
-   If no simulator is booted:
-   ```bash
-   xcrun simctl boot "$(xcrun simctl list devices available | grep iPhone | head -1 | grep -o '[A-F0-9-]\{36\}')" 2>/dev/null
-   open -a Simulator
-   sleep 3
-   ```
+   **Step 3: Install and launch the app**
+   - If the user provides an app URL (.ipa or .apk): `install_app(app_url="<url>")`
+   - Then launch: `launch_app(bundle_id="<bundleId>")`
+   - If `launch_app` fails with "app not found", tell the user: "The app is not installed on the cloud device. Please provide a build URL (.ipa for iOS, .apk for Android) or upload your build via `revyl build upload`."
 
-   **Step 4: Check if app is installed, build if not**
-   ```bash
-   xcrun simctl listapps booted 2>/dev/null | grep -q "<bundleId>"
-   ```
-   If the app is NOT installed on the simulator:
-   - Check if Metro bundler is running: `lsof -i :8081 | grep -q LISTEN`
-   - If Metro not running, start it: `cd <project_root> && npx expo start --ios &` and wait 10s
-   - Run: `npx expo run:ios` to build and install the app (this may take 2-5 minutes for first build — let it run)
-   - After build completes, verify: `xcrun simctl listapps booted | grep -q "<bundleId>"`
+   **Step 4: Activate mobile mode**
+   **MOBILE MODE ACTIVE** — use Revyl MCP tools instead of `$B` for all subsequent commands.
 
-   **Step 5: Activate mobile mode**
-   If all steps succeeded: **MOBILE MODE ACTIVE** — use `$BM` instead of `$B` for all subsequent commands.
-   Set the environment: `BROWSE_MOBILE_BUNDLE_ID=<bundleId>`
+   **In mobile mode, the QA flow uses Revyl MCP tools:**
 
-   **In mobile mode, the QA flow adapts:**
+   **Interaction loop:**
+   1. `screenshot()` — capture the current screen state
+   2. Observe what's on screen — one line description
+   3. Take one best action using the appropriate MCP tool
+   4. `screenshot()` — verify the result
+   5. Repeat
 
-   **SPEED IS CRITICAL — batch commands to minimize round trips:**
-   - Combine multiple commands in a single bash call using `&&`: e.g., `$BM click label:Sign In" && sleep 2 && $BM snapshot -i && $BM screenshot /tmp/screen.png`
-   - Do NOT run each command as a separate Bash call — that adds permission prompts and overhead
-   - Use `sleep 1` or `sleep 2` between commands (not separate tool calls)
-   - Take screenshots only at key milestones (after navigation, after finding a bug), not after every single tap
+   **Revyl MCP tool mapping (replaces `$B` commands):**
+   - Navigate to app: `launch_app(bundle_id="<bundleId>")`
+   - Tap an element: `device_tap(target="Sign In button")` — describe the element in natural language
+   - Type text: `device_type(target="Email field", text="user@test.com")`
+   - Swipe/scroll: `device_swipe(target="screen center", direction="up")` — "up" scrolls content down
+   - Go back: `device_back()`
+   - Take screenshot: `screenshot()`
+   - Clear text: `device_clear_text(target="Email field")`
+   - Long press: `device_long_press(target="item to select")`
+   - Go home: `device_go_home()`
+   - Open URL/deep link: `device_navigate(url="myapp://screen")`
 
-   **Launch and navigate:**
-   - Launch the app: `$BM goto app://<bundleId>`
-   - If the first snapshot shows "DEVELOPMENT SERVERS" or "localhost:8081" — this is the Expo dev launcher. Automatically click the localhost URL: `$BM click label:http://localhost:8081" && sleep 8 && $BM snapshot -i`
-   - Use `$BM snapshot -i` to get the accessibility tree with @e refs
-
-   **Interacting with elements:**
-   - If an element is visible in `$BM text` but not detected as interactive (common with RN `Pressable` missing `accessibilityRole`), use `$BM click label:Label Text"` — this is the primary fallback
-   - Skip web-only commands: `console --errors`, `html`, `css`, `js`, `cookies` — not available in mobile mode
-   - For form filling: `$BM fill @e3 "text"` works — coordinate tap + keyboard if needed
-   - Use `$BM scroll down` for content below the fold, `$BM back` for navigation
+   **AI-grounded targeting:** Describe elements in natural language — Revyl's vision model resolves coordinates automatically. Use visible text and visual characteristics:
+   - Good: `"the blue Sign In button"`, `"input field with placeholder Email"`
+   - Bad: `"button"`, `"the element"` (too vague)
 
    **Findings:**
-   - Flag missing `accessibilityRole` / `accessibilityLabel` as accessibility findings
-   - Test portrait and landscape: `$BM viewport landscape && sleep 1 && $BM screenshot /tmp/landscape.png`
-   - Take screenshots at milestones and use the Read tool to show them to the user
+   - Flag missing accessibility labels as accessibility findings
+   - Use `screenshot()` at milestones and share with the user
+   - Skip web-only commands: `console --errors`, `html`, `css`, `js`, `cookies` — not available in mobile mode
+
+   **Session management:**
+   - Sessions auto-terminate after 5 minutes of idle. If an MCP tool returns a session error, call `start_device_session` again for a fresh device.
+   - Before writing lengthy findings or analyzing code, call `screenshot()` or `get_session_info()` to reset the idle timer.
+   - When QA is complete, call `stop_device_session()` to release the cloud device.
+   - Run `device_doctor()` if any tool returns unexpected errors.
 
 4. **Test each affected page/route:**
    - Navigate to the page
@@ -973,14 +916,13 @@ Minimum 0 per category.
 - Test browser back/forward — does the app handle history correctly?
 - Check for memory leaks (monitor console after extended use)
 
-### Expo / React Native (mobile mode — `$BM`)
-- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — they won't appear as interactive in `$BM snapshot -i`. Use `$BM text` to find visible labels, then `$BM click label:Label"` to tap by accessibility label.
-- After tapping navigation elements, wait 1-2s before taking a snapshot — RN transitions are animated.
-- Test both portrait and landscape orientation: `$BM viewport landscape` / `$BM viewport portrait`.
+### Expo / React Native (mobile mode — Revyl)
+- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — use `device_tap(target="visible label text")` with Revyl's AI grounding to target by visual appearance.
+- After tapping navigation elements, call `screenshot()` to verify — RN transitions are animated, wait for them to settle.
 - Flag every component without proper accessibility props (`accessibilityRole`, `accessibilityLabel`) as an accessibility finding — these affect both screen readers and automation.
-- The Expo dev launcher (showing "DEVELOPMENT SERVERS") appears on first launch — click through to the actual app.
+- The Expo dev launcher (showing "DEVELOPMENT SERVERS") appears on first launch — tap through to the actual app.
 - RevenueCat / in-app purchase errors in development are expected — note but don't flag as bugs.
-- `$BM scroll down` uses swipe gestures — for FlatList/ScrollView content below the fold.
+- `device_swipe(direction="up")` scrolls content down — for FlatList/ScrollView content below the fold.
 
 ---
 

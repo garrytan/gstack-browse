@@ -235,47 +235,47 @@ $B attrs "#logo"    # returns all attributes as JSON
 $B css ".button" "background-color"
 ```
 
-## Mobile Testing (optional — browse-mobile)
+## Mobile Testing (optional — Revyl cloud devices)
 
-If `browse-mobile` is built (`browse-mobile/dist/browse-mobile`), you can use `$BM` for mobile app automation on iOS Simulator via Appium. This is detected automatically by `/qa` and `/qa-only` when an `app.json` or `app.config.js` is present.
+If Revyl is authenticated (`revyl auth status`), `/qa` and `/qa-only` automatically use Revyl MCP tools for mobile QA when an `app.json` or `app.config.js` is present. Cloud-hosted iOS and Android devices with AI-grounded element targeting — no local simulators, Appium, or Java required.
 
-### Mobile commands
+### Revyl MCP tools for mobile
 
-```bash
-# Launch an app on the simulator
-$BM goto app://com.example.myapp
+```
+# Start a cloud device session
+start_device_session(platform="ios")  # or "android"
 
-# Take a snapshot (accessibility tree with @e refs)
-$BM snapshot -i
+# Take a screenshot
+screenshot()
 
-# Tap an element by ref
-$BM click @e3
+# Tap an element (natural language targeting)
+device_tap(target="Sign In button")
 
-# Tap by accessibility label (for elements without accessibilityRole)
-$BM click label:Sign In
+# Type text into a field
+device_type(target="Email field", text="test@example.com")
 
-# Fill a text field
-$BM fill @e3 "test@example.com"
+# Swipe/scroll
+device_swipe(target="screen center", direction="up")
 
-# Screenshot the simulator
-$BM screenshot /tmp/screen.png
+# Navigate and control
+device_back()
+device_go_home()
+device_navigate(url="myapp://deeplink")
 
-# Scroll and navigate
-$BM scroll down
-$BM back
-$BM viewport landscape
+# App management
+install_app(app_url="https://example.com/app.ipa")
+launch_app(bundle_id="com.example.myapp")
 
-# List tappable elements and input fields
-$BM links
-$BM forms
+# End session
+stop_device_session()
 ```
 
 **Key differences from web (`$B`):**
-- Elements are `XCUIElementType*` (Button, TextField, etc.) instead of HTML roles
-- Many RN components lack `accessibilityRole` — use `~"Label Text"` to click by accessibility label
-- Web-only commands (`console`, `cookies`, `js`, `html`, `css`) return "not supported"
-- Form fill may use coordinate tap + keyboard when elements lack accessibility metadata
-- Requires Appium running (`appium` in a separate terminal) and iOS Simulator booted
+- Elements are targeted by natural language description, not CSS selectors or @e refs
+- Revyl's AI vision model resolves coordinates automatically from descriptions
+- Web-only commands (`console`, `cookies`, `js`, `html`, `css`) are not available in mobile mode
+- Sessions are cloud-hosted — auto-terminate after 5 minutes of idle
+- Supports both iOS and Android from the same workflow
 
 ## Snapshot System
 
