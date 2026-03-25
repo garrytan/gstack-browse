@@ -154,14 +154,17 @@
 **Effort:** M
 **Priority:** P4
 
-### Linux/Windows cookie decryption
+### Linux cookie decryption — PARTIALLY SHIPPED
 
-**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.
+~~**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.~~
 
-**Why:** Cross-platform cookie import. Currently macOS-only (Keychain).
+Linux cookie import shipped in v0.11.11.0 (Wave 3). Supports Chrome, Chromium, Brave, Edge on Linux with GNOME Keyring (libsecret) and "peanuts" fallback. Windows DPAPI support remains deferred.
 
-**Effort:** L
+**Remaining:** Windows cookie decryption (DPAPI). Needs complete rewrite — PR #64 was 1346 lines and stale.
+
+**Effort:** L (Windows only)
 **Priority:** P4
+**Completed (Linux):** v0.11.11.0 (2026-03-23)
 
 ## Ship
 
@@ -338,17 +341,18 @@
 **Depends on:** Video recording
 
 
-### GitHub Actions eval upload
 
-**What:** Run eval suite in CI, upload result JSON as artifact, post summary comment on PR.
+### Extend worktree isolation to Claude E2E tests
 
-**Why:** CI integration catches quality regressions before merge and provides persistent eval records per PR.
+**What:** Add `useWorktree?: boolean` option to `runSkillTest()` so any Claude E2E test can opt into worktree mode for full repo context instead of tmpdir fixtures.
 
-**Context:** Requires `ANTHROPIC_API_KEY` in CI secrets. Cost is ~$4/run. Eval persistence system (v0.3.6) writes JSON to `~/.gstack-dev/evals/` — CI would upload as GitHub Actions artifacts and use `eval:compare` to post delta comment.
+**Why:** Some Claude E2E tests (CSO audit, review-sql-injection) create minimal fake repos but would produce more realistic results with full repo context. The infrastructure exists (`describeWithWorktree()` in e2e-helpers.ts) — this extends it to the session-runner level.
 
-**Effort:** M
-**Priority:** P2
-**Depends on:** Eval persistence (shipped in v0.3.6)
+**Context:** WorktreeManager shipped in v0.11.12.0. Currently only Gemini/Codex tests use worktrees. Claude tests use planted-bug fixture repos which are correct for their purpose, but new tests that want real repo context can use `describeWithWorktree()` today. This TODO is about making it even easier via a flag on `runSkillTest()`.
+
+**Effort:** M (human: ~2 days / CC: ~20 min)
+**Priority:** P3
+**Depends on:** Worktree isolation (shipped v0.11.12.0)
 
 ### E2E model pinning — SHIPPED
 
@@ -552,6 +556,14 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Depends on:** Telemetry data showing freeze hook fires in real /investigate sessions
 
 ## Completed
+
+### CI eval pipeline (v0.9.9.0)
+- GitHub Actions eval upload on Ubicloud runners ($0.006/run)
+- Within-file test concurrency (test() → testConcurrentIfSelected())
+- Eval artifact upload + PR comment with pass/fail + cost
+- Baseline comparison via artifact download from main
+- EVALS_CONCURRENCY=40 for ~6min wall clock (was ~18min)
+**Completed:** v0.9.9.0
 
 ### Deploy pipeline (v0.9.8.0)
 - /land-and-deploy — merge PR, wait for CI/deploy, canary verification

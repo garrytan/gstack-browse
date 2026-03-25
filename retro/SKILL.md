@@ -1,5 +1,6 @@
 ---
 name: retro
+preamble-tier: 2
 version: 2.0.0
 description: |
   Weekly engineering retrospective. Analyzes commit history, work patterns,
@@ -105,6 +106,7 @@ This only happens once. If `TEL_PROMPTED` is `yes`, skip this entirely.
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
 4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and often preferred. Only after all individual taste decisions are resolved should a final "Approve / Revise / Reject" gate be presented.
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -734,6 +736,28 @@ Narrative covering:
 - Regression test commits: list `test(qa):` and `test(design):` and `test: coverage` commits from command 11
 - If prior retro exists and has `test_health`: show delta "Test count: {last} → {now} (+{delta})"
 - If test ratio < 20%: flag as growth area — "100% test coverage is the goal. Tests make vibe coding safe."
+
+### Plan Completion
+Check review JSONL logs for plan completion data from /ship runs this period:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+cat ~/.gstack/projects/$SLUG/*-reviews.jsonl 2>/dev/null | grep '"skill":"ship"' | grep '"plan_items_total"' || echo "NO_PLAN_DATA"
+```
+
+If plan completion data exists within the retro time window:
+- Count branches shipped with plans (entries that have `plan_items_total` > 0)
+- Compute average completion: sum of `plan_items_done` / sum of `plan_items_total`
+- Identify most-skipped item category if data supports it
+
+Output:
+```
+Plan Completion This Period:
+  {N} branches shipped with plans
+  Average completion: {X}% ({done}/{total} items)
+```
+
+If no plan data exists, skip this section silently.
 
 ### Focus & Highlights
 (from Step 8)

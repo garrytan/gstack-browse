@@ -213,10 +213,18 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('git branch --show-current');
   });
 
-  test('generated SKILL.md contains ELI16 simplification rules', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+  test('tier 2+ skills contain ELI16 simplification rules (AskUserQuestion format)', () => {
+    // Root SKILL.md is tier 1 (no AskUserQuestion format). Check a tier 2+ skill instead.
+    const content = fs.readFileSync(path.join(ROOT, 'cso', 'SKILL.md'), 'utf-8');
     expect(content).toContain('No raw function names');
     expect(content).toContain('plain English');
+  });
+
+  test('tier 1 skills do NOT contain AskUserQuestion format', () => {
+    // Use benchmark (tier 1) instead of root — root SKILL.md gets overwritten by Codex test setup
+    const content = fs.readFileSync(path.join(ROOT, 'benchmark', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('## AskUserQuestion Format');
+    expect(content).not.toContain('## Completeness Principle');
   });
 
   test('generated SKILL.md contains telemetry line', () => {
@@ -666,6 +674,168 @@ describe('PLAN_FILE_REVIEW_REPORT resolver', () => {
     expect(content).toContain('/plan-eng-review');
     expect(content).toContain('/plan-design-review');
     expect(content).toContain('/codex review');
+  });
+});
+
+// --- {{PLAN_COMPLETION_AUDIT}} resolver tests ---
+
+describe('PLAN_COMPLETION_AUDIT placeholders', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan completion audit step', () => {
+    expect(shipSkill).toContain('Plan Completion Audit');
+    expect(shipSkill).toContain('Step 3.45');
+  });
+
+  test('review SKILL.md contains plan completion in scope drift', () => {
+    expect(reviewSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Actionable Item Extraction');
+    expect(reviewSkill).toContain('Integration with Scope Drift Detection');
+  });
+
+  test('both modes share plan file discovery methodology', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+    // Both should have conversation context first
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+    // Both should have grep fallback
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+
+  test('ship mode has gate logic for NOT DONE items', () => {
+    expect(shipSkill).toContain('NOT DONE');
+    expect(shipSkill).toContain('Stop — implement the missing items');
+    expect(shipSkill).toContain('Ship anyway — defer');
+    expect(shipSkill).toContain('intentionally dropped');
+  });
+
+  test('review mode is INFORMATIONAL only', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+    expect(reviewSkill).toContain('MISSING REQUIREMENTS');
+    expect(reviewSkill).toContain('SCOPE CREEP');
+  });
+
+  test('item extraction has 50-item cap', () => {
+    expect(shipSkill).toContain('at most 50 items');
+  });
+
+  test('uses file-level traceability (not commit-level)', () => {
+    expect(shipSkill).toContain('Cite the specific file');
+    expect(shipSkill).not.toContain('commit-level traceability');
+  });
+});
+
+// --- {{PLAN_VERIFICATION_EXEC}} resolver tests ---
+
+describe('PLAN_VERIFICATION_EXEC placeholder', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan verification step', () => {
+    expect(shipSkill).toContain('Step 3.47');
+    expect(shipSkill).toContain('Plan Verification');
+  });
+
+  test('references /qa-only invocation', () => {
+    expect(shipSkill).toContain('qa-only/SKILL.md');
+    expect(shipSkill).toContain('qa-only');
+  });
+
+  test('contains localhost reachability check', () => {
+    expect(shipSkill).toContain('localhost:3000');
+    expect(shipSkill).toContain('NO_SERVER');
+  });
+
+  test('skips gracefully when no verification section', () => {
+    expect(shipSkill).toContain('No verification steps found in plan');
+  });
+
+  test('skips gracefully when no dev server', () => {
+    expect(shipSkill).toContain('No dev server detected');
+  });
+});
+
+// --- Coverage gate tests ---
+
+describe('Coverage gate in ship', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains coverage gate with thresholds', () => {
+    expect(shipSkill).toContain('Coverage gate');
+    expect(shipSkill).toContain('>= target');
+    expect(shipSkill).toContain('< minimum');
+  });
+
+  test('ship SKILL.md supports configurable thresholds via CLAUDE.md', () => {
+    expect(shipSkill).toContain('## Test Coverage');
+    expect(shipSkill).toContain('Minimum:');
+    expect(shipSkill).toContain('Target:');
+  });
+
+  test('coverage gate skips on parse failure (not block)', () => {
+    expect(shipSkill).toContain('could not determine percentage — skipping');
+  });
+
+  test('review SKILL.md contains coverage WARNING', () => {
+    expect(reviewSkill).toContain('COVERAGE WARNING');
+    expect(reviewSkill).toContain('Consider writing tests before running /ship');
+  });
+
+  test('review coverage warning is INFORMATIONAL', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+  });
+});
+
+// --- Ship metrics logging ---
+
+describe('Ship metrics logging', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains metrics persistence step', () => {
+    expect(shipSkill).toContain('Step 8.75');
+    expect(shipSkill).toContain('coverage_pct');
+    expect(shipSkill).toContain('plan_items_total');
+    expect(shipSkill).toContain('plan_items_done');
+    expect(shipSkill).toContain('verification_result');
+  });
+});
+
+// --- Plan file discovery shared helper ---
+
+describe('Plan file discovery shared helper', () => {
+  // The shared helper should appear in ship (via PLAN_COMPLETION_AUDIT_SHIP)
+  // and in review (via PLAN_COMPLETION_AUDIT_REVIEW)
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('plan file discovery appears in both ship and review', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+  });
+
+  test('both include conversation context first', () => {
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+  });
+
+  test('both include content-based fallback', () => {
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+});
+
+// --- Retro plan completion ---
+
+describe('Retro plan completion section', () => {
+  const retroSkill = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+
+  test('retro SKILL.md contains plan completion section', () => {
+    expect(retroSkill).toContain('### Plan Completion');
+    expect(retroSkill).toContain('plan_items_total');
+    expect(retroSkill).toContain('Plan Completion This Period');
   });
 });
 

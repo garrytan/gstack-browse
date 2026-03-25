@@ -1,11 +1,12 @@
 ---
 name: setup-browser-cookies
+preamble-tier: 1
 version: 1.0.0
 description: |
-  Import cookies from your real browser (Comet, Chrome, Arc, Brave, Edge) into the
-  headless browse session. Opens an interactive picker UI where you select which
-  cookie domains to import. Use before QA testing authenticated pages. Use when asked
-  to "import cookies", "login to the site", or "authenticate the browser".
+  Import cookies from your real Chromium browser into the headless browse session.
+  Opens an interactive picker UI where you select which cookie domains to import.
+  Use before QA testing authenticated pages. Use when asked to "import cookies",
+  "login to the site", or "authenticate the browser".
 allowed-tools:
   - Bash
   - Read
@@ -102,6 +103,7 @@ This only happens once. If `TEL_PROMPTED` is `yes`, skip this entirely.
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** `RECOMMENDATION: Choose [X] because [one-line reason]` — always prefer the complete option over shortcuts (see Completeness Principle). Include `Completeness: X/10` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
 4. **Options:** Lettered options: `A) ... B) ... C) ...` — when an option involves effort, show both scales: `(human: ~X / CC: ~Y)`
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and often preferred. Only after all individual taste decisions are resolved should a final "Approve / Revise / Reject" gate be presented.
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -330,7 +332,7 @@ If `NEEDS_SETUP`:
 $B cookie-import-browser
 ```
 
-This auto-detects installed Chromium browsers (Comet, Chrome, Arc, Brave, Edge) and opens
+This auto-detects installed Chromium browsers and opens
 an interactive picker UI in your default browser where you can:
 - Switch between installed browsers
 - Search domains
@@ -361,7 +363,8 @@ Show the user a summary of imported cookies (domain counts).
 
 ## Notes
 
-- First import per browser may trigger a macOS Keychain dialog — click "Allow" / "Always Allow"
+- On macOS, the first import per browser may trigger a Keychain dialog — click "Allow" / "Always Allow"
+- On Linux, `v11` cookies may require `secret-tool`/libsecret access; `v10` cookies use Chromium's standard fallback key
 - Cookie picker is served on the same port as the browse server (no extra process)
 - Only domain names and cookie counts are shown in the UI — no cookie values are exposed
 - The browse session persists cookies between commands, so imported cookies work immediately

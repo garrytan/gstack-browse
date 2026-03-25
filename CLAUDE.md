@@ -7,6 +7,8 @@ bun install          # install dependencies
 bun test             # run free tests (browse + snapshot + skill validation)
 bun run test:evals   # run paid evals: LLM judge + E2E (diff-based, ~$4/run max)
 bun run test:evals:all  # run ALL paid evals regardless of diff
+bun run test:gate    # run gate-tier tests only (CI default, blocks merge)
+bun run test:periodic  # run periodic-tier tests only (weekly cron / manual)
 bun run test:e2e     # run E2E tests only (diff-based, ~$3.85/run max)
 bun run test:e2e:all # run ALL E2E tests regardless of diff
 bun run eval:select  # show which tests would run based on current diff
@@ -29,8 +31,16 @@ against the previous run.
 **Diff-based test selection:** `test:evals` and `test:e2e` auto-select tests based
 on `git diff` against the base branch. Each test declares its file dependencies in
 `test/helpers/touchfiles.ts`. Changes to global touchfiles (session-runner, eval-store,
-llm-judge, gen-skill-docs) trigger all tests. Use `EVALS_ALL=1` or the `:all` script
+touchfiles.ts itself) trigger all tests. Use `EVALS_ALL=1` or the `:all` script
 variants to force all tests. Run `eval:select` to preview which tests would run.
+
+**Two-tier system:** Tests are classified as `gate` or `periodic` in `E2E_TIERS`
+(in `test/helpers/touchfiles.ts`). CI runs only gate tests (`EVALS_TIER=gate`);
+periodic tests run weekly via cron or manually. Use `EVALS_TIER=gate` or
+`EVALS_TIER=periodic` to filter. When adding new E2E tests, classify them:
+1. Safety guardrail or deterministic functional test? -> `gate`
+2. Quality benchmark, Opus model test, or non-deterministic? -> `periodic`
+3. Requires external service (Codex, Gemini)? -> `periodic`
 
 ## Testing
 
@@ -79,12 +89,14 @@ gstack/
 ├── office-hours/    # /office-hours skill (YC Office Hours — startup diagnostic + builder brainstorm)
 ├── investigate/     # /investigate skill (systematic root-cause debugging)
 ├── retro/           # Retrospective skill (includes /retro global cross-project mode)
-├── bin/             # Standalone scripts (gstack-global-discover for cross-tool session discovery)
+├── bin/             # CLI utilities (gstack-repo-mode, gstack-slug, gstack-config, etc.)
 ├── document-release/ # /document-release skill (post-ship doc updates)
 ├── cso/             # /cso skill (OWASP Top 10 + STRIDE security audit)
 ├── design-consultation/ # /design-consultation skill (design system from scratch)
 ├── setup-deploy/    # /setup-deploy skill (one-time deploy config)
-├── bin/             # CLI utilities (gstack-repo-mode, gstack-slug, gstack-config, etc.)
+├── .github/         # CI workflows + Docker image
+│   ├── workflows/   # evals.yml (E2E on Ubicloud), skill-docs.yml, actionlint.yml
+│   └── docker/      # Dockerfile.ci (pre-baked toolchain + Playwright/Chromium)
 ├── setup            # One-time setup: build binary + symlink skills
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs
@@ -162,6 +174,19 @@ symlink or a real copy. If it's a symlink to your working directory, be aware th
 **For plan reviews:** When reviewing plans that modify skill templates or the
 gen-skill-docs pipeline, consider whether the changes should be tested in isolation
 before going live (especially if the user is actively using gstack in other windows).
+
+## Compiled binaries — NEVER commit browse/dist/
+
+The `browse/dist/` directory contains compiled Bun binaries (`browse`, `find-browse`,
+~58MB each). These are Mach-O arm64 only — they do NOT work on Linux, Windows, or
+Intel Macs. The `./setup` script already builds from source for every platform, so
+the checked-in binaries are redundant. They are tracked by git due to a historical
+mistake and should eventually be removed with `git rm --cached`.
+
+**NEVER stage or commit these files.** They show up as modified in `git status`
+because they're tracked despite `.gitignore` — ignore them. When staging files,
+always use specific filenames (`git add file1 file2`) — never `git add .` or
+`git add -A`, which will accidentally include the binaries.
 
 ## Commit style
 
