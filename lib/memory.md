@@ -3,6 +3,19 @@
 This skill uses file-backed memory to survive context compaction. Follow these
 rules strictly — they prevent silent information loss during long sessions.
 
+### Two storage layers — don't confuse them
+
+- **`.gstack/`** (project root, gitignored) — **within-session** compaction resistance.
+  Findings detail, session state, skill handoff, checkpoints. Owned by this protocol.
+- **`~/.gstack/`** (home directory) — **cross-session** history and trends.
+  Review pass/fail logs, ship metrics, retro trend data. Owned by `gstack-review-log`,
+  `gstack-slug`, and the ship metrics step.
+
+They are complementary: `.gstack/findings.md` captures *what* was found in granular
+detail; `~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl` captures *that* a review
+happened and its high-level outcome. Never write cross-session data to `.gstack/`
+or within-session data to `~/.gstack/`.
+
 ### Initialization
 
 At the start of every skill invocation:
