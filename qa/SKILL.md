@@ -384,46 +384,27 @@ If `NEEDS_SETUP`:
 
 ## MOBILE SETUP (optional — check for Revyl cloud devices)
 
-**Step A: Check Revyl CLI auth**
+**Check Revyl CLI auth:**
 ```bash
 _revyl_out=$(revyl auth status 2>&1) && echo "REVYL_CLI_OK" || echo "REVYL_CLI_MISSING: $_revyl_out"
 ```
 
-**Step B: Check Revyl MCP tools are available in this session**
-Run ToolSearch to discover Revyl MCP tools:
-```
-ToolSearch(query="revyl device", max_results=50)
-```
-
-Now evaluate the results:
-
-**If both pass** (CLI auth OK + ToolSearch returns Revyl tools like `start_device_session`, `device_tap`, `screenshot`):
-`REVYL_READY` — Mobile QA uses Revyl MCP tools for cloud-hosted iOS and Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required.
-
-**If CLI auth OK but ToolSearch returns no Revyl tools:**
-The Revyl CLI is installed and authenticated, but the MCP server is not connected to this Claude Code session. MCP tools are loaded at session startup — the server must be registered before starting the session.
-
-Tell the user to run these commands in their terminal (not in Claude Code), then **restart Claude Code**:
+**Check Revyl MCP server is connected:**
 ```bash
-# Check current MCP config
-claude mcp get revyl
-
-# If not found, add it:
-claude mcp add revyl -- revyl mcp serve
-
-# If found but tools still missing, re-add:
-claude mcp remove revyl && claude mcp add revyl -- revyl mcp serve
+claude mcp get revyl 2>&1 && echo "REVYL_MCP_OK" || echo "REVYL_MCP_MISSING"
 ```
-After restarting Claude Code, run `/qa --mobile` again. The Revyl MCP tools will be available.
-**Do not attempt to call Revyl MCP tools if ToolSearch returned nothing — they will fail.**
-Web QA with `$B` still works normally.
 
-**If CLI auth fails (`REVYL_CLI_MISSING`):**
-Mobile testing is not available. To enable it:
-1. Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
-2. Authenticate: `revyl auth login`
-3. Register MCP: `claude mcp add revyl -- revyl mcp serve`
-4. **Restart Claude Code** (MCP tools load at session startup)
+**Evaluate results:**
+
+1. **Both OK** → `REVYL_READY`. Mobile QA uses Revyl MCP tools for cloud-hosted iOS/Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required. Revyl MCP tools (`start_device_session`, `device_tap`, `screenshot`, etc.) are available as MCP tools in this session — call them directly like any other tool. If a tool call fails with "tool not found", try `ToolSearch(query="revyl", max_results=50)` to load deferred schemas, then retry.
+
+2. **CLI OK but MCP missing** → Run in terminal: `claude mcp add revyl -- revyl mcp serve`, then **restart Claude Code** and retry `/qa --mobile`.
+
+3. **CLI missing** → Mobile testing not available. To enable:
+   - Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
+   - Authenticate: `revyl auth login`
+   - Register MCP: `claude mcp add revyl -- revyl mcp serve`
+   - **Restart Claude Code**
 
 Web QA works as usual with `$B` regardless of Revyl status.
 
@@ -665,25 +646,18 @@ This is the **primary mode** for developers verifying their work. When the user 
    ```
    If no bundleIdentifier found, check `app.config.js` or `app.config.ts` for it.
 
-   **Step 2: Verify Revyl MCP tools are loaded**
-   The MOBILE SETUP section above already ran ToolSearch. If it found Revyl MCP tools (you should have `start_device_session`, `device_tap`, `screenshot`, etc. available), proceed to Step 3.
-
-   **If no Revyl MCP tools were found in MOBILE SETUP**, stop mobile QA here. Tell the user:
-   "Revyl CLI is authenticated but the MCP tools aren't available in this session. Run `claude mcp add revyl -- revyl mcp serve` in your terminal, then restart Claude Code and try `/qa --mobile` again."
-   Fall back to web QA with `$B` for any web-testable routes.
-
-   **Step 3: Start a Revyl cloud device session**
+   **Step 2: Start a Revyl cloud device session**
    Use the Revyl MCP tool: `start_device_session(platform="ios")`
    - Default to iOS. If the user specifies `--mobile android`, use `platform="android"`.
    - This provisions a cloud-hosted device — no local simulator, Appium, or Java required.
    - Note the `viewer_url` returned — share it with the user so they can watch the session live.
 
-   **Step 4: Install and launch the app**
+   **Step 3: Install and launch the app**
    - If the user provides an app URL (.ipa or .apk): `install_app(app_url="<url>")`
    - Then launch: `launch_app(bundle_id="<bundleId>")`
    - If `launch_app` fails with "app not found", tell the user: "The app is not installed on the cloud device. Please provide a build URL (.ipa for iOS, .apk for Android) or upload your build via `revyl build upload`."
 
-   **Step 5: Activate mobile mode**
+   **Step 4: Activate mobile mode**
    **MOBILE MODE ACTIVE** — use Revyl MCP tools instead of `$B` for all subsequent commands.
 
    **In mobile mode, the QA flow uses Revyl MCP tools:**
