@@ -533,6 +533,11 @@ Refs are invalidated on navigation — run `snapshot` again after `goto`.
 |---------|-------------|
 | `snapshot [flags]` | Accessibility tree with @e refs for element selection. Flags: -i interactive only, -c compact, -d N depth limit, -s sel scope, -D diff vs previous, -a annotated screenshot, -o path output, -C cursor-interactive @c refs |
 
+### Session
+| Command | Description |
+|---------|-------------|
+| `session <new|switch|list|delete> [name]` | Manage isolated browser sessions with separate cookies/storage |
+
 ### Meta
 | Command | Description |
 |---------|-------------|

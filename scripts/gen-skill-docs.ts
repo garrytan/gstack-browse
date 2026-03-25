@@ -116,7 +116,7 @@ function generateCommandReference(_ctx: TemplateContext): string {
   // Category display order
   const categoryOrder = [
     'Navigation', 'Reading', 'Interaction', 'Inspection',
-    'Visual', 'Snapshot', 'Meta', 'Tabs', 'Server',
+    'Visual', 'Snapshot', 'Session', 'Meta', 'Tabs', 'Server',
   ];
 
   const sections: string[] = [];

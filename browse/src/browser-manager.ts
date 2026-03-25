@@ -1,6 +1,11 @@
 /**
  * Browser lifecycle manager
  *
+ * Session isolation:
+ *   Each session has its own BrowserContext with separate cookies, storage,
+ *   and tab set. The "default" session is created on launch.
+ *   Global state (dialog handling, UA, headers) is shared across sessions.
+ *
  * Chromium crash handling:
  *   browser.on('disconnected') → log error → process.exit(1)
  *   CLI detects dead server → auto-restarts on next command
@@ -34,24 +39,25 @@ export interface BrowserState {
   }>;
 }
 
+interface Session {
+  name: string;
+  context: BrowserContext;
+  pages: Map<number, Page>;
+  activeTabId: number;
+  refMap: Map<string, RefEntry>;
+  lastSnapshot: string | null;
+}
+
 export class BrowserManager {
   private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private pages: Map<number, Page> = new Map();
-  private activeTabId: number = 0;
+  private sessions: Map<string, Session> = new Map();
+  private activeSessionName: string = 'default';
   private nextTabId: number = 1;
   private extraHeaders: Record<string, string> = {};
   private customUserAgent: string | null = null;
 
   /** Server port — set after server starts, used by cookie-import-browser command */
   public serverPort: number = 0;
-
-  // ─── Ref Map (snapshot → @e1, @e2, @c1, @c2, ...) ────────
-  private refMap: Map<string, RefEntry> = new Map();
-
-  // ─── Snapshot Diffing ─────────────────────────────────────
-  // NOT cleared on navigation — it's a text baseline for diffing
-  private lastSnapshot: string | null = null;
 
   // ─── Dialog Handling ──────────────────────────────────────
   private dialogAutoAccept: boolean = true;
@@ -60,6 +66,13 @@ export class BrowserManager {
   // ─── Handoff State ─────────────────────────────────────────
   private isHeaded: boolean = false;
   private consecutiveFailures: number = 0;
+
+  // ─── Session Accessor ───────────────────────────────────────
+  private get session(): Session {
+    const s = this.sessions.get(this.activeSessionName);
+    if (!s) throw new Error(`No active session "${this.activeSessionName}" — this is a bug`);
+    return s;
+  }
 
   async launch() {
     // ─── Extension Support ────────────────────────────────────
@@ -109,11 +122,22 @@ export class BrowserManager {
     if (this.customUserAgent) {
       contextOptions.userAgent = this.customUserAgent;
     }
-    this.context = await this.browser.newContext(contextOptions);
+    const context = await this.browser.newContext(contextOptions);
 
     if (Object.keys(this.extraHeaders).length > 0) {
-      await this.context.setExtraHTTPHeaders(this.extraHeaders);
+      await context.setExtraHTTPHeaders(this.extraHeaders);
     }
+
+    const session: Session = {
+      name: 'default',
+      context,
+      pages: new Map(),
+      activeTabId: 0,
+      refMap: new Map(),
+      lastSnapshot: null,
+    };
+    this.sessions.set('default', session);
+    this.activeSessionName = 'default';
 
     // Create first tab
     await this.newTab();
@@ -129,6 +153,7 @@ export class BrowserManager {
         new Promise(resolve => setTimeout(resolve, 5000)),
       ]).catch(() => {});
       this.browser = null;
+      this.sessions.clear();
     }
   }
 
@@ -136,7 +161,7 @@ export class BrowserManager {
   async isHealthy(): Promise<boolean> {
     if (!this.browser || !this.browser.isConnected()) return false;
     try {
-      const page = this.pages.get(this.activeTabId);
+      const page = this.session.pages.get(this.session.activeTabId);
       if (!page) return true; // connected but no pages — still healthy
       await Promise.race([
         page.evaluate('1'),
@@ -150,20 +175,21 @@ export class BrowserManager {
 
   // ─── Tab Management ────────────────────────────────────────
   async newTab(url?: string): Promise<number> {
-    if (!this.context) throw new Error('Browser not launched');
+    const session = this.session;
+    if (!session.context) throw new Error('Browser not launched');
 
     // Validate URL before allocating page to avoid zombie tabs on rejection
     if (url) {
       await validateNavigationUrl(url);
     }
 
-    const page = await this.context.newPage();
+    const page = await session.context.newPage();
     const id = this.nextTabId++;
-    this.pages.set(id, page);
-    this.activeTabId = id;
+    session.pages.set(id, page);
+    session.activeTabId = id;
 
     // Wire up console/network/dialog capture
-    this.wirePageEvents(page);
+    this.wirePageEvents(page, this.activeSessionName);
 
     if (url) {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
@@ -173,18 +199,19 @@ export class BrowserManager {
   }
 
   async closeTab(id?: number): Promise<void> {
-    const tabId = id ?? this.activeTabId;
-    const page = this.pages.get(tabId);
+    const session = this.session;
+    const tabId = id ?? session.activeTabId;
+    const page = session.pages.get(tabId);
     if (!page) throw new Error(`Tab ${tabId} not found`);
 
     await page.close();
-    this.pages.delete(tabId);
+    session.pages.delete(tabId);
 
     // Switch to another tab if we closed the active one
-    if (tabId === this.activeTabId) {
-      const remaining = [...this.pages.keys()];
+    if (tabId === session.activeTabId) {
+      const remaining = [...session.pages.keys()];
       if (remaining.length > 0) {
-        this.activeTabId = remaining[remaining.length - 1];
+        session.activeTabId = remaining[remaining.length - 1];
       } else {
         // No tabs left — create a new blank one
         await this.newTab();
@@ -193,22 +220,23 @@ export class BrowserManager {
   }
 
   switchTab(id: number): void {
-    if (!this.pages.has(id)) throw new Error(`Tab ${id} not found`);
-    this.activeTabId = id;
+    if (!this.session.pages.has(id)) throw new Error(`Tab ${id} not found`);
+    this.session.activeTabId = id;
   }
 
   getTabCount(): number {
-    return this.pages.size;
+    return this.session.pages.size;
   }
 
   async getTabListWithTitles(): Promise<Array<{ id: number; url: string; title: string; active: boolean }>> {
+    const session = this.session;
     const tabs: Array<{ id: number; url: string; title: string; active: boolean }> = [];
-    for (const [id, page] of this.pages) {
+    for (const [id, page] of session.pages) {
       tabs.push({
         id,
         url: page.url(),
         title: await page.title().catch(() => ''),
-        active: id === this.activeTabId,
+        active: id === session.activeTabId,
       });
     }
     return tabs;
@@ -216,7 +244,7 @@ export class BrowserManager {
 
   // ─── Page Access ───────────────────────────────────────────
   getPage(): Page {
-    const page = this.pages.get(this.activeTabId);
+    const page = this.session.pages.get(this.session.activeTabId);
     if (!page) throw new Error('No active page. Use "browse goto <url>" first.');
     return page;
   }
@@ -231,11 +259,11 @@ export class BrowserManager {
 
   // ─── Ref Map ──────────────────────────────────────────────
   setRefMap(refs: Map<string, RefEntry>) {
-    this.refMap = refs;
+    this.session.refMap = refs;
   }
 
   clearRefs() {
-    this.refMap.clear();
+    this.session.refMap.clear();
   }
 
   /**
@@ -245,7 +273,7 @@ export class BrowserManager {
   async resolveRef(selector: string): Promise<{ locator: Locator } | { selector: string }> {
     if (selector.startsWith('@e') || selector.startsWith('@c')) {
       const ref = selector.slice(1); // "e3" or "c1"
-      const entry = this.refMap.get(ref);
+      const entry = this.session.refMap.get(ref);
       if (!entry) {
         throw new Error(
           `Ref ${selector} not found. Run 'snapshot' to get fresh refs.`
@@ -266,23 +294,23 @@ export class BrowserManager {
   /** Get the ARIA role for a ref selector, or null for CSS selectors / unknown refs. */
   getRefRole(selector: string): string | null {
     if (selector.startsWith('@e') || selector.startsWith('@c')) {
-      const entry = this.refMap.get(selector.slice(1));
+      const entry = this.session.refMap.get(selector.slice(1));
       return entry?.role ?? null;
     }
     return null;
   }
 
   getRefCount(): number {
-    return this.refMap.size;
+    return this.session.refMap.size;
   }
 
   // ─── Snapshot Diffing ─────────────────────────────────────
   setLastSnapshot(text: string | null) {
-    this.lastSnapshot = text;
+    this.session.lastSnapshot = text;
   }
 
   getLastSnapshot(): string | null {
-    return this.lastSnapshot;
+    return this.session.lastSnapshot;
   }
 
   // ─── Dialog Control ───────────────────────────────────────
@@ -310,8 +338,9 @@ export class BrowserManager {
   // ─── Extra Headers ─────────────────────────────────────────
   async setExtraHeader(name: string, value: string) {
     this.extraHeaders[name] = value;
-    if (this.context) {
-      await this.context.setExtraHTTPHeaders(this.extraHeaders);
+    const s = this.sessions.get(this.activeSessionName);
+    if (s?.context) {
+      await s.context.setExtraHTTPHeaders(this.extraHeaders);
     }
   }
 
@@ -326,16 +355,17 @@ export class BrowserManager {
 
   // ─── State Save/Restore (shared by recreateContext + handoff) ─
   /**
-   * Capture browser state: cookies, localStorage, sessionStorage, URLs, active tab.
+   * Capture browser state for the active session: cookies, localStorage,
+   * sessionStorage, URLs, active tab.
    * Skips pages that fail storage reads (e.g., already closed).
    */
   async saveState(): Promise<BrowserState> {
-    if (!this.context) throw new Error('Browser not launched');
+    const session = this.session;
 
-    const cookies = await this.context.cookies();
+    const cookies = await session.context.cookies();
     const pages: BrowserState['pages'] = [];
 
-    for (const [id, page] of this.pages) {
+    for (const [id, page] of session.pages) {
       const url = page.url();
       let storage = null;
       try {
@@ -346,7 +376,7 @@ export class BrowserManager {
       } catch {}
       pages.push({
         url: url === 'about:blank' ? '' : url,
-        isActive: id === this.activeTabId,
+        isActive: id === session.activeTabId,
         storage,
       });
     }
@@ -355,25 +385,25 @@ export class BrowserManager {
   }
 
   /**
-   * Restore browser state into the current context: cookies, pages, storage.
+   * Restore browser state into the active session's context: cookies, pages, storage.
    * Navigates to saved URLs, restores storage, wires page events.
    * Failures on individual pages are swallowed — partial restore is better than none.
    */
   async restoreState(state: BrowserState): Promise<void> {
-    if (!this.context) throw new Error('Browser not launched');
+    const session = this.session;
 
     // Restore cookies
     if (state.cookies.length > 0) {
-      await this.context.addCookies(state.cookies);
+      await session.context.addCookies(state.cookies);
     }
 
     // Re-create pages
     let activeId: number | null = null;
     for (const saved of state.pages) {
-      const page = await this.context.newPage();
+      const page = await session.context.newPage();
       const id = this.nextTabId++;
-      this.pages.set(id, page);
-      this.wirePageEvents(page);
+      session.pages.set(id, page);
+      this.wirePageEvents(page, this.activeSessionName);
 
       if (saved.url) {
         await page.goto(saved.url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {});
@@ -400,14 +430,14 @@ export class BrowserManager {
     }
 
     // If no pages were saved, create a blank one
-    if (this.pages.size === 0) {
+    if (session.pages.size === 0) {
       await this.newTab();
     } else {
-      this.activeTabId = activeId ?? [...this.pages.keys()][0];
+      session.activeTabId = activeId ?? [...session.pages.keys()][0];
     }
 
     // Clear refs — pages are new, locators are stale
-    this.clearRefs();
+    session.refMap.clear();
   }
 
   /**
@@ -416,7 +446,8 @@ export class BrowserManager {
    * Falls back to a clean slate on any failure.
    */
   async recreateContext(): Promise<string | null> {
-    if (!this.browser || !this.context) {
+    const session = this.session;
+    if (!this.browser || !session.context) {
       throw new Error('Browser not launched');
     }
 
@@ -425,11 +456,11 @@ export class BrowserManager {
       const state = await this.saveState();
 
       // 2. Close old pages and context
-      for (const page of this.pages.values()) {
+      for (const page of session.pages.values()) {
         await page.close().catch(() => {});
       }
-      this.pages.clear();
-      await this.context.close().catch(() => {});
+      session.pages.clear();
+      await session.context.close().catch(() => {});
 
       // 3. Create new context with updated settings
       const contextOptions: BrowserContextOptions = {
@@ -438,10 +469,10 @@ export class BrowserManager {
       if (this.customUserAgent) {
         contextOptions.userAgent = this.customUserAgent;
       }
-      this.context = await this.browser.newContext(contextOptions);
+      session.context = await this.browser.newContext(contextOptions);
 
       if (Object.keys(this.extraHeaders).length > 0) {
-        await this.context.setExtraHTTPHeaders(this.extraHeaders);
+        await session.context.setExtraHTTPHeaders(this.extraHeaders);
       }
 
       // 4. Restore state
@@ -451,8 +482,8 @@ export class BrowserManager {
     } catch (err: unknown) {
       // Fallback: create a clean context + blank tab
       try {
-        this.pages.clear();
-        if (this.context) await this.context.close().catch(() => {});
+        session.pages.clear();
+        if (session.context) await session.context.close().catch(() => {});
 
         const contextOptions: BrowserContextOptions = {
           viewport: { width: 1280, height: 720 },
@@ -460,9 +491,9 @@ export class BrowserManager {
         if (this.customUserAgent) {
           contextOptions.userAgent = this.customUserAgent;
         }
-        this.context = await this.browser!.newContext(contextOptions);
+        session.context = await this.browser!.newContext(contextOptions);
         await this.newTab();
-        this.clearRefs();
+        session.refMap.clear();
       } catch {
         // If even the fallback fails, we're in trouble — but browser is still alive
       }
@@ -473,6 +504,7 @@ export class BrowserManager {
   // ─── Handoff: Headless → Headed ─────────────────────────────
   /**
    * Hand off browser control to the user by relaunching in headed mode.
+   * Saves and restores the active session's state.
    *
    * Flow (launch-first-close-second for safe rollback):
    *   1. Save state from current headless browser
@@ -485,7 +517,8 @@ export class BrowserManager {
     if (this.isHeaded) {
       return `HANDOFF: Already in headed mode at ${this.getCurrentUrl()}`;
     }
-    if (!this.browser || !this.context) {
+    const session = this.session;
+    if (!this.browser || !session.context) {
       throw new Error('Browser not launched');
     }
 
@@ -520,13 +553,12 @@ export class BrowserManager {
         await newContext.setExtraHTTPHeaders(this.extraHeaders);
       }
 
-      // Swap to new browser/context before restoreState (it uses this.context)
+      // Swap to new browser/context before restoreState (it uses this.session)
       const oldBrowser = this.browser;
-      const oldContext = this.context;
 
       this.browser = newBrowser;
-      this.context = newContext;
-      this.pages.clear();
+      session.context = newContext;
+      session.pages.clear();
 
       // Register crash handler on new browser
       this.browser.on('disconnected', () => {
@@ -586,13 +618,74 @@ export class BrowserManager {
     return null;
   }
 
+  // ─── Session Management ─────────────────────────────────────
+  async newSession(name: string): Promise<void> {
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
+      throw new Error('Session name must be 1-32 alphanumeric characters, dashes, or underscores');
+    }
+    if (this.sessions.has(name)) {
+      throw new Error(`Session "${name}" already exists`);
+    }
+    if (!this.browser) throw new Error('Browser not launched');
+
+    const contextOptions: BrowserContextOptions = { viewport: { width: 1280, height: 720 } };
+    if (this.customUserAgent) contextOptions.userAgent = this.customUserAgent;
+    const context = await this.browser.newContext(contextOptions);
+    if (Object.keys(this.extraHeaders).length > 0) {
+      await context.setExtraHTTPHeaders(this.extraHeaders);
+    }
+
+    const session: Session = {
+      name,
+      context,
+      pages: new Map(),
+      activeTabId: 0,
+      refMap: new Map(),
+      lastSnapshot: null,
+    };
+    this.sessions.set(name, session);
+    this.activeSessionName = name;
+    await this.newTab();
+  }
+
+  async deleteSession(name: string): Promise<void> {
+    if (name === 'default') throw new Error('Cannot delete the default session');
+    if (name === this.activeSessionName) throw new Error('Cannot delete the active session — switch first');
+    const session = this.sessions.get(name);
+    if (!session) throw new Error(`Session "${name}" not found`);
+
+    for (const page of session.pages.values()) {
+      await page.close().catch(() => {});
+    }
+    await session.context.close().catch(() => {});
+    this.sessions.delete(name);
+  }
+
+  switchSession(name: string): void {
+    if (!this.sessions.has(name)) throw new Error(`Session "${name}" not found`);
+    this.activeSessionName = name;
+  }
+
+  getSessionList(): Array<{ name: string; tabCount: number; active: boolean }> {
+    return [...this.sessions.entries()].map(([name, session]) => ({
+      name,
+      tabCount: session.pages.size,
+      active: name === this.activeSessionName,
+    }));
+  }
+
+  getActiveSessionName(): string {
+    return this.activeSessionName;
+  }
+
   // ─── Console/Network/Dialog/Ref Wiring ────────────────────
-  private wirePageEvents(page: Page) {
+  private wirePageEvents(page: Page, sessionName: string) {
     // Clear ref map on navigation — refs point to stale elements after page change
     // (lastSnapshot is NOT cleared — it's a text baseline for diffing)
     page.on('framenavigated', (frame) => {
       if (frame === page.mainFrame()) {
-        this.clearRefs();
+        const session = this.sessions.get(sessionName);
+        if (session) session.refMap.clear();
       }
     });
 
