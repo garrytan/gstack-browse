@@ -335,27 +335,15 @@ If `NEEDS_SETUP`:
 
 ## MOBILE SETUP (optional — check for Revyl cloud devices)
 
-**Check Revyl CLI auth:**
 ```bash
-_revyl_out=$(revyl auth status 2>&1) && echo "REVYL_CLI_OK" || echo "REVYL_CLI_MISSING: $_revyl_out"
+revyl auth status 2>&1 && echo "REVYL_READY" || echo "REVYL_NOT_AVAILABLE"
 ```
 
-**Check Revyl MCP server is connected:**
-```bash
-claude mcp get revyl 2>&1 && echo "REVYL_MCP_OK" || echo "REVYL_MCP_MISSING"
-```
+If `REVYL_READY`: Mobile QA uses the `revyl device` CLI for cloud-hosted iOS/Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required. All device interaction is via bash commands.
 
-**Evaluate results:**
-
-1. **Both OK** → `REVYL_READY`. Mobile QA uses Revyl MCP tools for cloud-hosted iOS/Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required. Revyl MCP tools (`start_device_session`, `device_tap`, `screenshot`, etc.) are available as MCP tools in this session — call them directly like any other tool. If a tool call fails with "tool not found", try `ToolSearch(query="revyl", max_results=50)` to load deferred schemas, then retry.
-
-2. **CLI OK but MCP missing** → Run in terminal: `claude mcp add revyl -s user -- revyl mcp serve`, then **restart Claude Code** and retry `/qa --mobile`.
-
-3. **CLI missing** → Mobile testing not available. To enable:
-   - Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
-   - Authenticate: `revyl auth login`
-   - Register MCP: `claude mcp add revyl -s user -- revyl mcp serve`
-   - **Restart Claude Code**
+If `REVYL_NOT_AVAILABLE`: Mobile testing not available. To enable:
+1. Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
+2. Authenticate: `revyl auth login`
 
 Web QA works as usual with `$B` regardless of Revyl status.
 
@@ -365,7 +353,7 @@ Web QA works as usual with `$B` regardless of Revyl status.
 2. If found AND Revyl is available (REVYL_READY): **automatically start a Revyl cloud device session** — no local setup needed. Follow the "Mobile project detection" steps in the QA Methodology below. Do NOT ask the user — just do it.
 3. If no mobile config found, or Revyl is not available: use `$B` as usual. This is WEB MODE (default).
 
-**In mobile mode:** Use Revyl MCP tools instead of `$B`. Skip web-only commands (`console --errors`, `html`, `css`, `js`, `cookies`). Use `device_tap(target="element description")` with natural language targeting. Call `screenshot()` after every interaction to verify state.
+**In mobile mode:** Use `revyl device` CLI commands instead of `$B`. Skip web-only commands (`console --errors`, `html`, `css`, `js`, `cookies`). Use `revyl device tap --target "element description"` with natural language targeting. Run `revyl device screenshot --out /tmp/screen.png` after every interaction to verify state (then Read the image to view it).
 
 **Create output directories:**
 
@@ -434,54 +422,68 @@ This is the **primary mode** for developers verifying their work. When the user 
    If no bundleIdentifier found, check `app.config.js` or `app.config.ts` for it.
 
    **Step 2: Start a Revyl cloud device session**
-   Use the Revyl MCP tool: `start_device_session(platform="ios")`
-   - Default to iOS. If the user specifies `--mobile android`, use `platform="android"`.
+   ```bash
+   revyl device start --platform ios --json
+   ```
+   - Default to iOS. If the user specifies `--mobile android`, use `--platform android`.
    - This provisions a cloud-hosted device — no local simulator, Appium, or Java required.
-   - Note the `viewer_url` returned — share it with the user so they can watch the session live.
+   - The JSON output includes a `viewer_url` — share it with the user so they can watch the session live.
+   - Add `--open` to auto-open the viewer in the browser.
 
    **Step 3: Install and launch the app**
-   - If the user provides an app URL (.ipa or .apk): `install_app(app_url="<url>")`
-   - Then launch: `launch_app(bundle_id="<bundleId>")`
-   - If `launch_app` fails with "app not found", tell the user: "The app is not installed on the cloud device. Please provide a build URL (.ipa for iOS, .apk for Android) or upload your build via `revyl build upload`."
+   - If the user provides an app URL (.ipa or .apk):
+     ```bash
+     revyl device install --app-url "<url>"
+     ```
+   - Then launch:
+     ```bash
+     revyl device launch --bundle-id "<bundleId>"
+     ```
+   - If `launch` fails with "app not found", tell the user: "The app is not installed on the cloud device. Provide a build URL (.ipa for iOS, .apk for Android) or upload via `revyl build upload`."
 
    **Step 4: Activate mobile mode**
-   **MOBILE MODE ACTIVE** — use Revyl MCP tools instead of `$B` for all subsequent commands.
-
-   **In mobile mode, the QA flow uses Revyl MCP tools:**
+   **MOBILE MODE ACTIVE** — use `revyl device` CLI commands instead of `$B` for all interaction.
 
    **Interaction loop:**
-   1. `screenshot()` — capture the current screen state
+   1. `revyl device screenshot --out /tmp/mobile-screen.png` — capture current screen, then read the image file to see it
    2. Observe what's on screen — one line description
-   3. Take one best action using the appropriate MCP tool
-   4. `screenshot()` — verify the result
+   3. Take one best action using the appropriate `revyl device` command
+   4. `revyl device screenshot --out /tmp/mobile-screen.png` — verify the result
    5. Repeat
 
-   **Revyl MCP tool mapping (replaces `$B` commands):**
-   - Navigate to app: `launch_app(bundle_id="<bundleId>")`
-   - Tap an element: `device_tap(target="Sign In button")` — describe the element in natural language
-   - Type text: `device_type(target="Email field", text="user@test.com")`
-   - Swipe/scroll: `device_swipe(target="screen center", direction="up")` — "up" scrolls content down
-   - Go back: `device_back()`
-   - Take screenshot: `screenshot()`
-   - Clear text: `device_clear_text(target="Email field")`
-   - Long press: `device_long_press(target="item to select")`
-   - Go home: `device_go_home()`
-   - Open URL/deep link: `device_navigate(url="myapp://screen")`
+   **Revyl CLI command mapping (replaces `$B` commands):**
+   | Action | Command |
+   |--------|---------|
+   | Launch app | `revyl device launch --bundle-id "<bundleId>"` |
+   | Tap element | `revyl device tap --target "Sign In button"` |
+   | Type text | `revyl device type --target "Email field" --text "user@test.com"` |
+   | Swipe/scroll | `revyl device swipe --target "screen center" --direction up` |
+   | Go back | `revyl device back` |
+   | Screenshot | `revyl device screenshot --out /tmp/mobile-screen.png` |
+   | Clear text | `revyl device clear-text --target "Email field"` |
+   | Long press | `revyl device long-press --target "item to select"` |
+   | Go home | `revyl device home` |
+   | Deep link | `revyl device navigate --url "myapp://screen"` |
+   | Diagnostics | `revyl device doctor` |
 
-   **AI-grounded targeting:** Describe elements in natural language — Revyl's vision model resolves coordinates automatically. Use visible text and visual characteristics:
-   - Good: `"the blue Sign In button"`, `"input field with placeholder Email"`
-   - Bad: `"button"`, `"the element"` (too vague)
+   **AI-grounded targeting:** The `--target` flag accepts natural language — Revyl's vision model resolves coordinates automatically. Use visible text and visual characteristics:
+   - Good: `--target "the blue Sign In button"`, `--target "input field with placeholder Email"`
+   - Bad: `--target "button"`, `--target "the element"` (too vague)
+
+   **Swipe directions:** `--direction up` moves finger UP (scrolls content DOWN to reveal below). `--direction down` moves finger DOWN (scrolls content UP).
+
+   **Viewing screenshots:** After `revyl device screenshot --out /tmp/mobile-screen.png`, use the Read tool to view the image file. This lets you see the actual device screen.
 
    **Findings:**
    - Flag missing accessibility labels as accessibility findings
-   - Use `screenshot()` at milestones and share with the user
+   - Take screenshots at milestones and share with the user
    - Skip web-only commands: `console --errors`, `html`, `css`, `js`, `cookies` — not available in mobile mode
 
    **Session management:**
-   - Sessions auto-terminate after 5 minutes of idle. If an MCP tool returns a session error, call `start_device_session` again for a fresh device.
-   - Before writing lengthy findings or analyzing code, call `screenshot()` or `get_session_info()` to reset the idle timer.
-   - When QA is complete, call `stop_device_session()` to release the cloud device.
-   - Run `device_doctor()` if any tool returns unexpected errors.
+   - Sessions auto-terminate after 5 minutes of idle (300s default). Any `revyl device` command resets the timer.
+   - Before writing lengthy findings or analyzing code, run `revyl device info` to reset the idle timer.
+   - When QA is complete: `revyl device stop`
+   - If something breaks: `revyl device doctor` to diagnose, then `revyl device start --platform ios` for a fresh session.
 
 4. **Test each affected page/route:**
    - Navigate to the page
@@ -714,13 +716,13 @@ Minimum 0 per category.
 - Test browser back/forward — does the app handle history correctly?
 - Check for memory leaks (monitor console after extended use)
 
-### Expo / React Native (mobile mode — Revyl)
-- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — use `device_tap(target="visible label text")` with Revyl's AI grounding to target by visual appearance.
-- After tapping navigation elements, call `screenshot()` to verify — RN transitions are animated, wait for them to settle.
+### Expo / React Native (mobile mode — Revyl CLI)
+- Many `Pressable` / `TouchableOpacity` components lack `accessibilityRole="button"` — use `revyl device tap --target "visible label text"` with Revyl's AI grounding to target by visual appearance.
+- After tapping navigation elements, take a screenshot to verify — RN transitions are animated, wait for them to settle.
 - Flag every component without proper accessibility props (`accessibilityRole`, `accessibilityLabel`) as an accessibility finding — these affect both screen readers and automation.
 - The Expo dev launcher (showing "DEVELOPMENT SERVERS") appears on first launch — tap through to the actual app.
 - RevenueCat / in-app purchase errors in development are expected — note but don't flag as bugs.
-- `device_swipe(direction="up")` scrolls content down — for FlatList/ScrollView content below the fold.
+- `revyl device swipe --direction up` scrolls content down — for FlatList/ScrollView content below the fold.
 
 ---
 

@@ -530,41 +530,41 @@ $B css ".button" "background-color"
 
 ## Mobile Testing (optional — Revyl cloud devices)
 
-If Revyl is authenticated (`revyl auth status`), `/qa` and `/qa-only` automatically use Revyl MCP tools for mobile QA when an `app.json` or `app.config.js` is present. Cloud-hosted iOS and Android devices with AI-grounded element targeting — no local simulators, Appium, or Java required.
+If Revyl is authenticated (`revyl auth status`), `/qa` and `/qa-only` automatically use the `revyl device` CLI for mobile QA when an `app.json` or `app.config.js` is present. Cloud-hosted iOS and Android devices with AI-grounded element targeting — no local simulators, Appium, or Java required.
 
-### Revyl MCP tools for mobile
+### Revyl CLI commands for mobile
 
-```
+```bash
 # Start a cloud device session
-start_device_session(platform="ios")  # or "android"
+revyl device start --platform ios --json    # or --platform android
 
 # Take a screenshot
-screenshot()
+revyl device screenshot --out /tmp/screen.png
 
 # Tap an element (natural language targeting)
-device_tap(target="Sign In button")
+revyl device tap --target "Sign In button"
 
 # Type text into a field
-device_type(target="Email field", text="test@example.com")
+revyl device type --target "Email field" --text "test@example.com"
 
 # Swipe/scroll
-device_swipe(target="screen center", direction="up")
+revyl device swipe --target "screen center" --direction up
 
 # Navigate and control
-device_back()
-device_go_home()
-device_navigate(url="myapp://deeplink")
+revyl device back
+revyl device home
+revyl device navigate --url "myapp://deeplink"
 
 # App management
-install_app(app_url="https://example.com/app.ipa")
-launch_app(bundle_id="com.example.myapp")
+revyl device install --app-url "https://example.com/app.ipa"
+revyl device launch --bundle-id "com.example.myapp"
 
 # End session
-stop_device_session()
+revyl device stop
 ```
 
 **Key differences from web (`$B`):**
-- Elements are targeted by natural language description, not CSS selectors or @e refs
+- Elements are targeted by natural language via `--target`, not CSS selectors or @e refs
 - Revyl's AI vision model resolves coordinates automatically from descriptions
 - Web-only commands (`console`, `cookies`, `js`, `html`, `css`) are not available in mobile mode
 - Sessions are cloud-hosted — auto-terminate after 5 minutes of idle
