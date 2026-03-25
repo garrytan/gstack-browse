@@ -635,18 +635,25 @@ This is the **primary mode** for developers verifying their work. When the user 
    ```
    If no bundleIdentifier found, check `app.config.js` or `app.config.ts` for it.
 
-   **Step 2: Start a Revyl cloud device session**
+   **Step 2: Discover Revyl MCP tools**
+   Before calling any Revyl tool, load their schemas via ToolSearch:
+   ```
+   ToolSearch(query="+revyl", max_results=50)
+   ```
+   This fetches all Revyl MCP tool definitions (start_device_session, device_tap, screenshot, etc.) so they become callable. **You must do this before any Revyl MCP tool call or they will fail with "tool not found".**
+
+   **Step 3: Start a Revyl cloud device session**
    Use the Revyl MCP tool: `start_device_session(platform="ios")`
    - Default to iOS. If the user specifies `--mobile android`, use `platform="android"`.
    - This provisions a cloud-hosted device — no local simulator, Appium, or Java required.
    - Note the `viewer_url` returned — share it with the user so they can watch the session live.
 
-   **Step 3: Install and launch the app**
+   **Step 4: Install and launch the app**
    - If the user provides an app URL (.ipa or .apk): `install_app(app_url="<url>")`
    - Then launch: `launch_app(bundle_id="<bundleId>")`
    - If `launch_app` fails with "app not found", tell the user: "The app is not installed on the cloud device. Please provide a build URL (.ipa for iOS, .apk for Android) or upload your build via `revyl build upload`."
 
-   **Step 4: Activate mobile mode**
+   **Step 5: Activate mobile mode**
    **MOBILE MODE ACTIVE** — use Revyl MCP tools instead of `$B` for all subsequent commands.
 
    **In mobile mode, the QA flow uses Revyl MCP tools:**
