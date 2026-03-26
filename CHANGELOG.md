@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.19.0] - 2026-03-24
+
+### Fixed
+
+- **Auto-upgrade no longer breaks.** The root gstack skill description was 7 characters from the Codex 1024-char limit. Every new skill addition pushed it closer. Moved the skill routing table from the description (bounded) to the body (unlimited), dropping from 1017 to 409 chars with 615 chars of headroom.
+- **Codex reviews now run in the correct repo.** In multi-workspace setups (like Conductor), Codex could pick up the wrong project directory. All `codex exec` calls now explicitly set `-C` to the git root.
+
+### Added
+
+- **900-char early warning test.** A new test fails if any Codex skill description exceeds 900 chars, catching description bloat before it breaks builds.
+
 ## [0.11.18.2] - 2026-03-24
 
 ### Fixed
