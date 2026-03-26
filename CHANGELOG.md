@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.21.0] - 2026-03-26 — Mobile QA via Revyl Cloud Devices
+
+### Added
+
+- **Mobile QA now uses Revyl cloud devices instead of local Appium.** No more Java 17, Appium server, XCUITest driver, or Xcode CLI tools required. `/qa` and `/qa-only` automatically detect mobile projects (Expo/React Native) and provision cloud-hosted iOS or Android devices via the Revyl CLI. AI-grounded element targeting replaces the old ref system — describe elements in natural language instead of using `@e3` refs.
+- **Revyl auth gating.** `revyl auth status` runs automatically during QA setup. If authenticated, mobile mode activates for projects with `app.json` or `app.config.*`. If not, web QA works as usual — zero change to existing behavior.
+
+### Changed
+
+- **Revyl auth check now shows diagnostic info on failure.** If `revyl auth status` fails, the agent sees the actual error message instead of just "not available."
+- **Session keepalive checks for dead sessions.** The idle timer reset instruction now verifies the session is still alive and restarts if needed.
+- **Consistent screenshot paths.** Mobile screenshots standardized to `/tmp/mobile-screen.png` across all templates.
+
+### Removed
+
+- **`browse-mobile/` deleted entirely** (~6,000 lines). The Appium-backed local mobile QA binary, its HTTP server, ref system, platform drivers, and all tests have been removed. Replaced by Revyl CLI integration with zero local dependencies.
+- **Unused `fast-xml-parser` dependency removed.** Was added for Appium XML parsing, never imported.
+
 ## [0.11.20.0] - 2026-03-26
 
 ### Added
@@ -8,20 +26,10 @@
 - **GitHub Enterprise and self-hosted GitLab detection.** If the remote URL doesn't match `github.com` or `gitlab`, gstack checks `gh auth status` / `glab auth status` to detect authenticated platforms — no manual config needed.
 - **`/document-release` works on GitLab.** After `/ship` creates a merge request, the auto-invoked `/document-release` reads and updates the MR body via `glab` instead of failing silently.
 - **GitLab safety gate for `/land-and-deploy`.** Instead of silently failing on GitLab repos, `/land-and-deploy` now stops early with a clear message that GitLab merge support is not yet implemented.
-- **Mobile QA now uses Revyl cloud devices instead of local Appium.** No more Java 17, Appium server, XCUITest driver, or Xcode CLI tools required. `/qa` and `/qa-only` automatically detect mobile projects and provision cloud-hosted iOS or Android devices via the Revyl CLI. AI-grounded element targeting replaces the old ref system — describe elements in natural language instead of using `@e3` refs.
 
 ### Fixed
 
 - **Deduplicated gen-skill-docs resolvers.** The template generator had duplicate inline resolver functions that shadowed the modular versions, causing generated SKILL.md files to miss recent resolver updates.
-
-### Changed
-
-- **Revyl auth check now shows diagnostic info on failure.** If `revyl auth status` fails, the agent sees the actual error message instead of just "not available."
-- **Session keepalive hint added.** The QA template now instructs agents to reset the 5-minute idle timer before long analysis phases, preventing silent session loss.
-
-### Removed
-
-- **`browse-mobile/` deleted entirely** (~6,000 lines). The Appium-backed local mobile QA binary, its HTTP server, ref system, platform drivers, and all tests have been removed. Replaced by Revyl CLI integration with zero local dependencies.
 
 ## [0.11.19.0] - 2026-03-24
 
@@ -207,7 +215,6 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - `EVALS_CONCURRENCY=40` in CI for maximum parallelism (local default stays at 15)
 - Ubicloud runners at ~$0.006/run (10x cheaper than GitHub standard runners)
 - `workflow_dispatch` trigger for manual re-runs
->>>>>>> upstream/main
 
 ## [0.11.9.0] - 2026-03-23 — Codex Skill Loading Fix
 

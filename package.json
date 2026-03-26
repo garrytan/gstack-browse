@@ -1,6 +1,6 @@
 {
   "name": "gstack",
-  "version": "0.11.20.0",
+  "version": "0.11.21.0",
   "description": "Garry's Stack — Claude Code skills + fast headless browser. One repo, one install, entire AI engineering workflow.",
   "license": "MIT",
   "type": "module",
@@ -35,8 +35,7 @@
   },
   "dependencies": {
     "playwright": "^1.58.2",
-    "diff": "^7.0.0",
-    "fast-xml-parser": "^4.5.0"
+    "diff": "^7.0.0"
   },
   "engines": {
     "bun": ">=1.0.0"
