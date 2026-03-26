@@ -1216,9 +1216,9 @@ Compare screenshots and observations across pages for:
 
 **Project-scoped:**
 \`\`\`bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR/designs"
 \`\`\`
-Write to: \`~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md\`
+Write to: \`.gstack/designs/{user}-{branch}-design-audit-{datetime}.md\`
 
 **Baseline:** Write \`design-baseline.json\` for regression mode:
 \`\`\`json
@@ -1814,12 +1814,12 @@ The plan should be complete enough that when implementation begins, every test i
 After producing the coverage diagram, write a test plan artifact to the project directory so \`/qa\` and \`/qa-only\` can consume it as primary test input:
 
 \`\`\`bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR/plans"
 USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 \`\`\`
 
-Write to \`~/.gstack/projects/{slug}/{user}-{branch}-eng-review-test-plan-{datetime}.md\`:
+Write to \`.gstack/plans/{user}-{branch}-eng-review-test-plan-{datetime}.md\`:
 
 \`\`\`markdown
 # Test Plan
@@ -1878,12 +1878,12 @@ Coverage line: \`Test Coverage Audit: N new code paths. M covered (X%). K tests 
 After producing the coverage diagram, write a test plan artifact so \`/qa\` and \`/qa-only\` can consume it:
 
 \`\`\`bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR/plans"
 USER=$(whoami)
 DATETIME=$(date +%Y%m%d-%H%M%S)
 \`\`\`
 
-Write to \`~/.gstack/projects/{slug}/{user}-{branch}-ship-test-plan-{datetime}.md\`:
+Write to \`.gstack/plans/{user}-{branch}-ship-test-plan-{datetime}.md\`:
 
 \`\`\`markdown
 # Test Plan
@@ -2048,9 +2048,11 @@ If the Read fails (file not found), say:
 
 After /${first} completes, re-run the design doc check:
 \`\`\`bash
-SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+DESIGN=$(ls -t "$PROJECT_DATA_DIR"/designs/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$DESIGN" ] && DESIGN=$(ls -t "$PROJECT_DATA_DIR"/designs/*-design-*.md 2>/dev/null | head -1)
+# Fallback: legacy global path
+[ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
 [ -z "$DESIGN" ] && DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 \`\`\`
