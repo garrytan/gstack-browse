@@ -445,7 +445,7 @@ Hey gstack team — ran into this while using /{skill-name}:
 
 **What I was trying to do:** {what the user/agent was attempting}
 **What happened instead:** {what actually happened}
-**My rating:** {0-10} — {one sentence on why it wasn't a 10}
+**My Rating:** {0-10} — {one sentence on why it wasn't a 10}
 
 ## Steps to reproduce
 1. {step}
@@ -556,15 +556,14 @@ plan's living status.`;
 }
 
 function generatePreamble(ctx: TemplateContext): string {
+  const tier = ctx.preambleTier ?? 4;
   return [
     generatePreambleBash(ctx),
     generateUpgradeCheck(ctx),
     generateLakeIntro(),
     generateTelemetryPrompt(ctx),
-    generateAskUserFormat(ctx),
-    generateCompletenessSection(),
-    generateRepoModeSection(),
-    generateSearchBeforeBuildingSection(ctx),
+    ...(tier >= 2 ? [generateAskUserFormat(ctx), generateCompletenessSection()] : []),
+    ...(tier >= 3 ? [generateRepoModeSection(), generateSearchBeforeBuildingSection(ctx)] : []),
     generateContributorMode(),
     generateCompletionStatus(),
   ].join('\n\n');

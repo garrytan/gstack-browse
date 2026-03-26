@@ -14,6 +14,26 @@
 **Priority:** P2
 **Depends on:** Blog post about Search Before Building
 
+## Chrome DevTools MCP Integration
+
+### Real Chrome session access
+
+**What:** Integrate Chrome DevTools MCP to connect to the user's real Chrome session with real cookies, real state, no Playwright middleman.
+
+**Why:** Right now, headed mode launches a fresh Chromium profile. Users must log in manually or import cookies. Chrome DevTools MCP connects to the user's actual Chrome ... instant access to every authenticated site. This is the future of browser automation for AI agents.
+
+**Context:** Google shipped Chrome DevTools MCP in Chrome 146+ (June 2025). It provides screenshots, console messages, performance traces, Lighthouse audits, and full page interaction through the user's real browser. gstack should use it for real-session access while keeping Playwright for headless CI/testing workflows.
+
+Potential new skills:
+- `/debug-browser`: JS error tracing with source-mapped stack traces
+- `/perf-debug`: performance traces, Core Web Vitals, network waterfall
+
+May replace `/setup-browser-cookies` for most use cases since the user's real cookies are already there.
+
+**Effort:** L (human: ~2 weeks / CC: ~2 hours)
+**Priority:** P0
+**Depends on:** Chrome 146+, DevTools MCP server installed
+
 ## Browse
 
 ### Bundle server.ts into compiled binary
@@ -60,17 +80,14 @@
 **Effort:** S
 **Priority:** P3
 
-### State persistence
+### State persistence — SHIPPED
 
-**What:** Save/load cookies + localStorage to JSON files for reproducible test sessions.
+~~**What:** Save/load cookies + localStorage to JSON files for reproducible test sessions.~~
 
-**Why:** Enables "resume where I left off" for QA sessions and repeatable auth states.
+`$B state save/load` ships in v0.12.1.0. V1 saves cookies + URLs only (not localStorage, which breaks on load-before-navigate). Files at `.gstack/browse-states/{name}.json` with 0o600 permissions. Load replaces session (closes all pages first). Name sanitized to `[a-zA-Z0-9_-]`.
 
-**Context:** The `saveState()`/`restoreState()` helpers from the handoff feature (browser-manager.ts) already capture cookies + localStorage + sessionStorage + URLs. Adding file I/O on top is ~20 lines.
-
-**Effort:** S
-**Priority:** P3
-**Depends on:** Sessions
+**Remaining:** V2 localStorage support (needs pre-navigation injection strategy).
+**Completed:** v0.12.1.0 (2026-03-26)
 
 ### Auth vault
 
@@ -82,14 +99,13 @@
 **Priority:** P3
 **Depends on:** Sessions, state persistence
 
-### Iframe support
+### Iframe support — SHIPPED
 
-**What:** `frame <sel>` and `frame main` commands for cross-frame interaction.
+~~**What:** `frame <sel>` and `frame main` commands for cross-frame interaction.~~
 
-**Why:** Many web apps use iframes (embeds, payment forms, ads). Currently invisible to browse.
+`$B frame` ships in v0.12.1.0. Supports CSS selector, @ref, `--name`, and `--url` pattern matching. Execution target abstraction (`getActiveFrameOrPage()`) across all read/write/snapshot commands. Frame context cleared on navigation, tab switch, resume. Detached frame auto-recovery. Page-only operations (goto, screenshot, viewport) throw clear error when in frame context.
 
-**Effort:** M
-**Priority:** P4
+**Completed:** v0.12.1.0 (2026-03-26)
 
 ### Semantic locators
 
@@ -145,14 +161,39 @@
 **Effort:** L
 **Priority:** P4
 
-### CDP mode
+### Headed mode with Chrome extension — SHIPPED
 
-**What:** Connect to already-running Chrome/Electron apps via Chrome DevTools Protocol.
+`$B connect` launches Playwright's bundled Chromium in headed mode with the gstack Chrome extension auto-loaded. `$B handoff` now produces the same result (extension + side panel). Sidebar chat gated behind `--chat` flag.
 
-**Why:** Test production apps, Electron apps, and existing browser sessions without launching new instances.
+### `$B watch` — SHIPPED
 
-**Effort:** M
+Claude observes user browsing in passive read-only mode with periodic snapshots. `$B watch stop` exits with summary. Mutation commands blocked during watch.
+
+### Sidebar scout / file drop relay — SHIPPED
+
+Sidebar agent writes structured messages to `.context/sidebar-inbox/`. Workspace agent reads via `$B inbox`. Message format: `{type, timestamp, page, userMessage, sidebarSessionId}`.
+
+### Multi-agent tab isolation
+
+**What:** Two Claude sessions connect to the same browser, each operating on different tabs. No cross-contamination.
+
+**Why:** Enables parallel /qa + /design-review on different tabs in the same browser.
+
+**Context:** Requires tab ownership model for concurrent headed connections. Playwright may not cleanly support two persistent contexts. Needs investigation.
+
+**Effort:** L (human: ~2 weeks / CC: ~2 hours)
+**Priority:** P3
+**Depends on:** Headed mode (shipped)
+
+### Chrome Web Store publishing
+
+**What:** Publish the gstack browse Chrome extension to Chrome Web Store for easier install.
+
+**Why:** Currently sideloaded via chrome://extensions. Web Store makes install one-click.
+
+**Effort:** S
 **Priority:** P4
+**Depends on:** Chrome extension proving value via sideloading
 
 ### Linux cookie decryption — PARTIALLY SHIPPED
 
