@@ -104,6 +104,33 @@ service with existing deployment — verify that a distribution pipeline exists.
 
 ---
 
+## Step 1.5: Distribution Pipeline Check
+
+If the diff introduces a new standalone artifact (CLI binary, library package, tool) — not a web
+service with existing deployment — verify that a distribution pipeline exists.
+
+1. Check if the diff adds a new `cmd/` directory, `main.go`, or `bin/` entry point:
+   ```bash
+   git diff origin/<base> --name-only | grep -E '(cmd/.*/main\.go|bin/|Cargo\.toml|setup\.py|package\.json)' | head -5
+   ```
+
+2. If new artifact detected, check for a release workflow:
+   ```bash
+   ls .github/workflows/ 2>/dev/null | grep -iE 'release|publish|dist'
+   ```
+
+3. **If no release pipeline exists and a new artifact was added:** Use AskUserQuestion:
+   - "This PR adds a new binary/tool but there's no CI/CD pipeline to build and publish it.
+     Users won't be able to download the artifact after merge."
+   - A) Add a release workflow now (GitHub Actions cross-platform build + GitHub Releases)
+   - B) Defer — add to TODOS.md
+   - C) Not needed — this is internal/web-only, existing deployment covers it
+
+4. **If release pipeline exists:** Continue silently.
+5. **If no new artifact detected:** Skip silently.
+
+---
+
 ## Step 2: Merge the base branch (BEFORE tests)
 
 Fetch and merge the base branch into the feature branch so tests run against the merged state:
