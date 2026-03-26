@@ -4,6 +4,5 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
-GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
-mkdir -p "$GSTACK_HOME/projects/$SLUG"
-echo "$1" >> "$GSTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"
+mkdir -p "$PROJECT_DATA_DIR"
+echo "$1" >> "$PROJECT_DATA_DIR/$BRANCH-reviews.jsonl"
