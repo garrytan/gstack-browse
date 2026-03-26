@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.3.0] - 2026-03-26
+
+### Added
+
+- **New `/strategist` skill — competitive strategy analysis with framework orchestration.** Two modes: `/strategist brief` runs autonomous competitive intelligence research (WebSearch + browse scraping, inline citations, confidence tiers), and `/strategist` runs an interactive strategy session using Rumelt's kernel (diagnosis → guiding policy → coherent actions with mutual support mapping → milestone-gated execution plan). Produces versioned strategy documents that downstream skills (`/plan-ceo-review`, `/plan-eng-review`) automatically discover and reference.
+- **Strategy doc discovery in plan reviews.** `/plan-ceo-review` and `/plan-eng-review` now discover `*-strategy-*.md` files alongside design docs, giving plan reviews competitive context and strategic priorities.
+
 ## [0.12.2.0] - 2026-03-26 — Deploy with Confidence: First-Run Dry Run
 
 The first time you run `/land-and-deploy` on a project, it does a dry run. It detects your deploy infrastructure, tests that every command works, and shows you exactly what will happen... before it touches anything. You confirm, and from then on it just works.
