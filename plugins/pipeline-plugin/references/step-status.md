@@ -11,7 +11,7 @@
 | `done` | 성공적으로 완료 | ✓ |
 | `fail` | 실행했으나 실패 | ✗ |
 | `skipped` | 조건 미충족으로 건너뜀 | ⊘ |
-| `skipped (gstack 미설치)` | gstack 필요 단계, 미설치 | ⚠ |
+| `skipped (GSTACK_NOT_AVAILABLE)` | gstack 필요 단계, 미설치 | ⚠ |
 | `skipped (사용자 선택)` | 사용자가 건너뛰기 선택 | ⊘ |
 | `skipped (이미 존재)` | 이전 결과 재사용 | ↺ |
 | `skipped (최근 실행)` | 최근 실행 결과 유효 | ↺ |

@@ -25,14 +25,14 @@ Crew verify + gstack CSO를 조합한 보안 감사입니다.
 
 ## Step 2: gstack OWASP+STRIDE 감사
 
-**gstack 미설치 시**: "Crew verify 결과만 제공합니다." 후 `skipped`.
+**GSTACK_NOT_AVAILABLE 시**: "Crew verify 결과만 제공합니다." 후 `skipped`.
 
 이전 감사 결과 있으면 "이전 대비 변화" 관점으로 분석하도록 지시.
 `/cso` 스킬 실행.
 
 ## Step 3: 심층 스캔 (--comprehensive만)
 
-일일 모드 또는 gstack 미설치 시 `skipped`.
+일일 모드 또는 GSTACK_NOT_AVAILABLE 시 `skipped`.
 `/cso --comprehensive` 실행.
 
 ## 마무리

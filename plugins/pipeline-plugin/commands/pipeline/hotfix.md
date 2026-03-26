@@ -27,7 +27,7 @@ argument-hint: <버그 설명 또는 에러 메시지>
 
 ## Step 2: QA 검증 (gstack, 선택)
 
-**gstack 미설치 시**: `skipped` 기록.
+**GSTACK_NOT_AVAILABLE 시**: `skipped` 기록.
 
 AskUserQuestion — "브라우저 QA 테스트를 진행할까요?"
 - **건너뛰기 (Recommended)**
@@ -39,7 +39,7 @@ AskUserQuestion — "브라우저 QA 테스트를 진행할까요?"
 
 ## Step 4: Ship (gstack)
 
-**gstack 미설치 시**: "수동 PR 생성" 안내 후 `skipped`.
+**GSTACK_NOT_AVAILABLE 시**: "수동 PR 생성" 안내 후 `skipped`.
 
 AskUserQuestion — "PR을 생성할까요?"
 - **Ship (Recommended)** — `/ship` 실행

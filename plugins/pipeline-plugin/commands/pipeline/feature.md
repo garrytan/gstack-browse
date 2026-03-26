@@ -58,9 +58,9 @@ AskUserQuestion — "구현 완료. 검증 단계로 진행?"
 
 ## Phase 3: 검증 (다층 방어)
 
-**gstack 미설치 시**: Step 5, 6, 7을 일괄 `skipped (gstack 미설치)` 처리 후 Step 8로.
+**GSTACK_NOT_AVAILABLE 시**: Step 5, 6, 7을 일괄 `skipped (GSTACK_NOT_AVAILABLE)` 처리 후 Step 8로.
 
-**gstack 미설치 시 대체 행동**:
+**GSTACK_NOT_AVAILABLE 시 대체 행동**:
 - **Step 5 (QA)**: AskUserQuestion — "수동 QA 체크리스트를 생성할까요? / Playwright 테스트 코드를 생성할까요? / 건너뛰기"
 - **Step 6 (성능)**: AskUserQuestion — "Lighthouse CLI로 측정할까요? (`npx lighthouse <url> --output json`) / 건너뛰기"
 - **Step 7 (보안)**: `/crew:review`에 보안 관점을 추가하여 코드 기반 보안 점검을 자동 수행합니다.
@@ -102,7 +102,7 @@ AskUserQuestion — "모든 검증 완료. Ship 할까요?"
 
 ## Phase 4: 배포
 
-**gstack 미설치 시**: Step 9 `skipped` (수동 PR 생성 안내) → Phase 5로.
+**GSTACK_NOT_AVAILABLE 시**: Step 9 `skipped` (수동 PR 생성 안내) → Phase 5로.
 
 ### Step 9: Ship (gstack)
 
@@ -121,7 +121,7 @@ AskUserQuestion — "PR 생성됨. 즉시 배포?"
 
 ## Phase 5: 마무리
 
-**gstack 미설치 시**: Step 11 `skipped`.
+**GSTACK_NOT_AVAILABLE 시**: Step 11 `skipped`.
 
 ### Step 11: 문서 갱신 (gstack)
 

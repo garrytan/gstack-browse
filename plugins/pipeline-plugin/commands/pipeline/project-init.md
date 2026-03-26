@@ -15,13 +15,9 @@ Crew 멀티에이전트 환경과 gstack 도구를 한번에 초기화합니다.
 git 저장소이면 `git branch --show-current` → `git pull origin {브랜치}`.
 pull 실패 시: merge conflict / 인증 실패 / 네트워크 오류를 구분하여 안내.
 
-### 2. gstack 설치 확인
+### 2. gstack 스킬 가용성 확인
 
-```bash
-_GSTACK_SKILL=$(find ~/.claude/plugins/cache -path "*/gstack-plugin/*/skills/browse/SKILL.md" 2>/dev/null | head -1)
-[ -z "$_GSTACK_SKILL" ] && _GSTACK_SKILL=$(ls ~/.claude/skills/gstack/SKILL.md 2>/dev/null)
-[ -n "$_GSTACK_SKILL" ] && echo "GSTACK_OK" || echo "GSTACK_NOT_INSTALLED"
-```
+**`references/preflight-protocol.md`의 "gstack 스킬 가용성 확인" 섹션 참조.** Glob으로 확인합니다.
 
 ### 3. 기존 .crew 컨텍스트 확인
 
@@ -42,7 +38,7 @@ config.md 이미 존재 시:
 
 ## Step 2: 디자인 시스템 설정 (gstack)
 
-**gstack 미설치 시**: `skipped (gstack 미설치)`.
+**GSTACK_NOT_AVAILABLE 시**: `skipped (GSTACK_NOT_AVAILABLE)`.
 `DESIGN.md` 이미 존재 시: `skipped (이미 존재)`.
 
 없으면 AskUserQuestion — "디자인 시스템을 설정하시겠습니까?"
@@ -51,7 +47,7 @@ config.md 이미 존재 시:
 
 ## Step 3: 배포 환경 설정 (gstack)
 
-**gstack 미설치 시**: `skipped (gstack 미설치)`.
+**GSTACK_NOT_AVAILABLE 시**: `skipped (GSTACK_NOT_AVAILABLE)`.
 CLAUDE.md에 배포 설정 존재 시: `skipped (이미 존재)`.
 
 없으면 AskUserQuestion — "배포 환경을 설정하시겠습니까?"

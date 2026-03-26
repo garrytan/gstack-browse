@@ -34,7 +34,7 @@ AskUserQuestion — "현재 스프린트를 종료할까요?"
 
 ## Step 3: 엔지니어링 회고 (gstack)
 
-**gstack 미설치 시**: `skipped`.
+**GSTACK_NOT_AVAILABLE 시**: `skipped`.
 
 AskUserQuestion — "회고를 진행할까요?"
 - **진행 (Recommended)** — `/retro` 실행. 이전 weekly 회고 결과 있으면 트렌드 비교 전달.

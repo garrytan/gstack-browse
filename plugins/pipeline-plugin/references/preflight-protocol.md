@@ -27,23 +27,28 @@
    - 재개 여부를 AskUserQuestion으로 확인.
 6. **`.crew/artifacts/review/`** — 이전 리뷰 결과 (있으면).
 
-## gstack 설치 확인
+## gstack 스킬 가용성 확인
 
-**Glob 도구**로 아래 경로를 검색합니다. 하나라도 매칭되면 `GSTACK_OK`입니다.
+**중요: gstack은 시스템 바이너리가 아닙니다.** gstack은 이 마켓플레이스(my-claude)에 포함된 **gstack-plugin의 스킬 모음**입니다. `brew install`이나 별도 설치가 필요하지 않습니다. `/qa-only`, `/ship`, `/cso`, `/benchmark`, `/land-and-deploy`, `/document-release`, `/retro` 등은 모두 gstack-plugin이 제공하는 슬래시 커맨드 스킬입니다.
+
+**gstack 스킬이 사용 가능한지 확인하려면**, Glob 도구로 아래 경로를 검색합니다:
 
 ```
 Glob: ~/.claude/plugins/**/gstack-plugin/**/skills/browse/SKILL.md
 ```
 
-- **매칭 결과가 1개 이상** → gstack 설치됨 (`GSTACK_OK`). gstack 관련 Step을 **정상 실행**합니다.
-- **매칭 결과 0개** → gstack 미설치 (`GSTACK_NOT_INSTALLED`).
-- **gstack-plugin은 my-claude 마켓플레이스에 포함되어 있습니다.** 별도 설치가 아닌 마켓플레이스 캐시 내에 존재합니다. "gstack이 시스템에 설치되지 않았다"고 가정하지 마세요 — 반드시 위 Glob 결과로 판단하세요.
+- **매칭 결과가 1개 이상** → `GSTACK_OK`. gstack 스킬을 **정상 실행**합니다.
+- **매칭 결과 0개** → `GSTACK_NOT_AVAILABLE`. gstack 스킬 관련 Step을 스킵합니다.
 
-결과를 기억합니다. **gstack 미설치 시 스킵 대상 Step은 Phase 시작 시 일괄 처리**합니다:
-- 각 Step에서 개별 체크하지 않음
-- Phase 3 시작 시: "gstack 미설치 → Step 5, 6, 7 일괄 skipped"
-- Phase 4 시작 시: "gstack 미설치 → Step 9 skipped (수동 PR 안내)"
-- Phase 5 시작 시: "gstack 미설치 → Step 11 skipped"
+**주의사항:**
+- "gstack이 시스템에 설치되어 있지 않습니다"라고 판단하지 마세요. gstack은 시스템 도구가 아닙니다.
+- 사용자에게 `brew install gstack`이나 별도 설치를 안내하지 마세요.
+- **반드시 위 Glob 검색 결과로만 판단**하세요. 추측하지 마세요.
+
+결과를 기억합니다. **GSTACK_NOT_AVAILABLE일 때만** 스킵 대상 Step을 일괄 처리합니다:
+- Phase 3 시작 시: "gstack 스킬 미사용 → Step 5, 6, 7 일괄 skipped"
+- Phase 4 시작 시: "gstack 스킬 미사용 → Step 9 skipped (수동 PR 안내)"
+- Phase 5 시작 시: "gstack 스킬 미사용 → Step 11 skipped"
 
 ## 에러 핸들링 매트릭스
 

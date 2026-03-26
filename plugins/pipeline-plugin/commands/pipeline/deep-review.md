@@ -33,7 +33,7 @@ Step 1 완료 후 한 번의 AskUserQuestion으로 결정:
 - **gstack만** — `/review` 실행
 - **건너뛰기**
 
-(gstack 미설치 시 해당 옵션 비활성. Codex CLI 미설치 시 해당 옵션 비활성.)
+(GSTACK_NOT_AVAILABLE 시 해당 옵션 비활성. Codex CLI 미설치 시 해당 옵션 비활성.)
 
 ## 종합 리포트
 
