@@ -79,6 +79,9 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Ship
   'ship-base-branch': ['ship/**', 'bin/gstack-repo-mode'],
   'ship-local-workflow': ['ship/**', 'scripts/gen-skill-docs.ts'],
+  'review-dashboard-via': ['ship/**', 'scripts/resolvers/review.ts', 'codex/**', 'autoplan/**', 'land-and-deploy/**'],
+  'ship-plan-completion': ['ship/**', 'scripts/gen-skill-docs.ts'],
+  'ship-plan-verification': ['ship/**', 'scripts/gen-skill-docs.ts'],
 
   // Retro
   'retro':             ['retro/**'],
@@ -131,10 +134,12 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'gstack-upgrade-happy-path': ['gstack-upgrade/**'],
 
   // Deploy skills
-  'land-and-deploy-workflow':   ['land-and-deploy/**', 'scripts/gen-skill-docs.ts'],
-  'canary-workflow':            ['canary/**', 'browse/src/**'],
-  'benchmark-workflow':         ['benchmark/**', 'browse/src/**'],
-  'setup-deploy-workflow':      ['setup-deploy/**', 'scripts/gen-skill-docs.ts'],
+  'land-and-deploy-workflow':      ['land-and-deploy/**', 'scripts/gen-skill-docs.ts'],
+  'land-and-deploy-first-run':     ['land-and-deploy/**', 'scripts/gen-skill-docs.ts', 'bin/gstack-slug'],
+  'land-and-deploy-review-gate':   ['land-and-deploy/**', 'bin/gstack-review-read'],
+  'canary-workflow':               ['canary/**', 'browse/src/**'],
+  'benchmark-workflow':            ['benchmark/**', 'browse/src/**'],
+  'setup-deploy-workflow':         ['setup-deploy/**', 'scripts/gen-skill-docs.ts'],
 
   // Autoplan
   'autoplan-core':  ['autoplan/**', 'plan-ceo-review/**', 'plan-eng-review/**', 'plan-design-review/**'],
@@ -184,6 +189,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'review-base-branch': 'gate',
   'review-design-lite': 'periodic',   // 4/7 threshold is subjective
   'review-coverage-audit': 'gate',
+  'review-plan-completion': 'gate',
+  'review-dashboard-via': 'gate',
 
   // Office Hours
   'office-hours-spec-review': 'gate',
@@ -208,6 +215,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'ship-local-workflow': 'gate',
   'ship-coverage-audit': 'gate',
   'ship-triage': 'gate',
+  'ship-plan-completion': 'gate',
+  'ship-plan-verification': 'gate',
 
   // Retro — gate for cheap branch detection, periodic for full Opus retro
   'retro': 'periodic',
@@ -247,6 +256,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
 
   // Deploy skills
   'land-and-deploy-workflow': 'gate',
+  'land-and-deploy-first-run': 'gate',
+  'land-and-deploy-review-gate': 'gate',
   'canary-workflow': 'gate',
   'benchmark-workflow': 'gate',
   'setup-deploy-workflow': 'gate',

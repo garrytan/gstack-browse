@@ -1,5 +1,95 @@
 # Changelog
 
+## [0.12.2.0] - 2026-03-26 — Deploy with Confidence: First-Run Dry Run
+
+The first time you run `/land-and-deploy` on a project, it does a dry run. It detects your deploy infrastructure, tests that every command works, and shows you exactly what will happen... before it touches anything. You confirm, and from then on it just works.
+
+If your deploy config changes later (new platform, different workflow, updated URLs), it automatically re-runs the dry run. Trust is earned, maintained, and re-validated when the ground shifts.
+
+### Added
+
+- **First-run dry run.** Shows your deploy infrastructure in a validation table: platform, CLI status, production URL reachability, staging detection, merge method, merge queue status. You confirm before anything irreversible happens.
+- **Staging-first option.** If staging is detected (CLAUDE.md config, GitHub Actions workflow, or Vercel/Netlify preview), you can deploy there first, verify it works, then proceed to production.
+- **Config decay detection.** The dry-run confirmation stores a fingerprint of your deploy config. If CLAUDE.md's deploy section or your deploy workflows change, the dry run re-triggers automatically.
+- **Inline review gate.** If no recent code review exists, offers a quick safety check on the diff before merging. Catches SQL safety, race conditions, and security issues at deploy time.
+- **Merge queue awareness.** Detects when your repo uses merge queues and explains what's happening while it waits.
+- **CI auto-deploy detection.** Identifies deploy workflows triggered by the merge and monitors them.
+
+### Changed
+
+- **Full copy rewrite.** Every user-facing message rewritten to narrate what's happening, explain why, and be specific. First run = teacher mode. Subsequent runs = efficient mode.
+- **Voice & Tone section.** New guidelines for how the skill communicates: be a senior release engineer sitting next to the developer, not a robot.
+
+## [0.12.1.0] - 2026-03-26 — Smarter Browsing: Network Idle, State Persistence, Iframes
+
+Every click, fill, and select now waits for the page to settle before returning. No more stale snapshots because an XHR was still in-flight. Chain accepts pipe-delimited format for faster multi-step flows. You can save and restore browser sessions (cookies + open tabs). And iframe content is now reachable.
+
+### Added
+
+- **Network idle detection.** `click`, `fill`, and `select` auto-wait up to 2s for network requests to settle before returning. Catches XHR/fetch triggered by interactions. Uses Playwright's built-in `waitForLoadState('networkidle')`, not a custom tracker.
+
+- **`$B state save/load`.** Save your browser session (cookies + open tabs) to a named file, load it back later. Files stored at `.gstack/browse-states/{name}.json` with 0o600 permissions. V1 saves cookies + URLs only (not localStorage, which breaks on load-before-navigate). Load replaces the current session, not merge.
+
+- **`$B frame` command.** Switch command context into an iframe: `$B frame iframe`, `$B frame --name checkout`, `$B frame --url stripe`, or `$B frame @e5`. All subsequent commands (click, fill, snapshot, etc.) operate inside the iframe. `$B frame main` returns to the main page. Snapshot shows `[Context: iframe src="..."]` header. Detached frames auto-recover.
+
+- **Chain pipe format.** Chain now accepts `$B chain 'goto url | click @e5 | snapshot -ic'` as a fallback when JSON parsing fails. Pipe-delimited with quote-aware tokenization.
+
+### Changed
+
+- **Chain post-loop idle wait.** After executing all commands in a chain, if the last was a write command, chain waits for network idle before returning.
+
+### Fixed
+
+- **Iframe ref scoping.** Snapshot ref locators, cursor-interactive scan, and cursor locators now use the frame-aware target instead of always scoping to the main page.
+- **Detached frame recovery.** `getActiveFrameOrPage()` checks `isDetached()` and auto-recovers.
+- **State load resets frame context.** Loading a saved state clears the active frame reference.
+- **elementHandle leak in frame command.** Now properly disposed after getting contentFrame.
+- **Upload command frame-aware.** `upload` uses the frame-aware target for file input locators.
+
+## [0.12.0.0] - 2026-03-26 — Headed Mode + Sidebar Agent
+
+You can now watch Claude work in a real Chrome window and direct it from a sidebar chat.
+
+### Added
+
+- **Headed mode with sidebar agent.** `$B connect` launches a visible Chrome window with the gstack extension. The Side Panel shows a live activity feed of every command AND a chat interface where you type natural language instructions. A child Claude instance executes your requests in the browser ... navigate pages, click buttons, fill forms, extract data. Each task gets up to 5 minutes.
+
+- **Personal automation.** The sidebar agent handles repetitive browser tasks beyond dev workflows. Browse your kid's school parent portal and add parent contact info to Google Contacts. Fill out vendor onboarding forms. Extract data from dashboards. Log in once in the headed browser or import cookies from your real Chrome with `/setup-browser-cookies`.
+
+- **Chrome extension.** Toolbar badge (green=connected, gray=not), Side Panel with activity feed + chat + refs tab, @ref overlays on the page, and a connection pill showing which window gstack controls. Auto-loads when you run `$B connect`.
+
+- **`/connect-chrome` skill.** Guided setup: launches Chrome, verifies the extension, demos the activity feed, and introduces the sidebar chat.
+
+### Changed
+
+- **Sidebar agent ungated.** Previously required `--chat` flag. Now always available in headed mode. The sidebar agent has the same security model as Claude Code itself (Bash, Read, Glob, Grep on localhost).
+
+- **Agent timeout raised to 5 minutes.** Multi-page tasks (navigating directories, filling forms across pages) need more than the previous 2-minute limit.
+
+## [0.11.21.0] - 2026-03-26
+
+### Fixed
+
+- **`/autoplan` reviews now count toward the ship readiness gate.** When `/autoplan` ran full CEO + Design + Eng reviews, `/ship` still showed "0 runs" for Eng Review because autoplan-logged entries weren't being read correctly. Now the dashboard shows source attribution (e.g., "CLEAR (PLAN via /autoplan)") so you can see exactly which tool satisfied each review.
+- **`/ship` no longer tells you to "run /review first."** Ship runs its own pre-landing review in Step 3.5 — asking you to run the same review separately was redundant. The gate is removed; ship just does it.
+- **`/land-and-deploy` now checks all 8 review types.** Previously missed `review`, `adversarial-review`, and `codex-plan-review` — if you only ran `/review` (not `/plan-eng-review`), land-and-deploy wouldn't see it.
+- **Dashboard Outside Voice row now works.** Was showing "0 runs" even after outside voices ran in `/plan-ceo-review` or `/plan-eng-review`. Now correctly maps to `codex-plan-review` entries.
+- **`/codex review` now tracks staleness.** Added the `commit` field to codex review log entries so the dashboard can detect when a codex review is outdated.
+- **`/autoplan` no longer hardcodes "clean" status.** Review log entries from autoplan used to always record `status:"clean"` even when issues were found. Now uses proper placeholder tokens that Claude substitutes with real values.
+
+## [0.11.20.0] - 2026-03-26
+
+### Added
+
+- **GitLab support for `/retro` and `/ship`.** You can now run `/ship` on GitLab repos — it creates merge requests via `glab mr create` instead of `gh pr create`. `/retro` detects default branches on both platforms. All 11 skills using `BASE_BRANCH_DETECT` automatically get GitHub, GitLab, and git-native fallback detection.
+- **GitHub Enterprise and self-hosted GitLab detection.** If the remote URL doesn't match `github.com` or `gitlab`, gstack checks `gh auth status` / `glab auth status` to detect authenticated platforms — no manual config needed.
+- **`/document-release` works on GitLab.** After `/ship` creates a merge request, the auto-invoked `/document-release` reads and updates the MR body via `glab` instead of failing silently.
+- **GitLab safety gate for `/land-and-deploy`.** Instead of silently failing on GitLab repos, `/land-and-deploy` now stops early with a clear message that GitLab merge support is not yet implemented.
+
+### Fixed
+
+- **Deduplicated gen-skill-docs resolvers.** The template generator had duplicate inline resolver functions that shadowed the modular versions, causing generated SKILL.md files to miss recent resolver updates.
+
 ## [0.11.19.0] - 2026-03-24
 
 ### Fixed
