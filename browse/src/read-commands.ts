@@ -7,6 +7,7 @@
 
 import type { BrowserManager } from './browser-manager';
 import { consoleBuffer, networkBuffer, dialogBuffer } from './buffers';
+import { isFlutterWeb } from './snapshot';
 import type { Page } from 'playwright';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -137,6 +138,12 @@ export async function handleReadCommand(
 
     case 'accessibility': {
       const snapshot = await page.locator("body").ariaSnapshot();
+      if (snapshot && snapshot.trim().length > 0) return snapshot;
+
+      // Flutter Web fallback: run snapshot to enable semantics and scan
+      if (await isFlutterWeb(page)) {
+        return '(Flutter Web detected — use "snapshot -i" for interactive elements with @refs)';
+      }
       return snapshot;
     }
 
