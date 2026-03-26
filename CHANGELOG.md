@@ -66,6 +66,24 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **Agent timeout raised to 5 minutes.** Multi-page tasks (navigating directories, filling forms across pages) need more than the previous 2-minute limit.
 
+## [0.11.22.0] - 2026-03-26 — Mobile QA via Revyl Cloud Devices
+
+### Added
+
+- **Mobile QA now uses Revyl cloud devices instead of local Appium.** No more Java 17, Appium server, XCUITest driver, or Xcode CLI tools required. `/qa` and `/qa-only` automatically detect mobile projects (Expo/React Native) and provision cloud-hosted iOS or Android devices via the Revyl CLI. AI-grounded element targeting replaces the old ref system — describe elements in natural language instead of using `@e3` refs.
+- **Revyl auth gating.** `revyl auth status` runs automatically during QA setup. If authenticated, mobile mode activates for projects with `app.json` or `app.config.*`. If not, web QA works as usual — zero change to existing behavior.
+
+### Changed
+
+- **Revyl auth check now shows diagnostic info on failure.** If `revyl auth status` fails, the agent sees the actual error message instead of just "not available."
+- **Session keepalive checks for dead sessions.** The idle timer reset instruction now verifies the session is still alive and restarts if needed.
+- **Consistent screenshot paths.** Mobile screenshots standardized to `/tmp/mobile-screen.png` across all templates.
+
+### Removed
+
+- **`browse-mobile/` deleted entirely** (~6,000 lines). The Appium-backed local mobile QA binary, its HTTP server, ref system, platform drivers, and all tests have been removed. Replaced by Revyl CLI integration with zero local dependencies.
+- **Unused `fast-xml-parser` dependency removed.** Was added for Appium XML parsing, never imported.
+
 ## [0.11.21.0] - 2026-03-26
 
 ### Fixed

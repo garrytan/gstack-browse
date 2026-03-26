@@ -665,3 +665,10 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 ### Auto-upgrade mode + smart update check
 - Config CLI (`bin/gstack-config`), auto-upgrade via `~/.gstack/config.yaml`, 12h cache TTL, exponential snooze backoff (24h→48h→1wk), "never ask again" option, vendored copy sync on upgrade
 **Completed:** v0.3.8
+
+## Browse-Mobile (Superseded by Revyl)
+
+Browse-mobile (Appium-based local mobile QA) has been replaced by Revyl MCP integration.
+Cloud-hosted iOS + Android devices with AI-grounded targeting. Zero local dependencies.
+All previous browse-mobile TODOs are closed — the problems they addressed (Appium alternatives,
+app build prerequisites, screenshot error handling) no longer apply.

@@ -481,6 +481,49 @@ $B attrs "#logo"    # returns all attributes as JSON
 $B css ".button" "background-color"
 ```
 
+## Mobile Testing (optional — Revyl cloud devices)
+
+If Revyl is authenticated (`revyl auth status`), `/qa` and `/qa-only` automatically use the `revyl device` CLI for mobile QA when an `app.json` or `app.config.js` is present. Cloud-hosted iOS and Android devices with AI-grounded element targeting — no local simulators, Appium, or Java required.
+
+### Two modes: Dev Loop (Expo) and Static
+
+**Dev loop mode** is the default for Expo projects. `revyl dev start` handles everything — starts Metro, creates a Cloudflare tunnel to the cloud device, and enables hot reload. Code changes appear on the device in seconds without rebuilding.
+
+**Static mode** is for non-Expo projects or pre-built apps. `revyl device start` provisions a bare device, then you install and launch a build manually. Use `--static` to force this mode on Expo projects. Static mode is build-type aware: it checks `eas.json` profiles, prefers local builds (`npx expo run:ios`) over EAS (avoids 40+ min queue times), and auto-detects if a dev build was installed (switches to dev loop automatically).
+
+### Revyl CLI commands for mobile
+
+```bash
+# Dev loop mode (Expo default — hot reload)
+revyl init -y                                # one-time: auto-detect framework, create config
+revyl dev start --platform ios --open        # start dev server + tunnel + cloud device
+# Code changes hot reload automatically — no rebuild needed for JS/TS
+
+# Static mode (non-Expo, or --static override)
+revyl device start --platform ios --json     # provision a bare cloud device
+revyl device install --app-url "https://example.com/app.ipa"
+revyl device launch --bundle-id "com.example.myapp"
+
+# Interaction (same in both modes)
+revyl device screenshot --out /tmp/mobile-screen.png
+revyl device tap --target "Sign In button"
+revyl device type --target "Email field" --text "test@example.com"
+revyl device swipe --target "screen center" --direction up
+revyl device back
+revyl device home
+revyl device navigate --url "myapp://deeplink"
+
+# End session (also tears down tunnel/dev server in dev loop mode)
+revyl device stop
+```
+
+**Key differences from web (`$B`):**
+- Elements are targeted by natural language via `--target`, not CSS selectors or @e refs
+- Revyl's AI vision model resolves coordinates automatically from descriptions
+- Web-only commands (`console`, `cookies`, `js`, `html`, `css`) are not available in mobile mode
+- Sessions are cloud-hosted — auto-terminate after 5 minutes of idle
+- Supports both iOS and Android from the same workflow
+
 ## Snapshot System
 
 The snapshot is your primary tool for understanding and interacting with pages.

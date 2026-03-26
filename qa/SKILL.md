@@ -338,6 +338,8 @@ You are a QA engineer AND a bug-fix engineer. Test web applications like a real 
 | Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
+| Platform | auto-detect | `--mobile`, `--web` |
+| Mobile mode | auto-detect (Expo→dev loop) | `--static` to force pre-built app mode |
 
 **Tiers determine which issues get fixed:**
 - **Quick:** Fix critical + high severity only
@@ -390,6 +392,36 @@ If `NEEDS_SETUP`:
 1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
 2. Run: `cd <SKILL_DIR> && ./setup`
 3. If `bun` is not installed: `curl -fsSL https://bun.sh/install | bash`
+
+## MOBILE SETUP (optional — check for Revyl cloud devices)
+
+```bash
+revyl auth status 2>&1 && echo "REVYL_READY" || echo "REVYL_NOT_AVAILABLE"
+```
+
+If `REVYL_READY`: Mobile QA uses the `revyl device` CLI for cloud-hosted iOS/Android devices with AI-grounded element targeting. No local simulators, Appium, or Java required. All device interaction is via bash commands.
+
+If `REVYL_NOT_AVAILABLE`: Mobile testing not available. To enable:
+1. Install: `brew install RevylAI/tap/revyl` (or `pipx install revyl`)
+2. Authenticate: `revyl auth login`
+
+Web QA works as usual with `$B` regardless of Revyl status.
+
+**Detect platform and auto-setup (mobile vs web):**
+
+1. Check if `app.json` or `app.config.js`/`app.config.ts` exists in the project root.
+2. If found AND Revyl is available (REVYL_READY): **automatically start a Revyl cloud device session** — no local setup needed. Follow the "Mobile project detection" steps in the QA Methodology below. Do NOT ask the user — just do it.
+3. If no mobile config found, or Revyl is not available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
+
+**In mobile mode, use `revyl device` CLI instead of `$B`:**
+- `$B goto <url>` → `revyl device launch --bundle-id "<bundleId>"` or `revyl device navigate --url "<deeplink>"`
+- `$B snapshot -i` → `revyl device screenshot --out /tmp/mobile-screen.png` (then Read the image to view it)
+- `$B click @e3` → `revyl device tap --target "element description"` (describe in natural language)
+- `$B fill @e3 "text"` → `revyl device type --target "field description" --text "text"`
+- `$B screenshot` → `revyl device screenshot --out /tmp/mobile-screen.png`
+- `$B console --errors` → SKIP (not available in mobile mode)
+- `$B links` → `revyl device screenshot --out /tmp/mobile-screen.png` (visual inspection for tap targets)
+- `$B scroll` → `revyl device swipe --target "screen center" --direction up`
 
 **Check test framework (bootstrap if needed):**
 
@@ -599,6 +631,200 @@ This is the **primary mode** for developers verifying their work. When the user 
    $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
    ```
    If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
+
+3b. **Mobile project detection** — if Revyl is available (REVYL_READY from setup):
+   ```bash
+   ls app.json app.config.js app.config.ts 2>/dev/null
+   ```
+   If `app.json` or `app.config.*` exists, this is a mobile (Expo/React Native) project.
+   **Automatically set up Revyl cloud device — do not ask the user.**
+
+   **Step 1: Detect framework and choose mode**
+   ```bash
+   # Check if this is an Expo project
+   grep -q '"expo"' package.json 2>/dev/null && echo "EXPO_PROJECT" || echo "NOT_EXPO"
+   # Check for Revyl config
+   ls .revyl/config.yaml 2>/dev/null && echo "REVYL_INIT_DONE" || echo "REVYL_NEEDS_INIT"
+   ```
+
+   **If EXPO_PROJECT** (and user did NOT pass `--static`): Use **dev loop mode** — `revyl dev start` handles everything (device provisioning, dev server, Cloudflare tunnel, hot reload). This is the default for Expo because development builds need a running dev server to connect to.
+
+   **If NOT_EXPO** (or user passed `--static`): Use **static mode** — provision a bare device and install a pre-built app. Skip to "Static mode" below.
+
+   ---
+
+   **DEV LOOP MODE (Expo default)**
+
+   **Step 2a: Initialize Revyl config (if needed)**
+   If `REVYL_NEEDS_INIT`:
+   ```bash
+   revyl init -y
+   ```
+   This auto-detects the Expo/RN framework and creates `.revyl/config.yaml`.
+
+   **Step 2b: Start the dev loop**
+   ```bash
+   revyl dev start --platform ios --open
+   ```
+   - Default to iOS. If the user specifies `--mobile android`, use `--platform android`.
+   - This does everything in one command:
+     1. Starts the local Metro/Expo dev server
+     2. Creates a Cloudflare tunnel so the cloud device can reach the local server
+     3. Provisions a cloud-hosted device
+     4. Installs the dev client and connects it to the tunnel
+     5. Opens the viewer URL in the browser so the user can watch live
+   - **Hot reload is active** — code changes in the local editor reflect on the device in seconds. No rebuild needed for JS/TS changes.
+   - If it fails with "no dev client build", run:
+     ```bash
+     revyl build upload --platform ios-dev
+     ```
+     Then retry `revyl dev start --platform ios --open`.
+   - If it fails with a port conflict (Metro already running), either kill the existing process or pass `--port 8082`.
+   - **Native module changes** (new pods, new native modules) do NOT hot reload. If you see "NativeModule not found" or similar, tell the user: "This change requires a native rebuild. Run `revyl build upload --platform ios-dev` to create a new dev client, then `revyl dev start` again."
+
+   **Dev loop → static fallback:** If `revyl dev start` fails after retry (e.g., tunnel error, device quota):
+   1. Tell the user: "Dev loop failed. Falling back to static mode with a standalone build."
+   2. Stop any partial session: `revyl device stop`
+   3. Follow the "Ensure Revyl-compatible build" step below, then continue with static mode.
+
+   Skip to "Step 4: Activate mobile mode" below.
+
+   ---
+
+   **STATIC MODE (non-Expo, or `--static` override)**
+
+   **Step 1b: Ensure a Revyl-compatible build exists**
+
+   Revyl cloud devices are **simulators**, NOT real devices:
+   - `.app` files work (simulator builds)
+   - `.ipa` files do NOT work (real-device builds)
+
+   **Read eas.json to understand available profiles:**
+   ```bash
+   cat eas.json 2>/dev/null
+   ```
+   Key fields per profile:
+   - `developmentClient: true` → dev build (needs Metro) — DO NOT use for static mode
+   - `simulator: true` → produces .app (works with Revyl)
+   - `simulator: false` or absent → produces .ipa (does NOT work with Revyl)
+
+   Choose the first profile that has `developmentClient: false` (or absent) AND `simulator: true`.
+   If no such profile exists, tell the user: "No Revyl-compatible EAS profile found. Add `\"simulator\": true` to your preview profile in eas.json, or use dev loop mode (default for Expo)."
+
+   **Check for existing builds:**
+   ```bash
+   eas build:list --platform ios --status finished --limit 5 --json 2>/dev/null
+   ```
+   If `eas build:list` fails (auth error, EAS not configured), skip to the local build path below.
+
+   Look for a build where `buildProfile` is `preview` or `production` (NOT `development`) and the profile has `simulator: true`. If a suitable build exists, use its URL for `revyl device install --app-url`.
+
+   **If NO suitable build exists, build one. Prefer local build (fast) over EAS (queued):**
+
+   **Local build (preferred, ~3-5 min):**
+   ```bash
+   npx expo run:ios --configuration Release --no-install 2>&1
+   ```
+   Then find the .app:
+   ```bash
+   find ~/Library/Developer/Xcode/DerivedData -name "*.app" -path "*Release*" -newer package.json | head -1
+   ```
+   Upload to Revyl: `revyl build upload --app-path <path>`
+
+   **EAS build (fallback if no Xcode or local build fails):**
+   ```bash
+   eas build --platform ios --profile preview --non-interactive 2>&1
+   ```
+   If it queues for >10 minutes, tell the user: "EAS build is queued. Options:
+   A) Wait for EAS (may take 40+ min on free tier)
+   B) Build locally with Xcode: `npx expo run:ios --configuration Release`
+   C) Switch to dev loop mode (no build needed): `/qa --mobile` (default for Expo)"
+
+   ---
+
+   **Step 2: Extract bundle ID**
+   ```bash
+   cat app.json 2>/dev/null | grep -o '"bundleIdentifier"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"'
+   ```
+   If no bundleIdentifier found, check `app.config.js` or `app.config.ts` for it. If still not found, ask the user for the bundle ID before proceeding — do not continue with an empty value.
+
+   **Step 3: Start a Revyl cloud device session**
+   ```bash
+   revyl device start --platform ios --json
+   ```
+   - Default to iOS. If the user specifies `--mobile android`, use `--platform android`.
+   - This provisions a cloud-hosted device — no local simulator, Appium, or Java required.
+   - The JSON output includes a `viewer_url` — share it with the user so they can watch the session live.
+   - Add `--open` to auto-open the viewer in the browser.
+
+   **Step 3b: Install and launch the app**
+   - If the user provides an app URL (.ipa or .apk):
+     ```bash
+     revyl device install --app-url "<url>"
+     ```
+   - Then launch:
+     ```bash
+     revyl device launch --bundle-id "<bundleId>"
+     ```
+   - If `launch` fails with "app not found", tell the user: "The app is not installed on the cloud device. Provide a build URL (.ipa for iOS, .apk for Android) or upload via `revyl build upload`."
+
+   **Step 3c: Dev launcher detection (Expo safety net)**
+   After launching, take a screenshot immediately:
+   ```bash
+   revyl device screenshot --out /tmp/mobile-screen.png
+   ```
+   Read the screenshot. If you see the Expo dev launcher screen (showing "DEVELOPMENT SERVERS", "Enter URL manually", or the Expo development menu):
+
+   **This is a development build — it cannot run standalone.** Do NOT attempt to tunnel Metro or enter a URL manually (tunneling does not work with Revyl cloud devices). Instead:
+   1. Tell the user: "The installed build is a development build (needs Metro server). Switching to dev loop mode which handles this automatically."
+   2. Stop the current device: `revyl device stop`
+   3. Switch to DEV LOOP MODE: run the dev loop steps above (`revyl init -y` if needed, then `revyl dev start --platform ios --open`).
+
+   ---
+
+   **Step 4: Activate mobile mode** (both dev loop and static reach here)
+   **MOBILE MODE ACTIVE** — use `revyl device` CLI commands instead of `$B` for all interaction.
+
+   **Interaction loop:**
+   1. `revyl device screenshot --out /tmp/mobile-screen.png` — capture current screen, then read the image file to see it
+   2. Observe what's on screen — one line description
+   3. Take one best action using the appropriate `revyl device` command
+   4. `revyl device screenshot --out /tmp/mobile-screen.png` — verify the result
+   5. Repeat
+
+   **Revyl CLI command mapping (replaces `$B` commands):**
+   | Action | Command |
+   |--------|---------|
+   | Launch app | `revyl device launch --bundle-id "<bundleId>"` |
+   | Tap element | `revyl device tap --target "Sign In button"` |
+   | Type text | `revyl device type --target "Email field" --text "user@test.com"` |
+   | Swipe/scroll | `revyl device swipe --target "screen center" --direction up` |
+   | Go back | `revyl device back` |
+   | Screenshot | `revyl device screenshot --out /tmp/mobile-screen.png` |
+   | Clear text | `revyl device clear-text --target "Email field"` |
+   | Long press | `revyl device long-press --target "item to select"` |
+   | Go home | `revyl device home` |
+   | Deep link | `revyl device navigate --url "myapp://screen"` |
+   | Diagnostics | `revyl device doctor` |
+
+   **AI-grounded targeting:** The `--target` flag accepts natural language — Revyl's vision model resolves coordinates automatically. Use visible text and visual characteristics:
+   - Good: `--target "the blue Sign In button"`, `--target "input field with placeholder Email"`
+   - Bad: `--target "button"`, `--target "the element"` (too vague)
+
+   **Swipe directions:** `--direction up` moves finger UP (scrolls content DOWN to reveal below). `--direction down` moves finger DOWN (scrolls content UP).
+
+   **Viewing screenshots:** After `revyl device screenshot --out /tmp/mobile-screen.png`, use the Read tool to view the image file. This lets you see the actual device screen.
+
+   **Findings:**
+   - Flag missing accessibility labels as accessibility findings
+   - Take screenshots at milestones and share with the user
+   - Skip web-only commands: `console --errors`, `html`, `css`, `js`, `cookies` — not available in mobile mode
+
+   **Session management:**
+   - Sessions auto-terminate after 5 minutes of idle (300s default). Any `revyl device` command resets the timer.
+   - Before writing lengthy findings or analyzing code, run `revyl device info` to reset the idle timer. If the output says "No active device session", restart with `revyl device start --platform ios` (static mode) or `revyl dev start --platform ios` (dev loop mode) before continuing.
+   - When QA is complete: `revyl device stop` (this also tears down the tunnel and dev server in dev loop mode).
+   - If something breaks: `revyl device doctor` to diagnose, then restart the session.
 
 4. **Test each affected page/route:**
    - Navigate to the page
