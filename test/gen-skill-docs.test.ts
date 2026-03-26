@@ -1478,6 +1478,23 @@ describe('setup script validation', () => {
     expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
   });
 
+  test('Claude install links skills from the generated runtime root', () => {
+    const claudeSection = setupContent.slice(
+      setupContent.indexOf('# 4. Install for Claude'),
+      setupContent.indexOf('# 5. Install for Codex')
+    );
+    expect(claudeSection).toContain('CLAUDE_RUNTIME_ROOT="$INSTALL_SKILLS_DIR/gstack"');
+    expect(claudeSection).toContain('link_claude_skill_dirs "$CLAUDE_RUNTIME_ROOT" "$INSTALL_SKILLS_DIR"');
+  });
+
+  test('create_claude_runtime_root runs generator from the source repo root', () => {
+    const fnStart = setupContent.indexOf('create_claude_runtime_root()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('for asset in', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('cd "$repo_root"');
+    expect(fnBody).toContain('GSTACK_SKILL_OUT_ROOT="$runtime_root" bun run scripts/gen-skill-docs.ts');
+  });
+
   test('setup supports --host auto|claude|codex|kiro', () => {
     expect(setupContent).toContain('--host');
     expect(setupContent).toContain('claude|codex|kiro|auto');

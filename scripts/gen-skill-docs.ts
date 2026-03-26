@@ -22,6 +22,9 @@ import { generatePlanCompletionAuditShip, generatePlanCompletionAuditReview, gen
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const DRY_RUN = process.argv.includes('--dry-run');
+const OUTPUT_ROOT = process.env.GSTACK_SKILL_OUT_ROOT
+  ? path.resolve(process.env.GSTACK_SKILL_OUT_ROOT)
+  : null;
 
 // ─── Host Detection ─────────────────────────────────────────
 
@@ -2972,7 +2975,10 @@ const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit di
 function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
   const relTmplPath = path.relative(ROOT, tmplPath);
-  let outputPath = tmplPath.replace(/\.tmpl$/, '');
+  const defaultOutputPath = tmplPath.replace(/\.tmpl$/, '');
+  let outputPath = OUTPUT_ROOT && host === 'claude'
+    ? path.join(OUTPUT_ROOT, path.relative(ROOT, defaultOutputPath))
+    : defaultOutputPath;
 
   // Determine skill directory relative to ROOT
   const skillDir = path.relative(ROOT, path.dirname(tmplPath));
@@ -2986,6 +2992,8 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     fs.mkdirSync(outputDir, { recursive: true });
     outputPath = path.join(outputDir, 'SKILL.md');
   }
+
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
   // Extract skill name from frontmatter for TemplateContext
   const { name: extractedName, description: extractedDescription } = extractNameAndDescription(tmplContent);

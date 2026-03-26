@@ -221,6 +221,37 @@ link_claude_skill_dirs() {
   fi
 }
 
+create_claude_runtime_root() {
+  local repo_root="$1"
+  local runtime_root="$2"
+  mkdir -p "$runtime_root"
+
+  (
+    cd "$repo_root"
+    GSTACK_SKILL_OUT_ROOT="$runtime_root" bun run scripts/gen-skill-docs.ts >/dev/null
+  )
+
+  for asset in bin browse review qa; do
+    local src="$repo_root/$asset"
+    local dst="$runtime_root/$asset"
+    if [ -d "$src" ] || [ -f "$src" ]; then
+      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+        ln -snf "$src" "$dst"
+      fi
+    fi
+  done
+
+  for file in ETHOS.md; do
+    local src="$repo_root/$file"
+    local dst="$runtime_root/$file"
+    if [ -f "$src" ]; then
+      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+        ln -snf "$src" "$dst"
+      fi
+    fi
+  done
+}
+
 # ─── Helper: link generated Codex skills into a skills parent directory ──
 # Installs from .agents/skills/gstack-* (the generated Codex-format skills)
 # instead of source dirs (which have Claude paths).
@@ -348,7 +379,11 @@ fi
 
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
-    link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    CLAUDE_RUNTIME_ROOT="$INSTALL_SKILLS_DIR/gstack"
+    if [ "$INSTALL_GSTACK_DIR" != "$CLAUDE_RUNTIME_ROOT" ]; then
+      create_claude_runtime_root "$SOURCE_GSTACK_DIR" "$CLAUDE_RUNTIME_ROOT"
+    fi
+    link_claude_skill_dirs "$CLAUDE_RUNTIME_ROOT" "$INSTALL_SKILLS_DIR"
     if [ "$LOCAL_INSTALL" -eq 1 ]; then
       echo "gstack ready (project-local)."
       echo "  skills: $INSTALL_SKILLS_DIR"
