@@ -567,6 +567,44 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Priority:** P3
 **Depends on:** Telemetry data showing freeze hook fires in real /investigate sessions
 
+## Strategist
+
+### CSO/retro artifact ingestion
+
+**What:** Add CSO and retro artifact ingestion to `/strategist brief` when those skills gain persistent project-scoped output.
+
+**Why:** Security posture (from `/cso`) and shipping velocity (from `/retro`) are valuable strategic inputs. Currently those skills write to stdout or `.context/` dirs that aren't accessible cross-skill.
+
+**Context:** `/strategist` design doc lists these as "reads from" but they don't actually persist to `~/.gstack/projects/` yet. When `/cso` and `/retro` gain project-scoped artifact output, add the appropriate globs to `/strategist`'s context ingestion phase.
+
+**Effort:** S (once upstream skills persist artifacts)
+**Priority:** P2
+**Depends on:** `/cso` and `/retro` writing to `~/.gstack/projects/`
+
+### Autoplan integration
+
+**What:** Integrate `/strategist` into `/autoplan`'s review pipeline. If a strategy doc exists, surface it as context during reviews. Optionally offer to run `/strategist brief` first.
+
+**Why:** Without this, the default planning path (`/autoplan`) bypasses competitive strategy entirely. A strategy doc should inform scope and ambition decisions in CEO review.
+
+**Context:** `/autoplan` currently runs CEO, design, and eng reviews. Strategy docs at `*-strategy-*.md` should be discoverable alongside design docs. The simplest integration: `/autoplan` reads strategy docs if they exist (same as it reads design docs) and mentions `/strategist` as a prerequisite option.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** `/strategist` skill existing and being dogfooded
+
+### E2E eval test for /strategist
+
+**What:** Write E2E eval test after the first dogfood session. Use real output as ground truth. Test: (a) brief produces a file with inline citations, (b) session produces a strategy doc with framework selection rationale, (c) 90-day plan items are specific not generic.
+
+**Why:** Without an eval, quality regressions in the template are invisible. The template's framework selection logic and citation requirements need automated validation.
+
+**Context:** Classify as `periodic` tier (non-deterministic, quality benchmark). Dogfood session produces real output to calibrate eval expectations. Add touchfile entry in `test/helpers/touchfiles.ts` with `strategist/**` dependency.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** First dogfood session completing
+
 ## Completed
 
 ### CI eval pipeline (v0.9.9.0)
