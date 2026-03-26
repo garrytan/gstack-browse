@@ -8,6 +8,11 @@
  *   4. Store Map<string, Locator> on BrowserManager
  *   5. Return compact text output with refs prepended
  *
+ * Flutter Web support:
+ *   Flutter renders to <canvas> — standard ariaSnapshot() returns empty.
+ *   When detected, we enable Flutter's Semantics tree (flt-semantics-placeholder)
+ *   and scan flt-semantics elements inside <flutter-view> for ARIA roles/labels.
+ *
  * Extended features:
  *   --diff / -D:       Compare against last snapshot, return unified diff
  *   --annotate / -a:   Screenshot with overlay boxes at each @ref
@@ -127,6 +132,183 @@ function parseLine(line: string): ParsedNode | null {
   };
 }
 
+// ─── Flutter Web Support ──────────────────────────────────
+
+interface FlutterSemanticNode {
+  id: string;
+  role: string;
+  name: string;
+  tagName: string;
+  selector: string;
+  depth: number;
+}
+
+/**
+ * Detect whether the current page is a Flutter Web application.
+ * Checks for Flutter-specific elements: flutter-view, flt-glass-pane, $isFlutterApp.
+ */
+export async function isFlutterWeb(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    return !!(
+      (window as any).$isFlutterApp ||
+      document.querySelector('flutter-view') ||
+      document.querySelector('flt-glass-pane')
+    );
+  });
+}
+
+/**
+ * Enable Flutter's Semantics tree by activating the flt-semantics-placeholder.
+ *
+ * Flutter hides the placeholder off-screen (-1px, -1px, 1x1px). We temporarily
+ * reposition it into the viewport so Playwright can click it, which triggers
+ * Flutter's SemanticsBinding to populate <flt-semantics-host> with ARIA elements.
+ */
+async function enableFlutterSemantics(page: Page): Promise<boolean> {
+  // Check if semantics are already enabled (flt-semantics-host has children)
+  const alreadyEnabled = await page.evaluate(() => {
+    const fv = document.querySelector('flutter-view');
+    if (!fv) return false;
+    const host = fv.querySelector('flt-semantics-host');
+    return host ? host.children.length > 0 : false;
+  });
+  if (alreadyEnabled) return true;
+
+  // Check for the placeholder
+  const hasPlaceholder = await page.evaluate(() => {
+    return !!document.querySelector('flt-semantics-placeholder');
+  });
+  if (!hasPlaceholder) return false;
+
+  // Reposition placeholder into viewport so Playwright can click it
+  await page.evaluate(() => {
+    const p = document.querySelector('flt-semantics-placeholder') as HTMLElement;
+    if (!p) return;
+    p.style.left = '0px';
+    p.style.top = '0px';
+    p.style.width = '50px';
+    p.style.height = '50px';
+    p.style.zIndex = '99999';
+  });
+
+  try {
+    await page.click('flt-semantics-placeholder', { timeout: 3000 });
+  } catch {
+    return false;
+  }
+
+  // Wait briefly for Flutter to populate the semantics tree
+  await page.waitForTimeout(500);
+
+  // Verify semantics are now populated
+  return page.evaluate(() => {
+    const fv = document.querySelector('flutter-view');
+    if (!fv) return false;
+    const host = fv.querySelector('flt-semantics-host');
+    return host ? host.children.length > 0 : false;
+  });
+}
+
+/**
+ * Scan Flutter's flt-semantics elements and build a list of semantic nodes
+ * with their ARIA roles, labels, and CSS selectors for Playwright locators.
+ */
+async function scanFlutterSemantics(page: Page): Promise<FlutterSemanticNode[]> {
+  return page.evaluate(() => {
+    const fv = document.querySelector('flutter-view');
+    if (!fv) return [];
+
+    const host = fv.querySelector('flt-semantics-host');
+    if (!host || host.children.length === 0) return [];
+
+    const results: Array<{
+      id: string;
+      role: string;
+      name: string;
+      tagName: string;
+      selector: string;
+      depth: number;
+    }> = [];
+
+    function walk(el: Element, depth: number) {
+      const tag = el.tagName.toLowerCase();
+
+      // Process flt-semantics elements and standard elements inside them
+      if (tag === 'flt-semantics' || el.closest('flt-semantics-host')) {
+        const role = el.getAttribute('role') || '';
+        const ariaLabel = el.getAttribute('aria-label') || '';
+        const textContent = (el.textContent || '').trim().substring(0, 200);
+        const elTag = el.tagName;
+        const id = el.getAttribute('id') || '';
+
+        // Determine the effective role based on element type and attributes
+        let effectiveRole = role;
+        if (!effectiveRole) {
+          if (elTag === 'H1' || elTag === 'H2' || elTag === 'H3' ||
+              elTag === 'H4' || elTag === 'H5' || elTag === 'H6') {
+            effectiveRole = 'heading';
+          } else if (elTag === 'INPUT') {
+            const type = (el as HTMLInputElement).type || 'text';
+            if (type === 'checkbox') effectiveRole = 'checkbox';
+            else if (type === 'radio') effectiveRole = 'radio';
+            else if (type === 'range') effectiveRole = 'slider';
+            else effectiveRole = 'textbox';
+          } else if (elTag === 'TEXTAREA') {
+            effectiveRole = 'textbox';
+          } else if (elTag === 'SPAN' && textContent) {
+            effectiveRole = 'text';
+          }
+        }
+
+        // Build a deterministic CSS selector
+        let selector = '';
+        if (id) {
+          selector = `#${id}`;
+        } else if (effectiveRole && ariaLabel) {
+          selector = `${tag}[role="${effectiveRole}"][aria-label="${ariaLabel}"]`;
+        } else if (effectiveRole === 'textbox' && elTag === 'INPUT') {
+          // For inputs, use aria-label or the tag within flt-semantics-host
+          selector = ariaLabel
+            ? `flutter-view flt-semantics-host input[aria-label="${ariaLabel}"]`
+            : 'flutter-view flt-semantics-host input';
+        }
+
+        // Only include meaningful nodes (have role, label, or text)
+        const name = ariaLabel || textContent;
+        if (effectiveRole && (name || effectiveRole === 'textbox') && selector) {
+          results.push({
+            id,
+            role: effectiveRole,
+            name: name || '',
+            tagName: elTag,
+            selector,
+            depth,
+          });
+        }
+      }
+
+      for (const child of el.children) {
+        walk(child, depth + 1);
+      }
+    }
+
+    walk(host, 0);
+    return results;
+  });
+}
+
+/**
+ * Build an ariaSnapshot-compatible YAML string from Flutter semantic nodes.
+ * This allows the existing parsing logic to process Flutter elements.
+ */
+function flutterNodesToAriaYaml(nodes: FlutterSemanticNode[]): string {
+  return nodes.map(n => {
+    const indent = '  '.repeat(Math.min(n.depth, 4));
+    const name = n.name ? ` "${n.name}"` : '';
+    return `${indent}- ${n.role}${name}`;
+  }).join('\n');
+}
+
 /**
  * Take an accessibility snapshot and build the ref map.
  */
@@ -147,7 +329,27 @@ export async function handleSnapshot(
     rootLocator = page.locator('body');
   }
 
-  const ariaText = await rootLocator.ariaSnapshot();
+  let ariaText = await rootLocator.ariaSnapshot();
+
+  // ─── Flutter Web Fallback ──────────────────────────────────
+  // Flutter renders to <canvas> — ariaSnapshot() returns empty.
+  // Detect Flutter, enable Semantics, and scan flt-semantics elements.
+  let isFlutter = false;
+  let flutterNodes: FlutterSemanticNode[] = [];
+
+  if (!ariaText || ariaText.trim().length === 0) {
+    if (await isFlutterWeb(page)) {
+      isFlutter = true;
+      const enabled = await enableFlutterSemantics(page);
+      if (enabled) {
+        flutterNodes = await scanFlutterSemantics(page);
+        if (flutterNodes.length > 0) {
+          ariaText = flutterNodesToAriaYaml(flutterNodes);
+        }
+      }
+    }
+  }
+
   if (!ariaText || ariaText.trim().length === 0) {
     bm.setRefMap(new Map());
     return '(no accessible elements found)';
@@ -158,6 +360,9 @@ export async function handleSnapshot(
   const refMap = new Map<string, RefEntry>();
   const output: string[] = [];
   let refCounter = 1;
+
+  // For Flutter, we track nodes by index to build CSS-selector locators
+  let flutterNodeIndex = 0;
 
   // Track role+name occurrences for nth() disambiguation
   const roleNameCounts = new Map<string, number>();
@@ -177,6 +382,7 @@ export async function handleSnapshot(
     if (!node) continue;
 
     const depth = Math.floor(node.indent / 2);
+    // For Flutter, "text" role is non-interactive but still important
     const isInteractive = INTERACTIVE_ROLES.has(node.role);
 
     // Depth filter
@@ -187,15 +393,19 @@ export async function handleSnapshot(
       // Still track for nth() counts
       const key = `${node.role}:${node.name || ''}`;
       roleNameSeen.set(key, (roleNameSeen.get(key) || 0) + 1);
+      if (isFlutter) flutterNodeIndex++;
       continue;
     }
 
     // Compact filter: skip elements with no name and no inline content that aren't interactive
-    if (opts.compact && !isInteractive && !node.name && !node.children) continue;
+    if (opts.compact && !isInteractive && !node.name && !node.children) {
+      if (isFlutter) flutterNodeIndex++;
+      continue;
+    }
 
     // Assign ref
     const ref = `e${refCounter++}`;
-    const indent = '  '.repeat(depth);
+    const indentStr = '  '.repeat(depth);
 
     // Build Playwright locator
     const key = `${node.role}:${node.name || ''}`;
@@ -204,7 +414,12 @@ export async function handleSnapshot(
     const totalCount = roleNameCounts.get(key) || 1;
 
     let locator: Locator;
-    if (opts.selector) {
+
+    if (isFlutter && flutterNodeIndex < flutterNodes.length) {
+      // Flutter: use CSS selector from the scanned flt-semantics elements
+      const fNode = flutterNodes[flutterNodeIndex];
+      locator = page.locator(fNode.selector);
+    } else if (opts.selector) {
       locator = page.locator(opts.selector).getByRole(node.role as any, {
         name: node.name || undefined,
       });
@@ -214,15 +429,17 @@ export async function handleSnapshot(
       });
     }
 
-    // Disambiguate with nth() if multiple elements share role+name
-    if (totalCount > 1) {
+    // Disambiguate with nth() if multiple elements share role+name (non-Flutter only)
+    if (!isFlutter && totalCount > 1) {
       locator = locator.nth(seenIndex);
     }
+
+    if (isFlutter) flutterNodeIndex++;
 
     refMap.set(ref, { locator, role: node.role, name: node.name || '' });
 
     // Format output line
-    let outputLine = `${indent}@${ref} [${node.role}]`;
+    let outputLine = `${indentStr}@${ref} [${node.role}]`;
     if (node.name) outputLine += ` "${node.name}"`;
     if (node.props) outputLine += ` ${node.props}`;
     if (node.children) outputLine += `: ${node.children}`;
@@ -303,6 +520,11 @@ export async function handleSnapshot(
 
   if (output.length === 0) {
     return '(no interactive elements found)';
+  }
+
+  // Prepend Flutter indicator so the agent knows it's a Flutter app
+  if (isFlutter) {
+    output.unshift('── Flutter Web (semantics enabled) ──');
   }
 
   const snapshotText = output.join('\n');

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Flutter Web Simulation</title>
+  <style>
+    /* Simulate Flutter's rendering structure */
+    flutter-view {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 800px;
+      height: 600px;
+    }
+    flt-glass-pane {
+      display: block;
+      position: absolute;
+      inset: 0;
+    }
+    flt-scene-host {
+      display: block;
+      pointer-events: none;
+    }
+    flt-semantics-host {
+      display: block;
+    }
+    flt-semantics {
+      display: block;
+      position: absolute;
+    }
+    flt-semantics-placeholder {
+      position: absolute;
+      left: -1px;
+      top: -1px;
+      width: 1px;
+      height: 1px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Flutter Web semantics placeholder (off-screen, activates semantics on click) -->
+  <flt-semantics-placeholder role="button" aria-live="polite" tabindex="0"
+    aria-label="Enable accessibility"
+    style="position: absolute; left: -1px; top: -1px; width: 1px; height: 1px;">
+  </flt-semantics-placeholder>
+
+  <flutter-view flt-view-id="0" tabindex="0" style="position: absolute; inset: 0; width: 800px; height: 600px;">
+    <flt-glass-pane></flt-glass-pane>
+    <flt-text-editing-host></flt-text-editing-host>
+    <flt-semantics-host>
+      <!-- Semantics tree is initially empty; populated after placeholder click -->
+    </flt-semantics-host>
+    <style id="flt-internals-stylesheet"></style>
+  </flutter-view>
+
+  <script>
+    // Simulate Flutter's $isFlutterApp flag
+    window.$isFlutterApp = true;
+
+    // Simulate Flutter's semantics activation on placeholder click
+    const placeholder = document.querySelector('flt-semantics-placeholder');
+    const semanticsHost = document.querySelector('flt-semantics-host');
+
+    placeholder.addEventListener('click', () => {
+      if (semanticsHost.children.length > 0) return; // already enabled
+
+      semanticsHost.innerHTML = `
+        <flt-semantics id="flt-semantic-node-0" style="position: absolute; overflow: visible; width: 800px; height: 600px;">
+          <flt-semantics id="flt-semantic-node-1" style="position: absolute; overflow: visible; width: 800px; height: 600px;">
+            <flt-semantics id="flt-semantic-node-12" style="position: absolute; z-index: 9; width: 800px; height: 56px;">
+              <h2 id="flt-semantic-node-13" tabindex="-1" style="margin: 0; padding: 0; font-size: 10px;">
+                Flutter Test App
+              </h2>
+            </flt-semantics>
+            <flt-semantics id="flt-semantic-node-4" style="position: absolute; z-index: 1; width: 128px; height: 36px; transform: matrix(1,0,0,1,24,80);">
+              <span style="display: inline-block; pointer-events: none;">Counter: 0</span>
+            </flt-semantics>
+            <flt-semantics id="flt-semantic-node-5" role="button" tabindex="0" flt-tappable=""
+              style="position: absolute; z-index: 2; width: 112px; height: 32px; transform: matrix(1,0,0,1,24,132); pointer-events: all;">
+              Increment
+            </flt-semantics>
+            <flt-semantics id="flt-semantic-node-6" style="position: absolute; z-index: 3; width: 500px; height: 48px; transform: matrix(1,0,0,1,24,180); pointer-events: all;">
+              <input spellcheck="false" autocorrect="off" autocomplete="off"
+                data-semantics-role="text-field" aria-label="Enter your name"
+                type="text" style="position: absolute; top: 0; left: 0; width: 500px; height: 48px;">
+            </flt-semantics>
+            <flt-semantics id="flt-semantic-node-7" role="button" tabindex="0" flt-tappable=""
+              style="position: absolute; z-index: 4; width: 80px; height: 32px; transform: matrix(1,0,0,1,24,244); pointer-events: all;">
+              Submit
+            </flt-semantics>
+          </flt-semantics>
+        </flt-semantics>
+      `;
+
+      // Simulate counter increment on button click
+      const incBtn = document.getElementById('flt-semantic-node-5');
+      const counterSpan = document.querySelector('#flt-semantic-node-4 span');
+      let counter = 0;
+      if (incBtn && counterSpan) {
+        incBtn.addEventListener('click', () => {
+          counter++;
+          counterSpan.textContent = 'Counter: ' + counter;
+        });
+      }
+
+      // Simulate form submission
+      const submitBtn = document.getElementById('flt-semantic-node-7');
+      const input = semanticsHost.querySelector('input');
+      if (submitBtn && input) {
+        submitBtn.addEventListener('click', () => {
+          // Check if greeting span already exists
+          let greeting = document.getElementById('flt-semantic-node-8');
+          if (!greeting) {
+            greeting = document.createElement('flt-semantics');
+            greeting.id = 'flt-semantic-node-8';
+            greeting.style.cssText = 'position: absolute; z-index: 5; width: 300px; height: 28px; transform: matrix(1,0,0,1,24,292);';
+            const span = document.createElement('span');
+            span.style.display = 'inline-block';
+            greeting.appendChild(span);
+            document.querySelector('#flt-semantic-node-1').appendChild(greeting);
+          }
+          greeting.querySelector('span').textContent = 'Hello, ' + input.value + '!';
+        });
+      }
+    });
+  </script>
+</body>
+</html>
