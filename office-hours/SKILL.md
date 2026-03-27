@@ -1062,13 +1062,24 @@ The subagent should return:
 
 If the reviewer returns issues:
 1. Fix each issue in the document on disk (use Edit tool)
-2. Re-dispatch the reviewer subagent with the updated document
-3. Maximum 3 iterations total
+2. Keep a running log of all issues found so far and their resolution status
+3. Re-dispatch the reviewer subagent with the updated document AND the prior issues.
+   The re-dispatch prompt must include:
+   - The file path of the updated document
+   - The same 5-dimension review instructions from Step 1
+   - A "Prior issues" section listing every issue from previous rounds with its
+     status: FIXED (include a one-line summary of the fix) or WONT_FIX (with reason).
+     Example: "Prior issues (round 1): 1. [Completeness] Missing error message copy — FIXED: added sample error string in Success Criteria. 2. [Scope] Personal notes section — FIXED: removed."
+   - This instruction: "Verify each FIXED issue is actually resolved in the document.
+     If a fix is incomplete or introduced a new problem, re-raise it. Then look for
+     NEW issues only. Do not re-raise issues that are properly resolved. Your score
+     should reflect the document's current state, crediting improvements from prior rounds."
+4. Maximum 3 iterations total
 
-**Convergence guard:** If the reviewer returns the same issues on consecutive iterations
-(the fix didn't resolve them or the reviewer disagrees with the fix), stop the loop
-and persist those issues as "Reviewer Concerns" in the document rather than looping
-further.
+**Convergence guard:** If the reviewer re-raises the same issue after it was marked
+FIXED (the fix didn't resolve it or the reviewer disagrees with the fix), stop the loop
+for that issue and persist it as a "Reviewer Concern" in the document rather than looping
+further. If all issues from the current round are re-raised prior issues, stop entirely.
 
 If the subagent fails, times out, or is unavailable — skip the review loop entirely.
 Tell the user: "Spec review unavailable — presenting unreviewed doc." The document is
