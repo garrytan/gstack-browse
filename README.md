@@ -250,6 +250,8 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 **Local analytics are always available.** Run `gstack-analytics` to see your personal usage dashboard from the local JSONL file — no remote data needed.
 
+**Full privacy policy:** [PRIVACY.md](PRIVACY.md) — covers telemetry, screenshots, auth, data retention, and your rights.
+
 ## Troubleshooting
 
 **Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
