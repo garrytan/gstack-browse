@@ -363,6 +363,7 @@ If `gstack-slug` fails (not a git repo, no remote), use the current directory na
 Scan for build files, configs, and entry points to detect the tech stack:
 
 ```bash
+setopt +o nomatch 2>/dev/null  # zsh: don't error on unmatched globs
 ls -la package.json Cargo.toml go.mod pyproject.toml Gemfile build.gradle pom.xml Makefile CMakeLists.txt *.csproj *.sln composer.json mix.exs 2>/dev/null || true
 ```
 

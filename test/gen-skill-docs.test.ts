@@ -3,6 +3,7 @@ import { COMMAND_DESCRIPTIONS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const MAX_SKILL_DESCRIPTION_LENGTH = 1024;
@@ -259,6 +260,43 @@ describe('gen-skill-docs', () => {
       expect(content).not.toMatch(/for _PF in [^\n]*\/\.pending-\*/);
       // Must use find to avoid zsh NOMATCH error on glob expansion
       expect(content).toContain("find ~/.gstack/analytics -maxdepth 1 -name '.pending-*'");
+    }
+  });
+
+  test('bash blocks with shell globs are zsh-safe (setopt guard or find)', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      const bashBlocks = [...content.matchAll(/```bash\n([\s\S]*?)```/g)].map(m => m[1]);
+
+      for (const block of bashBlocks) {
+        const lines = block.split('\n');
+
+        for (const line of lines) {
+          const trimmed = line.trimStart();
+          if (trimmed.startsWith('#')) continue;
+          if (!trimmed.includes('*')) continue;
+          // Skip lines where * is inside find -name, git pathspecs, or $(find)
+          if (/\bfind\b/.test(trimmed)) continue;
+          if (/\bgit\b/.test(trimmed)) continue;
+          if (/\$\(find\b/.test(trimmed)) continue;
+
+          // Check 1: "for VAR in <glob>" must use $(find ...) — caught above by the
+          // $(find check, so any surviving for-in with a glob pattern is a violation
+          if (/\bfor\s+\w+\s+in\b/.test(trimmed) && /\*\./.test(trimmed)) {
+            throw new Error(
+              `Unsafe for-in glob in ${skill.dir}/SKILL.md: "${trimmed}". ` +
+              `Use \`for f in $(find ... -name '*.ext')\` for zsh compatibility.`
+            );
+          }
+
+          // Check 2: ls/cat/rm/grep with glob file args must have setopt guard
+          const isGlobCmd = /\b(?:ls|cat|rm|grep)\b/.test(trimmed) &&
+                            /(?:\/\*[a-z.*]|\*\.[a-z])/.test(trimmed);
+          if (isGlobCmd) {
+            expect(block).toContain('setopt +o nomatch');
+          }
+        }
+      }
     }
   });
 
@@ -985,12 +1023,18 @@ describe('CODEX_SECOND_OPINION resolver', () => {
   });
 
   test('contains opt-in AskUserQuestion text', () => {
-    expect(content).toContain('second opinion from a different AI model');
+    expect(content).toContain('second opinion from an independent AI perspective');
   });
 
   test('contains cross-model synthesis instructions', () => {
     expect(content).toMatch(/[Ss]ynthesis/);
-    expect(content).toContain('Where Claude agrees with Codex');
+    expect(content).toContain('Where Claude agrees with the second opinion');
+  });
+
+  test('contains Claude subagent fallback', () => {
+    expect(content).toContain('CODEX_NOT_AVAILABLE');
+    expect(content).toContain('Agent tool');
+    expect(content).toContain('SECOND OPINION (Claude subagent)');
   });
 
   test('contains premise revision check', () => {
@@ -1597,6 +1641,73 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('$HOME/.gstack/repos/gstack');
     expect(setupContent).toContain('avoid duplicate skill discovery');
   });
+
+  // --- Symlink prefix tests (PR #503) ---
+
+  test('link_claude_skill_dirs applies gstack- prefix by default', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('SKILL_PREFIX');
+    expect(fnBody).toContain('link_name="gstack-$skill_name"');
+  });
+
+  test('link_claude_skill_dirs preserves already-prefixed dirs', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    // gstack-* dirs should keep their name (e.g., gstack-upgrade stays gstack-upgrade)
+    expect(fnBody).toContain('gstack-*) link_name="$skill_name"');
+  });
+
+  test('setup supports --no-prefix flag', () => {
+    expect(setupContent).toContain('--no-prefix');
+    expect(setupContent).toContain('SKILL_PREFIX=0');
+  });
+
+  test('cleanup_old_claude_symlinks removes only gstack-pointing symlinks', () => {
+    expect(setupContent).toContain('cleanup_old_claude_symlinks');
+    const fnStart = setupContent.indexOf('cleanup_old_claude_symlinks()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('removed[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    // Should check readlink before removing
+    expect(fnBody).toContain('readlink');
+    expect(fnBody).toContain('gstack/*');
+    // Should skip already-prefixed dirs
+    expect(fnBody).toContain('gstack-*) continue');
+  });
+
+  test('cleanup runs before link when prefix is enabled', () => {
+    // In the Claude install section, cleanup should happen before linking
+    const claudeInstallSection = setupContent.slice(
+      setupContent.indexOf('INSTALL_CLAUDE'),
+      setupContent.lastIndexOf('link_claude_skill_dirs')
+    );
+    expect(claudeInstallSection).toContain('cleanup_old_claude_symlinks');
+  });
+});
+
+describe('discover-skills hidden directory filtering', () => {
+  test('discoverTemplates skips dot-prefixed directories', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-discover-'));
+    try {
+      // Create a hidden dir with a template (should be excluded)
+      fs.mkdirSync(path.join(tmpDir, '.hidden'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, '.hidden', 'SKILL.md.tmpl'), '---\nname: evil\n---\ntest');
+      // Create a visible dir with a template (should be included)
+      fs.mkdirSync(path.join(tmpDir, 'visible'), { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, 'visible', 'SKILL.md.tmpl'), '---\nname: good\n---\ntest');
+
+      const { discoverTemplates } = require('../scripts/discover-skills');
+      const results = discoverTemplates(tmpDir);
+      const dirs = results.map((r: { tmpl: string }) => r.tmpl);
+
+      expect(dirs).toContain('visible/SKILL.md.tmpl');
+      expect(dirs).not.toContain('.hidden/SKILL.md.tmpl');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('telemetry', () => {
@@ -1645,5 +1756,93 @@ describe('telemetry', () => {
         expect(content).toContain('Telemetry (run last)');
       }
     }
+  });
+});
+
+describe('codex commands must not use inline $(git rev-parse --show-toplevel) for cwd', () => {
+  // Regression test: inline $(git rev-parse --show-toplevel) in codex exec -C
+  // or codex review without cd evaluates in whatever cwd the background shell
+  // inherits, which may be a different project in Conductor workspaces.
+  // The fix is to resolve _REPO_ROOT eagerly at the top of each bash block.
+
+  // Scan all source files that could contain codex commands
+  // Use Bun.Glob to avoid ELOOP from .claude/skills/gstack symlink back to ROOT
+  const tmplGlob = new Bun.Glob('**/*.tmpl');
+  const sourceFiles = [
+    ...Array.from(tmplGlob.scanSync({ cwd: ROOT, followSymlinks: false })),
+    ...fs.readdirSync(path.join(ROOT, 'scripts/resolvers'))
+      .filter(f => f.endsWith('.ts'))
+      .map(f => `scripts/resolvers/${f}`),
+    'scripts/gen-skill-docs.ts',
+  ];
+
+  test('no codex exec command uses inline $(git rev-parse --show-toplevel) in -C flag', () => {
+    const violations: string[] = [];
+    for (const rel of sourceFiles) {
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) continue;
+      const content = fs.readFileSync(abs, 'utf-8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('codex exec') && line.includes('-C') && line.includes('$(git rev-parse --show-toplevel)')) {
+          violations.push(`${rel}:${i + 1}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test('no generated SKILL.md has codex exec with inline $(git rev-parse --show-toplevel) in -C flag', () => {
+    const violations: string[] = [];
+    const skillMdGlob = new Bun.Glob('**/SKILL.md');
+    const skillMdFiles = Array.from(skillMdGlob.scanSync({ cwd: ROOT, followSymlinks: false }));
+    for (const rel of skillMdFiles) {
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) continue;
+      const content = fs.readFileSync(abs, 'utf-8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('codex exec') && line.includes('-C') && line.includes('$(git rev-parse --show-toplevel)')) {
+          violations.push(`${rel}:${i + 1}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test('codex review commands must be preceded by cd "$_REPO_ROOT" (no -C support)', () => {
+    // codex review does not support -C, so the pattern must be:
+    //   _REPO_ROOT=$(git rev-parse --show-toplevel) || { ... }
+    //   cd "$_REPO_ROOT"
+    //   codex review ...
+    // NOT: codex review ... with inline $(git rev-parse --show-toplevel)
+    const allFiles = [
+      ...Array.from(tmplGlob.scanSync({ cwd: ROOT, followSymlinks: false })),
+      ...Array.from(new Bun.Glob('**/SKILL.md').scanSync({ cwd: ROOT, followSymlinks: false })),
+      ...fs.readdirSync(path.join(ROOT, 'scripts/resolvers'))
+        .filter(f => f.endsWith('.ts'))
+        .map(f => `scripts/resolvers/${f}`),
+      'scripts/gen-skill-docs.ts',
+    ];
+    const violations: string[] = [];
+    for (const rel of allFiles) {
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) continue;
+      const content = fs.readFileSync(abs, 'utf-8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        // Skip non-executable lines (markdown table cells, prose references)
+        if (line.includes('|') && line.includes('`/codex review`')) continue;
+        if (line.includes('`codex review`')) continue;
+        // Check for codex review with inline $(git rev-parse)
+        if (line.includes('codex review') && line.includes('$(git rev-parse --show-toplevel)')) {
+          violations.push(`${rel}:${i + 1} — inline git rev-parse in codex review`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
   });
 });
