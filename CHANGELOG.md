@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.12.9.0] - 2026-03-27 — Community PRs: Faster Install, Skill Namespacing, Uninstall
+
+Six community PRs landed in one batch. Install is faster, skills no longer collide with other tools, and you can cleanly uninstall gstack when needed.
+
+### Added
+
+- **Uninstall script.** `bin/gstack-uninstall` cleanly removes gstack from your system: stops browse daemons, removes all skill installs (Claude/Codex/Kiro), cleans up state. Supports `--force` (skip confirmation) and `--keep-state` (preserve config). (#323)
+- **Python security patterns in /review.** Shell injection (`subprocess.run(shell=True)`), SSRF via LLM-generated URLs, stored prompt injection, async/sync mixing, and column name safety checks now fire automatically on Python projects. (#531)
+- **Office-hours works without Codex.** The "second opinion" step now falls back to a Claude subagent when Codex CLI is unavailable, so every user gets the cross-model perspective. (#464)
+
+### Changed
+
+- **Faster install (~30s).** All clone commands now use `--single-branch --depth 1`. Full history available for contributors. (#484)
+- **Skills namespaced with `gstack-` prefix.** Skill symlinks are now `gstack-review`, `gstack-ship`, etc. instead of bare `review`, `ship`. Prevents collisions with other skill packs. Old symlinks are auto-cleaned on upgrade. Use `--no-prefix` to opt out. (#503)
+
+### Fixed
+
+- **Windows port race condition.** `findPort()` now uses `net.createServer()` instead of `Bun.serve()` for port probing, fixing an EADDRINUSE race on Windows where the polyfill's `stop()` is fire-and-forget. (#490)
+- **package.json version sync.** VERSION file and package.json now agree (was stuck at 0.12.5.0).
+
 ## [0.12.8.1] - 2026-03-27 — zsh Glob Compatibility
 
 Skill scripts now work correctly in zsh. Previously, bash code blocks in skill templates used raw glob patterns like `.github/workflows/*.yaml` and `ls ~/.gstack/projects/$SLUG/*-design-*.md` that would throw "no matches found" errors in zsh when no files matched. Fixed 38 instances across 13 templates and 2 resolvers using two approaches: `find`-based alternatives for complex patterns, and `setopt +o nomatch` guards for simple `ls` commands.

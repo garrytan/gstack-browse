@@ -26,6 +26,7 @@ import { emitActivity, subscribe, getActivityAfter, getActivityHistory, getSubsc
 // Bun.spawn used instead of child_process.spawn (compiled bun binaries
 // fail posix_spawn on all executables including /bin/bash)
 import * as fs from 'fs';
+import * as net from 'net';
 import * as path from 'path';
 import * as crypto from 'crypto';
 
@@ -547,17 +548,28 @@ export { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS };
 const browserManager = new BrowserManager();
 let isShuttingDown = false;
 
+// Test if a port is available by binding and immediately releasing.
+// Uses net.createServer instead of Bun.serve to avoid a race condition
+// in the Node.js polyfill where listen/close are async but the caller
+// expects synchronous bind semantics. See: #486
+function isPortAvailable(port: number, hostname: string = '127.0.0.1'): Promise<boolean> {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once('error', () => resolve(false));
+    srv.listen(port, hostname, () => {
+      srv.close(() => resolve(true));
+    });
+  });
+}
+
 // Find port: explicit BROWSE_PORT, or random in 10000-60000
 async function findPort(): Promise<number> {
   // Explicit port override (for debugging)
   if (BROWSE_PORT) {
-    try {
-      const testServer = Bun.serve({ port: BROWSE_PORT, fetch: () => new Response('ok') });
-      testServer.stop();
+    if (await isPortAvailable(BROWSE_PORT)) {
       return BROWSE_PORT;
-    } catch {
-      throw new Error(`[browse] Port ${BROWSE_PORT} (from BROWSE_PORT env) is in use`);
     }
+    throw new Error(`[browse] Port ${BROWSE_PORT} (from BROWSE_PORT env) is in use`);
   }
 
   // Random port with retry
@@ -566,12 +578,8 @@ async function findPort(): Promise<number> {
   const MAX_RETRIES = 5;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const port = MIN_PORT + Math.floor(Math.random() * (MAX_PORT - MIN_PORT));
-    try {
-      const testServer = Bun.serve({ port, fetch: () => new Response('ok') });
-      testServer.stop();
+    if (await isPortAvailable(port)) {
       return port;
-    } catch {
-      continue;
     }
   }
   throw new Error(`[browse] No available port after ${MAX_RETRIES} attempts in range ${MIN_PORT}-${MAX_PORT}`);

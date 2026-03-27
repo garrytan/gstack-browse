@@ -674,21 +674,19 @@ Use AskUserQuestion to confirm. If the user disagrees with a premise, revise und
 
 ## Phase 3.5: Cross-Model Second Opinion (optional)
 
-**Binary check first — no question if unavailable:**
+**Binary check first:**
 
 ```bash
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 ```
 
-If `CODEX_NOT_AVAILABLE`: skip Phase 3.5 entirely — no message, no AskUserQuestion. Proceed directly to Phase 4.
+Use AskUserQuestion (regardless of codex availability):
 
-If `CODEX_AVAILABLE`: use AskUserQuestion:
-
-> Want a second opinion from a different AI model? Codex will independently review your problem statement, key answers, premises, and any landscape findings from this session. It hasn't seen this conversation — it gets a structured summary. Usually takes 2-5 minutes.
+> Want a second opinion from an independent AI perspective? It will review your problem statement, key answers, premises, and any landscape findings from this session without having seen this conversation — it gets a structured summary. Usually takes 2-5 minutes.
 > A) Yes, get a second opinion
 > B) No, proceed to alternatives
 
-If B: skip Phase 3.5 entirely. Remember that Codex did NOT run (affects design doc, founder signals, and Phase 4 below).
+If B: skip Phase 3.5 entirely. Remember that the second opinion did NOT run (affects design doc, founder signals, and Phase 4 below).
 
 **If A: Run the Codex cold read.**
 
@@ -726,15 +724,26 @@ cat "$TMPERR_OH"
 rm -f "$TMPERR_OH" "$CODEX_PROMPT_FILE"
 ```
 
-**Error handling:** All errors are non-blocking — Codex second opinion is a quality enhancement, not a prerequisite.
-- **Auth failure:** If stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \`codex login\` to authenticate. Skipping second opinion."
-- **Timeout:** "Codex timed out after 5 minutes. Skipping second opinion."
-- **Empty response:** "Codex returned no response. Stderr: <paste relevant error>. Skipping second opinion."
+**Error handling:** All errors are non-blocking — second opinion is a quality enhancement, not a prerequisite.
+- **Auth failure:** If stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \`codex login\` to authenticate." Fall back to Claude subagent.
+- **Timeout:** "Codex timed out after 5 minutes." Fall back to Claude subagent.
+- **Empty response:** "Codex returned no response." Fall back to Claude subagent.
 
-On any error, proceed to Phase 4 — do NOT fall back to a Claude subagent (this is brainstorming, not adversarial review).
+On any Codex error, fall back to the Claude subagent below.
+
+**If CODEX_NOT_AVAILABLE (or Codex errored):**
+
+Dispatch via the Agent tool. The subagent has fresh context — genuine independence.
+
+Subagent prompt: same mode-appropriate prompt as above (Startup or Builder variant).
+
+Present findings under a `SECOND OPINION (Claude subagent):` header.
+
+If the subagent fails or times out: "Second opinion unavailable. Continuing to Phase 4."
 
 4. **Presentation:**
 
+If Codex ran:
 ```
 SECOND OPINION (Codex):
 ════════════════════════════════════════════════════════════
@@ -742,10 +751,18 @@ SECOND OPINION (Codex):
 ════════════════════════════════════════════════════════════
 ```
 
-5. **Cross-model synthesis:** After presenting Codex output, provide 3-5 bullet synthesis:
-   - Where Claude agrees with Codex
+If Claude subagent ran:
+```
+SECOND OPINION (Claude subagent):
+════════════════════════════════════════════════════════════
+<full subagent output, verbatim — do not truncate or summarize>
+════════════════════════════════════════════════════════════
+```
+
+5. **Cross-model synthesis:** After presenting the second opinion output, provide 3-5 bullet synthesis:
+   - Where Claude agrees with the second opinion
    - Where Claude disagrees and why
-   - Whether Codex's challenged premise changes Claude's recommendation
+   - Whether the challenged premise changes Claude's recommendation
 
 6. **Premise revision check:** If Codex challenged an agreed premise, use AskUserQuestion:
 
@@ -783,7 +800,7 @@ Rules:
 - One must be the **"minimal viable"** (fewest files, smallest diff, ships fastest).
 - One must be the **"ideal architecture"** (best long-term trajectory, most elegant).
 - One can be **creative/lateral** (unexpected approach, different framing of the problem).
-- If Codex proposed a prototype in Phase 3.5, consider using it as a starting point for the creative/lateral approach.
+- If the second opinion (Codex or Claude subagent) proposed a prototype in Phase 3.5, consider using it as a starting point for the creative/lateral approach.
 
 **RECOMMENDATION:** Choose [X] because [one-line reason].
 
@@ -949,7 +966,7 @@ Supersedes: {prior filename — omit this line if first design on this branch}
 {from Phase 3}
 
 ## Cross-Model Perspective
-{If Codex ran in Phase 3.5: Codex's independent cold read — steelman, key insight, challenged premise, prototype suggestion. Verbatim or close paraphrase of what Codex said. If Codex did NOT run (skipped or unavailable): omit this section entirely — do not include it.}
+{If second opinion ran in Phase 3.5 (Codex or Claude subagent): independent cold read — steelman, key insight, challenged premise, prototype suggestion. Verbatim or close paraphrase. If second opinion did NOT run (skipped or unavailable): omit this section entirely — do not include it.}
 
 ## Approaches Considered
 ### Approach A: {name}
@@ -1006,7 +1023,7 @@ Supersedes: {prior filename — omit this line if first design on this branch}
 {from Phase 3}
 
 ## Cross-Model Perspective
-{If Codex ran in Phase 3.5: Codex's independent cold read — coolest version, key insight, existing tools, prototype suggestion. Verbatim or close paraphrase of what Codex said. If Codex did NOT run (skipped or unavailable): omit this section entirely — do not include it.}
+{If second opinion ran in Phase 3.5 (Codex or Claude subagent): independent cold read — coolest version, key insight, existing tools, prototype suggestion. Verbatim or close paraphrase. If second opinion did NOT run (skipped or unavailable): omit this section entirely — do not include it.}
 
 ## Approaches Considered
 ### Approach A: {name}

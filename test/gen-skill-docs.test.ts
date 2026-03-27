@@ -1023,12 +1023,18 @@ describe('CODEX_SECOND_OPINION resolver', () => {
   });
 
   test('contains opt-in AskUserQuestion text', () => {
-    expect(content).toContain('second opinion from a different AI model');
+    expect(content).toContain('second opinion from an independent AI perspective');
   });
 
   test('contains cross-model synthesis instructions', () => {
     expect(content).toMatch(/[Ss]ynthesis/);
-    expect(content).toContain('Where Claude agrees with Codex');
+    expect(content).toContain('Where Claude agrees with the second opinion');
+  });
+
+  test('contains Claude subagent fallback', () => {
+    expect(content).toContain('CODEX_NOT_AVAILABLE');
+    expect(content).toContain('Agent tool');
+    expect(content).toContain('SECOND OPINION (Claude subagent)');
   });
 
   test('contains premise revision check', () => {
@@ -1634,6 +1640,50 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('migrate_direct_codex_install');
     expect(setupContent).toContain('$HOME/.gstack/repos/gstack');
     expect(setupContent).toContain('avoid duplicate skill discovery');
+  });
+
+  // --- Symlink prefix tests (PR #503) ---
+
+  test('link_claude_skill_dirs applies gstack- prefix by default', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('SKILL_PREFIX');
+    expect(fnBody).toContain('link_name="gstack-$skill_name"');
+  });
+
+  test('link_claude_skill_dirs preserves already-prefixed dirs', () => {
+    const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    // gstack-* dirs should keep their name (e.g., gstack-upgrade stays gstack-upgrade)
+    expect(fnBody).toContain('gstack-*) link_name="$skill_name"');
+  });
+
+  test('setup supports --no-prefix flag', () => {
+    expect(setupContent).toContain('--no-prefix');
+    expect(setupContent).toContain('SKILL_PREFIX=0');
+  });
+
+  test('cleanup_old_claude_symlinks removes only gstack-pointing symlinks', () => {
+    expect(setupContent).toContain('cleanup_old_claude_symlinks');
+    const fnStart = setupContent.indexOf('cleanup_old_claude_symlinks()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('removed[@]}', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    // Should check readlink before removing
+    expect(fnBody).toContain('readlink');
+    expect(fnBody).toContain('gstack/*');
+    // Should skip already-prefixed dirs
+    expect(fnBody).toContain('gstack-*) continue');
+  });
+
+  test('cleanup runs before link when prefix is enabled', () => {
+    // In the Claude install section, cleanup should happen before linking
+    const claudeInstallSection = setupContent.slice(
+      setupContent.indexOf('INSTALL_CLAUDE'),
+      setupContent.lastIndexOf('link_claude_skill_dirs')
+    );
+    expect(claudeInstallSection).toContain('cleanup_old_claude_symlinks');
   });
 });
 
