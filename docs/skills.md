@@ -663,18 +663,18 @@ You:   /oracle
 
 Claude: I identified 20 features from your codebase. Here's the product map:
 
-        iskool started as an ed-tech social learning platform...
+        This looks like a Saas product
 
         F001: Authentication & Auth Gate [SHIPPED]
-        F003: Classroom & Courses [SHIPPED]
-        F004: Profile & Social Graph [SHIPPED]
+        F003: Services [SHIPPED]
+        F004: Payment [SHIPPED]
         ...
 
         IDENTITY
-        ███████████████ 30% social
+        ███████████████ 30% Infra
         ████████ 15% admin
-        █████ 10% content-creation
-        █████ 10% learning
+        █████ 10% subscription
+        █████ 10% AI chatbot
 
         Review it — correct any features I missed or got wrong.
 ```
@@ -686,7 +686,7 @@ Claude: PRODUCT HEALTH — iskool
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         FEATURES (20)  Shipped: 20
         CODEBASE       536 files, 73,120 lines, 26 routes
-        COMPLEXITY     EASY: 9  MEDIUM: 8  MEGA: 9
+        COMPLEXITY     EASY: 9  MEDIUM: 8  MEGA: 4
         ARCHITECTURE   4 circular deps, 39 dead files
         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
