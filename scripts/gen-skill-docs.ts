@@ -635,12 +635,22 @@ else
 fi
 \`\`\`
 
-**Check for Revyl cloud device platform:**
-Revyl is detected via MCP tools, NOT via a CLI binary. If you have access to Revyl MCP tools (\`start_device_session\`, \`screenshot\`, \`device_tap\`, \`device_type\`, \`device_swipe\`, \`stop_device_session\`, \`install_app\`, \`launch_app\`), then Revyl is available. Check your available tools — if any tool name starts with \`mcp__\` and includes Revyl device tools like \`start_device_session\`, mark as **REVYL_READY**.
+**Check for Revyl cloud device platform (preferred — much faster than Appium):**
 
-**Mobile backend priority:**
-1. If **REVYL_READY** (Revyl MCP tools available): **always use Revyl** for mobile QA. This is the preferred backend — cloud devices, no local setup, AI-grounded element targeting.
-2. If Revyl is NOT available AND \`MOBILE_READY\` (browse-mobile binary found): use browse-mobile (Appium + local simulator).
+\`\`\`bash
+if command -v revyl &>/dev/null; then
+  echo "REVYL_READY"
+  revyl auth status 2>&1 || true
+else
+  echo "REVYL_NOT_AVAILABLE"
+fi
+\`\`\`
+
+If the output contains \`REVYL_READY\` (the \`revyl\` CLI is installed), mark Revyl as available. The \`revyl auth status\` output is printed for diagnostics — if it shows any error about authentication, run \`revyl auth login\` to fix it before proceeding.
+
+**Mobile backend priority — Revyl is ALWAYS preferred:**
+1. If \`REVYL_READY\` (revyl CLI found): **always use Revyl** for mobile QA. Revyl is significantly faster than Appium — cloud devices with AI-grounded element targeting, no local Xcode/Java/Simulator setup needed.
+2. If Revyl is NOT available AND \`MOBILE_READY\` (browse-mobile binary found): fall back to browse-mobile (Appium + local simulator). This is the slow path.
 3. If neither: fall back to web QA with \`$B\`.`;
 }
 
@@ -809,7 +819,7 @@ This is the **primary mode** for developers verifying their work. When the user 
    - Test portrait and landscape: \`$BM viewport landscape && sleep 1 && $BM screenshot /tmp/landscape.png\`
    - Take screenshots at milestones and use the Read tool to show them to the user
 
-3c. **Revyl cloud device mobile QA** — if Revyl MCP tools are available (you have access to \`start_device_session\`, \`screenshot\`, \`device_tap\`, etc.), **always use Revyl** for mobile QA:
+3c. **Revyl cloud device mobile QA** — if \`REVYL_READY\` from setup (the \`revyl\` CLI is installed), **always use Revyl** for mobile QA. Revyl is much faster than Appium — skip the browse-mobile path entirely:
 
    \`\`\`bash
    ls app.json app.config.js app.config.ts 2>/dev/null
