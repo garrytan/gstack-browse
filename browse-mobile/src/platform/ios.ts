@@ -4,6 +4,13 @@
 
 import { execSync } from "child_process";
 
+/** Validate a string is a safe shell argument (no injection) */
+function assertSafeShellArg(value: string, name: string): void {
+  if (/[;&|`$"'\\<>(){}\n\r]/.test(value)) {
+    throw new Error(`Unsafe ${name}: contains shell metacharacters`);
+  }
+}
+
 export interface SimulatorDevice {
   udid: string;
   name: string;
@@ -70,6 +77,7 @@ export function ensureBootedSimulator(): SimulatorDevice | null {
   if (!target) return null;
 
   try {
+    assertSafeShellArg(target.udid, "simulator UDID");
     execSync(`xcrun simctl boot "${target.udid}"`, {
       timeout: 30000,
       stdio: "pipe",
@@ -128,6 +136,7 @@ export function hasXcodeTools(): boolean {
  */
 export function terminateApp(bundleId: string): void {
   try {
+    assertSafeShellArg(bundleId, "bundle ID");
     execSync(`xcrun simctl terminate booted "${bundleId}"`, {
       stdio: "pipe",
       timeout: 10000,
@@ -143,6 +152,7 @@ export function terminateApp(bundleId: string): void {
 export function shutdownSimulator(udid?: string): void {
   try {
     const target = udid || "booted";
+    if (udid) assertSafeShellArg(udid, "simulator UDID");
     execSync(`xcrun simctl shutdown "${target}"`, {
       stdio: "pipe",
       timeout: 15000,
