@@ -7,6 +7,7 @@ Type `gstack-config set skill_prefix g` and every gstack skill immediately switc
 ### Added
 
 - **Custom prefix word.** Setup now offers three choices: short names (`/qa`, `/ship`), namespaced (`/gstack-qa`, `/gstack-ship`), or a custom word you type yourself (`g`, `gs`, `mytools` — anything lowercase, 1-10 chars). The system appends the `-` separator.
+- **`{{SKILL_NAME}}` template variable.** SKILL.md templates now use `name: {{SKILL_NAME}}` in their frontmatter. The generator resolves this to the actual prefixed name at build time (e.g. `name: g-ship` when prefix is `g`). Claude Code uses the `name:` field to register the slash command trigger, so this is what makes `/g-ship` actually work — not just a renamed directory.
 - **Live prefix reload.** `gstack-config set skill_prefix <word>` regenerates all installed SKILL.md files immediately. Switching from `gstack` to `g` takes one command, not a full re-run of setup.
 - **`--prefix <word>` on setup.** The `--prefix` flag now takes a word argument (`--prefix g`) instead of being a toggle. `--no-prefix` still works as before.
 - **Universal skill cleanup.** Switching between any two prefix configurations (including custom words) now cleans up all previously generated dirs before regenerating. Detection uses the `AUTO-GENERATED from SKILL.md.tmpl` header in each file.
