@@ -665,6 +665,8 @@ After writing the report file, print a summary directly to the conversation. Thi
 5. **Report location**: Full path to the written report
 6. **Regression delta** (if applicable): Score change, count of fixed/new findings
 
+**DO NOT STOP after printing the summary. DO NOT offer to show more findings. DO NOT emit STATUS: DONE. You MUST proceed immediately to Phase 4.7.** The summary is an intermediate output — the fix plan and next-step AskUserQuestion in Phase 4.7 are the actual endpoint of the audit. If the user asks follow-up questions about findings, answer them, then continue to Phase 4.7.
+
 ### 4.7 Write the Fix Plan
 
 After printing the conversation summary, write the fix plan to the plan file. The audit is planning-for-a-plan — the plan file is the natural, actionable output.
@@ -710,7 +712,43 @@ Health score: {N}/100. No critical or important findings.
 See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 ```
 
-**After writing the plan**, use AskUserQuestion to offer the next step:
+**After writing the plan**, use AskUserQuestion to offer the next step. Choose the appropriate flow based on finding count and spread:
+
+---
+
+**Flow 1: Triage-first (6+ findings across 3+ categories)**
+
+When the audit produces many findings spread across multiple areas, the plan is too broad to execute in one session. Offer triage before planning.
+
+> "Audit complete — {N} findings across {C} categories. That's too many to tackle in one plan. I recommend triaging: pick the highest-impact cluster to fix now, and export the rest as TODOs so nothing gets lost."
+
+Options:
+- **A) Triage now** (recommended) — walk through findings by category, pick what to fix now vs. defer to TODOS.md
+- **B) Fix mechanicals now, defer the rest** — apply easy wins (Part 1) immediately, export Part 2 findings to TODOS.md
+- **C) Export all to TODOS.md** — save everything as structured TODOs, plan nothing now
+- **D) Accept the full plan anyway** — attempt all fixes in one session (not recommended for 6+ findings)
+
+If the user picks A: Walk through findings grouped by category. For each group, ask: "Fix now (stays in plan)" or "Defer (exports to TODOS.md)." After triage, rewrite the plan to include only the selected findings. Export deferred findings to the project's TODOS.md (or create one) using this format per finding:
+```
+### {Finding ID}: {Title}
+**Priority:** {P1 for Important, P2 for Notable, P3 for Opportunity}
+**Category:** {category}
+**Location:** {file:line}
+**What:** {one-line description}
+**Why:** {why it matters}
+**Context:** {evidence from the audit — enough to act on without re-auditing}
+```
+Then proceed with the focused plan through the normal review chaining flow (options A-D from Flow 2 below).
+
+If the user picks B: Apply Part 1 mechanical fixes immediately. Export all Part 2 substantive findings to TODOS.md using the format above. Skip review chaining — the substantive work is deferred.
+
+If the user picks C: Export all findings to TODOS.md. Write a minimal plan: "No fixes planned this session. {N} findings exported to TODOS.md."
+
+If the user picks D: proceed with the full plan through Flow 2 below.
+
+---
+
+**Flow 2: Focused plan (≤5 findings, OR 6+ findings concentrated in 1-2 categories, OR after triage)**
 
 If there are substantive findings (Part 2 exists):
 
@@ -729,7 +767,9 @@ If the user picks B: **Immediately** invoke the Skill tool with `skill: "plan-ce
 If the user picks C: proceed to implementation (the plan file is ready for "Ready to code?").
 If the user picks D: tell the user to edit the plan file, then re-run the audit or proceed manually.
 
-If there are only mechanical findings (no Part 2):
+---
+
+**Flow 3: Mechanical-only (no substantive findings)**
 
 > "Audit complete. Plan written with {M} mechanical fixes — all straightforward, no review needed."
 
