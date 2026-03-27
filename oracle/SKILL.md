@@ -554,15 +554,18 @@ user sees inventory progress and feature documentation — never raw scan output
 
 **Named constants:**
 - `BASE_BUDGET = 3000` (source lines per inventory session)
-- `TOKEN_RATIO_MAP_TO_SOURCE = 3` (1 line of map/manifest ≈ 3 lines of source context)
+- `TOKEN_RATIO_MAP_TO_SOURCE = 3` (1 line of map ≈ 3 lines of source context)
 
 ```
-map_lines     = line count of PRODUCT_MAP.md (or 0 if new)
-manifest_lines = line count of .scan-manifest.json
-available     = BASE_BUDGET - (map_lines / TOKEN_RATIO) - (manifest_lines / TOKEN_RATIO)
+map_lines = line count of PRODUCT_MAP.md (or 0 if new)
+available = BASE_BUDGET - (map_lines / TOKEN_RATIO)
 ```
 
-Report: "Budget this session: **{available} source lines** ({BASE_BUDGET} base - {map_overhead} map - {manifest_overhead} manifest)."
+The scan manifest is NOT deducted — it is read once to build the work queue, then
+not referenced during route analysis. Only the product map is deducted because Claude
+actively references it while writing inventory docs (connections, patterns, anti-patterns).
+
+Report: "Budget this session: **{available} source lines** ({BASE_BUDGET} base - {map_overhead} map)."
 
 ### Step 2: Route prioritization
 
