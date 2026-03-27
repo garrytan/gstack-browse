@@ -16,3 +16,4 @@ bun.lock
 .env.*
 !.env.example
 supabase/.temp/
+extension/auth-token.json

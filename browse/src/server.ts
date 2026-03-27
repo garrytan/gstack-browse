@@ -742,6 +742,11 @@ async function shutdown() {
   // Clean up state file
   try { fs.unlinkSync(config.stateFile); } catch {}
 
+  // Clean up auth token from extension directory
+  if (browserManager.extensionPath) {
+    try { fs.unlinkSync(path.join(browserManager.extensionPath, 'auth-token.json')); } catch {}
+  }
+
   process.exit(0);
 }
 
@@ -799,6 +804,17 @@ async function start() {
     if (headed) {
       await browserManager.launchHeaded();
       console.log(`[browse] Launched headed Chromium with extension`);
+
+      // Write auth token to extension directory so the Chrome extension can
+      // bootstrap without the server exposing the token on /health.
+      // The file is only readable by the extension via chrome.runtime.getURL().
+      if (browserManager.extensionPath) {
+        const tokenFile = path.join(browserManager.extensionPath, 'auth-token.json');
+        const tmpTokenFile = tokenFile + '.tmp';
+        fs.writeFileSync(tmpTokenFile, JSON.stringify({ token: AUTH_TOKEN }), { mode: 0o600 });
+        fs.renameSync(tmpTokenFile, tokenFile);
+        console.log(`[browse] Auth token written to extension directory`);
+      }
     } else {
       await browserManager.launch();
     }
@@ -825,7 +841,6 @@ async function start() {
           uptime: Math.floor((Date.now() - startTime) / 1000),
           tabs: browserManager.getTabCount(),
           currentUrl: browserManager.getCurrentUrl(),
-          token: AUTH_TOKEN,  // Extension uses this for Bearer auth
           chatEnabled: true,
           agent: {
             status: agentStatus,

@@ -44,8 +44,18 @@ async function checkHealth() {
     if (!resp.ok) { setDisconnected(); return; }
     const data = await resp.json();
     if (data.status === 'healthy') {
-      // Capture auth token from health response
-      if (data.token) authToken = data.token;
+      // Bootstrap auth token from extension-local file (written by server on
+      // headed launch with mode 0o600). Only the extension runtime can resolve
+      // chrome.runtime.getURL, so external processes cannot steal the token.
+      if (!authToken) {
+        try {
+          const tokenResp = await fetch(chrome.runtime.getURL('auth-token.json'));
+          if (tokenResp.ok) {
+            const tokenData = await tokenResp.json();
+            if (tokenData.token) authToken = tokenData.token;
+          }
+        } catch { /* token file may not exist yet */ }
+      }
       // Forward chatEnabled so sidepanel can show/hide chat tab
       setConnected({ ...data, chatEnabled: !!data.chatEnabled });
     } else {

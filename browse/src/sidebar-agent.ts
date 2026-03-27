@@ -66,12 +66,17 @@ function writeToInbox(message: string, pageUrl?: string, sessionId?: string): vo
 // ─── Auth ────────────────────────────────────────────────────────
 
 async function refreshToken(): Promise<string | null> {
+  // Read token from the 0o600 state file instead of /health (which no longer
+  // exposes the token) to prevent unauthenticated local processes from
+  // harvesting the bearer token.
   try {
-    const resp = await fetch(`${SERVER_URL}/health`, { signal: AbortSignal.timeout(3000) });
-    if (!resp.ok) return null;
-    const data = await resp.json() as any;
-    authToken = data.token || null;
-    return authToken;
+    const stateFile = process.env.BROWSE_STATE_FILE;
+    if (stateFile) {
+      const data = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
+      authToken = data.token || null;
+      return authToken;
+    }
+    return null;
   } catch {
     return null;
   }

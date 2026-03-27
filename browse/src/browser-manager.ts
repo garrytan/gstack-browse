@@ -46,6 +46,9 @@ export class BrowserManager {
   /** Server port — set after server starts, used by cookie-import-browser command */
   public serverPort: number = 0;
 
+  /** Extension directory path — set during headed launch, used by server for auth token bootstrap */
+  public extensionPath: string | null = null;
+
   // ─── Ref Map (snapshot → @e1, @e2, @c1, @c2, ...) ────────
   private refMap: Map<string, RefEntry> = new Map();
 
@@ -219,6 +222,7 @@ export class BrowserManager {
 
     // Find the gstack extension directory for auto-loading
     const extensionPath = this.findExtensionPath();
+    this.extensionPath = extensionPath;
     const launchArgs = ['--hide-crash-restore-bubble'];
     if (extensionPath) {
       launchArgs.push(`--disable-extensions-except=${extensionPath}`);
