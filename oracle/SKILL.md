@@ -5,13 +5,13 @@ version: 1.0.0
 description: |
   Product memory and intelligence layer. Bootstraps a product map from your codebase,
   tracks features across sessions, surfaces connections during planning, and warns about
-  anti-patterns. Modes: scan (AST-powered import graph), bootstrap/refresh (analyze codebase),
-  inventory (budgeted deep page-by-page scan with checkpointing), update (sync recent work),
-  query/stats (product overview + codebase health).
+  anti-patterns. Modes: bootstrap/refresh (analyze codebase), inventory (budgeted deep
+  page-by-page scan with checkpointing), update (sync recent work), query/stats (product
+  overview + codebase health).
   Most of the time you don't invoke /oracle directly — it runs automatically through
   other gstack skills.
   Use when asked to "bootstrap product map", "oracle", "product map", "refresh features",
-  "inventory", "deep scan", "map all features", "scan imports", or "what features do I have".
+  "inventory", "deep scan", "map all features", or "what features do I have".
   Proactively suggest when a planning skill detects no product map exists.
 allowed-tools:
   - Bash
@@ -349,14 +349,11 @@ echo "LAST_WRITE: $_PM_TS"
 |-------|------|
 | `/oracle` (no args, no product map) | **Bootstrap** |
 | `/oracle` (no args, product map exists) | **Query** (product overview) |
-| `/oracle scan` | **Scan** (AST-powered import graph analysis) |
-| `/oracle scan --visualize` | **Scan** + open HTML import graph |
-| `/oracle scan --no-diff` | **Scan** without auto-diff against previous |
 | `/oracle inventory` | **Inventory** (budgeted deep page-by-page scan) |
+| `/oracle inventory --visualize` | **Inventory** + open HTML import graph after scan |
 | `/oracle refresh` | **Refresh** (full re-analysis) |
 | `/oracle update` | **Update** (sync recent git history) |
-| `/oracle stats` | **Stats** (product health dashboard) |
-| `/oracle stats --scan` | **Stats** (codebase health from scan data) |
+| `/oracle stats` | **Stats** (product health + codebase health) |
 | `/oracle {question}` | **Query** (answer with product context) |
 
 ---
@@ -504,13 +501,20 @@ This is informational — don't block on it. The user can run inventory later.
 
 ---
 
-## Phase 2.5: Scan Mode (`/oracle scan`)
+## Phase 3: Inventory Mode (`/oracle inventory`)
 
-AST-powered import graph analysis using TypeScript's compiler API. Produces a scan
-manifest with route classification, circular dependency detection, dead code detection,
-and architectural health metrics.
+Budgeted deep page-by-page scan that builds a comprehensive product map. Automatically
+runs the internal scanner to discover routes, classify complexity, and detect architectural
+issues — then does deep page-by-page analysis guided by those findings.
+**Two-tier documentation**: Tier 1 = PRODUCT_MAP.md (~12 lines/feature), Tier 2 =
+per-feature detailed docs at `inventory/F{NNN}-{feature-name}.md`.
 
-### Step 1: Run the scanner
+**Checkpoints after each batch** so it can resume across sessions if context runs out.
+
+### Step 0: Auto-scan (silent, internal)
+
+The scanner runs automatically at the start of every inventory session. It is never
+exposed to the user as a separate command — it's an implementation detail.
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
@@ -518,118 +522,33 @@ SCAN_BIN=~/.claude/skills/gstack/oracle/bin/scan-imports.ts
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 MANIFEST_PATH=~/.gstack/projects/$SLUG/.scan-manifest.json
 
-# Preserve previous manifest for auto-diff
+# Preserve previous manifest for structural change detection
 [ -f "$MANIFEST_PATH" ] && cp "$MANIFEST_PATH" ~/.gstack/projects/$SLUG/.scan-manifest.prev.json
 
-# Run the scan
-bun run "$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH"
+# Run the scan silently
+bun run "$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
 echo "SCAN_EXIT: $?"
 ```
 
-If the scan fails, check:
-- Is `bun` installed? (`which bun`)
-- Is there a `tsconfig.json` in the project root?
-- Are there `.ts`/`.tsx` files in `src/`?
+If the scan fails, check: Is `bun` installed? (`which bun`). Is there a `tsconfig.json`?
+Are there `.ts`/`.tsx` files in `src/`?
 
-### Step 2: Present scan results
+**Content hash check:** The manifest includes a `content_hash`. If a previous manifest
+exists and the hash matches, skip re-scanning routes that haven't structurally changed.
 
-Read the manifest and present:
-
-```
-CODEBASE SCAN — {slug}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Files:           {total_files} (.ts/.tsx)
-Lines:           {total_lines}
-Routes:          {route_count} ({page_count} pages, {api_count} API, {worker_count} workers)
-
-CLASSIFICATION:
-  EASY:    {count} routes ({pct}%)
-  MEDIUM:  {count} routes ({pct}%)
-  HARD:    {count} routes ({pct}%)
-  MEGA:    {count} routes ({pct}%)
-
-ARCHITECTURE:
-  Circular deps:         {count} ({high_count} HIGH, {med_count} MEDIUM, {low_count} LOW)
-  Dead files:            {count} ({high_conf} high confidence)
-  Most-shared component: {file} (imported by {N} routes)
-
-INVENTORY ESTIMATE:
-  Sessions needed: ~{estimate} (at {BASE_BUDGET} lines/session)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### Step 3: Auto-diff (default behavior)
-
-If a previous manifest exists (`.scan-manifest.prev.json`), automatically compare:
+**Visualize (if `--visualize` flag):** If the user ran `/oracle inventory --visualize`,
+open the HTML graph after the scan completes:
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-PREV=~/.gstack/projects/$SLUG/.scan-manifest.prev.json
-[ -f "$PREV" ] && echo "PREV_MANIFEST: exists" || echo "PREV_MANIFEST: none"
-```
-
-If previous manifest exists, compute and display:
-
-```
-SCAN DIFF (vs {prev_timestamp})
-━━━━━━━━━━━━━━━━━━━━━━━━━
-+ {N} new routes: {list}
-- {N} removed routes: {list}
-↑ {N} routes grew: {route} ({old_class} → {new_class}), ...
-↓ {N} routes shrank: {route} ({old_class} → {new_class}), ...
-⚠ {N} new circular deps ({high_count} HIGH)
-🗑 {N} new dead files
-```
-
-Suppress diff output if `--no-diff` flag was passed.
-
-### Step 4: Visualize (if `--visualize` flag)
-
-If the user ran `/oracle scan --visualize`:
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 VIZ_BIN=~/.claude/skills/gstack/oracle/bin/visualize-graph.ts
-MANIFEST=~/.gstack/projects/$SLUG/.scan-manifest.json
-OUTPUT="/tmp/oracle-scan-$SLUG.html"
-
-bun run "$VIZ_BIN" --manifest "$MANIFEST" --output "$OUTPUT"
+OUTPUT="/tmp/oracle-graph-$SLUG.html"
+bun run "$VIZ_BIN" --manifest "$MANIFEST_PATH" --output "$OUTPUT"
 open "$OUTPUT"
 ```
 
-For codebases with >1,000 nodes, warn before generating:
-> "Large codebase ({N} files). Generating route-level summary graph instead of
-> file-level graph. Use the full manifest for detailed analysis."
-
-### Step 5: Content hash check
-
-The scan manifest includes a `content_hash` (SHA-256 of the serialized graph). On
-subsequent scans, compare hashes to detect whether anything actually changed:
-
-- **Hash matches:** "No structural changes since last scan. Skipping re-analysis."
-- **Hash differs:** Full scan + diff output.
-
----
-
-## Phase 3: Inventory Mode (`/oracle inventory`)
-
-Budgeted deep page-by-page scan that builds a comprehensive product map. Uses the scan
-manifest (from `/oracle scan`) to prioritize routes chronologically by born date.
-**Two-tier documentation**: Tier 1 = PRODUCT_MAP.md (~12 lines/feature), Tier 2 =
-per-feature detailed docs at `inventory/F{NNN}-{feature-name}.md`.
-
-**Checkpoints after each batch** so it can resume across sessions if context runs out.
-
-### Step 0: Ensure scan manifest exists
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-MANIFEST=~/.gstack/projects/$SLUG/.scan-manifest.json
-[ -f "$MANIFEST" ] && echo "SCAN_MANIFEST: exists" || echo "SCAN_MANIFEST: missing"
-```
-
-If missing: "No scan manifest found. Running `/oracle scan` first to analyze the codebase."
-Then execute Phase 2.5 (Scan Mode) before continuing.
+**Do NOT display scan results to the user.** The scan data (route count, classification
+distribution, circular deps, dead files) is used internally by Steps 1-7 below. The
+user sees inventory progress and feature documentation — never raw scan output.
 
 ### Step 1: Calculate budget
 
@@ -874,11 +793,25 @@ echo "CHANGES_SINCE_LAST_WRITE: $_CHANGES"
 
 ## Phase 6: Stats Mode (`/oracle stats`)
 
-Product health dashboard — read-only, no writes.
+Product health dashboard — read-only, no writes. Automatically runs the internal
+scanner to include codebase health metrics alongside product map data.
 
-### Product stats (default: `/oracle stats`)
+### Step 1: Auto-scan (silent)
 
-Read PRODUCT_MAP.md and format:
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+SCAN_BIN=~/.claude/skills/gstack/oracle/bin/scan-imports.ts
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+MANIFEST_PATH=~/.gstack/projects/$SLUG/.scan-manifest.json
+
+bun run "$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
+```
+
+If scan fails, show product stats only (skip codebase health section).
+
+### Step 2: Present unified dashboard
+
+Read PRODUCT_MAP.md and the scan manifest. Format as a single dashboard:
 
 ```
 PRODUCT HEALTH — {project name}
@@ -889,58 +822,38 @@ FEATURES ({total})
   In Review:  {count}
   Planned:    {count}
 
+CODEBASE
+  Files:     {total_files} (.ts/.tsx)
+  Lines:     {total_lines}
+  Routes:    {route_count} ({page} pages, {api} API, {worker} workers)
+
+ROUTE COMPLEXITY
+  EASY:    {count} routes ({pct}%)
+  MEDIUM:  {count} routes ({pct}%)
+  HARD:    {count} routes ({pct}%)
+  MEGA:    {count} routes ({pct}%)
+
+ARCHITECTURE
+  Circular deps:   {count} ({high} HIGH, {med} MEDIUM, {low} LOW)
+  Dead files:      {count} ({high_conf} high confidence)
+
 PATTERNS ({total})
-  {Pattern Name}         used by {N} features   {healthy ✓ | warn ⚠ | deprecated ✗}
   {Pattern Name}         used by {N} features   {healthy ✓ | warn ⚠ | deprecated ✗}
 
 ANTI-PATTERNS ({total})
-  ⛔ {Pattern Name}      Tags: [{tags}]
   ⛔ {Pattern Name}      Tags: [{tags}]
 
 IDENTITY
   {category bars — only if ≥3 features}
   ███████████████ {pct}% {category}
   ███ {pct}% {category}
-  █ {pct}% {category}
+
+INVENTORY PROGRESS
+  Mapped:    {done}/{total} routes ({pct}%)
+  Remaining: ~{sessions} sessions estimated
 
 LAST UPDATED: {breadcrumb timestamp}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-### Codebase health stats (`/oracle stats --scan`)
-
-Requires a scan manifest. If missing: "Run `/oracle scan` first."
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-MANIFEST=~/.gstack/projects/$SLUG/.scan-manifest.json
-[ -f "$MANIFEST" ] && echo "MANIFEST: exists" || echo "MANIFEST: missing"
-```
-
-Read the scan manifest and format:
-
-```
-CODEBASE HEALTH (from scan)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Files:           {total_files} (.ts/.tsx)
-Lines:           {total_lines}
-Routes:          {route_count} ({page} pages, {api} API, {worker} workers)
-
-CLASSIFICATION:
-  EASY:    {count} routes ({pct}%)
-  MEDIUM:  {count} routes ({pct}%)
-  HARD:    {count} routes ({pct}%)
-  MEGA:    {count} routes ({pct}%)
-
-ARCHITECTURE:
-  Circular deps:         {count} ({high} HIGH, {med} MEDIUM, {low} LOW)
-  Dead files:            {count} ({high_conf} high confidence)
-  Most-shared component: {file} (imported by {N} routes)
-
-INVENTORY PROGRESS:
-  Mapped:    {done}/{total} routes ({pct}%)
-  Remaining: ~{sessions} sessions estimated
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
 ---
