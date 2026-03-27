@@ -401,26 +401,19 @@ else
 fi
 ```
 
-```bash
-# Check for Revyl cloud device platform
-REVYL_READY=""
-if command -v revyl &>/dev/null; then
-  revyl auth status 2>/dev/null | grep -qi "authenticated\|logged in\|active" && REVYL_READY="true"
-fi
-[ -n "$REVYL_READY" ] && echo "REVYL_READY" || echo "REVYL_NOT_AVAILABLE"
-```
+**Check for Revyl cloud device platform:**
+Revyl is detected via MCP tools, NOT via a CLI binary. If you have access to Revyl MCP tools (`start_device_session`, `screenshot`, `device_tap`, `device_type`, `device_swipe`, `stop_device_session`, `install_app`, `launch_app`), then Revyl is available. Check your available tools — if any tool name starts with `mcp__` and includes Revyl device tools like `start_device_session`, mark as **REVYL_READY**.
 
 **Mobile backend priority:**
-1. If `REVYL_READY` AND `MOBILE_READY`: prefer Revyl (cloud devices, no local setup). Fall back to browse-mobile if Revyl fails.
-2. If only `REVYL_READY`: use Revyl for mobile QA.
-3. If only `MOBILE_READY`: use browse-mobile (Appium + local simulator).
-4. If neither: fall back to web QA with `$B`.
+1. If **REVYL_READY** (Revyl MCP tools available): **always use Revyl** for mobile QA. This is the preferred backend — cloud devices, no local setup, AI-grounded element targeting.
+2. If Revyl is NOT available AND `MOBILE_READY` (browse-mobile binary found): use browse-mobile (Appium + local simulator).
+3. If neither: fall back to web QA with `$B`.
 
 **Detect platform and auto-setup (mobile vs web):**
 
 1. Check if `app.json` or `app.config.js`/`app.config.ts` exists in the project root.
-2. If found AND `REVYL_READY`: use Revyl cloud devices for mobile QA. Follow the "Revyl cloud device mobile QA" steps in the QA Methodology below. Do NOT ask the user — just do it.
-3. If found AND `$BM` is available (MOBILE_READY) but no Revyl: **automatically set up the local mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below.
+2. If found AND you have Revyl MCP tools available (`start_device_session`, `screenshot`, `device_tap`, etc.): **always use Revyl** cloud devices for mobile QA. Follow the "Revyl cloud device mobile QA" steps in the QA Methodology below. Do NOT ask the user — just do it.
+3. If found AND `$BM` is available (MOBILE_READY) but no Revyl MCP tools: **automatically set up the local mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below.
 4. If no mobile config found, or neither Revyl nor `$BM` is available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
 
 **In Appium mobile mode (`$BM`), these commands change:**
@@ -764,7 +757,7 @@ This is the **primary mode** for developers verifying their work. When the user 
    - Test portrait and landscape: `$BM viewport landscape && sleep 1 && $BM screenshot /tmp/landscape.png`
    - Take screenshots at milestones and use the Read tool to show them to the user
 
-3c. **Revyl cloud device mobile QA** — if `REVYL_READY` from setup (preferred over browse-mobile when available):
+3c. **Revyl cloud device mobile QA** — if Revyl MCP tools are available (you have access to `start_device_session`, `screenshot`, `device_tap`, etc.), **always use Revyl** for mobile QA:
 
    ```bash
    ls app.json app.config.js app.config.ts 2>/dev/null

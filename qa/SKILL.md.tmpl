@@ -77,8 +77,8 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 **Detect platform and auto-setup (mobile vs web):**
 
 1. Check if `app.json` or `app.config.js`/`app.config.ts` exists in the project root.
-2. If found AND `REVYL_READY`: use Revyl cloud devices for mobile QA. Follow the "Revyl cloud device mobile QA" steps in the QA Methodology below. Do NOT ask the user — just do it.
-3. If found AND `$BM` is available (MOBILE_READY) but no Revyl: **automatically set up the local mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below.
+2. If found AND you have Revyl MCP tools available (`start_device_session`, `screenshot`, `device_tap`, etc.): **always use Revyl** cloud devices for mobile QA. Follow the "Revyl cloud device mobile QA" steps in the QA Methodology below. Do NOT ask the user — just do it.
+3. If found AND `$BM` is available (MOBILE_READY) but no Revyl MCP tools: **automatically set up the local mobile environment** — start Appium, boot simulator, build/install app if needed. Follow the "Mobile project detection" steps in the QA Methodology below.
 4. If no mobile config found, or neither Revyl nor `$BM` is available: use `$B` as usual. This is WEB MODE (default — zero change to existing behavior).
 
 **In Appium mobile mode (`$BM`), these commands change:**
