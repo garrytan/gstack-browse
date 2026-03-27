@@ -351,22 +351,11 @@ If a previous `baseline.json` exists in the same audits directory AND the curren
 
 If no previous baseline exists, skip regression comparison.
 
-### 4.6 Conversation summary
+### 4.6 Write the Fix Plan
 
-After writing the report file, print a summary directly to the conversation. This is what the user sees immediately:
+**Write the fix plan BEFORE printing the conversation summary.** The plan is written via Write tool (non-conversational), so it completes reliably. The conversation summary in 4.7 is where Claude's conversational instincts can derail the flow — by writing the plan first, the actionable output exists on disk even if the summary goes off-script.
 
-1. **Health Score**: The number and a one-line interpretation (e.g., "72/100 — solid foundation with some important gaps")
-2. **Executive Summary**: 3-5 sentences
-3. **Top 5 Priorities**: Numbered list with severity, title, and file reference
-4. **Summary Table**: Category × severity counts
-5. **Report location**: Full path to the written report
-6. **Regression delta** (if applicable): Score change, count of fixed/new findings
-
-**DO NOT STOP after printing the summary. DO NOT offer to show more findings. DO NOT emit STATUS: DONE. You MUST proceed immediately to Phase 4.7.** The summary is an intermediate output — the fix plan and next-step AskUserQuestion in Phase 4.7 are the actual endpoint of the audit. If the user asks follow-up questions about findings, answer them, then continue to Phase 4.7.
-
-### 4.7 Write the Fix Plan
-
-After printing the conversation summary, write the fix plan to the plan file. The audit is planning-for-a-plan — the plan file is the natural, actionable output.
+The audit is planning-for-a-plan — the plan file is the natural, actionable output.
 
 **Classify each finding:**
 - **Mechanical** (gitignore patterns, narrowing exception types, adding timeouts, adding inline auth checks, replacing assert with explicit checks — things with zero design judgment, single-file changes)
@@ -409,7 +398,20 @@ Health score: {N}/100. No critical or important findings.
 See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 ```
 
-**After writing the plan**, use AskUserQuestion to offer the next step. Choose the appropriate flow based on finding count and spread:
+### 4.7 Conversation summary + next steps
+
+After writing the fix plan, print a summary to the conversation and immediately offer next steps via AskUserQuestion. **This is the final step of the audit — do NOT emit STATUS: DONE until after the user responds to the AskUserQuestion below.** Do NOT offer to "show more findings" or ask if the summary is sufficient — the full report is on disk, the user can read it anytime.
+
+Print this summary:
+
+1. **Health Score**: The number and a one-line interpretation (e.g., "72/100 — solid foundation with some important gaps")
+2. **Executive Summary**: 3-5 sentences
+3. **Top 5 Priorities**: Numbered list with severity, title, and file reference
+4. **Summary Table**: Category × severity counts
+5. **Report location**: Full path to the written report
+6. **Regression delta** (if applicable): Score change, count of fixed/new findings
+
+**Then immediately** use AskUserQuestion to offer the next step. Choose the appropriate flow based on finding count and spread:
 
 ---
 
