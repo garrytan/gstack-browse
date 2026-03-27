@@ -11,5 +11,12 @@ RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-')
 # Strip any characters that aren't alphanumeric, dot, hyphen, or underscore
 SLUG=$(printf '%s' "$RAW_SLUG" | tr -cd 'a-zA-Z0-9._-')
 BRANCH=$(printf '%s' "$RAW_BRANCH" | tr -cd 'a-zA-Z0-9._-')
+GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [ -n "$GIT_ROOT" ]; then
+  PROJECT_DATA_DIR="$GIT_ROOT/.gstack"
+else
+  PROJECT_DATA_DIR="$HOME/.gstack/projects/$SLUG"
+fi
 echo "SLUG=$SLUG"
 echo "BRANCH=$BRANCH"
+echo "PROJECT_DATA_DIR=$PROJECT_DATA_DIR"
