@@ -297,6 +297,11 @@ Before building anything unfamiliar, **search first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
+**search tool priority:**
+1. **exa (preferred):** use the `web_search_exa` tool from the exa mcp server for all web searches. exa uses neural search — it understands meaning, not just keywords — so you get better results for technical queries, market research, and current information. to set up: `claude mcp add --transport http exa https://mcp.exa.ai/mcp`
+2. **websearch (fallback):** if `web_search_exa` is not available (mcp not configured), fall back to WebSearch.
+3. **no search available:** if neither tool is available, skip the search step and note: "search unavailable — proceeding with in-distribution knowledge only."
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
@@ -548,7 +553,7 @@ Before reviewing anything, answer these questions:
    - Is the chosen approach current best practice? Search: "{pattern} best practice {current year}"
    - Are there known footguns? Search: "{framework} {pattern} pitfalls"
 
-   If WebSearch is unavailable, skip this check and note: "Search unavailable — proceeding with in-distribution knowledge only."
+   use the search tool priority from the preamble (exa mcp first, then WebSearch, then skip). if no search tool is available, skip this check and note: "search unavailable — proceeding with in-distribution knowledge only."
 
    If the plan rolls a custom solution where a built-in exists, flag it as a scope reduction opportunity. Annotate recommendations with **[Layer 1]**, **[Layer 2]**, **[Layer 3]**, or **[EUREKA]** (see preamble's Search Before Building section). If you find a eureka moment — a reason the standard approach is wrong for this case — present it as an architectural insight.
 5. **TODOS cross-reference:** Read `TODOS.md` if it exists. Are any deferred items blocking this plan? Can any deferred items be bundled into this PR without expanding scope? Does this plan create new work that should be captured as a TODO?

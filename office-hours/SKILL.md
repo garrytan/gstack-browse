@@ -302,6 +302,11 @@ Before building anything unfamiliar, **search first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
+**search tool priority:**
+1. **exa (preferred):** use the `web_search_exa` tool from the exa mcp server for all web searches. exa uses neural search — it understands meaning, not just keywords — so you get better results for technical queries, market research, and current information. to set up: `claude mcp add --transport http exa https://mcp.exa.ai/mcp`
+2. **websearch (fallback):** if `web_search_exa` is not available (mcp not configured), fall back to WebSearch.
+3. **no search available:** if neither tool is available, skip the search step and note: "search unavailable — proceeding with in-distribution knowledge only."
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
@@ -783,14 +788,14 @@ If B: skip this phase entirely and proceed to Phase 3. Use only in-distribution 
 
 When searching, use **generalized category terms** — never the user's specific product name, proprietary concept, or stealth idea. For example, search "task management app landscape" not "SuperTodo AI-powered task killer."
 
-If WebSearch is unavailable, skip this phase and note: "Search unavailable — proceeding with in-distribution knowledge only."
+use the search tool priority from the preamble (exa mcp first, then WebSearch, then skip). if no search tool is available, skip this phase and note: "search unavailable — proceeding with in-distribution knowledge only."
 
-**Startup mode:** WebSearch for:
+**startup mode:** search for:
 - "[problem space] startup approach {current year}"
 - "[problem space] common mistakes"
 - "why [incumbent solution] fails" OR "why [incumbent solution] works"
 
-**Builder mode:** WebSearch for:
+**builder mode:** search for:
 - "[thing being built] existing solutions"
 - "[thing being built] open source alternatives"
 - "best [thing category] {current year}"
