@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.12.10.0] - 2026-03-27 — Mobile QA: Pre-Flight Checks + Cloud Devices
+
+### Added
+
+- **Mobile QA works on real cloud devices.** `/qa` now supports Revyl cloud-hosted iOS devices alongside local Appium. The skill auto-detects mobile projects (Expo/React Native), validates a usable standalone build exists, and selects the best backend — local simulator first, Revyl cloud second, web fallback third.
+- **Pre-flight build validation stops wasted time.** Before spending time on device setup, the skill checks `eas.json` for non-dev-client profiles. If only development builds exist, it automatically creates a preview profile, builds the app (local-first for speed, cloud fallback), and uploads to Revyl — no manual steps.
+- **EAS Update fast path for repeat runs.** When a standalone build already exists but code changed, the skill pushes a JS-only OTA update (seconds) instead of rebuilding the entire app (minutes).
+- **`browse-mobile` CLI** — new Appium-backed mobile testing binary for local iOS Simulator automation. Pure HTTP W3C WebDriver client with zero npm dependencies. Supports tap, fill, scroll, screenshot, accessibility snapshots, and element reference tracking.
+- **`/cso` v2** — infrastructure-first security audit with secrets archaeology, dependency supply chain scanning, CI/CD pipeline security, and LLM/AI security checks. Two modes: daily (zero-noise, 8/10 confidence gate) and comprehensive (monthly deep scan).
+
+### Changed
+
+- **Mobile QA no longer wastes time on dev client + tunnel workflows.** The old approach installed dev builds that show the Expo launcher screen, then tried to tunnel Metro — fragile and slow. The new pre-flight catches this upfront.
+- **Accessibility clicks use `label:` prefix** instead of `~` to avoid shell expansion issues.
+
+### Fixed
+
+- **browse-mobile global path resolution** — correctly navigates up 2 levels from browseDir to find the binary.
+- **Broader bash permissions** for mobile QA commands, with batch execution for speed.
+- **W3C WebDriver spec compliance** — uses `/execute/sync` endpoint for Appium commands.
+
+### For contributors
+
+- New tests validate mobile pre-flight check and Revyl cloud mode sections in generated SKILL.md files
+- `browse-mobile/` has comprehensive unit tests for the ref system (XML→element references) with edge case coverage
+- CSO E2E test added for the new infrastructure-first audit flow
+
 ## [0.12.9.0] - 2026-03-27 — Community PRs: Faster Install, Skill Namespacing, Uninstall
 
 Six community PRs landed in one batch. Install is faster, skills no longer collide with other tools, and you can cleanly uninstall gstack when needed.

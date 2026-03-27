@@ -63,6 +63,10 @@ gstack/
 │   │   └── snapshot.ts  # SNAPSHOT_FLAGS metadata array
 │   ├── test/        # Integration tests + fixtures
 │   └── dist/        # Compiled binary
+├── browse-mobile/   # Mobile QA CLI (Appium + W3C WebDriver)
+│   ├── src/         # CLI, server, mobile-driver, ref-system, platform/ios
+│   ├── test/        # Unit + smoke tests
+│   └── dist/        # JS bundle + shell launcher
 ├── scripts/         # Build + DX tooling
 │   ├── gen-skill-docs.ts  # Template → SKILL.md generator
 │   ├── skill-check.ts     # Health dashboard
@@ -91,7 +95,7 @@ gstack/
 ├── retro/           # Retrospective skill (includes /retro global cross-project mode)
 ├── bin/             # CLI utilities (gstack-repo-mode, gstack-slug, gstack-config, etc.)
 ├── document-release/ # /document-release skill (post-ship doc updates)
-├── cso/             # /cso skill (OWASP Top 10 + STRIDE security audit)
+├── cso/             # /cso skill (infrastructure-first security audit + OWASP/STRIDE)
 ├── design-consultation/ # /design-consultation skill (design system from scratch)
 ├── setup-deploy/    # /setup-deploy skill (one-time deploy config)
 ├── .github/         # CI workflows + Docker image

@@ -12,7 +12,7 @@ import { generateCommandReference, generateSnapshotFlags, generateBrowseSetup } 
 import { generateDesignMethodology, generateDesignHardRules, generateDesignOutsideVoices, generateDesignReviewLite, generateDesignSketch } from './design';
 import { generateTestBootstrap, generateTestCoverageAuditPlan, generateTestCoverageAuditShip, generateTestCoverageAuditReview } from './testing';
 import { generateReviewDashboard, generatePlanFileReviewReport, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generatePlanCompletionAuditShip, generatePlanCompletionAuditReview, generatePlanVerificationExec } from './review';
-import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateQAMethodology, generateCoAuthorTrailer } from './utility';
+import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateBrowseMobileSetup, generateQAMethodology, generateCoAuthorTrailer } from './utility';
 
 export const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
   SLUG_EVAL: generateSlugEval,
@@ -21,6 +21,7 @@ export const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
   SNAPSHOT_FLAGS: generateSnapshotFlags,
   PREAMBLE: generatePreamble,
   BROWSE_SETUP: generateBrowseSetup,
+  BROWSE_MOBILE_SETUP: generateBrowseMobileSetup,
   BASE_BRANCH_DETECT: generateBaseBranchDetect,
   QA_METHODOLOGY: generateQAMethodology,
   DESIGN_METHODOLOGY: generateDesignMethodology,
