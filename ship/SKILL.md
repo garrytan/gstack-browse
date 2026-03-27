@@ -42,6 +42,8 @@ REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_REVIEW_THOROUGHNESS=$(~/.claude/skills/gstack/bin/gstack-config get review_thoroughness 2>/dev/null || echo "auto")
+echo "REVIEW_THOROUGHNESS: $_REVIEW_THOROUGHNESS"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
@@ -443,7 +445,7 @@ Display:
 - **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`gstack-config set skip_eng_review true\` (the "don't bother me" setting).
 - **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
 - **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
-- **Adversarial Review (automatic):** Auto-scales by diff size. Small diffs (<50 lines) skip adversarial. Medium diffs (50–199) get cross-model adversarial. Large diffs (200+) get all 4 passes: Claude structured, Codex structured, Claude adversarial subagent, Codex adversarial. No configuration needed.
+- **Adversarial Review (automatic):** Auto-scales by diff size. Small diffs (<50 lines) skip adversarial. Medium diffs (50-199) get cross-model adversarial. Large diffs (200+) get all 4 passes: Claude structured, Codex structured, Claude adversarial subagent, Codex adversarial. Override with \`gstack-config set review_thoroughness <auto|medium|full|skip>\` to set a minimum tier floor.
 - **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete in /plan-ceo-review and /plan-eng-review. Falls back to Claude subagent if Codex is unavailable. Never gates shipping.
 
 **Verdict logic:**
@@ -1444,9 +1446,9 @@ For each classified comment:
 
 ## Step 3.8: Adversarial review (auto-scaled)
 
-Adversarial review thoroughness scales automatically based on diff size. No configuration needed.
+Adversarial review thoroughness scales automatically based on diff size, with an optional config override.
 
-**Detect diff size and tool availability:**
+**Detect diff size, tool availability, and thoroughness config:**
 
 ```bash
 DIFF_INS=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
@@ -1455,18 +1457,38 @@ DIFF_TOTAL=$((DIFF_INS + DIFF_DEL))
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 # Respect old opt-out
 OLD_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || true)
+# Configurable thoroughness floor
+_RT=$(~/.claude/skills/gstack/bin/gstack-config get review_thoroughness 2>/dev/null || echo "auto")
 echo "DIFF_SIZE: $DIFF_TOTAL"
 echo "OLD_CFG: ${OLD_CFG:-not_set}"
+echo "REVIEW_THOROUGHNESS: $_RT"
 ```
 
 If `OLD_CFG` is `disabled`: skip this step silently. Continue to the next step.
 
 **User override:** If the user explicitly requested a specific tier (e.g., "run all passes", "paranoid review", "full adversarial", "do all 4 passes", "thorough review"), honor that request regardless of diff size. Jump to the matching tier section.
 
-**Auto-select tier based on diff size:**
-- **Small (< 50 lines changed):** Skip adversarial review entirely. Print: "Small diff ($DIFF_TOTAL lines) — adversarial review skipped." Continue to the next step.
-- **Medium (50–199 lines changed):** Run Codex adversarial challenge (or Claude adversarial subagent if Codex unavailable). Jump to the "Medium tier" section.
-- **Large (200+ lines changed):** Run all remaining passes — Codex structured review + Claude adversarial subagent + Codex adversarial. Jump to the "Large tier" section.
+**Thoroughness config (`review_thoroughness`):**
+
+The `review_thoroughness` setting controls the minimum review tier. Set it with `gstack-config set review_thoroughness <value>`.
+
+| Value | Behavior |
+|-------|----------|
+| `auto` (default) | Tier scales by diff size (existing behavior) |
+| `medium` | Minimum tier is medium. Small diffs that would normally skip adversarial review get the medium tier instead. |
+| `full` | Always run the large tier (all passes) regardless of diff size. |
+| `skip` | Skip adversarial review entirely regardless of diff size. |
+
+If `REVIEW_THOROUGHNESS` is `skip`: skip this step silently. Print: "Adversarial review skipped (review_thoroughness=skip)." Continue to the next step.
+
+**Select tier:**
+
+1. If `REVIEW_THOROUGHNESS` is `full`: use large tier regardless of diff size.
+2. If `REVIEW_THOROUGHNESS` is `medium` and diff is small (<50 lines): promote to medium tier.
+3. Otherwise, auto-select based on diff size:
+   - **Small (< 50 lines changed):** Skip adversarial review entirely. Print: "Small diff ($DIFF_TOTAL lines), adversarial review skipped." Continue to the next step.
+   - **Medium (50-199 lines changed):** Run Codex adversarial challenge (or Claude adversarial subagent if Codex unavailable). Jump to the "Medium tier" section.
+   - **Large (200+ lines changed):** Run all remaining passes, Codex structured review + Claude adversarial subagent + Codex adversarial. Jump to the "Large tier" section.
 
 ---
 

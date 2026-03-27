@@ -41,6 +41,8 @@ REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
+_REVIEW_THOROUGHNESS=$(~/.claude/skills/gstack/bin/gstack-config get review_thoroughness 2>/dev/null || echo "auto")
+echo "REVIEW_THOROUGHNESS: $_REVIEW_THOROUGHNESS"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
 _TEL_PROMPTED=$([ -f ~/.gstack/.telemetry-prompted ] && echo "yes" || echo "no")
 _TEL_START=$(date +%s)
