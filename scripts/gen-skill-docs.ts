@@ -640,13 +640,19 @@ fi
 \`\`\`bash
 if command -v revyl &>/dev/null; then
   echo "REVYL_READY"
-  revyl auth status 2>&1 || true
+  if revyl auth status 2>&1 | grep -qiE "authenticated|logged in|valid"; then
+    echo "REVYL_AUTH_OK"
+  else
+    echo "REVYL_AUTH_NEEDED"
+  fi
 else
   echo "REVYL_NOT_AVAILABLE"
 fi
 \`\`\`
 
-If the output contains \`REVYL_READY\` (the \`revyl\` CLI is installed), mark Revyl as available. The \`revyl auth status\` output is printed for diagnostics — if it shows any error about authentication, run \`revyl auth login\` to fix it before proceeding.
+If the output contains \`REVYL_READY\`, the CLI is installed. Then check auth:
+- If \`REVYL_AUTH_OK\`: proceed — Revyl is fully ready.
+- If \`REVYL_AUTH_NEEDED\`: **automatically run \`revyl auth login\`** to authenticate. This opens a browser for OAuth. After the user completes login, re-run \`revyl auth status\` to verify. If auth still fails (e.g., headless environment with no browser), use AskUserQuestion: "Revyl auth failed — this usually means no browser is available. You can authenticate manually by running \`revyl auth login\` in a terminal with browser access, or provide a Revyl API token via \`revyl auth token <TOKEN>\`." Options: A) I'll authenticate now — wait for me. B) Skip Revyl — use local Appium instead.
 
 **Mobile backend priority — Revyl is ALWAYS preferred:**
 1. If \`REVYL_READY\` (revyl CLI found): **always use Revyl** for mobile QA. Revyl is significantly faster than Appium — cloud devices with AI-grounded element targeting, no local Xcode/Java/Simulator setup needed.
@@ -840,6 +846,42 @@ This is the **primary mode** for developers verifying their work. When the user 
    - First run (no build cached): ~15-20 min (build + upload + test)
    - Subsequent runs (build cached): ~8-12 min (provision + test)
    - Fix verification cycle: ~5 min per batch rebuild
+   - **Note:** Revyl cloud devices are billed per session. Check your Revyl dashboard for pricing details.
+
+   **Revyl Step 0: Check permissions for Revyl commands**
+   Revyl mobile QA runs many \`revyl\` CLI commands. Check if the user's Claude Code settings already allow these:
+   \`\`\`bash
+   cat ~/${ctx.host === 'codex' ? '.codex' : '.claude'}/settings.json 2>/dev/null | grep -c "revyl"
+   \`\`\`
+   If the output is 0 (no Revyl permissions found), the user will be prompted for every single command — bad experience. Use AskUserQuestion:
+
+   "Revyl mobile QA needs to run many commands automatically (revyl device tap, swipe, type, screenshot, etc.). I can add permissions to your Claude Code settings so these run without prompting. This is a one-time setup."
+
+   Options:
+   - A) Yes, add Revyl QA permissions (recommended) — adds allow rules to your settings.json
+   - B) No, I'll approve each command manually
+
+   If A: Read \`~/${ctx.host === 'codex' ? '.codex' : '.claude'}/settings.json\`, merge these permissions into the existing \`permissions.allow\` array (create it if it doesn't exist):
+   \`\`\`
+   "Bash(revyl:*)"
+   "Bash(lsof:*)"
+   "Bash(sleep:*)"
+   "Bash(kill:*)"
+   "Bash(cat app.json:*)"
+   "Bash(cat app.config:*)"
+   "Bash(ls app.json:*)"
+   "Bash(mkdir -p .gstack:*)"
+   "Bash(cat .gstack:*)"
+   "Bash(curl -s:*)"
+   "Bash(npx expo:*)"
+   "Bash(python3 -c:*)"
+   "Bash(find ~/Library:*)"
+   "Bash(grep:*)"
+   "Bash(jq:*)"
+   \`\`\`
+   After writing, tell the user: "Permissions added. These apply globally — you won't be prompted for Revyl QA commands in any project."
+
+   If B: Continue — the user will approve each command individually.
 
    **Revyl Step 1: Initialize Revyl config if needed**
    \`\`\`bash
@@ -917,18 +959,31 @@ This is the **primary mode** for developers verifying their work. When the user 
    \`\`\`
    If the latest build was uploaded recently AND the git SHA matches (check \`git rev-parse --short HEAD\` against the build metadata), reuse it — skip to Step 4.
 
-   If no recent build exists, try local build first (fastest, works offline):
+   If no recent build exists, check what build tools are available:
    \`\`\`bash
-   npx expo run:ios --configuration Release --no-install
-   \`\`\`
-   Then find the built .app:
-   \`\`\`bash
-   find ~/Library/Developer/Xcode/DerivedData -name "*.app" -path "*Release-iphonesimulator*" \\
-     -not -path "*/Intermediates/*" -newer package.json -maxdepth 6 2>/dev/null | \\
-     xargs ls -dt 2>/dev/null | head -1
+   xcode-select -p 2>/dev/null && echo "XCODE_AVAILABLE" || echo "XCODE_NOT_AVAILABLE"
+   [ -f eas.json ] && echo "EAS_CONFIG_EXISTS" || echo "EAS_NO_CONFIG"
    \`\`\`
 
-   If local build fails (no Xcode), check \`eas.json\` for a compatible EAS profile.
+   **Build strategy (try in order):**
+   1. **If \`XCODE_AVAILABLE\`:** Local build is fastest:
+      \`\`\`bash
+      npx expo run:ios --configuration Release --no-install
+      \`\`\`
+      Then find the built .app:
+      \`\`\`bash
+      find ~/Library/Developer/Xcode/DerivedData -name "*.app" -path "*Release-iphonesimulator*" \\
+        -not -path "*/Intermediates/*" -newer package.json -maxdepth 6 2>/dev/null | \\
+        xargs ls -dt 2>/dev/null | head -1
+      \`\`\`
+   2. **If \`XCODE_NOT_AVAILABLE\` AND \`EAS_CONFIG_EXISTS\`:** Use EAS cloud build:
+      \`\`\`bash
+      npx eas build --platform ios --profile preview --non-interactive
+      \`\`\`
+      Download the build artifact when complete and use it as the APP_PATH.
+   3. **If neither Xcode nor EAS is available:** Use AskUserQuestion:
+      "Cannot build the app — no Xcode installed and no EAS (Expo Application Services) configuration found. To proceed with mobile QA, you need one of: (1) Install Xcode from the App Store, (2) Set up EAS with \`npx eas init\` and \`npx eas build:configure\`, or (3) Provide a pre-built .app file path."
+      Options: A) I'll install Xcode — wait for me. B) I'll set up EAS — wait for me. C) Skip mobile QA — test as web only.
 
    Upload to Revyl:
    \`\`\`bash

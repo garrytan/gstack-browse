@@ -651,6 +651,18 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Priority:** P2
 **Depends on:** None
 
+### Revyl auth in headless/CI environments
+
+**What:** Handle `revyl auth login` failing in environments without a browser (SSH sessions, CI runners, headless servers). Detect headless environment and offer `revyl auth token <TOKEN>` as alternative.
+
+**Why:** `revyl auth login` opens a browser for OAuth. If no browser is available, the user gets stuck with no guidance. This blocks mobile QA in CI/CD and remote dev environments.
+
+**Context:** The QA template now auto-runs `revyl auth login` when auth is needed, with an AskUserQuestion fallback. But the fallback could be smarter: detect `$DISPLAY` (Linux) or `$SSH_CONNECTION` to preemptively offer the token-based auth path instead of trying browser auth first.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** None
+
 ### Revyl mobile QA E2E test
 
 **What:** E2E test that runs `/qa` against a test Expo app using Revyl cloud device, verifying the full flow: detect → init → build → upload → test → report.
