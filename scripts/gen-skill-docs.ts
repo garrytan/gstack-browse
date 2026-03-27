@@ -650,8 +650,18 @@ If the output contains \`REVYL_READY\` (the \`revyl\` CLI is installed), mark Re
 
 **Mobile backend priority — Revyl is ALWAYS preferred:**
 1. If \`REVYL_READY\` (revyl CLI found): **always use Revyl** for mobile QA. Revyl is significantly faster than Appium — cloud devices with AI-grounded element targeting, no local Xcode/Java/Simulator setup needed.
-2. If Revyl is NOT available AND \`MOBILE_READY\` (browse-mobile binary found): fall back to browse-mobile (Appium + local simulator). This is the slow path.
-3. If neither: fall back to web QA with \`$B\`.`;
+2. If \`REVYL_NOT_AVAILABLE\` AND this is a mobile project (\`app.json\` exists): **tell the user to install Revyl.** Use AskUserQuestion:
+
+   "This is a mobile project but the Revyl CLI isn't installed. Revyl provides cloud-hosted devices for mobile QA — much faster than local Appium/Simulator setup. Install it with: \`npm install -g @anthropic-ai/revyl\` (or check https://docs.revyl.dev for setup instructions)."
+
+   Options:
+   - A) I'll install it now — wait for me (then re-run the revyl check after user confirms)
+   - B) Skip Revyl — use local Appium/Simulator instead
+   - C) Skip mobile QA entirely — test as web only
+
+   If A: after user confirms, re-run \`command -v revyl\` to verify. If still not found, fall through to B.
+   If B and \`MOBILE_READY\`: use browse-mobile (Appium + local simulator).
+   If B and not \`MOBILE_READY\`, or C: fall back to web QA with \`$B\`.`;
 }
 
 function generateBaseBranchDetect(_ctx: TemplateContext): string {
