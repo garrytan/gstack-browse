@@ -1648,22 +1648,48 @@ describe('telemetry', () => {
   });
 });
 
-describe('codex exec -C must use $_REPO_ROOT, not inline $(git rev-parse)', () => {
+describe('codex commands must not use inline $(git rev-parse --show-toplevel) for cwd', () => {
   // Regression test: inline $(git rev-parse --show-toplevel) in codex exec -C
-  // evaluates in whatever cwd the background shell inherits, which may be a
-  // different project in Conductor workspaces. The fix is to resolve _REPO_ROOT
-  // eagerly at the top of each bash block.
+  // or codex review without cd evaluates in whatever cwd the background shell
+  // inherits, which may be a different project in Conductor workspaces.
+  // The fix is to resolve _REPO_ROOT eagerly at the top of each bash block.
 
+  // Scan all source files that could contain codex commands
   const sourceFiles = [
     ...fs.readdirSync(ROOT, { recursive: true })
       .filter((f): f is string => typeof f === 'string' && f.endsWith('.tmpl') && !f.includes('node_modules')),
-    'scripts/resolvers/review.ts',
-    'scripts/resolvers/design.ts',
+    ...fs.readdirSync(path.join(ROOT, 'scripts/resolvers'))
+      .filter(f => f.endsWith('.ts'))
+      .map(f => `scripts/resolvers/${f}`),
+    'scripts/gen-skill-docs.ts',
   ];
 
   test('no codex exec command uses inline $(git rev-parse --show-toplevel) in -C flag', () => {
     const violations: string[] = [];
     for (const rel of sourceFiles) {
+      const abs = path.join(ROOT, rel);
+      if (!fs.existsSync(abs)) continue;
+      const content = fs.readFileSync(abs, 'utf-8');
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes('codex exec') && line.includes('-C') && line.includes('$(git rev-parse --show-toplevel)')) {
+          violations.push(`${rel}:${i + 1}`);
+        }
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test('no generated SKILL.md has codex exec with inline $(git rev-parse --show-toplevel) in -C flag', () => {
+    const violations: string[] = [];
+    const skillMdFiles = fs.readdirSync(ROOT, { recursive: true })
+      .filter((f): f is string =>
+        typeof f === 'string' &&
+        f.endsWith('SKILL.md') &&
+        !f.includes('node_modules') &&
+        !f.includes('.tmpl'));
+    for (const rel of skillMdFiles) {
       const abs = path.join(ROOT, rel);
       if (!fs.existsSync(abs)) continue;
       const content = fs.readFileSync(abs, 'utf-8');

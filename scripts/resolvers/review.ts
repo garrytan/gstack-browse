@@ -292,7 +292,7 @@ Write the full prompt (context block + instructions) to this file. Use the mode-
 
 \`\`\`bash
 TMPERR_OH=$(mktemp /tmp/codex-oh-err-XXXXXXXX)
-_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec "$(cat "$CODEX_PROMPT_FILE")" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_OH"
 \`\`\`
 
@@ -377,7 +377,7 @@ Claude's structured review already ran. Now add a **cross-model adversarial chal
 
 \`\`\`bash
 TMPERR_ADV=$(mktemp /tmp/codex-adv-XXXXXXXX)
-_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec "Review the changes on this branch against the base branch. Run git diff origin/<base> to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems." -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_ADV"
 \`\`\`
 
@@ -423,6 +423,8 @@ Claude's structured review already ran. Now run **all three remaining passes** f
 **1. Codex structured review (if available):**
 \`\`\`bash
 TMPERR=$(mktemp /tmp/codex-review-XXXXXXXX)
+_REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
+cd "$_REPO_ROOT"
 codex review --base <base> -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR"
 \`\`\`
 
@@ -533,7 +535,7 @@ THE PLAN:
 
 \`\`\`bash
 TMPERR_PV=$(mktemp /tmp/codex-planreview-XXXXXXXX)
-_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_PV"
 \`\`\`
 
