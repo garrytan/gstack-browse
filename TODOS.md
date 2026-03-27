@@ -626,6 +626,31 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Effort:** S
 **Priority:** P1
 **Depends on:** browse-mobile server.ts implementation
+**Status:** Fixed by /qa mobile pre-flight check on branch TenzinDhonyoe/qa-mobile-improvements, 2026-03-26. Pre-flight now checks eas.json for non-dev-client profiles, verifies build artifacts exist (Revyl build list or local .app), and bails with clear instructions if no standalone build is available.
+
+### Revyl session health check before device commands
+
+**What:** Add a `get_session_info()` check before resuming Revyl device interaction after code edit phases in /qa. If session expired or <1 min remaining, automatically restart the session, re-install and re-launch the app, and navigate back to the screen being tested.
+
+**Why:** Revyl cloud devices have a 5-minute idle timeout. During /qa fix phases (reading code, editing files, committing), Claude doesn't interact with the device for potentially >5 minutes. Without health checks, the session dies silently and subsequent device commands fail with confusing errors.
+
+**Context:** The /qa skill template now includes session management instructions for cloud mode, but this is advisory — Claude may not always follow the keep-alive pattern perfectly. A more robust solution would be a wrapper that auto-checks before every device command, but that requires changes to how Revyl MCP tools are invoked.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Revyl MCP tool behavior (need to verify get_session_info response format)
+
+### E2E test for mobile QA pre-flight
+
+**What:** Create an E2E test that verifies the /qa skill correctly handles mobile projects — detecting app.json, parsing eas.json profiles, running pre-flight checks, and selecting the right backend. Needs a mock Expo project fixture (app.json, eas.json with various profile configurations) and ideally a Revyl MCP mock.
+
+**Why:** The mobile pre-flight and backend selection logic is entirely prompt-driven (template output in SKILL.md). Static tests verify the template content exists, but can't verify Claude actually follows the instructions correctly. An E2E test would catch regressions in the prompt's effectiveness.
+
+**Context:** Current test coverage is Tier 1 only (4 content assertions in gen-skill-docs.test.ts). The E2E would need: (1) a temp directory with app.json + eas.json fixtures, (2) the qa/SKILL.md available to read, (3) a way to verify Claude detects mobile mode and runs pre-flight. Mock Revyl MCP tools are harder — may need to test cloud mode separately from local mode.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** E2E test infrastructure supporting mobile fixtures
 
 ### Screenshot disk-full error handling
 
