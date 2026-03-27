@@ -389,7 +389,7 @@ If the output contains `REVYL_READY` (the `revyl` CLI is installed), mark Revyl 
 
 **In Appium mobile mode:** `$BM` replaces `$B` for all commands. Skip web-only commands (`console --errors`, `html`, `css`, `js`, `cookies`). Use `$BM click label:Label` for elements not detected as interactive. Take screenshots after every interaction and show them to the user via the Read tool.
 
-**In Revyl mobile mode:** Use `revyl device tap --target "..."`, `revyl device type --text "..."`, `revyl screenshot`, etc. AI grounding resolves natural language targets — describe what's visible on screen. Skip web-only commands. Take screenshots after every interaction and show them via the Read tool.
+**In Revyl mobile mode:** Use `revyl device tap --target "..."`, `revyl device type --text "..."`, `revyl device screenshot --out <path>`, etc. AI grounding resolves natural language targets — describe what's visible on screen. Skip web-only commands. Take screenshots after every interaction and show them via the Read tool.
 
 **Create output directories:**
 
@@ -663,15 +663,15 @@ This is the **primary mode** for developers verifying their work. When the user 
    | `$B goto <url>` | `$BM goto app://<id>` | `revyl device launch --bundle-id <id>` |
    | `$B click @e3` | `$BM click @e3` | `revyl device tap --target "description of element"` |
    | `$B fill @e3 "text"` | `$BM fill @e3 "text"` | `revyl device type --text "text"` (tap field first) |
-   | `$B screenshot` | `$BM screenshot` | `revyl screenshot` (then Read the image) |
+   | `$B screenshot` | `$BM screenshot` | `revyl device screenshot --out <path>` (then Read the image) |
    | `$B scroll down` | `$BM scroll down` | `revyl device swipe --direction up` (up moves finger UP, scrolls DOWN) |
    | `$B back` | `$BM back` | `revyl device back` |
 
    **Revyl interaction loop:**
-   1. `revyl screenshot` — see the current screen
+   1. `revyl device screenshot --out screenshot.png` — see the current screen (then Read the image)
    2. Briefly describe what is visible
    3. Take one action (tap, type, swipe)
-   4. `revyl screenshot` — verify the result
+   4. `revyl device screenshot --out screenshot.png` — verify the result (then Read the image)
    5. Repeat
 
    **Swipe direction semantics:** `direction='up'` moves the finger UP (scrolls content DOWN to reveal content below). `direction='down'` moves the finger DOWN (scrolls content UP).
