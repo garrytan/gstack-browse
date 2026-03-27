@@ -1507,6 +1507,19 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"');
   });
 
+  test('Claude install infers project-local vs global from setup location, not pwd', () => {
+    expect(setupContent).toContain('infer_claude_install_dir()');
+    expect(setupContent).toContain('*/.claude/skills/gstack)');
+    expect(setupContent).toContain('INSTALL_SKILLS_DIR="$GLOBAL_CLAUDE_SKILLS_DIR"');
+  });
+
+  test('setup keeps explicit --local and --global overrides', () => {
+    expect(setupContent).toContain('--local');
+    expect(setupContent).toContain('--global');
+    expect(setupContent).toContain('FORCE_GLOBAL=1');
+    expect(setupContent).toContain('FORCE_LOCAL=1');
+  });
+
   test('Codex installs always create sidecar runtime assets for the real skill target', () => {
     expect(setupContent).toContain('if [ "$INSTALL_CODEX" -eq 1 ]; then');
     expect(setupContent).toContain('create_agents_sidecar "$SOURCE_GSTACK_DIR"');
@@ -1527,6 +1540,23 @@ describe('setup script validation', () => {
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('ln -snf "gstack/$skill_name"');
+  });
+
+  test('Claude install links skills from the generated runtime root', () => {
+    const claudeSection = setupContent.slice(
+      setupContent.indexOf('# 4. Install for Claude'),
+      setupContent.indexOf('# 5. Install for Codex')
+    );
+    expect(claudeSection).toContain('CLAUDE_RUNTIME_ROOT="$INSTALL_SKILLS_DIR/gstack"');
+    expect(claudeSection).toContain('link_claude_skill_dirs "$CLAUDE_RUNTIME_ROOT" "$INSTALL_SKILLS_DIR"');
+  });
+
+  test('create_claude_runtime_root runs generator from the source repo root', () => {
+    const fnStart = setupContent.indexOf('create_claude_runtime_root()');
+    const fnEnd = setupContent.indexOf('}', setupContent.indexOf('for asset in', fnStart));
+    const fnBody = setupContent.slice(fnStart, fnEnd);
+    expect(fnBody).toContain('cd "$repo_root"');
+    expect(fnBody).toContain('GSTACK_SKILL_OUT_ROOT="$runtime_root" bun run scripts/gen-skill-docs.ts');
   });
 
   test('setup supports --host auto|claude|codex|kiro', () => {

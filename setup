@@ -12,6 +12,8 @@ INSTALL_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 INSTALL_SKILLS_DIR="$(dirname "$INSTALL_GSTACK_DIR")"
 BROWSE_BIN="$SOURCE_GSTACK_DIR/browse/dist/browse"
+GLOBAL_CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+GLOBAL_CLAUDE_GSTACK_DIR="$GLOBAL_CLAUDE_SKILLS_DIR/gstack"
 CODEX_SKILLS="$HOME/.codex/skills"
 CODEX_GSTACK="$CODEX_SKILLS/gstack"
 
@@ -22,12 +24,14 @@ esac
 
 # ─── Parse flags ──────────────────────────────────────────────
 HOST="claude"
-LOCAL_INSTALL=0
+FORCE_GLOBAL=0
+FORCE_LOCAL=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --host) [ -z "$2" ] && echo "Missing value for --host (expected claude, codex, kiro, or auto)" >&2 && exit 1; HOST="$2"; shift 2 ;;
     --host=*) HOST="${1#--host=}"; shift ;;
-    --local) LOCAL_INSTALL=1; shift ;;
+    --global) FORCE_GLOBAL=1; shift ;;
+    --local) FORCE_LOCAL=1; shift ;;
     *) shift ;;
   esac
 done
@@ -37,17 +41,47 @@ case "$HOST" in
   *) echo "Unknown --host value: $HOST (expected claude, codex, kiro, or auto)" >&2; exit 1 ;;
 esac
 
-# --local: install to .claude/skills/ in the current working directory
-if [ "$LOCAL_INSTALL" -eq 1 ]; then
+CLAUDE_PROJECT_LOCAL=0
+infer_claude_install_dir() {
+  if [ "$FORCE_GLOBAL" -eq 1 ]; then
+    INSTALL_SKILLS_DIR="$GLOBAL_CLAUDE_SKILLS_DIR"
+    CLAUDE_PROJECT_LOCAL=0
+    return
+  fi
+
+  if [ "$FORCE_LOCAL" -eq 1 ]; then
+    INSTALL_SKILLS_DIR="$(pwd)/.claude/skills"
+    CLAUDE_PROJECT_LOCAL=1
+    return
+  fi
+
+  case "$INSTALL_GSTACK_DIR" in
+    "$GLOBAL_CLAUDE_GSTACK_DIR")
+      INSTALL_SKILLS_DIR="$GLOBAL_CLAUDE_SKILLS_DIR"
+      CLAUDE_PROJECT_LOCAL=0
+      ;;
+    */.claude/skills/gstack)
+      INSTALL_SKILLS_DIR="$(dirname "$INSTALL_GSTACK_DIR")"
+      CLAUDE_PROJECT_LOCAL=1
+      ;;
+    *)
+      INSTALL_SKILLS_DIR="$GLOBAL_CLAUDE_SKILLS_DIR"
+      CLAUDE_PROJECT_LOCAL=0
+      ;;
+  esac
+}
+
+infer_claude_install_dir
+
+if [ "$CLAUDE_PROJECT_LOCAL" -eq 1 ]; then
   if [ "$HOST" = "codex" ]; then
-    echo "Error: --local is only supported for Claude Code (not Codex)." >&2
+    echo "Error: project-local install is only supported for Claude Code (not Codex). Use --global with --host codex if needed." >&2
     exit 1
   fi
-  INSTALL_SKILLS_DIR="$(pwd)/.claude/skills"
-  mkdir -p "$INSTALL_SKILLS_DIR"
   HOST="claude"
-  INSTALL_CODEX=0
 fi
+
+mkdir -p "$INSTALL_SKILLS_DIR"
 
 # For auto: detect which agents are installed
 INSTALL_CLAUDE=0
@@ -221,6 +255,37 @@ link_claude_skill_dirs() {
   fi
 }
 
+create_claude_runtime_root() {
+  local repo_root="$1"
+  local runtime_root="$2"
+  mkdir -p "$runtime_root"
+
+  (
+    cd "$repo_root"
+    GSTACK_SKILL_OUT_ROOT="$runtime_root" bun run scripts/gen-skill-docs.ts >/dev/null
+  )
+
+  for asset in bin browse review qa; do
+    local src="$repo_root/$asset"
+    local dst="$runtime_root/$asset"
+    if [ -d "$src" ] || [ -f "$src" ]; then
+      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+        ln -snf "$src" "$dst"
+      fi
+    fi
+  done
+
+  for file in ETHOS.md; do
+    local src="$repo_root/$file"
+    local dst="$runtime_root/$file"
+    if [ -f "$src" ]; then
+      if [ -L "$dst" ] || [ ! -e "$dst" ]; then
+        ln -snf "$src" "$dst"
+      fi
+    fi
+  done
+}
+
 # ─── Helper: link generated Codex skills into a skills parent directory ──
 # Installs from .agents/skills/gstack-* (the generated Codex-format skills)
 # instead of source dirs (which have Claude paths).
@@ -348,8 +413,12 @@ fi
 
 if [ "$INSTALL_CLAUDE" -eq 1 ]; then
   if [ "$SKILLS_BASENAME" = "skills" ]; then
-    link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
-    if [ "$LOCAL_INSTALL" -eq 1 ]; then
+    CLAUDE_RUNTIME_ROOT="$INSTALL_SKILLS_DIR/gstack"
+    if [ "$INSTALL_GSTACK_DIR" != "$CLAUDE_RUNTIME_ROOT" ]; then
+      create_claude_runtime_root "$SOURCE_GSTACK_DIR" "$CLAUDE_RUNTIME_ROOT"
+    fi
+    link_claude_skill_dirs "$CLAUDE_RUNTIME_ROOT" "$INSTALL_SKILLS_DIR"
+    if [ "$CLAUDE_PROJECT_LOCAL" -eq 1 ]; then
       echo "gstack ready (project-local)."
       echo "  skills: $INSTALL_SKILLS_DIR"
     else
