@@ -139,6 +139,43 @@ describe('gen-skill-docs', () => {
     }
   });
 
+  test(`every Codex SKILL.md description stays within ${MAX_SKILL_DESCRIPTION_LENGTH} chars`, () => {
+    const agentsDir = path.join(ROOT, '.agents', 'skills');
+    if (!fs.existsSync(agentsDir)) return; // skip if not generated
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = path.join(agentsDir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const content = fs.readFileSync(skillMd, 'utf-8');
+      const description = extractDescription(content);
+      expect(description.length).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_LENGTH);
+    }
+  });
+
+  test('every Codex SKILL.md description stays under 900-char warning threshold', () => {
+    const WARN_THRESHOLD = 900;
+    const agentsDir = path.join(ROOT, '.agents', 'skills');
+    if (!fs.existsSync(agentsDir)) return;
+    const violations: string[] = [];
+    for (const entry of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const skillMd = path.join(agentsDir, entry.name, 'SKILL.md');
+      if (!fs.existsSync(skillMd)) continue;
+      const content = fs.readFileSync(skillMd, 'utf-8');
+      const description = extractDescription(content);
+      if (description.length > WARN_THRESHOLD) {
+        violations.push(`${entry.name}: ${description.length} chars (limit ${MAX_SKILL_DESCRIPTION_LENGTH}, ${MAX_SKILL_DESCRIPTION_LENGTH - description.length} remaining)`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  test('package.json version matches VERSION file', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+    const version = fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf-8').trim();
+    expect(pkg.version).toBe(version);
+  });
+
   test('generated files are fresh (match --dry-run)', () => {
     const result = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--dry-run'], {
       cwd: ROOT,
@@ -194,16 +231,35 @@ describe('gen-skill-docs', () => {
     expect(content).toContain('git branch --show-current');
   });
 
-  test('generated SKILL.md contains ELI16 simplification rules', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+  test('tier 2+ skills contain ELI16 simplification rules (AskUserQuestion format)', () => {
+    // Root SKILL.md is tier 1 (no AskUserQuestion format). Check a tier 2+ skill instead.
+    const content = fs.readFileSync(path.join(ROOT, 'cso', 'SKILL.md'), 'utf-8');
     expect(content).toContain('No raw function names');
     expect(content).toContain('plain English');
+  });
+
+  test('tier 1 skills do NOT contain AskUserQuestion format', () => {
+    // Use benchmark (tier 1) instead of root — root SKILL.md gets overwritten by Codex test setup
+    const content = fs.readFileSync(path.join(ROOT, 'benchmark', 'SKILL.md'), 'utf-8');
+    expect(content).not.toContain('## AskUserQuestion Format');
+    expect(content).not.toContain('## Completeness Principle');
   });
 
   test('generated SKILL.md contains telemetry line', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('skill-usage.jsonl');
     expect(content).toContain('~/.gstack/analytics');
+  });
+
+  test('preamble .pending-* glob is zsh-safe (uses find, not shell glob)', () => {
+    for (const skill of ALL_SKILLS) {
+      const content = fs.readFileSync(path.join(ROOT, skill.dir, 'SKILL.md'), 'utf-8');
+      if (!content.includes('.pending-')) continue;
+      // Must NOT have a bare shell glob ".pending-*" outside of find's -name argument
+      expect(content).not.toMatch(/for _PF in [^\n]*\/\.pending-\*/);
+      // Must use find to avoid zsh NOMATCH error on glob expansion
+      expect(content).toContain("find ~/.gstack/analytics -maxdepth 1 -name '.pending-*'");
+    }
   });
 
   test('preamble-using skills have correct skill name in telemetry', () => {
@@ -294,6 +350,39 @@ describe('BASE_BRANCH_DETECT resolver', () => {
 
   test('resolver output uses "the base branch" phrasing', () => {
     expect(shipContent).toContain('the base branch');
+  });
+
+  test('resolver output contains GitLab CLI commands', () => {
+    expect(shipContent).toContain('glab');
+  });
+
+  test('resolver output contains git-native fallback', () => {
+    expect(shipContent).toContain('git symbolic-ref');
+  });
+
+  test('resolver output mentions GitLab platform', () => {
+    expect(shipContent).toMatch(/gitlab/i);
+  });
+});
+
+describe('GitLab support in generated skills', () => {
+  const retroContent = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+  const shipSkillContent = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('retro contains GitLab MR number extraction', () => {
+    expect(retroContent).toContain('[#!]');
+  });
+
+  test('retro uses BASE_BRANCH_DETECT (contains glab)', () => {
+    expect(retroContent).toContain('glab');
+  });
+
+  test('ship contains glab mr create', () => {
+    expect(shipSkillContent).toContain('glab mr create');
+  });
+
+  test('ship checks .gitlab-ci.yml', () => {
+    expect(shipSkillContent).toContain('.gitlab-ci.yml');
   });
 });
 
@@ -397,6 +486,20 @@ describe('REVIEW_DASHBOARD resolver', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('reviews.jsonl');
     expect(content).toContain('REVIEW READINESS DASHBOARD');
+  });
+
+  test('dashboard treats review as a valid Eng Review source', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
+    expect(content).toContain('`plan-eng-review` (plan-stage architecture review)');
+    expect(content).toContain('from either \\`review\\` or \\`plan-eng-review\\`');
+  });
+
+  test('shared dashboard propagates review source to plan-eng-review', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'plan-eng-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('plan-eng-review, review, plan-design-review');
+    expect(content).toContain('`review` (diff-scoped pre-landing review)');
   });
 
   test('resolver output contains key dashboard elements', () => {
@@ -622,6 +725,168 @@ describe('PLAN_FILE_REVIEW_REPORT resolver', () => {
     expect(content).toContain('/plan-eng-review');
     expect(content).toContain('/plan-design-review');
     expect(content).toContain('/codex review');
+  });
+});
+
+// --- {{PLAN_COMPLETION_AUDIT}} resolver tests ---
+
+describe('PLAN_COMPLETION_AUDIT placeholders', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan completion audit step', () => {
+    expect(shipSkill).toContain('Plan Completion Audit');
+    expect(shipSkill).toContain('Step 3.45');
+  });
+
+  test('review SKILL.md contains plan completion in scope drift', () => {
+    expect(reviewSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Actionable Item Extraction');
+    expect(reviewSkill).toContain('Integration with Scope Drift Detection');
+  });
+
+  test('both modes share plan file discovery methodology', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+    // Both should have conversation context first
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+    // Both should have grep fallback
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+
+  test('ship mode has gate logic for NOT DONE items', () => {
+    expect(shipSkill).toContain('NOT DONE');
+    expect(shipSkill).toContain('Stop — implement the missing items');
+    expect(shipSkill).toContain('Ship anyway — defer');
+    expect(shipSkill).toContain('intentionally dropped');
+  });
+
+  test('review mode is INFORMATIONAL only', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+    expect(reviewSkill).toContain('MISSING REQUIREMENTS');
+    expect(reviewSkill).toContain('SCOPE CREEP');
+  });
+
+  test('item extraction has 50-item cap', () => {
+    expect(shipSkill).toContain('at most 50 items');
+  });
+
+  test('uses file-level traceability (not commit-level)', () => {
+    expect(shipSkill).toContain('Cite the specific file');
+    expect(shipSkill).not.toContain('commit-level traceability');
+  });
+});
+
+// --- {{PLAN_VERIFICATION_EXEC}} resolver tests ---
+
+describe('PLAN_VERIFICATION_EXEC placeholder', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains plan verification step', () => {
+    expect(shipSkill).toContain('Step 3.47');
+    expect(shipSkill).toContain('Plan Verification');
+  });
+
+  test('references /qa-only invocation', () => {
+    expect(shipSkill).toContain('qa-only/SKILL.md');
+    expect(shipSkill).toContain('qa-only');
+  });
+
+  test('contains localhost reachability check', () => {
+    expect(shipSkill).toContain('localhost:3000');
+    expect(shipSkill).toContain('NO_SERVER');
+  });
+
+  test('skips gracefully when no verification section', () => {
+    expect(shipSkill).toContain('No verification steps found in plan');
+  });
+
+  test('skips gracefully when no dev server', () => {
+    expect(shipSkill).toContain('No dev server detected');
+  });
+});
+
+// --- Coverage gate tests ---
+
+describe('Coverage gate in ship', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains coverage gate with thresholds', () => {
+    expect(shipSkill).toContain('Coverage gate');
+    expect(shipSkill).toContain('>= target');
+    expect(shipSkill).toContain('< minimum');
+  });
+
+  test('ship SKILL.md supports configurable thresholds via CLAUDE.md', () => {
+    expect(shipSkill).toContain('## Test Coverage');
+    expect(shipSkill).toContain('Minimum:');
+    expect(shipSkill).toContain('Target:');
+  });
+
+  test('coverage gate skips on parse failure (not block)', () => {
+    expect(shipSkill).toContain('could not determine percentage — skipping');
+  });
+
+  test('review SKILL.md contains coverage WARNING', () => {
+    expect(reviewSkill).toContain('COVERAGE WARNING');
+    expect(reviewSkill).toContain('Consider writing tests before running /ship');
+  });
+
+  test('review coverage warning is INFORMATIONAL', () => {
+    expect(reviewSkill).toContain('INFORMATIONAL');
+  });
+});
+
+// --- Ship metrics logging ---
+
+describe('Ship metrics logging', () => {
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+
+  test('ship SKILL.md contains metrics persistence step', () => {
+    expect(shipSkill).toContain('Step 8.75');
+    expect(shipSkill).toContain('coverage_pct');
+    expect(shipSkill).toContain('plan_items_total');
+    expect(shipSkill).toContain('plan_items_done');
+    expect(shipSkill).toContain('verification_result');
+  });
+});
+
+// --- Plan file discovery shared helper ---
+
+describe('Plan file discovery shared helper', () => {
+  // The shared helper should appear in ship (via PLAN_COMPLETION_AUDIT_SHIP)
+  // and in review (via PLAN_COMPLETION_AUDIT_REVIEW)
+  const shipSkill = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+  const reviewSkill = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
+
+  test('plan file discovery appears in both ship and review', () => {
+    expect(shipSkill).toContain('Plan File Discovery');
+    expect(reviewSkill).toContain('Plan File Discovery');
+  });
+
+  test('both include conversation context first', () => {
+    expect(shipSkill).toContain('Conversation context (primary)');
+    expect(reviewSkill).toContain('Conversation context (primary)');
+  });
+
+  test('both include content-based fallback', () => {
+    expect(shipSkill).toContain('Content-based search (fallback)');
+    expect(reviewSkill).toContain('Content-based search (fallback)');
+  });
+});
+
+// --- Retro plan completion ---
+
+describe('Retro plan completion section', () => {
+  const retroSkill = fs.readFileSync(path.join(ROOT, 'retro', 'SKILL.md'), 'utf-8');
+
+  test('retro SKILL.md contains plan completion section', () => {
+    expect(retroSkill).toContain('### Plan Completion');
+    expect(retroSkill).toContain('plan_items_total');
+    expect(retroSkill).toContain('Plan Completion This Period');
   });
 });
 
@@ -928,6 +1193,14 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
+  test('root gstack bundle has OpenAI metadata for Codex skill browsing', () => {
+    const rootMetadata = path.join(ROOT, 'agents', 'openai.yaml');
+    expect(fs.existsSync(rootMetadata)).toBe(true);
+    const content = fs.readFileSync(rootMetadata, 'utf-8');
+    expect(content).toContain('display_name: "gstack"');
+    expect(content).toContain('Use $gstack to locate the bundled gstack skills.');
+  });
+
   test('codexSkillName mapping: root is gstack, others are gstack-{dir}', () => {
     // Root → gstack
     expect(fs.existsSync(path.join(AGENTS_DIR, 'gstack', 'SKILL.md'))).toBe(true);
@@ -954,6 +1227,17 @@ describe('Codex generation (--host codex)', () => {
       expect(frontmatter).not.toContain('allowed-tools:');
       expect(frontmatter).not.toContain('version:');
       expect(frontmatter).not.toContain('hooks:');
+    }
+  });
+
+  test('all Codex skills have agents/openai.yaml metadata', () => {
+    for (const skill of CODEX_SKILLS) {
+      const metadata = path.join(AGENTS_DIR, skill.codexName, 'agents', 'openai.yaml');
+      expect(fs.existsSync(metadata)).toBe(true);
+      const content = fs.readFileSync(metadata, 'utf-8');
+      expect(content).toContain(`display_name: "${skill.codexName}"`);
+      expect(content).toContain('short_description:');
+      expect(content).toContain('allow_implicit_invocation: true');
     }
   });
 

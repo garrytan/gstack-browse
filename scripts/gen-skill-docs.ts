@@ -11,15 +11,19 @@
 
 import { COMMAND_DESCRIPTIONS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
+import { discoverTemplates } from './discover-skills';
 import * as fs from 'fs';
 import * as path from 'path';
+import type { Host, TemplateContext } from './resolvers/types';
+import { HOST_PATHS } from './resolvers/types';
+import { RESOLVERS } from './resolvers/index';
+import { codexSkillName, transformFrontmatter, extractHookSafetyProse, extractNameAndDescription, condenseOpenAIShortDescription, generateOpenAIYaml } from './resolvers/codex-helpers';
+import { generatePlanCompletionAuditShip, generatePlanCompletionAuditReview, generatePlanVerificationExec } from './resolvers/review';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const DRY_RUN = process.argv.includes('--dry-run');
 
-// ─── Template Context ───────────────────────────────────────
-
-type Host = 'claude' | 'codex';
+// ─── Host Detection ─────────────────────────────────────────
 
 const HOST_ARG = process.argv.find(a => a.startsWith('--host'));
 const HOST: Host = (() => {
@@ -30,35 +34,7 @@ const HOST: Host = (() => {
   throw new Error(`Unknown host: ${val}. Use claude, codex, or agents.`);
 })();
 
-interface HostPaths {
-  skillRoot: string;
-  localSkillRoot: string;
-  binDir: string;
-  browseDir: string;
-}
-
-const HOST_PATHS: Record<Host, HostPaths> = {
-  claude: {
-    skillRoot: '~/.claude/skills/gstack',
-    localSkillRoot: '.claude/skills/gstack',
-    binDir: '~/.claude/skills/gstack/bin',
-    browseDir: '~/.claude/skills/gstack/browse/dist',
-  },
-  codex: {
-    skillRoot: '$GSTACK_ROOT',
-    localSkillRoot: '.agents/skills/gstack',
-    binDir: '$GSTACK_BIN',
-    browseDir: '$GSTACK_BROWSE',
-  },
-};
-
-interface TemplateContext {
-  skillName: string;
-  tmplPath: string;
-  benefitsFrom?: string[];
-  host: Host;
-  paths: HostPaths;
-}
+// HostPaths, HOST_PATHS, and TemplateContext imported from ./resolvers/types (line 7-8)
 
 // ─── Shared Design Constants ────────────────────────────────
 
@@ -212,7 +188,8 @@ echo "TELEMETRY: \${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 echo '{"skill":"${ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-for _PF in ~/.gstack/analytics/.pending-*; do [ -f "$_PF" ] && ${ctx.paths.binDir}/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+# zsh-compatible: use find instead of glob to avoid NOMATCH error
+for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && ${ctx.paths.binDir}/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
 \`\`\``;
 }
 
@@ -280,6 +257,7 @@ function generateAskUserFormat(_ctx: TemplateContext): string {
 2. **Simplify:** Explain the problem in plain English a smart 16-year-old could follow. No raw function names, no internal jargon, no implementation details. Use concrete examples and analogies. Say what it DOES, not what it's called.
 3. **Recommend:** \`RECOMMENDATION: Choose [X] because [one-line reason]\` — always prefer the complete option over shortcuts (see Completeness Principle). Include \`Completeness: X/10\` for each option. Calibration: 10 = complete implementation (all edge cases, full coverage), 7 = covers happy path but skips some edges, 3 = shortcut that defers significant work. If both options are 8+, pick the higher; if one is ≤5, flag it.
 4. **Options:** Lettered options: \`A) ... B) ... C) ...\` — when an option involves effort, show both scales: \`(human: ~X / CC: ~Y)\`
+5. **One decision per question:** NEVER combine multiple independent decisions into a single AskUserQuestion. Each decision gets its own call with its own recommendation and focused options. Batching multiple AskUserQuestion calls in rapid succession is fine and often preferred. Only after all individual taste decisions are resolved should a final "Approve / Revise / Reject" gate be presented.
 
 Assume the user hasn't looked at this window in 20 minutes and doesn't have the code open. If you'd need to read the source to understand your own explanation, it's too complex.
 
@@ -467,7 +445,7 @@ Hey gstack team — ran into this while using /{skill-name}:
 
 **What I was trying to do:** {what the user/agent was attempting}
 **What happened instead:** {what actually happened}
-**My rating:** {0-10} — {one sentence on why it wasn't a 10}
+**My Rating:** {0-10} — {one sentence on why it wasn't a 10}
 
 ## Steps to reproduce
 1. {step}
@@ -578,15 +556,14 @@ plan's living status.`;
 }
 
 function generatePreamble(ctx: TemplateContext): string {
+  const tier = ctx.preambleTier ?? 4;
   return [
     generatePreambleBash(ctx),
     generateUpgradeCheck(ctx),
     generateLakeIntro(),
     generateTelemetryPrompt(ctx),
-    generateAskUserFormat(ctx),
-    generateCompletenessSection(),
-    generateRepoModeSection(),
-    generateSearchBeforeBuildingSection(ctx),
+    ...(tier >= 2 ? [generateAskUserFormat(ctx), generateCompletenessSection()] : []),
+    ...(tier >= 3 ? [generateRepoModeSection(), generateSearchBeforeBuildingSection(ctx)] : []),
     generateContributorMode(),
     generateCompletionStatus(),
   ].join('\n\n');
@@ -614,22 +591,42 @@ If \`NEEDS_SETUP\`:
 }
 
 function generateBaseBranchDetect(_ctx: TemplateContext): string {
-  return `## Step 0: Detect base branch
+  return `## Step 0: Detect platform and base branch
 
-Determine which branch this PR targets. Use the result as "the base branch" in all subsequent steps.
+First, detect the git hosting platform from the remote URL:
 
-1. Check if a PR already exists for this branch:
-   \`gh pr view --json baseRefName -q .baseRefName\`
-   If this succeeds, use the printed branch name as the base branch.
+\`\`\`bash
+git remote get-url origin 2>/dev/null
+\`\`\`
 
-2. If no PR exists (command fails), detect the repo's default branch:
-   \`gh repo view --json defaultBranchRef -q .defaultBranchRef.name\`
+- If the URL contains "github.com" → platform is **GitHub**
+- If the URL contains "gitlab" → platform is **GitLab**
+- Otherwise, check CLI availability:
+  - \`gh auth status 2>/dev/null\` succeeds → platform is **GitHub** (covers GitHub Enterprise)
+  - \`glab auth status 2>/dev/null\` succeeds → platform is **GitLab** (covers self-hosted)
+  - Neither → **unknown** (use git-native commands only)
 
-3. If both commands fail, fall back to \`main\`.
+Determine which branch this PR/MR targets, or the repo's default branch if no
+PR/MR exists. Use the result as "the base branch" in all subsequent steps.
+
+**If GitHub:**
+1. \`gh pr view --json baseRefName -q .baseRefName\` — if succeeds, use it
+2. \`gh repo view --json defaultBranchRef -q .defaultBranchRef.name\` — if succeeds, use it
+
+**If GitLab:**
+1. \`glab mr view -F json 2>/dev/null\` and extract the \`target_branch\` field — if succeeds, use it
+2. \`glab repo view -F json 2>/dev/null\` and extract the \`default_branch\` field — if succeeds, use it
+
+**Git-native fallback (if unknown platform, or CLI commands fail):**
+1. \`git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'\`
+2. If that fails: \`git rev-parse --verify origin/main 2>/dev/null\` → use \`main\`
+3. If that fails: \`git rev-parse --verify origin/master 2>/dev/null\` → use \`master\`
+
+If all fail, fall back to \`main\`.
 
 Print the detected base branch name. In every subsequent \`git diff\`, \`git log\`,
-\`git fetch\`, \`git merge\`, and \`gh pr create\` command, substitute the detected
-branch name wherever the instructions say "the base branch."
+\`git fetch\`, \`git merge\`, and PR/MR creation command, substitute the detected
+branch name wherever the instructions say "the base branch" or \`<default>\`.
 
 ---`;
 }
@@ -1311,7 +1308,7 @@ After completing the review, read the review log and config to display the dashb
 ~/.claude/skills/gstack/bin/gstack-review-read
 \`\`\`
 
-Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review). Ignore entries with timestamps older than 7 days. For the Adversarial row, show whichever is more recent between \`adversarial-review\` (new auto-scaled) and \`codex-review\` (legacy). For Design Review, show whichever is more recent between \`plan-design-review\` (full visual audit) and \`design-review-lite\` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
+Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review). Ignore entries with timestamps older than 7 days. For the Eng Review row, show whichever is more recent between \`review\` (diff-scoped pre-landing review) and \`plan-eng-review\` (plan-stage architecture review). Append "(DIFF)" or "(PLAN)" to the status to distinguish. For the Adversarial row, show whichever is more recent between \`adversarial-review\` (new auto-scaled) and \`codex-review\` (legacy). For Design Review, show whichever is more recent between \`plan-design-review\` (full visual audit) and \`design-review-lite\` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. Display:
 
 \`\`\`
 +====================================================================+
@@ -1337,7 +1334,7 @@ Parse the output. Find the most recent entry for each skill (plan-ceo-review, pl
 - **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete in /plan-ceo-review and /plan-eng-review. Falls back to Claude subagent if Codex is unavailable. Never gates shipping.
 
 **Verdict logic:**
-- **CLEARED**: Eng Review has >= 1 entry within 7 days with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
+- **CLEARED**: Eng Review has >= 1 entry within 7 days from either \\\`review\\\` or \\\`plan-eng-review\\\` with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
 - **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
 - CEO, Design, and Codex reviews are shown for context but never block shipping
 - If \\\`skip_eng_review\\\` config is \\\`true\\\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
@@ -2199,7 +2196,7 @@ Write the full prompt (context block + instructions) to this file. Use the mode-
 
 \`\`\`bash
 TMPERR_OH=$(mktemp /tmp/codex-oh-err-XXXXXXXX)
-codex exec "$(cat "$CODEX_PROMPT_FILE")" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR_OH"
+codex exec "$(cat "$CODEX_PROMPT_FILE")" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_OH"
 \`\`\`
 
 Use a 5-minute timeout (\`timeout: 300000\`). After the command completes, read stderr:
@@ -2283,7 +2280,7 @@ Claude's structured review already ran. Now add a **cross-model adversarial chal
 
 \`\`\`bash
 TMPERR_ADV=$(mktemp /tmp/codex-adv-XXXXXXXX)
-codex exec "Review the changes on this branch against the base branch. Run git diff origin/<base> to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems." -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR_ADV"
+codex exec "Review the changes on this branch against the base branch. Run git diff origin/<base> to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems." -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_ADV"
 \`\`\`
 
 Set the Bash tool's \`timeout\` parameter to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. After the command completes, read stderr:
@@ -2328,7 +2325,7 @@ Claude's structured review already ran. Now run **all three remaining passes** f
 **1. Codex structured review (if available):**
 \`\`\`bash
 TMPERR=$(mktemp /tmp/codex-review-XXXXXXXX)
-codex review --base <base> -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+codex review --base <base> -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR"
 \`\`\`
 
 Set the Bash tool's \`timeout\` parameter to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. Present output under \`CODEX SAYS (code review):\` header.
@@ -2438,7 +2435,7 @@ THE PLAN:
 
 \`\`\`bash
 TMPERR_PV=$(mktemp /tmp/codex-planreview-XXXXXXXX)
-codex exec "<prompt>" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR_PV"
+codex exec "<prompt>" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_PV"
 \`\`\`
 
 Use a 5-minute timeout (\`timeout: 300000\`). After the command completes, read stderr:
@@ -2787,43 +2784,7 @@ ${slopItems}
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.`;
 }
 
-function generateSlugEval(ctx: TemplateContext): string {
-  return `eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)"`;
-}
-
-function generateSlugSetup(ctx: TemplateContext): string {
-  return `eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG`;
-}
-
-const RESOLVERS: Record<string, (ctx: TemplateContext) => string> = {
-  SLUG_EVAL: generateSlugEval,
-  SLUG_SETUP: generateSlugSetup,
-  COMMAND_REFERENCE: generateCommandReference,
-  SNAPSHOT_FLAGS: generateSnapshotFlags,
-  PREAMBLE: generatePreamble,
-  BROWSE_SETUP: generateBrowseSetup,
-  BASE_BRANCH_DETECT: generateBaseBranchDetect,
-  QA_METHODOLOGY: generateQAMethodology,
-  DESIGN_METHODOLOGY: generateDesignMethodology,
-  DESIGN_HARD_RULES: generateDesignHardRules,
-  DESIGN_OUTSIDE_VOICES: generateDesignOutsideVoices,
-  DESIGN_REVIEW_LITE: generateDesignReviewLite,
-  REVIEW_DASHBOARD: generateReviewDashboard,
-  PLAN_FILE_REVIEW_REPORT: generatePlanFileReviewReport,
-  TEST_BOOTSTRAP: generateTestBootstrap,
-  TEST_COVERAGE_AUDIT_PLAN: generateTestCoverageAuditPlan,
-  TEST_COVERAGE_AUDIT_SHIP: generateTestCoverageAuditShip,
-  TEST_COVERAGE_AUDIT_REVIEW: generateTestCoverageAuditReview,
-  TEST_FAILURE_TRIAGE: generateTestFailureTriage,
-  SPEC_REVIEW_LOOP: generateSpecReviewLoop,
-  DESIGN_SKETCH: generateDesignSketch,
-  BENEFITS_FROM: generateBenefitsFrom,
-  CODEX_SECOND_OPINION: generateCodexSecondOpinion,
-  CODEX_REVIEW_STEP: generateAdversarialStep,
-  ADVERSARIAL_STEP: generateAdversarialStep,
-  DEPLOY_BOOTSTRAP: generateDeployBootstrap,
-  CODEX_PLAN_REVIEW: generateCodexPlanReview,
-};
+// RESOLVERS imported from ./resolvers/index (line 19) — do not redeclare here
 
 // ─── Codex Helpers ───────────────────────────────────────────
 
@@ -2834,6 +2795,67 @@ function codexSkillName(skillDir: string): string {
   return `gstack-${skillDir}`;
 }
 
+function extractNameAndDescription(content: string): { name: string; description: string } {
+  const fmStart = content.indexOf('---\n');
+  if (fmStart !== 0) return { name: '', description: '' };
+  const fmEnd = content.indexOf('\n---', fmStart + 4);
+  if (fmEnd === -1) return { name: '', description: '' };
+
+  const frontmatter = content.slice(fmStart + 4, fmEnd);
+  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
+  const name = nameMatch ? nameMatch[1].trim() : '';
+
+  let description = '';
+  const lines = frontmatter.split('\n');
+  let inDescription = false;
+  const descLines: string[] = [];
+  for (const line of lines) {
+    if (line.match(/^description:\s*\|?\s*$/)) {
+      inDescription = true;
+      continue;
+    }
+    if (line.match(/^description:\s*\S/)) {
+      description = line.replace(/^description:\s*/, '').trim();
+      break;
+    }
+    if (inDescription) {
+      if (line === '' || line.match(/^\s/)) {
+        descLines.push(line.replace(/^  /, ''));
+      } else {
+        break;
+      }
+    }
+  }
+  if (descLines.length > 0) {
+    description = descLines.join('\n').trim();
+  }
+
+  return { name, description };
+}
+
+const OPENAI_SHORT_DESCRIPTION_LIMIT = 120;
+
+function condenseOpenAIShortDescription(description: string): string {
+  const firstParagraph = description.split(/\n\s*\n/)[0] || description;
+  const collapsed = firstParagraph.replace(/\s+/g, ' ').trim();
+  if (collapsed.length <= OPENAI_SHORT_DESCRIPTION_LIMIT) return collapsed;
+
+  const truncated = collapsed.slice(0, OPENAI_SHORT_DESCRIPTION_LIMIT - 3);
+  const lastSpace = truncated.lastIndexOf(' ');
+  const safe = lastSpace > 40 ? truncated.slice(0, lastSpace) : truncated;
+  return `${safe}...`;
+}
+
+function generateOpenAIYaml(displayName: string, shortDescription: string): string {
+  return `interface:
+  display_name: ${JSON.stringify(displayName)}
+  short_description: ${JSON.stringify(shortDescription)}
+  default_prompt: ${JSON.stringify(`Use ${displayName} for this task.`)}
+policy:
+  allow_implicit_invocation: true
+`;
+}
+
 /**
  * Transform frontmatter for Codex: keep only name + description.
  * Strips allowed-tools, hooks, version, and all other fields.
@@ -2842,47 +2864,20 @@ function codexSkillName(skillDir: string): string {
 function transformFrontmatter(content: string, host: Host): string {
   if (host === 'claude') return content;
 
-  // Find frontmatter boundaries
   const fmStart = content.indexOf('---\n');
-  if (fmStart !== 0) return content; // frontmatter must be at the start
+  if (fmStart !== 0) return content;
   const fmEnd = content.indexOf('\n---', fmStart + 4);
   if (fmEnd === -1) return content;
-
-  const frontmatter = content.slice(fmStart + 4, fmEnd);
   const body = content.slice(fmEnd + 4); // includes the leading \n after ---
+  const { name, description } = extractNameAndDescription(content);
 
-  // Parse name
-  const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
-  const name = nameMatch ? nameMatch[1].trim() : '';
-
-  // Parse description — handle both simple and block scalar (|) formats
-  let description = '';
-  const lines = frontmatter.split('\n');
-  let inDescription = false;
-  const descLines: string[] = [];
-  for (const line of lines) {
-    if (line.match(/^description:\s*\|?\s*$/)) {
-      // Block scalar start: "description: |" or "description:"
-      inDescription = true;
-      continue;
-    }
-    if (line.match(/^description:\s*\S/)) {
-      // Simple inline: "description: some text"
-      description = line.replace(/^description:\s*/, '').trim();
-      break;
-    }
-    if (inDescription) {
-      // Block scalar continuation — indented lines (2 spaces) or blank lines
-      if (line === '' || line.match(/^\s/)) {
-        descLines.push(line.replace(/^  /, ''));
-      } else {
-        // End of block scalar — hit a non-indented, non-blank line
-        break;
-      }
-    }
-  }
-  if (descLines.length > 0) {
-    description = descLines.join('\n').trim();
+  // Codex 1024-char description limit — fail build, don't ship broken skills
+  const MAX_DESC = 1024;
+  if (description.length > MAX_DESC) {
+    throw new Error(
+      `Codex description for "${name}" is ${description.length} chars (max ${MAX_DESC}). ` +
+      `Compress the description in the .tmpl file.`
+    );
   }
 
   // Re-emit Codex frontmatter (name + description only)
@@ -2934,17 +2929,19 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
   // Determine skill directory relative to ROOT
   const skillDir = path.relative(ROOT, path.dirname(tmplPath));
 
+  let outputDir: string | null = null;
+
   // For codex host, route output to .agents/skills/{codexSkillName}/SKILL.md
   if (host === 'codex') {
     const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
-    const outputDir = path.join(ROOT, '.agents', 'skills', codexName);
+    outputDir = path.join(ROOT, '.agents', 'skills', codexName);
     fs.mkdirSync(outputDir, { recursive: true });
     outputPath = path.join(outputDir, 'SKILL.md');
   }
 
   // Extract skill name from frontmatter for TemplateContext
-  const nameMatch = tmplContent.match(/^name:\s*(.+)$/m);
-  const skillName = nameMatch ? nameMatch[1].trim() : path.basename(path.dirname(tmplPath));
+  const { name: extractedName, description: extractedDescription } = extractNameAndDescription(tmplContent);
+  const skillName = extractedName || path.basename(path.dirname(tmplPath));
 
   // Extract benefits-from list from frontmatter (inline YAML: benefits-from: [a, b])
   const benefitsMatch = tmplContent.match(/^benefits-from:\s*\[([^\]]*)\]/m);
@@ -2952,7 +2949,11 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     ? benefitsMatch[1].split(',').map(s => s.trim()).filter(Boolean)
     : undefined;
 
-  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host] };
+  // Extract preamble-tier from frontmatter (1-4, controls which preamble sections are included)
+  const tierMatch = tmplContent.match(/^preamble-tier:\s*(\d+)$/m);
+  const preambleTier = tierMatch ? parseInt(tierMatch[1], 10) : undefined;
+
+  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host], preambleTier };
 
   // Replace placeholders
   let content = tmplContent.replace(/\{\{(\w+)\}\}/g, (match, name) => {
@@ -2986,6 +2987,15 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     content = content.replace(/\.claude\/skills\/gstack/g, ctx.paths.localSkillRoot);
     content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
     content = content.replace(/\.claude\/skills/g, '.agents/skills');
+
+    if (outputDir) {
+      const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
+      const agentsDir = path.join(outputDir, 'agents');
+      fs.mkdirSync(agentsDir, { recursive: true });
+      const displayName = codexName;
+      const shortDescription = condenseOpenAIShortDescription(extractedDescription);
+      fs.writeFileSync(path.join(agentsDir, 'openai.yaml'), generateOpenAIYaml(displayName, shortDescription));
+    }
   }
 
   // Prepend generated header (after frontmatter)
@@ -3004,19 +3014,11 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
 // ─── Main ───────────────────────────────────────────────────
 
 function findTemplates(): string[] {
-  const templates: string[] = [];
-  const rootTmpl = path.join(ROOT, 'SKILL.md.tmpl');
-  if (fs.existsSync(rootTmpl)) templates.push(rootTmpl);
-
-  for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-    const tmpl = path.join(ROOT, entry.name, 'SKILL.md.tmpl');
-    if (fs.existsSync(tmpl)) templates.push(tmpl);
-  }
-  return templates;
+  return discoverTemplates(ROOT).map(t => path.join(ROOT, t.tmpl));
 }
 
 let hasChanges = false;
+const tokenBudget: Array<{ skill: string; lines: number; tokens: number }> = [];
 
 for (const tmplPath of findTemplates()) {
   // Skip /codex skill for codex host (self-referential — it's a Claude wrapper around codex exec)
@@ -3040,9 +3042,32 @@ for (const tmplPath of findTemplates()) {
     fs.writeFileSync(outputPath, content);
     console.log(`GENERATED: ${relOutput}`);
   }
+
+  // Track token budget
+  const lines = content.split('\n').length;
+  const tokens = Math.round(content.length / 4); // ~4 chars per token
+  tokenBudget.push({ skill: relOutput, lines, tokens });
 }
 
 if (DRY_RUN && hasChanges) {
   console.error('\nGenerated SKILL.md files are stale. Run: bun run gen:skill-docs');
   process.exit(1);
+}
+
+// Print token budget summary
+if (!DRY_RUN && tokenBudget.length > 0) {
+  tokenBudget.sort((a, b) => b.lines - a.lines);
+  const totalLines = tokenBudget.reduce((s, t) => s + t.lines, 0);
+  const totalTokens = tokenBudget.reduce((s, t) => s + t.tokens, 0);
+
+  console.log('');
+  console.log(`Token Budget (${HOST} host)`);
+  console.log('═'.repeat(60));
+  for (const t of tokenBudget) {
+    const name = t.skill.replace(/\/SKILL\.md$/, '').replace(/^\.agents\/skills\//, '');
+    console.log(`  ${name.padEnd(30)} ${String(t.lines).padStart(5)} lines  ~${String(t.tokens).padStart(6)} tokens`);
+  }
+  console.log('─'.repeat(60));
+  console.log(`  ${'TOTAL'.padEnd(30)} ${String(totalLines).padStart(5)} lines  ~${String(totalTokens).padStart(6)} tokens`);
+  console.log('');
 }
