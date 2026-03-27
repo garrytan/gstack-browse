@@ -226,6 +226,11 @@ Before building anything unfamiliar, **search first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
+**search tool priority:**
+1. **exa (preferred):** use the `web_search_exa` tool from the exa mcp server for all web searches. exa uses neural search — it understands meaning, not just keywords — so you get better results for technical queries, market research, and current information. to set up: `claude mcp add --transport http exa https://mcp.exa.ai/mcp`
+2. **websearch (fallback):** if `web_search_exa` is not available (mcp not configured), fall back to WebSearch.
+3. **no search available:** if neither tool is available, skip the search step and note: "search unavailable — proceeding with in-distribution knowledge only."
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
@@ -416,9 +421,9 @@ If the README or office-hours output gives you enough context, pre-fill and conf
 
 If the user wants competitive research:
 
-**Step 1: Identify what's out there via WebSearch**
+**Step 1: identify what's out there**
 
-Use WebSearch to find 5-10 products in their space. Search for:
+use the search tool priority from the preamble (exa mcp first, then WebSearch, then skip). search for 5-10 products in their space:
 - "[product category] website design"
 - "[product category] best websites 2025"
 - "best [industry] web apps"
@@ -452,9 +457,9 @@ Summarize conversationally:
 > "I looked at what's out there. Here's the landscape: they converge on [patterns]. Most of them feel [observation — e.g., interchangeable, polished but generic, etc.]. The opportunity to stand out is [gap]. Here's where I'd play it safe and where I'd take a risk..."
 
 **Graceful degradation:**
-- Browse available → screenshots + snapshots + WebSearch (richest research)
-- Browse unavailable → WebSearch only (still good)
-- WebSearch also unavailable → agent's built-in design knowledge (always works)
+- browse available → screenshots + snapshots + web search (richest research)
+- browse unavailable → web search only (still good)
+- no search available → built-in design knowledge (always works)
 
 If the user said no research, skip entirely and proceed to Phase 3 using your built-in design knowledge.
 
