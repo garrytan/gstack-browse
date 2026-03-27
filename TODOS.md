@@ -663,6 +663,18 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Priority:** P2
 **Depends on:** This branch landing (Revyl detection infrastructure in gen-skill-docs.ts)
 
+### Revyl dev loop: reuse existing Metro instead of starting a new one
+
+**What:** When the QA skill tries the dev loop path and Metro is already running on port 8081, detect and reuse it instead of starting a second Metro process (which fails due to port conflict, or Revyl starts its own on 8082).
+
+**Why:** During live testing, the dev loop failed because Metro was already running from a prior `npx expo start`. Revyl's dev loop started a new server on 8082, causing a port conflict. The static mode fallback worked perfectly, so impact is low — but fixing this would make dev loop mode reliable for iterative testing without restarting Metro.
+
+**Context:** Detection: `lsof -i :8081 | grep -q LISTEN`. If Metro is running, skip the `expo start` step in the dev loop. May also need to tell Revyl which port to connect to. Static mode fallback is robust, so this is a DX improvement, not a blocker.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** This branch landing
+
 ### Android Revyl support
 
 **What:** Extend Revyl mobile QA path to support Android devices (`--platform android`), including APK build pipeline, ADB-based app installation, and Android-specific system dialog handling.
