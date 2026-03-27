@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.12.12.0] - 2026-03-27 — Custom Prefix, Live Reload
+
+Type `gstack-config set skill_prefix g` and every gstack skill immediately switches to `/g-ship`, `/g-qa`, `/g-review`. No re-running setup. No session restart. The dash is automatic — you just pick the word.
+
+### Added
+
+- **Custom prefix word.** Setup now offers three choices: short names (`/qa`, `/ship`), namespaced (`/gstack-qa`, `/gstack-ship`), or a custom word you type yourself (`g`, `gs`, `mytools` — anything lowercase, 1-10 chars). The system appends the `-` separator.
+- **Live prefix reload.** `gstack-config set skill_prefix <word>` regenerates all installed SKILL.md files immediately. Switching from `gstack` to `g` takes one command, not a full re-run of setup.
+- **`--prefix <word>` on setup.** The `--prefix` flag now takes a word argument (`--prefix g`) instead of being a toggle. `--no-prefix` still works as before.
+- **Universal skill cleanup.** Switching between any two prefix configurations (including custom words) now cleans up all previously generated dirs before regenerating. Detection uses the `AUTO-GENERATED from SKILL.md.tmpl` header in each file.
+
+### Fixed
+
+- **Backward compat for existing configs.** If `~/.gstack/config.yaml` has `skill_prefix: true` (the old boolean), `gstack-config get skill_prefix` returns `gstack`. If it has `false`, it returns `false`. Existing installs work without migration.
+- **Double regen on setup.** When setup saves the prefix preference via `gstack-config set`, it no longer triggers an immediate regen (setup does its own cleanup + regen cycle after). Controlled via `GSTACK_SKIP_REGEN=1`.
+- **PATH-invoked `gstack-config`.** `gstack-config set skill_prefix` now uses `readlink -f "$0"` to find the gstack installation directory, so it works when invoked via PATH rather than by absolute path.
+- **Shell injection in `gstack-config`.** The `sed` command now uses `|` as the delimiter instead of `/`, preventing prefix words from being misinterpreted as sed metacharacters.
+
+### For contributors
+
+- 8 new tests for custom prefix, backward compat, and cleanup behavior.
+- `scripts/gen-skill-docs.ts` now accepts `--output-root <dir>` to install SKILL.md files into a target directory without modifying committed source files. Used by `setup` for live installs.
+
 ## [0.12.11.0] - 2026-03-27 — Skill Prefix is Now Your Choice
 
 You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/review`) or namespaced (`/gstack-qa`, `/gstack-ship`). Setup asks on first run, remembers your preference, and switching is one command.
