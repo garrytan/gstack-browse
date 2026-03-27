@@ -36,6 +36,11 @@ echo "PROACTIVE_PROMPTED: $_PROACTIVE_PROMPTED"
 source <(~/.claude/skills/gstack/bin/gstack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
+# Auto-migrate legacy ~/.gstack/projects/ data to project-local .gstack/ (once per project)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" || true
+if [ -n "${PROJECT_DATA_DIR:-}" ] && [ -d "$HOME/.gstack/projects/${SLUG:-}" ] && [ ! -f "${PROJECT_DATA_DIR}/.migrated" ]; then
+  ~/.claude/skills/gstack/bin/gstack-migrate-local 2>/dev/null && touch "${PROJECT_DATA_DIR}/.migrated" 2>/dev/null || true
+fi
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
@@ -463,11 +468,11 @@ and whether the deploy configuration has changed since then:
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-if [ ! -f ~/.gstack/projects/$SLUG/land-deploy-confirmed ]; then
+if [ ! -f "$PROJECT_DATA_DIR/land-deploy-confirmed" ] && [ ! -f ~/.gstack/projects/$SLUG/land-deploy-confirmed ]; then
   echo "FIRST_RUN"
 else
   # Check if deploy config has changed since confirmation
-  SAVED_HASH=$(cat ~/.gstack/projects/$SLUG/land-deploy-confirmed 2>/dev/null)
+  SAVED_HASH=$(cat "$PROJECT_DATA_DIR/land-deploy-confirmed" 2>/dev/null || cat ~/.gstack/projects/$SLUG/land-deploy-confirmed 2>/dev/null)
   CURRENT_HASH=$(sed -n '/## Deploy Configuration/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
   # Also hash workflow files that affect deploy behavior
   WORKFLOW_HASH=$(cat .github/workflows/*deploy* .github/workflows/*cd* 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
@@ -661,10 +666,10 @@ Present the full dry-run results to the user via AskUserQuestion:
 
 Save the deploy config fingerprint so we can detect future changes:
 ```bash
-mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 CURRENT_HASH=$(sed -n '/## Deploy Configuration/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
 WORKFLOW_HASH=$(cat .github/workflows/*deploy* .github/workflows/*cd* 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
-echo "${CURRENT_HASH}-${WORKFLOW_HASH}" > ~/.gstack/projects/$SLUG/land-deploy-confirmed
+echo "${CURRENT_HASH}-${WORKFLOW_HASH}" > "$PROJECT_DATA_DIR/land-deploy-confirmed"
 ```
 Continue to Step 2.
 
