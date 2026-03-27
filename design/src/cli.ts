@@ -16,6 +16,8 @@ import { COMMANDS } from "./commands";
 import { generate } from "./generate";
 import { checkCommand } from "./check";
 import { compare } from "./compare";
+import { variants } from "./variants";
+import { iterate } from "./iterate";
 import { resolveApiKey, saveApiKey } from "./auth";
 
 function parseArgs(argv: string[]): { command: string; flags: Record<string, string | boolean> } {
@@ -140,11 +142,28 @@ async function main(): Promise<void> {
       break;
 
     case "variants":
+      await variants({
+        brief: flags.brief as string,
+        briefFile: flags["brief-file"] as string,
+        count: flags.count ? parseInt(flags.count as string) : 3,
+        outputDir: (flags["output-dir"] as string) || "/tmp/gstack-variants/",
+        size: flags.size as string,
+        quality: flags.quality as string,
+      });
+      break;
+
     case "iterate":
+      await iterate({
+        session: flags.session as string,
+        feedback: flags.feedback as string,
+        output: (flags.output as string) || "/tmp/gstack-iterate.png",
+      });
+      break;
+
     case "diff":
     case "evolve":
     case "verify":
-      console.error(`Command '${command}' will be implemented in Commit 2+.`);
+      console.error(`Command '${command}' will be implemented in Commit 7+.`);
       process.exit(1);
       break;
   }
