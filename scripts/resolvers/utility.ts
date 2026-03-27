@@ -49,10 +49,11 @@ branch name wherever the instructions say "the base branch" or \`<default>\`.
 ---`;
 }
 
-export function generateDeployBootstrap(_ctx: TemplateContext): string {
+export function generateDeployBootstrap(ctx: TemplateContext): string {
+  const CFG = ctx.paths.configFile;
   return `\`\`\`bash
-# Check for persisted deploy config in CLAUDE.md
-DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
+# Check for persisted deploy config in ${CFG}
+DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" ${CFG} 2>/dev/null || echo "NO_CONFIG")
 echo "$DEPLOY_CONFIG"
 
 # If config exists, parse it
@@ -78,7 +79,7 @@ for f in .github/workflows/*.yml .github/workflows/*.yaml; do
 done
 \`\`\`
 
-If \`PERSISTED_PLATFORM\` and \`PERSISTED_URL\` were found in CLAUDE.md, use them directly
+If \`PERSISTED_PLATFORM\` and \`PERSISTED_URL\` were found in ${CFG}, use them directly
 and skip manual detection. If no persisted config exists, use the auto-detected platform
 to guide deploy verification. If nothing is detected, ask the user via AskUserQuestion
 in the decision tree below.
@@ -364,4 +365,8 @@ Minimum 0 per category.
 10. **Use \`snapshot -C\` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
 11. **Show screenshots to the user.** After every \`$B screenshot\`, \`$B snapshot -a -o\`, or \`$B responsive\` command, use the Read tool on the output file(s) so the user can see them inline. For \`responsive\` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.
 12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.`;
+}
+
+export function generateConfigFile(ctx: TemplateContext): string {
+  return ctx.paths.configFile;
 }
