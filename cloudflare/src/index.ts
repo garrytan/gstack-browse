@@ -122,6 +122,16 @@ function sma(values: number[], period: number): number {
   return slice.reduce((a, b) => a + b, 0) / period;
 }
 
+function bollingerLower(values: number[], period: number, mult: number): number {
+  if (values.length === 0) return 0;
+  if (values.length < period) return values[values.length - 1];
+  const slice = values.slice(-period);
+  const mean = slice.reduce((a, b) => a + b, 0) / period;
+  const variance = slice.reduce((acc, x) => acc + (x - mean) ** 2, 0) / period;
+  const sd = Math.sqrt(variance);
+  return mean - mult * sd;
+}
+
 function ema(values: number[], period: number): number {
   if (values.length === 0) return 0;
   if (values.length < period) return sma(values, period);
@@ -199,6 +209,40 @@ function computeBias(price: number, d20: number, d200: number, hist: number, rsi
   return { bias: "Neutral", confidence };
 }
 
+function pivotsFromPreviousDay(highs: number[], lows: number[], closes: number[]): { p: number; r1: number; s1: number } {
+  if (highs.length < 2 || lows.length < 2 || closes.length < 2) return { p: 0, r1: 0, s1: 0 };
+  const h = highs[highs.length - 2] || 0;
+  const l = lows[lows.length - 2] || 0;
+  const c = closes[closes.length - 2] || 0;
+  const p = (h + l + c) / 3;
+  const r1 = 2 * p - l;
+  const s1 = 2 * p - h;
+  return { p, r1, s1 };
+}
+
+function obvTrend(closes: number[], volumes: number[]): string {
+  const n = Math.min(closes.length, volumes.length);
+  if (n < 3) return "Neutral";
+  let obv = 0;
+  const series: number[] = [0];
+  for (let i = 1; i < n; i++) {
+    if (closes[i] > closes[i - 1]) obv += volumes[i] || 0;
+    else if (closes[i] < closes[i - 1]) obv -= volumes[i] || 0;
+    series.push(obv);
+  }
+  const lookback = Math.min(20, series.length - 1);
+  const delta = series[series.length - 1] - series[series.length - 1 - lookback];
+  if (delta > 0) return "Accumulation";
+  if (delta < 0) return "Distribution";
+  return "Neutral";
+}
+
+function computeInvalidation(bias: Bias, d20: number, r1: number, s1: number): number {
+  if (bias === "Bullish") return Math.min(d20 || Infinity, s1 || Infinity);
+  if (bias === "Bearish") return Math.max(d20 || -Infinity, r1 || -Infinity);
+  return d20;
+}
+
 function formatBrief(symbol: string, data: ChartData): string {
   const price = data.closes[data.closes.length - 1] || 0;
   const d20 = sma(data.closes, 20);
@@ -207,7 +251,8 @@ function formatBrief(symbol: string, data: ChartData): string {
   const atr = atr14(data.highs, data.lows, data.closes);
   const hist = macdHistogram(data.closes);
   const { bias, confidence } = computeBias(price, d20, d200, hist, rsi);
-  const invalidation = bias === "Bullish" ? Math.min(d20, price - atr) : bias === "Bearish" ? Math.max(d20, price + atr) : d20;
+  const { r1, s1 } = pivotsFromPreviousDay(data.highs, data.lows, data.closes);
+  const invalidation = computeInvalidation(bias, d20, r1, s1);
 
   const lines = [
     `TRADING BRIEF: ${symbol}`,
@@ -219,12 +264,90 @@ function formatBrief(symbol: string, data: ChartData): string {
   return lines.join("\n");
 }
 
+function formatFull(symbol: string, data: ChartData): string {
+  const price = data.closes[data.closes.length - 1] || 0;
+  const d20 = sma(data.closes, 20);
+  const d50 = sma(data.closes, 50);
+  const d200 = sma(data.closes, 200);
+  const dBBLower = bollingerLower(data.closes, 20, 2);
+  const rsi = rsi14(data.closes);
+  const atr = atr14(data.highs, data.lows, data.closes);
+  const hist = macdHistogram(data.closes);
+  const { p, r1, s1 } = pivotsFromPreviousDay(data.highs, data.lows, data.closes);
+  const { bias, confidence } = computeBias(price, d20, d200, hist, rsi);
+  const invalidation = computeInvalidation(bias, d20, r1, s1);
+
+  const distToSupport = Math.abs(price - s1);
+  const rrRatio = atr / (distToSupport || 1);
+  const obv = obvTrend(data.closes, data.volumes);
+
+  const rsiState = rsi > 70 ? "Overbought" : rsi < 30 ? "Oversold" : "Neutral";
+  const probUp = price > d20 ? 100 : 0;
+  const probDown = price > d20 ? 0 : 100;
+
+  return [
+    `TRADING BRIEF: ${symbol}`,
+    `Bias: ${bias} | Confidence: ${confidence}% | Invalidation: ${invalidation.toFixed(2)} ${data.currency}`,
+    "",
+    `${symbol} 分析`,
+    `新聞輿情分析: -`,
+    "",
+    `${symbol} 自訂大盤特化分析`,
+    `最新價格: ${price.toFixed(2)} ${data.currency}`,
+    "",
+    `今日上漲機率: ${probUp}%`,
+    `今日下跌機率: ${probDown}%`,
+    "",
+    `上方壓力位 (Resistance)`,
+    `  - 日線 20MA: ${d20.toFixed(2)}`,
+    `  - 日線 50MA: ${d50.toFixed(2)}`,
+    `  - 樞軸 R1:   ${r1.toFixed(2)}`,
+    "",
+    `下方支撐位 (Support)`,
+    `  - 日線 布林帶下軌: ${dBBLower.toFixed(2)}`,
+    `  - 樞軸 S1:         ${s1.toFixed(2)}`,
+    `  - 日線 200MA:      ${d200.toFixed(2)}`,
+    "",
+    `GOLDMAN SACHS SECURITY ANALYSIS: ${symbol}`,
+    `================================================`,
+    `Current Quote: ${price.toFixed(2)} ${data.currency} | RSI(14): ${rsi.toFixed(1)}`,
+    `Trend Conviction: ${confidence}%`,
+    "",
+    `MOMENTUM (MACD)`,
+    `  - Histogram: ${hist > 0 ? "+" : ""}${hist.toFixed(2)} (${hist > 0 ? "Bullish" : "Bearish"})`,
+    "",
+    `VOLATILITY PROJECTIONS (1-ATR)`,
+    `  - Bullish Target: ${(price + atr).toFixed(2)} ${data.currency}`,
+    `  - Bearish Support: ${(price - atr).toFixed(2)} ${data.currency}`,
+    "",
+    `INSTITUTIONAL RISK REPORT: ${symbol}`,
+    `================================================`,
+    `Price: ${price.toFixed(2)} ${data.currency} | RSI: ${rsi.toFixed(1)} (${rsiState})`,
+    "",
+    `CAPITAL FLOW (OBV)`,
+    `  - Money Flow: ${obv}`,
+    "",
+    `HFT PIVOT LEVELS (Floor)`,
+    `  - Resistance (R1): ${r1.toFixed(2)}`,
+    `  - Central Pivot (P): ${p.toFixed(2)}`,
+    `  - Support (S1): ${s1.toFixed(2)}`,
+    "",
+    `ALPHA RISK MODEL`,
+    `  - Risk/Reward: ${rrRatio.toFixed(2)}x ${rrRatio > 2 ? "ATTRACTIVE" : "UNFAVORABLE"}`,
+    "",
+    `LONG-TERM STRUCTURE`,
+    `  - Daily 200MA: ${d200.toFixed(2)} (${price > d200 ? "Bullish Phase" : "Bearish Phase"})`,
+    `  - Daily 20MA:  ${d20.toFixed(2)} (${price > d20 ? "Short-term Strength" : "Short-term Weakness"})`,
+    `================================================`,
+  ].join("\n");
+}
+
 async function handle(chatId: number, text: string, env: Env): Promise<string> {
   const { cmd, arg } = parseCommand(text);
   if (cmd === "start" || cmd === "help") {
     return [
       "Commands:",
-      "- Send `NVDA` (defaults to summary brief)",
+      "- Send `NVDA` (defaults to full report, no-news)",
       "- `/full NVDA`",
       "- `/summary NVDA`",
       "- `/watch NVDA,AAPL,TSLA`",
@@ -271,7 +394,8 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
   if (!target) return "Send a ticker like NVDA, or /help";
   const ticker = normalizeTicker(target);
   const data = await fetchYahooChart(ticker);
-  return formatBrief(ticker, data);
+  if (cmd === "summary") return formatBrief(ticker, data);
+  return formatFull(ticker, data);
 }
 
 export default {
@@ -325,4 +449,3 @@ export default {
     return new Response("OK", { status: 200 });
   },
 };
-

@@ -214,9 +214,9 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
 
   mkdirSync(REPORTS_DIR, { recursive: true });
   const out = join(REPORTS_DIR, `${ticker}_${mode}_${Date.now()}.txt`);
-  const key = `ticker:${ticker}:${mode}`;
+  const key = `ticker:${ticker}:${mode}:no-news`;
   const cached = await runCached(key, async () => {
-    const res = runStockCommand([ticker!, "--mode", mode, "--out", out, "--no-open"]);
+    const res = runStockCommand([ticker!, "--mode", mode, "--no-news", "--out", out, "--no-open"]);
     return { ...res, outPath: out };
   });
 
