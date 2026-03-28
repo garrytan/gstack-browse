@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.13.4.0] - 2026-03-28 — The Product Conscience
+
+Every gstack skill now has product memory. `/oracle` bootstraps a product map from your codebase, then every planning skill reads it for context and every post-work skill silently writes back. The map lives in your repo at `docs/oracle/` so you can verify every claim.
+
+### Added
+
+- **Product Conscience across 19 skills.** Planning skills (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, etc.) automatically read your product map for feature connections, patterns, and anti-patterns. Post-work skills (`/ship`, `/review`, `/qa`) silently update it after completing work. The map gets better with every session.
+- **`/oracle` skill with 6 modes.** Bootstrap (generate product map from codebase), inventory (budgeted deep page-by-page scan), refresh (full re-analysis), update (lightweight git sync), stats (product + codebase health dashboard), query (answer product questions with context).
+- **AST-powered codebase scanner.** Uses TypeScript's compiler API for 100% static import resolution. Detects 10 frameworks (React Router, Next.js, SvelteKit, Nuxt, Remix, Astro, TanStack Router, Vue Router, Wouter, plus file-based routing). Git co-change analysis for complexity classification (EASY/MEDIUM/HARD/MEGA). Tarjan's SCC for circular dependencies. Dead code detection with `.oracleignore` support and multi-level confidence.
+- **HTML import graph visualizer.** Run `/oracle scan --visualize` to generate a self-contained HTML file showing your entire import tree, color-coded by complexity, with collapsible subtrees and circular dependency highlighting.
+- **Terminal ASCII graph.** ANSI-colored tree output with `--max-depth`, `--no-color`, and `--compact` flags.
+- **Scanner CLI flags.** `--diff` (compare against previous scan), `--dry-run` (preview without writing), `--git-frequency` (sort routes by recent commit activity).
+- **Self-describing product map.** The map header contains its own schema, so skills don't need hardcoded format knowledge. Schema changes update the map, not 19 templates.
+
+### For contributors
+
+- New resolver system: `scripts/resolvers/oracle.ts` with `PRODUCT_CONSCIENCE_READ` and `PRODUCT_CONSCIENCE_WRITE` registered in both `index.ts` and `gen-skill-docs.ts`.
+- Shared scanner utilities extracted to `oracle/bin/scanner/utils.ts`.
+- 186 tests across 5 test files (scanner: 114, visualizer: 15, terminal graph: 15, utils: 16, resolvers: 26).
+- 14 fixture directories covering all 10 supported frameworks.
+- E2E test scaffolding in `test/skill-e2e-oracle.test.ts` with touchfile declarations.
+
 ## [0.13.3.0] - 2026-03-28 — Lock It Down
 
 Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
