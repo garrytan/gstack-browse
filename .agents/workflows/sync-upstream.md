@@ -16,7 +16,7 @@ git remote add upstream https://github.com/garrytan/gstack.git || exit 0
 ```bash
 git fetch upstream main
 ```
-3. Attempt to rebase our `main` branch on top of `upstream/main`.
+3. Attempt to rebase our current integration branch on top of `upstream/main`.
 ```bash
 git rebase upstream/main
 ```
