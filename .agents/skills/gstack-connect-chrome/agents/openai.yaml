@@ -1,0 +1,6 @@
+interface:
+  display_name: "gstack-connect-chrome"
+  short_description: "Launch real Chrome controlled by gstack with the Side Panel extension auto-loaded. One command: connects Claude to a..."
+  default_prompt: "Use gstack-connect-chrome for this task."
+policy:
+  allow_implicit_invocation: true

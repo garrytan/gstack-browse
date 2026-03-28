@@ -5,7 +5,6 @@ design/dist/
 bin/gstack-global-discover
 .gstack/
 .claude/skills/
-.agents/
 .context/
 extension/.auth.json
 .gstack-worktrees/
