@@ -473,7 +473,16 @@ function collectFiles(
 }
 
 // ─── File Discovery (fallback when no tsconfig) ────────────────────────────
-export function findTsFiles(dir: string, depth = 0, maxDepth = MAX_FILE_DISCOVERY_DEPTH): string[] {
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", "dist", "build", ".next", "coverage", ".turbo",
+]);
+
+export function findFiles(
+  dir: string,
+  extensionPattern: RegExp,
+  depth = 0,
+  maxDepth = MAX_FILE_DISCOVERY_DEPTH,
+): string[] {
   if (depth > maxDepth) return [];
   const files: string[] = [];
   let entries: fs.Dirent[];
@@ -484,23 +493,21 @@ export function findTsFiles(dir: string, depth = 0, maxDepth = MAX_FILE_DISCOVER
   }
 
   for (const entry of entries) {
-    if (
-      entry.name === "node_modules" ||
-      entry.name === ".git" ||
-      entry.name === "dist" ||
-      entry.name === "build" ||
-      entry.name === ".next"
-    )
-      continue;
+    if (SKIP_DIRS.has(entry.name)) continue;
 
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...findTsFiles(full, depth + 1, maxDepth));
-    } else if (/\.(tsx?|jsx?)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+      files.push(...findFiles(full, extensionPattern, depth + 1, maxDepth));
+    } else if (extensionPattern.test(entry.name)) {
       files.push(full);
     }
   }
   return files;
+}
+
+export function findTsFiles(dir: string, depth = 0, maxDepth = MAX_FILE_DISCOVERY_DEPTH): string[] {
+  return findFiles(dir, /\.(tsx?|jsx?)$/, depth, maxDepth)
+    .filter(f => !f.endsWith(".d.ts"));
 }
 
 // ─── Unified Graph Traversal ────────────────────────────────────────────────

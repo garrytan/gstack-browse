@@ -988,6 +988,110 @@ describe("buildImportGraph — deferred dynamic imports", () => {
   });
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADDITIONAL COVERAGE TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe("routes: discoverRoutes() on react-router-project", () => {
+  test("discovers pages from src/pages/ directory", () => {
+    const root = path.join(FIXTURES, "react-router-project");
+    if (!fs.existsSync(root)) return;
+    const detection = detectFramework(root);
+    expect(detection.framework).toBe("react-router");
+    const routes = discoverRoutes(root, detection);
+    expect(routes.length).toBeGreaterThan(0);
+    const paths = routes.map(r => r.routePath);
+    expect(paths).toContain("/home");
+    expect(paths).toContain("/about");
+    expect(paths).toContain("/lazy");
+  });
+});
+
+describe("routes: Supabase Edge Function detection", () => {
+  const EDGE_FN_ROOT = path.join(FIXTURES, "supabase-edge-functions");
+
+  beforeAll(() => {
+    // Create temp fixture for Edge Functions
+    fs.mkdirSync(path.join(EDGE_FN_ROOT, "supabase", "functions", "hello-world"), { recursive: true });
+    fs.mkdirSync(path.join(EDGE_FN_ROOT, "supabase", "functions", "send-email"), { recursive: true });
+    fs.mkdirSync(path.join(EDGE_FN_ROOT, "supabase", "functions", "_shared"), { recursive: true });
+    fs.writeFileSync(path.join(EDGE_FN_ROOT, "supabase", "functions", "hello-world", "index.ts"), "export default () => new Response('ok');");
+    fs.writeFileSync(path.join(EDGE_FN_ROOT, "supabase", "functions", "send-email", "index.ts"), "export default () => new Response('sent');");
+    fs.writeFileSync(path.join(EDGE_FN_ROOT, "package.json"), '{"name":"edge-test"}');
+  });
+
+  afterAll(() => {
+    fs.rmSync(EDGE_FN_ROOT, { recursive: true, force: true });
+  });
+
+  test("discovers Edge Functions as API routes", () => {
+    const detection: FrameworkDetectionResult = { framework: "unknown" };
+    const routes = discoverRoutes(EDGE_FN_ROOT, detection);
+    const apiRoutes = routes.filter(r => r.type === "api");
+    expect(apiRoutes.length).toBe(2);
+    expect(apiRoutes.some(r => r.routePath.includes("hello-world"))).toBe(true);
+    expect(apiRoutes.some(r => r.routePath.includes("send-email"))).toBe(true);
+    // _shared directory should be skipped (starts with _)
+    expect(apiRoutes.some(r => r.routePath.includes("_shared"))).toBe(false);
+  });
+});
+
+describe("routes: graceful framework detection for unknown frameworks", () => {
+  test("Remix project returns unknown (not crash)", () => {
+    const tmpDir = path.join(os.tmpdir(), "remix-test-" + Date.now());
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({
+      dependencies: { "@remix-run/react": "^2.0.0" },
+    }));
+    const result = detectFramework(tmpDir);
+    expect(result.framework).toBe("unknown");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("SvelteKit project returns unknown (not crash)", () => {
+    const tmpDir = path.join(os.tmpdir(), "sveltekit-test-" + Date.now());
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({
+      devDependencies: { "@sveltejs/kit": "^2.0.0" },
+    }));
+    const result = detectFramework(tmpDir);
+    expect(result.framework).toBe("unknown");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe("aliases: eval fallback", () => {
+  test("parseViteAliasesDetailed with noEval=false uses AST or eval", () => {
+    const root = path.join(FIXTURES, "vite-aliases");
+    if (!fs.existsSync(root)) return;
+    const result = parseViteAliasesDetailed(root, false);
+    // Either AST or eval should work — both should find the aliases
+    expect(result.aliases["@"]).toBeDefined();
+    expect(result.aliases["@components"]).toBeDefined();
+  });
+});
+
+describe("routes: React Router full pipeline integration", () => {
+  test("detectFramework → discoverRoutes produces valid route entries", () => {
+    const root = path.join(FIXTURES, "react-router-project");
+    if (!fs.existsSync(root)) return;
+
+    const detection = detectFramework(root);
+    expect(detection.framework).toBe("react-router");
+
+    const routes = discoverRoutes(root, detection);
+    expect(routes.length).toBeGreaterThanOrEqual(3); // Home, About, Lazy
+
+    for (const route of routes) {
+      expect(route.routePath.startsWith("/")).toBe(true);
+      expect(route.type).toBe("page");
+      expect(route.pageFile).toBeTruthy();
+      // Page file should exist on disk
+      expect(fs.existsSync(path.join(root, route.pageFile))).toBe(true);
+    }
+  });
+});
+
 // ─── Git Co-Change Complexity Tests ─────────────────────────────────────────
 describe("core: getGitCoChangeComplexity()", () => {
   let tmpDir: string;

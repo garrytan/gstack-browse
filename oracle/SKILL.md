@@ -325,14 +325,21 @@ eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gst
 2. Check for an existing product map:
 
 ```bash
-# Derive this project's memory directory from git root
-_PROJECT_HASH=$(git rev-parse --show-toplevel 2>/dev/null | sed 's|/|-|g')
-_MEM_DIR=~/.claude/projects/$_PROJECT_HASH/memory
-if [ -f "$_MEM_DIR/MEMORY.md" ] && grep -q "PRODUCT_MAP" "$_MEM_DIR/MEMORY.md" 2>/dev/null; then
-  _PM="$_MEM_DIR/PRODUCT_MAP.md"
-  [ -f "$_PM" ] && echo "PRODUCT_MAP: $_PM" || echo "PRODUCT_MAP: POINTER_BUT_NO_FILE"
+# Primary location: docs/oracle/ in the project repo
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_PM="$PROJECT_ROOT/docs/oracle/PRODUCT_MAP.md"
+if [ -f "$_PM" ]; then
+  echo "PRODUCT_MAP: $_PM"
 else
-  echo "PRODUCT_MAP: NONE"
+  # Legacy fallback: memory directory (pre-relocation projects)
+  _PROJECT_HASH=$(echo "$PROJECT_ROOT" | sed 's|/|-|g')
+  _MEM_DIR=~/.claude/projects/$_PROJECT_HASH/memory
+  _PM_LEGACY="$_MEM_DIR/PRODUCT_MAP.md"
+  if [ -f "$_PM_LEGACY" ]; then
+    echo "PRODUCT_MAP: $_PM_LEGACY (LEGACY — will migrate to docs/oracle/)"
+  else
+    echo "PRODUCT_MAP: NONE"
+  fi
 fi
 ```
 
@@ -455,22 +462,39 @@ No fixed taxonomy — categories emerge from what the product actually does (e.g
 with categories already used in the product map. If this is the first bootstrap, establish
 categories that best describe the product's feature landscape.
 
-### Step 4: Write to memory directory and create pointer
+### Step 4: Write to docs/oracle/ and create pointer
 
-Determine the memory directory from MEMORY.md's own location (already in Claude's context):
+The product map lives in the project repo at `docs/oracle/PRODUCT_MAP.md` — single source
+of truth, committed alongside code. MEMORY.md gets a pointer, not a copy.
 
 ```bash
-# Derive this project's memory directory from git root
-_PROJECT_HASH=$(git rev-parse --show-toplevel 2>/dev/null | sed 's|/|-|g')
-_MEM_DIR=~/.claude/projects/$_PROJECT_HASH/memory
-[ -d "$_MEM_DIR" ] && echo "MEMORY_DIR: $_MEM_DIR" || echo "MEMORY_DIR: NOT_FOUND"
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+mkdir -p "$PROJECT_ROOT/docs/oracle"
 ```
 
-1. Write PRODUCT_MAP.md to the memory directory.
-2. Add a pointer to MEMORY.md:
+**Auto-migration from legacy location:** If PRODUCT_MAP.md exists in the memory directory
+but NOT in `docs/oracle/`, move it automatically:
+
+```bash
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+_PROJECT_HASH=$(echo "$PROJECT_ROOT" | sed 's|/|-|g')
+OLD_PM=~/.claude/projects/$_PROJECT_HASH/memory/PRODUCT_MAP.md
+NEW_PM="$PROJECT_ROOT/docs/oracle/PRODUCT_MAP.md"
+if [ -f "$OLD_PM" ] && [ ! -f "$NEW_PM" ]; then
+  mkdir -p "$PROJECT_ROOT/docs/oracle"
+  echo "MIGRATING: Moving PRODUCT_MAP.md from memory dir to docs/oracle/"
+  cp "$OLD_PM" "$NEW_PM"
+  rm "$OLD_PM"
+fi
+```
+
+1. Write PRODUCT_MAP.md to `$PROJECT_ROOT/docs/oracle/PRODUCT_MAP.md`.
+2. Add a pointer to MEMORY.md (relative path from memory dir to repo):
    ```markdown
-   | [PRODUCT_MAP.md](PRODUCT_MAP.md) | Product map — feature registry, patterns, arc, anti-patterns | project |
+   | [PRODUCT_MAP.md](../../docs/oracle/PRODUCT_MAP.md) | Product map — feature registry | project |
    ```
+   Note: The pointer path depends on the memory directory depth. Use the relative path that
+   resolves correctly from the memory directory to `docs/oracle/PRODUCT_MAP.md` in the repo.
 3. Write the bash breadcrumb:
    ```bash
    eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
