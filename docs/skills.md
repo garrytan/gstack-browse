@@ -28,6 +28,9 @@ Detailed guides for every gstack skill — philosophy, workflow, and examples.
 | [`/autoplan`](#autoplan) | **Review Pipeline** | One command, fully reviewed plan. Runs CEO → design → eng review automatically with encoded decision principles. Surfaces only taste decisions for your approval. |
 | [`/learn`](#learn) | **Memory** | Manage what gstack learned across sessions. Review, search, prune, and export project-specific patterns and preferences. |
 | | | |
+| **Product Intelligence** | | |
+| [`/oracle`](#oracle) | **Product Memory** | Product intelligence layer. Bootstraps a product map from your codebase, tracks features across sessions, surfaces connections during planning, warns about anti-patterns. Runs silently through every skill. |
+| | | |
 | **Multi-AI** | | |
 | [`/codex`](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
 | | | |
@@ -1077,6 +1080,34 @@ Full safety mode — combines `/careful` + `/freeze` in one command. Destructive
 ### `/unfreeze`
 
 Remove the `/freeze` boundary, allowing edits everywhere again. The hooks stay registered for the session — they just allow everything. Run `/freeze` again to set a new boundary.
+
+---
+
+## `/oracle`
+
+Product memory that gives every gstack skill context about your product, not just your code.
+
+Run `/oracle` on any codebase and it bootstraps a `docs/oracle/PRODUCT_MAP.md`, a structured record of every feature, their connections, reusable patterns, and anti-patterns. The map is committed to your repo (in-repo, not hidden) so you can read and verify every claim.
+
+After bootstrap, oracle runs silently. Every planning skill (`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, etc.) automatically reads the product map for context. Every post-work skill (`/ship`, `/review`, `/qa`) silently updates it. The map gets better with every session.
+
+**6 modes:**
+- `/oracle` (no args, no map) ... **Bootstrap** — analyze codebase, generate product map
+- `/oracle` (no args, map exists) ... **Query** — product overview with feature connections
+- `/oracle inventory` ... **Inventory** — budgeted deep page-by-page scan with checkpointing
+- `/oracle refresh` ... **Refresh** — full re-analysis reconciling against existing map
+- `/oracle update` ... **Update** — lightweight sync from recent git history
+- `/oracle stats` ... **Stats** — product health + codebase health dashboard
+
+**Under the hood:**
+- AST-powered scanner using TypeScript's compiler API (10 frameworks: React Router, Next.js, SvelteKit, Nuxt, Remix, Astro, TanStack Router, Vue Router, Wouter, plus file-based routing)
+- Git co-change analysis for feature complexity classification (EASY/MEDIUM/HARD/MEGA)
+- Tarjan's SCC for circular dependency detection
+- Dead code detection with .oracleignore support
+- HTML import graph visualizer (`--visualize`) and terminal ASCII tree
+- `docs/oracle/inventory/` for detailed per-feature Tier 2 documentation
+
+The product map is self-describing: its header contains the schema and instructions. Skills that read it don't need to know the format in advance, they just follow the header. Schema changes update the map header, not 19 skill templates.
 
 ---
 

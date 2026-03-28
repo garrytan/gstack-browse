@@ -89,8 +89,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'ship-base-branch': ['ship/**', 'bin/gstack-repo-mode'],
   'ship-local-workflow': ['ship/**', 'scripts/gen-skill-docs.ts'],
   'review-dashboard-via': ['ship/**', 'scripts/resolvers/review.ts', 'codex/**', 'autoplan/**', 'land-and-deploy/**'],
-  'ship-plan-completion': ['ship/**', 'scripts/gen-skill-docs.ts'],
-  'ship-plan-verification': ['ship/**', 'scripts/gen-skill-docs.ts'],
 
   // Retro
   'retro':             ['retro/**'],
@@ -171,6 +169,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
   // Autoplan
   'autoplan-core':  ['autoplan/**', 'plan-ceo-review/**', 'plan-eng-review/**', 'plan-design-review/**'],
+
+  // Oracle
+  'oracle-bootstrap':  ['oracle/**', 'scripts/resolvers/oracle.ts', 'scripts/gen-skill-docs.ts'],
+  'oracle-scan':       ['oracle/bin/**', 'scripts/resolvers/oracle.ts'],
 
   // Skill routing — journey-stage tests (depend on ALL skill descriptions)
   'journey-ideation':       ['*/SKILL.md.tmpl', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
@@ -314,6 +316,10 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'sidebar-navigate': 'periodic',
   'sidebar-url-accuracy': 'periodic',
   'sidebar-css-interaction': 'periodic',
+
+  // Oracle — periodic (LLM-driven, non-deterministic)
+  'oracle-bootstrap': 'periodic',
+  'oracle-scan': 'periodic',
 
   // Autoplan — periodic (not yet implemented)
   'autoplan-core': 'periodic',
