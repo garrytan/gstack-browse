@@ -422,14 +422,16 @@ html, body {
         <label>Destinationsland</label>
         <select id="country">
           <option value="">— Välj land —</option>
-          <optgroup label="Europa (EU/EES)">
+          <optgroup label="Europa (EU)">
             <option value="DE">Tyskland</option>
-            <option value="GB">Storbritannien</option>
             <option value="FR">Frankrike</option>
             <option value="NL">Nederländerna</option>
-            <option value="NO">Norge</option>
             <option value="DK">Danmark</option>
             <option value="FI">Finland</option>
+          </optgroup>
+          <optgroup label="Europa (EEA/ej EU)">
+            <option value="NO">Norge</option>
+            <option value="GB">Storbritannien</option>
           </optgroup>
           <optgroup label="Nordafrika / MENA">
             <option value="EG">Egypten</option>
@@ -583,7 +585,7 @@ html, body {
 
 <script>
 // ── DATA ──
-const EU_COUNTRIES = ['DE','FR','NL','DK','FI','NO'];
+const EU_COUNTRIES = ['DE','FR','NL','DK','FI']; // NO is EEA, not EU — requires EX1
 const SEA_INCOTERMS = ['FOB','CFR','CIF','FAS'];
 const NON_EU_SEA = ['GB','EG','MA','DZ','SA','AE','CN','JP','IN','US','AU'];
 
