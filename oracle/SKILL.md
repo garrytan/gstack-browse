@@ -506,7 +506,7 @@ Budgeted deep page-by-page scan that builds a comprehensive product map. Automat
 runs the internal scanner to discover routes, classify complexity, and detect architectural
 issues — then does deep page-by-page analysis guided by those findings.
 **Two-tier documentation**: Tier 1 = PRODUCT_MAP.md (~12 lines/feature), Tier 2 =
-per-feature detailed docs at `inventory/F{NNN}-{feature-name}.md`.
+per-feature detailed docs at `docs/oracle/inventory/F{NNN}-{feature-name}.md` (committed to the repo).
 
 **Checkpoints after each batch** so it can resume across sessions if context runs out.
 
@@ -630,7 +630,7 @@ For each route:
 - **Depends on:** {hard dependencies}
 - **Route:** {the route path}
 - **Shipped:** {date — from git log}
-- **Inventory:** {inventory/F{NNN}-{feature-slug}.md}
+- **Inventory:** {docs/oracle/inventory/F{NNN}-{feature-slug}.md}
 ```
 
 > After writing the Tier 2 doc (Step 3e), the `Inventory:` field MUST point to the doc path.
@@ -641,11 +641,11 @@ For each route:
 Detailed per-feature documentation with full component tree, data flow, and analysis:
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-mkdir -p ~/.gstack/projects/$SLUG/inventory
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+mkdir -p "$PROJECT_ROOT/docs/oracle/inventory"
 ```
 
-Write to `~/.gstack/projects/$SLUG/inventory/F{NNN}-{feature-slug}.md`:
+Write to `docs/oracle/inventory/F{NNN}-{feature-slug}.md` (relative to project root):
 
 ```markdown
 # F{NNN}: {Feature Name}
@@ -702,9 +702,9 @@ Update `Connections` and `Depends on` fields for both new and existing entries.
 
 After each batch:
 
-1. Write Tier 2 docs to `inventory/` directory
+1. Write Tier 2 docs to `docs/oracle/inventory/` in the project repo
 2. Write updated feature entries to PRODUCT_MAP.md (Tier 1) — each entry MUST include
-   `Inventory: inventory/F{NNN}-{feature-slug}.md` pointing to the Tier 2 doc written in step 1
+   `Inventory: docs/oracle/inventory/F{NNN}-{feature-slug}.md` pointing to the Tier 2 doc written in step 1
 3. Append completed routes to progress file:
    ```bash
    eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
@@ -740,7 +740,7 @@ When all routes are mapped (`remaining = 0`):
    rm -f ~/.gstack/projects/$SLUG/.inventory-progress
    ```
 5. Present: "Inventory complete — **{N} features** mapped across **{N} routes**.
-   Tier 2 docs at `~/.gstack/projects/{slug}/inventory/`."
+   Tier 2 docs at `docs/oracle/inventory/`."
 6. Write the final version + breadcrumb
 
 ---
@@ -757,12 +757,12 @@ Full re-analysis that reconciles the product map against the current codebase.
 2. Run the full bootstrap analysis (Phase 2 Steps 1-2 for git/code analysis + Phase 3 Step 1 and Step 1b for route and API endpoint discovery).
 3. **Wire inventory docs:**
    ```bash
-   eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-   INV_DIR=~/.gstack/projects/$SLUG/inventory
+   PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+   INV_DIR="$PROJECT_ROOT/docs/oracle/inventory"
    [ -d "$INV_DIR" ] && ls "$INV_DIR"/F*.md 2>/dev/null | while read f; do echo "$(basename "$f")"; done
    ```
    For each inventory doc on disk, find the matching feature entry (by F-number prefix)
-   and set `Inventory: inventory/{filename}`. If a feature entry has no matching doc,
+   and set `Inventory: docs/oracle/inventory/{filename}`. If a feature entry has no matching doc,
    set `Inventory: none`.
 4. **Reconcile:**
    - New features found in code but not in map → add them (with `Inventory:` pointer if doc exists)
@@ -930,7 +930,7 @@ If any are missing, the file may be corrupted. Offer regeneration:
 - **Depends on:** {hard dependencies}
 - **Anti-patterns:** {what failed, with tags}
 - **Shipped:** {date}
-- **Inventory:** {inventory/F{NNN}-{feature-slug}.md | none}
+- **Inventory:** {docs/oracle/inventory/F{NNN}-{feature-slug}.md | none}
 
 ## Reusable Patterns
 - **{Name}:** {desc}. Established in {feature}. Also used by {features}. Health: {status}.
@@ -944,7 +944,7 @@ If any are missing, the file may be corrupted. Offer regeneration:
 
 **Compressed entry format** (for shipped features >3 months, unreferenced):
 ```markdown
-### F001: {Name} [SHIPPED] — {summary}; category: {cat}; patterns: {patterns}; Connections: {ids}; Depends on: {ids}; docs: {inventory/F001-feature-slug.md | none}
+### F001: {Name} [SHIPPED] — {summary}; category: {cat}; patterns: {patterns}; Connections: {ids}; Depends on: {ids}; docs: {docs/oracle/inventory/F001-feature-slug.md | none}
 ```
 
 **Schema versioning:**
