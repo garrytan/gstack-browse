@@ -20,16 +20,22 @@
 ## 5. Observation
 - We know it's working if `bun run stock.ts SPY` returns a valid analysis with support/resistance levels in < 5 seconds.
 
-## 6. Future-Fit
-- This evolves into a full "Portfolio Watcher" that can alert you via terminal notifications or even use `/browse` to scrape sentiment from news sites.
+## 6. Future-Fit (Goldman Sachs Analyst Recommendations)
+- **Momentum & Strength**: Integrate RSI (Relative Strength Index) and MACD (Moving Average Convergence Divergence) to identify institutional accumulation/distribution phases.
+- **Institutional Confirmation**: Add Volume Analysis to distinguish between retail noise and institutional conviction.
+- **Volatility-Adjusted Risk**: Implement ATR (Average True Range) to project 1-standard-deviation price target ranges for the next session.
+- **Cross-Asset Correlation**: Eventually track Bond Yields (TNX) or Dollar Index (DXY) impact on high-growth tech (NVDA, etc.).
+
+## 7. Multi-Specialist Risk Model (BlackRock/Vanguard Grade)
+- **Flow of Capital**: On-Balance Volume (OBV) to detect if price movement is supported by actual money flow (Divergence Analysis).
+- **Mean Reversion**: Stochastic Oscillator (%K, %D) to identify precise entry/exit points during sideways consolidation.
+- **Institutional Floor**: Floor Pivot Points (P, R1, S1) to identify "Unseen" support/resistance levels used by high-frequency trading (HFT) algorithms.
+- **Risk-Reward Alpha**: Automatic calculation of R/R ratio based on current price vs. ATR-projected targets.
 
 ---
 
-## Technical Implementation Plan
-1. Use `fetch()` to call Yahoo Finance's v8 chart API for both Daily and 4H data.
-2. Implement SMA (Simple Moving Average) and Bollinger Bands calculations.
-3. Calculate:
-   - Daily: 20MA, 200MA, Bollinger Lower (20, 2).
-   - 4H: 20MA, 50MA, Bollinger Lower (20, 2).
-4. Use a heuristic for "Probability" based on price vs 20MA.
-5. Format output with Chinese text and emojis to match the target layout.
+## Technical Implementation Plan (Institutional Upgrade)
+1.  **OBV Logic**: Cumulative volume total that adds/subtracts based on daily close.
+2.  **Stochastic Calculation**: 14-period %K and 3-period %D smoothing.
+3.  **Pivot Point Math**: Standard Floor Pivots using (High + Low + Close) / 3 from the previous session.
+4.  **Risk Summary**: High-level "Risk/Reward" rating for the current entry.
