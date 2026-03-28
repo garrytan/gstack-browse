@@ -7,10 +7,10 @@ bin/gstack-global-discover
 .claude/skills/
 .agents/
 .context/
+extension/.auth.json
 .gstack-worktrees/
 /tmp/
 *.log
-bun.lock
 *.bun-build
 .env
 .env.local

@@ -594,6 +594,14 @@ If this plan has significant UI scope, recommend: "Consider running /plan-design
 
 {{CODEX_PLAN_REVIEW}}
 
+### Outside Voice Integration Rule
+
+Outside voice findings are INFORMATIONAL until the user explicitly approves each one.
+Do NOT incorporate outside voice recommendations into the plan without presenting each
+finding via AskUserQuestion and getting explicit approval. This applies even when you
+agree with the outside voice. Cross-model consensus is a strong signal — present it as
+such — but the user makes the decision.
+
 ## Post-Implementation Design Audit (if UI scope detected)
 After implementation, run `/design-review` on the live site to catch visual issues that can only be evaluated with rendered output.
 

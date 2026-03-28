@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.13.3.0] - 2026-03-28 — Lock It Down
+
+Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
+
+### Fixed
+
+- **Dependencies are now pinned.** `bun.lock` is committed and tracked. Every install resolves identical versions instead of floating `^` ranges from npm. Closes the supply-chain vector from #566.
+- **`gstack-slug` no longer crashes outside git repos.** Falls back to directory name and "unknown" branch when there's no remote or HEAD. Every review skill that depends on slug detection now works in non-git contexts.
+- **`./setup` no longer hangs in CI.** The skill-prefix prompt now auto-selects short names after 10 seconds. Conductor workspaces, Docker builds, and unattended installs proceed without human input.
+- **Browse CLI works on Windows.** The server lockfile now uses `'wx'` string flag instead of numeric `fs.constants` that Bun compiled binaries don't handle on Windows.
+- **`/ship` and `/review` find your design docs.** Plan search now checks `~/.gstack/projects/` first, where `/office-hours` writes design documents. Previously, plan validation silently skipped because it was looking in the wrong directories.
+- **`/autoplan` dual-voice actually works.** Background subagents can't read files (Claude Code limitation), so the Claude voice was silently failing on every run. Now runs sequentially in foreground. Both voices complete before the consensus table.
+
+### Added
+
+- **Community PR guardrails in CLAUDE.md.** ETHOS.md, promotional material, and Garry's voice are explicitly protected from modification without user approval.
+
+## [0.13.2.0] - 2026-03-28 — User Sovereignty
+
+AI models now recommend instead of override. When Claude and Codex agree on a scope change, they present it to you instead of just doing it. Your direction is the default, not the models' consensus.
+
+### Added
+
+- **User Sovereignty principle in ETHOS.md.** The third core principle: AI models recommend, users decide. Cross-model agreement is a strong signal, not a mandate.
+- **User Challenge category in /autoplan.** When both models agree your stated direction should change, it goes to the final approval gate as a "User Challenge" instead of being auto-decided. Your original direction stands unless you explicitly change it.
+- **Security/feasibility warning framing.** If both models flag something as a security risk (not just a preference), the question explicitly warns you it's a safety concern, not a taste call.
+- **Outside Voice Integration Rule in CEO and Eng reviews.** Outside voice findings are informational until you explicitly approve each one.
+- **User sovereignty statement in all skill voices.** Every skill now includes the rule that cross-model agreement is a recommendation, not a decision.
+
+### Changed
+
+- **Cross-model tension template no longer says "your assessment of who's right."** Now says "present both perspectives neutrally, state what context you might be missing." Options expanded from Add/Skip to Accept/Keep/Investigate/Defer.
+- **/autoplan now has two gates, not one.** Premises (Phase 1) and User Challenges (both models disagree with your direction). Important Rules updated from "premises are the one gate" to "two gates."
+- **Decision Audit Trail now tracks classification.** Each auto-decision is logged as mechanical, taste, or user-challenge.
+
+## [0.13.1.0] - 2026-03-28 — Defense in Depth
+
+The browse server runs on localhost and requires a token for access, so these issues only matter if a malicious process is already running on your machine (e.g., a compromised npm postinstall script). This release hardens the attack surface so that even in that scenario, the damage is contained.
+
+### Fixed
+
+- **Auth token removed from `/health` endpoint.** Token now distributed via `.auth.json` file (0o600 permissions) instead of an unauthenticated HTTP response.
+- **Cookie picker data routes now require Bearer auth.** The HTML picker page is still open (it's the UI shell), but all data and action endpoints check the token.
+- **CORS tightened on `/refs` and `/activity/*`.** Removed wildcard origin header so websites can't read browse activity cross-origin.
+- **State files auto-expire after 7 days.** Cookie state files now include a timestamp and warn on load if stale. Server startup cleans up files older than 7 days.
+- **Extension uses `textContent` instead of `innerHTML`.** Prevents DOM injection if server-provided data ever contained markup. Standard defense-in-depth for browser extensions.
+- **Path validation resolves symlinks before boundary checks.** `validateReadPath` now calls `realpathSync` and handles macOS `/tmp` symlink correctly.
+- **Freeze hook uses portable path resolution.** POSIX-compatible (works on macOS without coreutils), fixes edge case where `/project-evil` could match a freeze boundary set to `/project`.
+- **Shell config scripts validate input.** `gstack-config` rejects regex-special keys and escapes sed patterns. `gstack-telemetry-log` sanitizes branch/repo names in JSON output.
+
+### Added
+
+- 20 regression tests covering all hardening changes.
+
 ## [0.13.0.0] - 2026-03-27 — Your Agent Can Design Now
 
 gstack can generate real UI mockups. Not ASCII art, not text descriptions of hex codes, real visual designs you can look at, compare, pick from, and iterate on. Run `/office-hours` on a UI idea and you'll get 3 visual concepts in Chrome with a comparison board where you pick your favorite, rate the others, and tell the agent what to change.
