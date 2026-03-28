@@ -87,6 +87,11 @@ gstack/
 ├── canary/          # /canary skill (post-deploy monitoring loop)
 ├── codex/           # /codex skill (multi-AI second opinion via OpenAI Codex CLI)
 ├── land-and-deploy/ # /land-and-deploy skill (merge → deploy → canary verify)
+├── oracle/          # /oracle skill (product memory — scanner, PRODUCT_MAP, feature tracking)
+│   ├── bin/         # Scanner pipeline (scan-imports.ts + 7 modules)
+│   │   └── dist/    # Compiled scanner binary
+│   ├── docs/        # Inventory docs, architecture notes
+│   └── SKILL.md     # Generated from SKILL.md.tmpl
 ├── office-hours/    # /office-hours skill (YC Office Hours — startup diagnostic + builder brainstorm)
 ├── investigate/     # /investigate skill (systematic root-cause debugging)
 ├── retro/           # Retrospective skill (includes /retro global cross-project mode)
@@ -191,14 +196,14 @@ symlinking to create the per-skill symlinks with your preferred naming. Pass
 gen-skill-docs pipeline, consider whether the changes should be tested in isolation
 before going live (especially if the user is actively using gstack in other windows).
 
-## Compiled binaries — NEVER commit browse/dist/ or design/dist/
+## Compiled binaries — NEVER commit browse/dist/, design/dist/, or oracle/bin/dist/
 
-The `browse/dist/` and `design/dist/` directories contain compiled Bun binaries
-(`browse`, `find-browse`, `design`, ~58MB each). These are Mach-O arm64 only — they
-do NOT work on Linux, Windows, or Intel Macs. The `./setup` script already builds
-from source for every platform, so the checked-in binaries are redundant. They are
-tracked by git due to a historical mistake and should eventually be removed with
-`git rm --cached`.
+The `browse/dist/`, `design/dist/`, and `oracle/bin/dist/` directories contain compiled
+Bun binaries (`browse`, `find-browse`, `design`, `scan-imports`, ~58-67MB each). These
+are Mach-O arm64 only — they do NOT work on Linux, Windows, or Intel Macs. The `./setup`
+script already builds from source for every platform, so the checked-in binaries are
+redundant. They are tracked by git due to a historical mistake and should eventually be
+removed with `git rm --cached`.
 
 **NEVER stage or commit these files.** They show up as modified in `git status`
 because they're tracked despite `.gitignore` — ignore them. When staging files,
