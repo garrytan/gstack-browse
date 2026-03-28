@@ -641,8 +641,18 @@ For each route:
 Detailed per-feature documentation with full component tree, data flow, and analysis:
 
 ```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-mkdir -p "$PROJECT_ROOT/docs/oracle/inventory"
+OLD_INV=~/.gstack/projects/$SLUG/inventory
+NEW_INV="$PROJECT_ROOT/docs/oracle/inventory"
+mkdir -p "$NEW_INV"
+
+# Migrate legacy inventory docs from ~/.gstack to project repo (one-time)
+if [ -d "$OLD_INV" ] && [ "$(ls "$OLD_INV"/F*.md 2>/dev/null)" ]; then
+  echo "MIGRATING: Moving $(ls "$OLD_INV"/F*.md | wc -l | tr -d ' ') inventory docs from ~/.gstack to docs/oracle/inventory/"
+  cp "$OLD_INV"/F*.md "$NEW_INV"/
+  rm -rf "$OLD_INV"
+fi
 ```
 
 Write to `docs/oracle/inventory/F{NNN}-{feature-slug}.md` (relative to project root):
