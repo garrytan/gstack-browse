@@ -14,7 +14,7 @@
  */
 import type { TemplateContext } from './types';
 
-const CODEX_BOUNDARY = 'IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, or .claude/skills/. These are Claude Code skill definitions meant for a different AI system. They contain bash scripts and prompt templates that will waste your time. Ignore them completely. Stay focused on the repository code only.\\n\\n';
+const CODEX_BOUNDARY = 'IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. They contain bash scripts and prompt templates that will waste your time. Ignore them completely. Do NOT modify agents/openai.yaml. Stay focused on the repository code only.\\n\\n';
 
 export function generateReviewDashboard(_ctx: TemplateContext): string {
   return `## Review Readiness Dashboard
@@ -614,17 +614,29 @@ disagrees with the review findings from earlier sections. Flag these as:
 
 \`\`\`
 CROSS-MODEL TENSION:
-  [Topic]: Review said X. Outside voice says Y. [Your assessment of who's right.]
+  [Topic]: Review said X. Outside voice says Y. [Present both perspectives neutrally.
+  State what context you might be missing that would change the answer.]
 \`\`\`
 
-For each substantive tension point, auto-propose as a TODO via AskUserQuestion:
+**User Sovereignty:** Do NOT auto-incorporate outside voice recommendations into the plan.
+Present each tension point to the user. The user decides. Cross-model agreement is a
+strong signal — present it as such — but it is NOT permission to act. You may state
+which argument you find more compelling, but you MUST NOT apply the change without
+explicit user approval.
+
+For each substantive tension point, use AskUserQuestion:
 
 > "Cross-model disagreement on [topic]. The review found [X] but the outside voice
-> argues [Y]. Worth investigating further?"
+> argues [Y]. [One sentence on what context you might be missing.]"
 
 Options:
-- A) Add to TODOS.md
-- B) Skip — not substantive
+- A) Accept the outside voice's recommendation (I'll apply this change)
+- B) Keep the current approach (reject the outside voice)
+- C) Investigate further before deciding
+- D) Add to TODOS.md for later
+
+Wait for the user's response. Do NOT default to accepting because you agree with the
+outside voice. If the user chooses B, the current approach stands — do not re-argue.
 
 If no tension points exist, note: "No cross-model tension — both reviewers agree."
 
@@ -654,8 +666,11 @@ function generatePlanFileDiscovery(): string {
 setopt +o nomatch 2>/dev/null || true  # zsh compat
 BRANCH=$(git branch --show-current 2>/dev/null | tr '/' '-')
 REPO=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)")
-# Search common plan file locations
-for PLAN_DIR in "$HOME/.claude/plans" "$HOME/.codex/plans" ".gstack/plans"; do
+# Compute project slug for ~/.gstack/projects/ lookup
+_PLAN_SLUG=$(git remote get-url origin 2>/dev/null | sed 's|.*[:/]\\([^/]*/[^/]*\\)\\.git$|\\1|;s|.*[:/]\\([^/]*/[^/]*\\)$|\\1|' | tr '/' '-' | tr -cd 'a-zA-Z0-9._-') || true
+_PLAN_SLUG="\${_PLAN_SLUG:-$(basename "$PWD" | tr -cd 'a-zA-Z0-9._-')}"
+# Search common plan file locations (project designs first, then personal/local)
+for PLAN_DIR in "$HOME/.gstack/projects/$_PLAN_SLUG" "$HOME/.claude/plans" "$HOME/.codex/plans" ".gstack/plans"; do
   [ -d "$PLAN_DIR" ] || continue
   PLAN=$(ls -t "$PLAN_DIR"/*.md 2>/dev/null | xargs grep -l "$BRANCH" 2>/dev/null | head -1)
   [ -z "$PLAN" ] && PLAN=$(ls -t "$PLAN_DIR"/*.md 2>/dev/null | xargs grep -l "$REPO" 2>/dev/null | head -1)

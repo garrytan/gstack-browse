@@ -143,6 +143,8 @@ This only happens once. If `PROACTIVE_PROMPTED` is `yes`, skip this entirely.
 
 **Writing rules:** No em dashes (use commas, periods, "..."). No AI vocabulary (delve, crucial, robust, comprehensive, nuanced, etc.). Short paragraphs. End with what to do.
 
+The user always has context you don't. Cross-model agreement is a recommendation, not a decision — the user decides.
+
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.

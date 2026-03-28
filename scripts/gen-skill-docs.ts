@@ -209,7 +209,7 @@ function extractHookSafetyProse(tmplContent: string): string | null {
 
 const GENERATED_HEADER = `<!-- AUTO-GENERATED from {{SOURCE}} — do not edit directly -->\n<!-- Regenerate: bun run gen:skill-docs -->\n`;
 
-function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string } {
+function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string; symlinkLoop?: boolean } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
   const relTmplPath = path.relative(ROOT, tmplPath);
   let outputPath = tmplPath.replace(/\.tmpl$/, '');
@@ -220,11 +220,27 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
   let outputDir: string | null = null;
 
   // For codex host, route output to .agents/skills/{codexSkillName}/SKILL.md
+  let symlinkLoop = false;
   if (host === 'codex') {
     const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
     outputDir = path.join(ROOT, '.agents', 'skills', codexName);
     fs.mkdirSync(outputDir, { recursive: true });
     outputPath = path.join(outputDir, 'SKILL.md');
+
+    // Guard against symlink loops: if .agents/skills/gstack → repo root,
+    // writing to .agents/skills/gstack/SKILL.md would overwrite the Claude version.
+    // Skip the write entirely for this skill — the codex content is still generated
+    // for token budget tracking.
+    const claudePath = tmplPath.replace(/\.tmpl$/, '');
+    try {
+      const resolvedClaude = fs.realpathSync(claudePath);
+      const resolvedCodex = fs.realpathSync(path.dirname(outputPath)) + '/' + path.basename(outputPath);
+      if (resolvedClaude === resolvedCodex) {
+        symlinkLoop = true;
+      }
+    } catch {
+      // realpathSync fails if file doesn't exist yet — that's fine, no symlink loop
+    }
   }
 
   // Extract skill name from frontmatter for TemplateContext
@@ -276,7 +292,7 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
     content = content.replace(/\.claude\/skills/g, '.agents/skills');
 
-    if (outputDir) {
+    if (outputDir && !symlinkLoop) {
       const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
       const agentsDir = path.join(outputDir, 'agents');
       fs.mkdirSync(agentsDir, { recursive: true });
@@ -296,7 +312,7 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     content = header + content;
   }
 
-  return { outputPath, content };
+  return { outputPath, content, symlinkLoop };
 }
 
 // ─── Main ───────────────────────────────────────────────────
@@ -315,10 +331,12 @@ for (const tmplPath of findTemplates()) {
     if (dir === 'codex') continue;
   }
 
-  const { outputPath, content } = processTemplate(tmplPath, HOST);
+  const { outputPath, content, symlinkLoop } = processTemplate(tmplPath, HOST);
   const relOutput = path.relative(ROOT, outputPath);
 
-  if (DRY_RUN) {
+  if (symlinkLoop) {
+    console.log(`SKIPPED (symlink loop): ${relOutput}`);
+  } else if (DRY_RUN) {
     const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
     if (existing !== content) {
       console.log(`STALE: ${relOutput}`);
