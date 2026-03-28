@@ -291,6 +291,8 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
     content = content.replace(/\.claude\/skills\/gstack/g, ctx.paths.localSkillRoot);
     content = content.replace(/\.claude\/skills\/review/g, '.agents/skills/gstack/review');
     content = content.replace(/\.claude\/skills/g, '.agents/skills');
+    // Catch-all: replace any remaining ~/.claude/ paths (e.g. settings.json)
+    content = content.replace(/~\/\.claude\//g, '~/.codex/');
 
     if (outputDir && !symlinkLoop) {
       const codexName = codexSkillName(skillDir === '.' ? '' : skillDir);
