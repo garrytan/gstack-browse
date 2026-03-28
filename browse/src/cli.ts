@@ -291,8 +291,9 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
 function acquireServerLock(): (() => void) | null {
   const lockPath = `${config.stateFile}.lock`;
   try {
-    // O_CREAT | O_EXCL — fails if file already exists (atomic check-and-create)
-    const fd = fs.openSync(lockPath, fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY);
+    // 'wx' — create exclusively, fails if file already exists (atomic check-and-create)
+    // Using string flag instead of numeric constants for Bun Windows compatibility
+    const fd = fs.openSync(lockPath, 'wx');
     fs.writeSync(fd, `${process.pid}\n`);
     fs.closeSync(fd);
     return () => { try { fs.unlinkSync(lockPath); } catch {} };

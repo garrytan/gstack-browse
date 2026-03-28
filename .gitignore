@@ -13,7 +13,6 @@ extension/.auth.json
 .gstack-worktrees/
 /tmp/
 *.log
-bun.lock
 *.bun-build
 .env
 .env.local

@@ -235,7 +235,9 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   Duplicates → reject (P4). Borderline (3-5 files) → mark TASTE DECISION.
 - All 10 review sections: run fully, auto-decide each issue, log every decision.
 - Dual voices: always run BOTH Claude subagent AND Codex if available (P6).
-  Run them simultaneously (Agent tool for subagent, Bash for Codex).
+  Run them sequentially in foreground. First the Claude subagent (Agent tool,
+  foreground — do NOT use run_in_background), then Codex (Bash). Both must
+  complete before building the consensus table.
 
   **Codex CEO voice** (via Bash):
   ```bash
@@ -262,7 +264,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   5. What's the competitive risk — could someone else solve this first/better?
   For each finding: what's wrong, severity (critical/high/medium), and the fix."
 
-  **Error handling:** All non-blocking. Codex auth/timeout/empty → proceed with
+  **Error handling:** Both calls block in foreground. Codex auth/timeout/empty → proceed with
   Claude subagent only, tagged `[single-model]`. If Claude subagent also fails →
   "Outside voices unavailable — continuing with primary review."
 
@@ -284,10 +286,10 @@ Step 0 (0A-0F) — run each sub-step and produce:
 - 0E: Temporal interrogation (HOUR 1 → HOUR 6+)
 - 0F: Mode selection confirmation
 
-Step 0.5 (Dual Voices): Run Claude subagent AND Codex simultaneously. Present
-Codex output under CODEX SAYS (CEO — strategy challenge) header. Present subagent
-output under CLAUDE SUBAGENT (CEO — strategic independence) header. Produce CEO
-consensus table:
+Step 0.5 (Dual Voices): Run Claude subagent (foreground Agent tool) first, then
+Codex (Bash). Present Codex output under CODEX SAYS (CEO — strategy challenge)
+header. Present subagent output under CLAUDE SUBAGENT (CEO — strategic independence)
+header. Produce CEO consensus table:
 
 ```
 CEO DUAL VOICES — CONSENSUS TABLE:
@@ -380,7 +382,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   For each finding: what's wrong, severity (critical/high/medium), and the fix."
   NO prior-phase context — subagent must be truly independent.
 
-  Error handling: same as Phase 1 (non-blocking, degradation matrix applies).
+  Error handling: same as Phase 1 (both foreground/blocking, degradation matrix applies).
 
 - Design choices: if codex disagrees with a design decision with valid UX reasoning
   → TASTE DECISION. Scope changes both models agree on → USER CHALLENGE.
@@ -389,7 +391,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
 
 1. Step 0 (Design Scope): Rate completeness 0-10. Check DESIGN.md. Map existing patterns.
 
-2. Step 0.5 (Dual Voices): Run Claude subagent AND Codex simultaneously. Present under
+2. Step 0.5 (Dual Voices): Run Claude subagent (foreground) first, then Codex. Present under
    CODEX SAYS (design — UX challenge) and CLAUDE SUBAGENT (design — independent review)
    headers. Produce design litmus scorecard (consensus table). Use the litmus scorecard
    format from plan-design-review. Include CEO phase findings in Codex prompt ONLY
@@ -450,7 +452,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   For each finding: what's wrong, severity, and the fix."
   NO prior-phase context — subagent must be truly independent.
 
-  Error handling: same as Phase 1 (non-blocking, degradation matrix applies).
+  Error handling: same as Phase 1 (both foreground/blocking, degradation matrix applies).
 
 - Architecture choices: explicit over clever (P5). If codex disagrees with valid reason → TASTE DECISION. Scope changes both models agree on → USER CHALLENGE.
 - Evals: always include all relevant suites (P1)
@@ -462,7 +464,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
 1. Step 0 (Scope Challenge): Read actual code referenced by the plan. Map each
    sub-problem to existing code. Run the complexity check. Produce concrete findings.
 
-2. Step 0.5 (Dual Voices): Run Claude subagent AND Codex simultaneously. Present
+2. Step 0.5 (Dual Voices): Run Claude subagent (foreground) first, then Codex. Present
    Codex output under CODEX SAYS (eng — architecture challenge) header. Present subagent
    output under CLAUDE SUBAGENT (eng — independent review) header. Produce eng consensus
    table:
