@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.13.1.0] - 2026-03-28 — Oracle Scanner Goes Standalone
+
+The oracle scanner (`/oracle inventory`, `/oracle stats`) no longer needs `bun`, `node`, or any runtime in PATH. It compiles to a standalone binary, same pattern as browse and design. Claude Code's sandboxed shell can run it directly.
+
+### Added
+
+- **Compiled scanner binary.** `oracle/bin/dist/scan-imports` is a self-contained Mach-O arm64 binary (~67MB) built via `bun build --compile`. No runtime dependency needed.
+- **6 scanner modules** built out from stubs to full implementations:
+  - `scanner/routes.ts` — React Router, Next.js App/Pages framework detection and route discovery
+  - `scanner/aliases.ts` — Vite alias resolution via AST analysis with eval fallback
+  - `scanner/dead-code.ts` — dead file detection using reachable set from unified traversal
+  - `scanner/css.ts` — CSS/SCSS import tracking (`@import`, `@use` directives)
+  - `scanner/monorepo.ts` — workspace detection (npm, yarn, pnpm, bun, lerna)
+  - `scanner/non-ts.ts` — non-TypeScript file discovery (JSON, YAML, Markdown, config)
+- **84 tests** covering all scanner modules, fixtures for 7 project types (React Router, Next.js, Vite aliases, CSS, monorepo, empty, deferred imports).
+- **Git co-change classification.** Routes classified by `git log` co-change analysis instead of import-graph heuristics. Language-agnostic, no AST needed.
+- **PRODUCT_MAP.md relocation.** Source of truth moved from `~/.claude/projects/.../memory/` to `docs/oracle/PRODUCT_MAP.md` in the repo. Auto-migration from legacy location on first run.
+- **Inventory docs in-repo.** `/oracle inventory` writes deep-scan docs to `docs/oracle/` in the project repo instead of `~/.gstack/`.
+
+### Changed
+
+- `package.json` build script now includes `bun build --compile oracle/bin/scan-imports.ts`.
+- `typescript` added as explicit dependency (was phantom/transitive).
+- `/oracle inventory` and `/oracle stats` invoke compiled binary instead of `bun run scan-imports.ts`.
+- `/oracle scan` hidden from users (auto-invoked by inventory and stats).
+- Manifest no longer deducted from inventory budget.
+
+### Fixed
+
+- Scanner failing silently in Claude Code's sandboxed shell when `bun`/`node` not in PATH.
+- Broken `--visualize` flag removed from `/oracle inventory`.
+
 ## [0.13.0.0] - 2026-03-27 — Your Agent Can Design Now
 
 gstack can generate real UI mockups. Not ASCII art, not text descriptions of hex codes, real visual designs you can look at, compare, pick from, and iterate on. Run `/office-hours` on a UI idea and you'll get 3 visual concepts in Chrome with a comparison board where you pick your favorite, rate the others, and tell the agent what to change.
