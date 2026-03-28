@@ -541,15 +541,15 @@ exposed to the user as a separate command — it's an implementation detail.
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-SCAN_BIN=~/.claude/skills/gstack/oracle/bin/scan-imports.ts
+SCAN_BIN=~/.claude/skills/gstack/oracle/bin/dist/scan-imports
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 MANIFEST_PATH=~/.gstack/projects/$SLUG/.scan-manifest.json
 
 # Preserve previous manifest for structural change detection
 [ -f "$MANIFEST_PATH" ] && cp "$MANIFEST_PATH" ~/.gstack/projects/$SLUG/.scan-manifest.prev.json
 
-# Run the scan silently
-bun run "$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
+# Run the scan silently (compiled binary, no bun/node needed)
+"$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
 echo "SCAN_EXIT: $?"
 ```
 
@@ -840,11 +840,12 @@ scanner to include codebase health metrics alongside product map data.
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-SCAN_BIN=~/.claude/skills/gstack/oracle/bin/scan-imports.ts
+SCAN_BIN=~/.claude/skills/gstack/oracle/bin/dist/scan-imports
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 MANIFEST_PATH=~/.gstack/projects/$SLUG/.scan-manifest.json
 
-bun run "$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
+# Compiled binary, no bun/node needed
+"$SCAN_BIN" --root "$PROJECT_ROOT" > "$MANIFEST_PATH" 2>/dev/null
 ```
 
 If scan fails, show product stats only (skip codebase health section).
