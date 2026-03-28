@@ -40,6 +40,18 @@ Fork it. Improve it. Make it yours. And if you want to hate on free open source 
 
 ## Install — 30 seconds
 
+### Skills only (instant, no build)
+
+Install all skills without building the browser binary. Skills that don't need the browser (`/review`, `/ship`, `/retro`, `/plan-*`, etc.) work immediately.
+
+```bash
+npx skills add garrytan/gstack
+```
+
+Browse the skill catalog: [skills.sh/garrytan/gstack](https://skills.sh/garrytan/gstack/gstack)
+
+### Full install (skills + browser)
+
 **Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Windows only)
 
 ### Step 1: Install on your machine
