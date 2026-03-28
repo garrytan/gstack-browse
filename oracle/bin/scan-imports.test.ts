@@ -1044,18 +1044,18 @@ describe("routes: graceful framework detection for unknown frameworks", () => {
       dependencies: { "@remix-run/react": "^2.0.0" },
     }));
     const result = detectFramework(tmpDir);
-    expect(result.framework).toBe("unknown");
+    expect(result.framework).toBe("remix");
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test("SvelteKit project returns unknown (not crash)", () => {
+  test("SvelteKit project detected as sveltekit", () => {
     const tmpDir = path.join(os.tmpdir(), "sveltekit-test-" + Date.now());
     fs.mkdirSync(tmpDir, { recursive: true });
     fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({
       devDependencies: { "@sveltejs/kit": "^2.0.0" },
     }));
     const result = detectFramework(tmpDir);
-    expect(result.framework).toBe("unknown");
+    expect(result.framework).toBe("sveltekit");
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 });
@@ -1243,5 +1243,311 @@ describe("core: getGitBornDate()", () => {
     } finally {
       fs.rmSync(nonGitDir, { recursive: true, force: true });
     }
+  });
+});
+
+// ─── New Framework Detection Tests ─────────────────────────────────────────
+
+describe("routes: SvelteKit detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "sveltekit-project");
+
+  test("detects SvelteKit framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("sveltekit");
+  });
+
+  test("discovers SvelteKit page routes", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.some(r => r.routePath === "/")).toBe(true);
+  });
+});
+
+describe("routes: Nuxt detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "nuxt-project");
+
+  test("detects Nuxt framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("nuxt");
+  });
+
+  test("discovers Nuxt page routes", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+    const pageRoutes = routes.filter(r => r.type === "page");
+    expect(pageRoutes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test("discovers Nuxt server API routes", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    const apiRoutes = routes.filter(r => r.type === "api");
+    expect(apiRoutes.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("routes: Remix detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "remix-project");
+
+  test("detects Remix framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("remix");
+  });
+
+  test("discovers Remix routes", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+  });
+});
+
+describe("routes: Astro detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "astro-project");
+
+  test("detects Astro framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("astro");
+  });
+
+  test("discovers Astro page routes", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.some(r => r.routePath === "/")).toBe(true);
+  });
+});
+
+describe("routes: TanStack Router detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "tanstack-router-project");
+
+  test("detects TanStack Router framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("tanstack-router");
+  });
+
+  test("discovers TanStack Router routes from routeTree", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+  });
+});
+
+describe("routes: Vue Router detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "vue-router-project");
+
+  test("detects Vue Router framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("vue-router");
+  });
+
+  test("discovers Vue Router routes from config", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.some(r => r.routePath === "/")).toBe(true);
+    expect(routes.some(r => r.routePath === "/about")).toBe(true);
+  });
+});
+
+// ─── Aliases: tsconfig.json fallback ───────────────────────────────────────
+
+import { parseTsconfigPaths, resolveAliases } from "./scanner/aliases";
+
+describe("routes: Wouter detection and discovery", () => {
+  const fixture = path.join(FIXTURES, "wouter-project");
+
+  test("detects Wouter framework", () => {
+    if (!fs.existsSync(fixture)) return;
+    const result = detectFramework(fixture);
+    expect(result.framework).toBe("wouter");
+  });
+
+  test("discovers Wouter routes from src/pages", () => {
+    if (!fs.existsSync(fixture)) return;
+    const detection = detectFramework(fixture);
+    const routes = discoverRoutes(fixture, detection);
+    expect(routes.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Aliases: tsconfig.json fallback ───────────��───────────────────────────
+
+describe("aliases: tsconfig.json paths fallback", () => {
+  test("parseTsconfigPaths returns empty for missing tsconfig", () => {
+    const result = parseTsconfigPaths("/nonexistent");
+    expect(Object.keys(result)).toHaveLength(0);
+  });
+
+  test("parseTsconfigPaths parses paths from tsconfig", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-tsconfig-"));
+    fs.writeFileSync(path.join(tmpDir, "tsconfig.json"), JSON.stringify({
+      compilerOptions: {
+        baseUrl: ".",
+        paths: { "@/*": ["./src/*"], "@components/*": ["./src/components/*"] },
+      },
+    }));
+    const result = parseTsconfigPaths(tmpDir);
+    expect(result["@"]).toContain("src");
+    expect(result["@components"]).toContain("components");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("resolveAliases falls back to tsconfig when no vite config", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-alias-fb-"));
+    fs.writeFileSync(path.join(tmpDir, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } },
+    }));
+    const result = resolveAliases(tmpDir);
+    expect(Object.keys(result.aliases).length).toBeGreaterThan(0);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ─── Dead Code: expanded features ──────────────────────────────────────────
+
+describe("dead-code: expanded features", () => {
+  test("respects .oracleignore file", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-ignore-"));
+    fs.writeFileSync(path.join(tmpDir, ".oracleignore"), "src/ignored.ts\n");
+    const graph: Record<string, FileNode> = {
+      "src/ignored.ts": { lines: 50, content_hash: "a", imports: [], unresolved_imports: [] },
+      "src/dead.ts": { lines: 30, content_hash: "b", imports: [], unresolved_imports: [] },
+    };
+    const reachable = new Set<string>();
+    const dead = findDeadFiles(graph, reachable, tmpDir);
+    // ignored.ts should be excluded, dead.ts should be found
+    expect(dead.some(d => d.file === "src/ignored.ts")).toBe(false);
+    expect(dead.some(d => d.file === "src/dead.ts")).toBe(true);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("detects medium confidence (imported only by dead files)", () => {
+    const graph: Record<string, FileNode> = {
+      "src/entry.ts": { lines: 100, content_hash: "a", imports: [], unresolved_imports: [] },
+      "src/dead-parent.ts": { lines: 50, content_hash: "b", imports: ["src/dead-child.ts"], unresolved_imports: [] },
+      "src/dead-child.ts": { lines: 30, content_hash: "c", imports: [], unresolved_imports: [] },
+    };
+    const reachable = new Set(["src/entry.ts"]);
+    const dead = findDeadFiles(graph, reachable);
+    const child = dead.find(d => d.file === "src/dead-child.ts");
+    expect(child).toBeDefined();
+    expect(child!.confidence).toBe("medium");
+  });
+
+  test("detects low confidence (imported only by test files)", () => {
+    const graph: Record<string, FileNode> = {
+      "src/entry.ts": { lines: 100, content_hash: "a", imports: [], unresolved_imports: [] },
+      "src/util.ts": { lines: 50, content_hash: "b", imports: [], unresolved_imports: [] },
+      "src/util.test.ts": { lines: 80, content_hash: "c", imports: ["src/util.ts"], unresolved_imports: [] },
+    };
+    const reachable = new Set(["src/entry.ts"]);
+    const dead = findDeadFiles(graph, reachable);
+    const util = dead.find(d => d.file === "src/util.ts");
+    expect(util).toBeDefined();
+    expect(util!.confidence).toBe("low");
+  });
+
+  test("barrel files with expanded names excluded", () => {
+    const graph: Record<string, FileNode> = {
+      "src/mod.ts": { lines: 5, content_hash: "a", imports: ["src/real.ts"], unresolved_imports: [] },
+      "src/index.jsx": { lines: 5, content_hash: "b", imports: ["src/real.ts"], unresolved_imports: [] },
+      "src/real.ts": { lines: 100, content_hash: "c", imports: [], unresolved_imports: [] },
+    };
+    const reachable = new Set<string>();
+    const dead = findDeadFiles(graph, reachable);
+    expect(dead.some(d => d.file === "src/mod.ts")).toBe(false);
+    expect(dead.some(d => d.file === "src/index.jsx")).toBe(false);
+  });
+});
+
+// ─── CSS: expanded features ────────────────────────────────────────────────
+
+import { extractCssUrls, mergeCssGraph, detectTailwind } from "./scanner/css";
+
+describe("css: expanded features", () => {
+  test("extractCssUrls finds url() references", () => {
+    const css = `body { background: url('./images/bg.png'); } .icon { background: url("icons/star.svg"); }`;
+    const urls = extractCssUrls(css, "/project/src/styles/main.css", "/project");
+    expect(urls.length).toBe(2);
+  });
+
+  test("extractCssUrls skips data URIs and external URLs", () => {
+    const css = `body { background: url(data:image/png;base64,abc); } .x { background: url(https://cdn.example.com/img.png); }`;
+    const urls = extractCssUrls(css, "/project/src/styles/main.css", "/project");
+    expect(urls.length).toBe(0);
+  });
+
+  test("mergeCssGraph merges two graphs", () => {
+    const tsGraph = { "a.ts": { lines: 100, content_hash: "a", imports: [], unresolved_imports: [] } as FileNode };
+    const cssGraph = { "b.css": { lines: 50, content_hash: "b", imports: [], unresolved_imports: [], is_css: true } as FileNode };
+    const merged = mergeCssGraph(tsGraph, cssGraph);
+    expect(Object.keys(merged)).toHaveLength(2);
+    expect(merged["b.css"].is_css).toBe(true);
+  });
+
+  test("detectTailwind finds tailwind config", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-tw-"));
+    fs.writeFileSync(path.join(tmpDir, "tailwind.config.js"), "module.exports = {}");
+    const result = detectTailwind(tmpDir);
+    expect(result.detected).toBe(true);
+    expect(result.configFile).toBe("tailwind.config.js");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("detectTailwind returns false when no config", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-notw-"));
+    const result = detectTailwind(tmpDir);
+    expect(result.detected).toBe(false);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ─── Monorepo: nx + turbo detection ────────────────────────────────────────
+
+describe("monorepo: nx and turbo detection", () => {
+  test("detects nx.json", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-nx-"));
+    fs.writeFileSync(path.join(tmpDir, "nx.json"), JSON.stringify({ workspaceLayout: {} }));
+    const result = detectMonorepo(tmpDir);
+    expect(result.detected).toBe(true);
+    expect(result.type).toBe("nx");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test("detects turbo.json", () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oracle-turbo-"));
+    fs.writeFileSync(path.join(tmpDir, "turbo.json"), JSON.stringify({ pipeline: {} }));
+    fs.writeFileSync(path.join(tmpDir, "package.json"), JSON.stringify({ name: "test" }));
+    const result = detectMonorepo(tmpDir);
+    expect(result.detected).toBe(true);
+    expect(result.type).toBe("turbo");
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+});
+
+// ─── ScanManifest: head_sha field ──────────────────────────────────────────
+
+describe("scan manifest: head_sha", () => {
+  test("ScanManifest type includes head_sha field", () => {
+    // Type-level check: if this compiles, head_sha is in the type
+    const manifest: Partial<import("./scanner/core").ScanManifest> = {
+      head_sha: "abc123",
+    };
+    expect(manifest.head_sha).toBe("abc123");
   });
 });
