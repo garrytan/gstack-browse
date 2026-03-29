@@ -27,7 +27,7 @@ type CliOptions = {
   noNews: boolean;
   positionsSpec?: string;
   outPath?: string;
-  mode?: "summary" | "full";
+  mode?: "summary" | "full" | "heatmap";
   noOpen?: boolean;
   risk: RiskTolerance;
   horizon: Horizon;
@@ -60,7 +60,7 @@ function parseArgs(argv: string[]): CliOptions {
   let tickers: string[] = [];
   let positionsSpec: string | undefined;
   let outPath: string | undefined;
-  let mode: "summary" | "full" | undefined;
+  let mode: "summary" | "full" | "heatmap" | undefined;
   let noOpen = false;
   let risk: RiskTolerance = normalizeRisk(process.env.GSTOCK_RISK || process.env.RISK);
   let horizon: Horizon = normalizeHorizon(process.env.GSTOCK_HORIZON || process.env.HORIZON);
@@ -75,7 +75,7 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (a === "--mode") {
       const v = (args.shift() || "").trim().toLowerCase();
-      if (v === "summary" || v === "full") {
+      if (v === "summary" || v === "full" || v === "heatmap") {
         mode = v;
         full = v === "full";
       }
@@ -130,6 +130,26 @@ function parseArgs(argv: string[]): CliOptions {
     risk,
     horizon,
   };
+}
+
+function computePctChange(latest: number, earlier: number): number {
+  if (!Number.isFinite(latest) || !Number.isFinite(earlier) || earlier === 0) return 0;
+  return ((latest - earlier) / earlier) * 100;
+}
+
+function pickBack(prices: number[], back: number): number {
+  const idx = prices.length - 1 - back;
+  if (idx < 0) return prices[0] ?? 0;
+  return prices[idx] ?? 0;
+}
+
+function heatColor(params: { bias: Bias; confidence: number; change1d: number }): string {
+  const { bias, confidence, change1d } = params;
+  if (bias === "Bullish" && confidence >= 70) return "🟩";
+  if (bias === "Bullish") return change1d >= 0 ? "🟢" : "🟨";
+  if (bias === "Bearish" && confidence <= 30) return "🟥";
+  if (bias === "Bearish") return change1d <= 0 ? "🟧" : "🟨";
+  return "🟨";
 }
 
 function tableToText(data: any): string {
@@ -591,6 +611,105 @@ function computeInvalidation(bias: Bias, levels: { d20ma: number; r1: number; s1
   return levels.d20ma;
 }
 
+async function renderHeatmap(tickers: string[], options: CliOptions): Promise<void> {
+  const list = tickers.map((t) => normalizeTicker(t)).filter(Boolean).slice(0, 40);
+  if (list.length === 0) {
+    console.log("Usage: bun run stock.ts --mode heatmap --watch NVDA,AAPL,TSLA");
+    return;
+  }
+
+  const rows: Array<{
+    ticker: string;
+    sector: string;
+    price: number;
+    ccy: string;
+    change1d: number;
+    change5d: number;
+    change1m: number;
+    bias: Bias;
+    confidence: number;
+    asOfUnix: number;
+  }> = [];
+
+  for (const t of list) {
+    const daily = await fetchHistoricalData(t, "1d", "1y");
+    const prices = daily.prices || [];
+    const vols = daily.volumes || [];
+    const price = prices[prices.length - 1] || 0;
+    const prev = pickBack(prices, 1);
+    const back5 = pickBack(prices, 5);
+    const back21 = pickBack(prices, 21);
+    const change1d = computePctChange(price, prev);
+    const change5d = computePctChange(price, back5);
+    const change1m = computePctChange(price, back21);
+
+    const d20MA = calculateSMA(prices, 20);
+    const d200MA = calculateSMA(prices, 200);
+    const rsi = calculateRSI(prices);
+    const { histogram } = calculateMACD(prices);
+    const obv = calculateOBV(prices, vols);
+    const { bias, confidence } = computeBias({
+      price,
+      d20ma: d20MA,
+      d200ma: d200MA,
+      macdHistogram: histogram,
+      obvTrend: obv.trend,
+      rsi,
+      risk: options.risk,
+      horizon: options.horizon,
+    });
+
+    const asOfUnix =
+      daily.timestamps && daily.timestamps.length ? daily.timestamps[daily.timestamps.length - 1] : Math.floor(Date.now() / 1000);
+
+    rows.push({
+      ticker: t,
+      sector: getSector(t),
+      price,
+      ccy: daily.currency || "USD",
+      change1d,
+      change5d,
+      change1m,
+      bias,
+      confidence,
+      asOfUnix,
+    });
+  }
+
+  const bySector = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const key = r.sector || "Other";
+    const arr = bySector.get(key) || [];
+    arr.push(r);
+    bySector.set(key, arr);
+  }
+
+  const sectors = Array.from(bySector.keys()).sort((a, b) => a.localeCompare(b));
+  console.log("\n📋 股票熱力圖 (按產業分組) — 1D/5D/1M 變化 + 趨勢強度");
+  for (const s of sectors) {
+    const group = (bySector.get(s) || []).sort((a, b) => b.confidence - a.confidence);
+    console.log(`\n🏷️ ${s}`);
+    for (const r of group) {
+      const block = heatColor({ bias: r.bias, confidence: r.confidence, change1d: r.change1d });
+      const c1 = `${r.change1d >= 0 ? "+" : ""}${r.change1d.toFixed(2)}%`;
+      const c5 = `${r.change5d >= 0 ? "+" : ""}${r.change5d.toFixed(2)}%`;
+      const cM = `${r.change1m >= 0 ? "+" : ""}${r.change1m.toFixed(2)}%`;
+      console.log(`${block} ${r.ticker}  ${c1} (5D ${c5}, 1M ${cM})  ${r.bias} ${r.confidence}%  ${r.price.toFixed(2)} ${r.ccy}`);
+    }
+  }
+
+  const asOfUnix = Math.max(0, ...rows.map((r) => r.asOfUnix || 0));
+  console.log(
+    "\n" +
+      formatTrustFooter({
+        source: "Yahoo Finance chart v8",
+        dailySpec: "1d/1y",
+        asOfUnix,
+        options,
+      }),
+  );
+}
+
 async function analyzeSymbol(symbol: string, options: CliOptions): Promise<{
   ticker: string;
   price: number;
@@ -840,6 +959,13 @@ async function main() {
   }
 
   try {
+  if (options.mode === "heatmap") {
+    const tickers = options.positionsSpec
+      ? parsePositionsSpec(options.positionsSpec).map((p) => p.ticker)
+      : options.tickers;
+    await renderHeatmap(tickers, options);
+    return;
+  }
   if (options.positionsSpec) {
     const positions = parsePositionsSpec(options.positionsSpec);
     if (positions.length === 0) {

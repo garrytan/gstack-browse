@@ -3,6 +3,7 @@ import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import { mkdirSync } from "fs";
 import { readFile } from "fs/promises";
+import fs from "fs";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.TELEGRAM_TOKEN || "";
 const TELEGRAM_ALLOWED_CHAT_IDS = (process.env.TELEGRAM_ALLOWED_CHAT_IDS || process.env.TELEGRAM_CHAT_ID || "")
@@ -65,15 +66,35 @@ async function apiCall(method: string, payload: any): Promise<any> {
   return json.result;
 }
 
-async function sendMessage(chatId: number, text: string): Promise<void> {
+type SendMessageOptions = {
+  replyMarkup?: any;
+  parseMode?: "Markdown" | "HTML";
+};
+
+function buildMainKeyboard() {
+  return {
+    keyboard: [
+      [{ text: "📌 新手完全指南" }, { text: "📋 股票熱力圖" }],
+      [{ text: "🧾 投資組合" }, { text: "👀 Watchlist 掃描" }],
+      [{ text: "📈 /full NVDA" }, { text: "🎯 /summary NVDA" }],
+      [{ text: "⚙️ Profile 設定" }, { text: "❓ /help" }],
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: false,
+    input_field_placeholder: "輸入 NVDA / 00700 / 或點選下方快捷鍵",
+  };
+}
+
+async function sendMessage(chatId: number, text: string, options?: SendMessageOptions): Promise<void> {
   const chunkSize = 3800;
   for (let i = 0; i < text.length; i += chunkSize) {
     const part = text.slice(i, i + chunkSize);
     await apiCall("sendMessage", {
       chat_id: chatId,
       text: part,
-      parse_mode: "Markdown",
+      parse_mode: options?.parseMode || "Markdown",
       disable_web_page_preview: true,
+      ...(options?.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
     });
   }
 }
@@ -146,10 +167,60 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
         "- `/full NVDA` (full report)",
         "- `/summary NVDA` (brief only)",
         "- `/watch NVDA,AAPL,TSLA` (watchlist scan)",
+        "- `/heatmap NVDA,AAPL,TSLA` (sector heatmap)",
         "- `/portfolio` (uses `portfolio.json`)",
         "",
         "- Profile (env): `GSTOCK_RISK=low|medium|high`, `GSTOCK_HORIZON=day|swing|invest`",
       ].join("\n"),
+      { replyMarkup: buildMainKeyboard() },
+    );
+    return;
+  }
+
+  if (trimmed === "📌 新手完全指南") {
+    await sendMessage(
+      chatId,
+      [
+        "*快速上手*",
+        "1) 直接輸入：`NVDA` / `AAPL` / `00700`",
+        "2) 想看完整報告：`/full NVDA`",
+        "3) 只看重點：`/summary NVDA`",
+        "4) 掃描清單：`/watch NVDA,AAPL,TSLA`",
+        "5) 看投資組合：`/portfolio`",
+        "",
+        "提示：如果你不想抓新聞情緒（更快、更穩），就用 no-news 預設（目前已啟用）。",
+      ].join("\n"),
+      { replyMarkup: buildMainKeyboard() },
+    );
+    return;
+  }
+
+  if (trimmed === "🧾 投資組合") {
+    await handleMessage(chatId, "/portfolio");
+    return;
+  }
+
+  if (trimmed === "👀 Watchlist 掃描") {
+    await sendMessage(chatId, "Usage: `/watch NVDA,AAPL,TSLA`", { replyMarkup: buildMainKeyboard() });
+    return;
+  }
+
+  if (trimmed === "📋 股票熱力圖") {
+    await handleMessage(chatId, "/heatmap");
+    return;
+  }
+
+  if (trimmed === "⚙️ Profile 設定") {
+    await sendMessage(
+      chatId,
+      [
+        "*Profile 設定（影響 Bias/Confidence/Action）*",
+        "- `GSTOCK_RISK=low|medium|high`",
+        "- `GSTOCK_HORIZON=day|swing|invest`",
+        "",
+        "你現在是透過雲端 Worker 用 bot，還是本機 polling bot？我可以幫你把 profile 設定到正確的位置。",
+      ].join("\n"),
+      { replyMarkup: buildMainKeyboard() },
     );
     return;
   }
@@ -189,6 +260,49 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
       return;
     }
     await sendDocument(chatId, cached.outPath, cached.hit ? "Watchlist scan (cached)" : "Watchlist scan");
+    return;
+  }
+
+  const heatmapMatch = trimmed.match(/^\/heatmap(?:\s+(.+))?$/i);
+  if (heatmapMatch) {
+    const list = (heatmapMatch[1] || "").trim();
+    mkdirSync(REPORTS_DIR, { recursive: true });
+
+    if (!list) {
+      const portfolioPath = join(REPO_ROOT, "portfolio.json");
+      if (!fs.existsSync(portfolioPath)) {
+        await sendMessage(chatId, "Usage: `/heatmap NVDA,AAPL,TSLA`", { replyMarkup: buildMainKeyboard() });
+        return;
+      }
+      const key = `heatmap:portfolio`;
+      const out = join(REPORTS_DIR, `heatmap_portfolio_${Date.now()}.txt`);
+      const cached = await runCached(key, async () => {
+        const res = runStockCommand(["--positions", "portfolio.json", "--mode", "heatmap", "--no-news", "--out", out, "--no-open"]);
+        return { ...res, outPath: out };
+      });
+      if (!cached.ok) {
+        await sendMessage(chatId, `❌ Failed:\n\`\`\`\n${escapeMarkdown(cached.stderr || cached.stdout || "unknown error")}\n\`\`\``, {
+          replyMarkup: buildMainKeyboard(),
+        });
+        return;
+      }
+      await sendDocument(chatId, cached.outPath, cached.hit ? "Heatmap (portfolio, cached)" : "Heatmap (portfolio)");
+      return;
+    }
+
+    const key = `heatmap:${list}`;
+    const out = join(REPORTS_DIR, `heatmap_${Date.now()}.txt`);
+    const cached = await runCached(key, async () => {
+      const res = runStockCommand(["--watch", list, "--mode", "heatmap", "--no-news", "--out", out, "--no-open"]);
+      return { ...res, outPath: out };
+    });
+    if (!cached.ok) {
+      await sendMessage(chatId, `❌ Failed:\n\`\`\`\n${escapeMarkdown(cached.stderr || cached.stdout || "unknown error")}\n\`\`\``, {
+        replyMarkup: buildMainKeyboard(),
+      });
+      return;
+    }
+    await sendDocument(chatId, cached.outPath, cached.hit ? "Heatmap (cached)" : "Heatmap");
     return;
   }
 

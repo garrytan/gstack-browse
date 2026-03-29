@@ -60,6 +60,25 @@ function normalizeTicker(raw: string): string {
   return aliased;
 }
 
+function getSector(ticker: string): string {
+  const t = ticker.toUpperCase();
+  const map: Record<string, string> = {
+    SPY: "ETF - US Equity",
+    TSM: "Semiconductors",
+    NVDA: "Semiconductors",
+    AAPL: "Technology - Hardware",
+    MSFT: "Technology - Software",
+    GOOGL: "Technology - Internet",
+    TCOM: "Consumer - Travel",
+    MSTR: "Crypto Proxy",
+    "0700.HK": "Technology - Internet",
+    "9988.HK": "Technology - E-commerce",
+    "1810.HK": "Technology - Hardware",
+    "7226.HK": "ETF/Derivative",
+  };
+  return map[t] || (t.endsWith(".HK") ? "HK - Other" : "Other");
+}
+
 function parseCommand(text: string): { cmd: string; arg?: string } {
   const t = text.trim();
   if (!t.startsWith("/")) return { cmd: "ticker", arg: t };
@@ -129,6 +148,25 @@ function sma(values: number[], period: number): number {
   if (values.length < period) return values[values.length - 1];
   const slice = values.slice(-period);
   return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+function computePctChange(latest: number, earlier: number): number {
+  if (!Number.isFinite(latest) || !Number.isFinite(earlier) || earlier === 0) return 0;
+  return ((latest - earlier) / earlier) * 100;
+}
+
+function pickBack(values: number[], back: number): number {
+  const idx = values.length - 1 - back;
+  if (idx < 0) return values[0] ?? 0;
+  return values[idx] ?? 0;
+}
+
+function heatColor(bias: Bias, confidence: number, change1d: number): string {
+  if (bias === "Bullish" && confidence >= 70) return "🟩";
+  if (bias === "Bullish") return change1d >= 0 ? "🟢" : "🟨";
+  if (bias === "Bearish" && confidence <= 30) return "🟥";
+  if (bias === "Bearish") return change1d <= 0 ? "🟧" : "🟨";
+  return "🟨";
 }
 
 function bollingerLower(values: number[], period: number, mult: number): number {
@@ -426,6 +464,7 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       "- `/full NVDA`",
       "- `/summary NVDA`",
       "- `/watch NVDA,AAPL,TSLA`",
+      "- `/heatmap NVDA,AAPL,TSLA`",
       "- `/portfolio`",
       "",
       "Profile (env vars): RISK=low|medium|high, HORIZON=day|swing|invest",
@@ -470,6 +509,66 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       lines.push(`${r.t}: ${r.bias} ${r.conf}% | ${r.price.toFixed(2)} | RSI ${r.rsi.toFixed(1)}`);
     }
     lines.push("");
+    lines.push(formatFooter(profile, maxAsOf));
+    return lines.join("\n");
+  }
+
+  if (cmd === "heatmap") {
+    const raw = (arg || (env.PORTFOLIO || "").trim()).trim();
+    if (!raw) return "Usage: /heatmap NVDA,AAPL,TSLA (or set PORTFOLIO env)";
+    const tickers = raw.split(",").map((s) => normalizeTicker(s)).filter(Boolean).slice(0, 30);
+    const rows: Array<{
+      t: string;
+      sector: string;
+      price: number;
+      ccy: string;
+      c1: number;
+      c5: number;
+      cM: number;
+      bias: Bias;
+      conf: number;
+      asOfUnix: number;
+    }> = [];
+    let maxAsOf = 0;
+    for (const t of tickers) {
+      const data = await fetchYahooChart(t);
+      maxAsOf = Math.max(maxAsOf, data.asOfUnix || 0);
+      const price = data.closes[data.closes.length - 1] || 0;
+      const prev = pickBack(data.closes, 1);
+      const back5 = pickBack(data.closes, 5);
+      const back21 = pickBack(data.closes, 21);
+      const c1 = computePctChange(price, prev);
+      const c5 = computePctChange(price, back5);
+      const cM = computePctChange(price, back21);
+      const d20 = sma(data.closes, 20);
+      const d200 = sma(data.closes, 200);
+      const rsi = rsi14(data.closes);
+      const hist = macdHistogram(data.closes);
+      const { bias, confidence } = computeBias(price, d20, d200, hist, rsi, profile);
+      rows.push({ t, sector: getSector(t), price, ccy: data.currency, c1, c5, cM, bias, conf: confidence, asOfUnix: data.asOfUnix });
+    }
+
+    const bySector = new Map<string, typeof rows>();
+    for (const r of rows) {
+      const key = r.sector || "Other";
+      const arr = bySector.get(key) || [];
+      arr.push(r);
+      bySector.set(key, arr);
+    }
+    const sectors = Array.from(bySector.keys()).sort((a, b) => a.localeCompare(b));
+    const lines = ["股票熱力圖 (按產業分組) — 1D/5D/1M + 趨勢強度", ""];
+    for (const s of sectors) {
+      lines.push(`🏷️ ${s}`);
+      const group = (bySector.get(s) || []).sort((a, b) => b.conf - a.conf);
+      for (const r of group) {
+        const block = heatColor(r.bias, r.conf, r.c1);
+        const c1s = `${r.c1 >= 0 ? "+" : ""}${r.c1.toFixed(2)}%`;
+        const c5s = `${r.c5 >= 0 ? "+" : ""}${r.c5.toFixed(2)}%`;
+        const cMs = `${r.cM >= 0 ? "+" : ""}${r.cM.toFixed(2)}%`;
+        lines.push(`${block} ${r.t}  ${c1s} (5D ${c5s}, 1M ${cMs})  ${r.bias} ${r.conf}%  ${r.price.toFixed(2)} ${r.ccy}`);
+      }
+      lines.push("");
+    }
     lines.push(formatFooter(profile, maxAsOf));
     return lines.join("\n");
   }
