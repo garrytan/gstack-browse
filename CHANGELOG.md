@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.13.5.0] - 2026-03-29 — Community Wave
+
+Six community fixes with 16 new tests. Telemetry off now means off everywhere. Skills are findable by name. And changing your prefix setting actually works now.
+
+### Fixed
+
+- **Telemetry off means off everywhere.** When you set telemetry to off, gstack no longer writes local JSONL analytics files. Previously "off" only stopped remote reporting. Now nothing is written anywhere. Clean trust contract.
+- **`find -delete` replaced with POSIX `-exec rm`.** Safety Net and other non-GNU environments no longer choke on session cleanup.
+- **No more preemptive context warnings.** `/plan-eng-review` no longer warns you about running low on context. The system handles compaction automatically.
+- **Sidebar security test updated** for Write tool fallback string change.
+
+### Added
+
+- **Skill discoverability.** Every skill description now contains "(gstack)" so you can find gstack skills by searching in Claude Code's command palette.
+- **Feature signal detection in `/ship`.** Version bump now checks for new routes, migrations, test+source pairs, and `feat/` branches. Catches MINOR-worthy changes that line count alone misses.
+- **Sidebar Write tool.** Both the sidebar agent and headed-mode server now include Write in allowedTools. Write doesn't expand the attack surface beyond what Bash already provides.
+- **Sidebar stderr capture.** The sidebar agent now buffers stderr and includes it in error and timeout messages instead of silently discarding it.
+- **`bin/gstack-relink`** re-creates skill symlinks when you change `skill_prefix` via `gstack-config set`. No more manual `./setup` re-run needed.
+- **`bin/gstack-open-url`** cross-platform URL opener (macOS: `open`, Linux: `xdg-open`, Windows: `start`).
+
 ## [0.13.4.0] - 2026-03-29 — Sidebar Defense
 
 The Chrome sidebar now defends against prompt injection attacks. Three layers: XML-framed prompts with trust boundaries, a command allowlist that restricts bash to browse commands only, and Opus as the default model (harder to manipulate).
