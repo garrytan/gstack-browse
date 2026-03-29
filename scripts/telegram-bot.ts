@@ -76,6 +76,7 @@ function buildMainKeyboard() {
     keyboard: [
       [{ text: "📌 新手完全指南" }, { text: "📋 股票熱力圖" }],
       [{ text: "🧾 投資組合" }, { text: "👀 Watchlist 掃描" }],
+      [{ text: "🎰 六合彩 Mark6" }],
       [{ text: "📈 /full NVDA" }, { text: "🎯 /summary NVDA" }],
       [{ text: "⚙️ Profile 設定" }, { text: "❓ /help" }],
     ],
@@ -175,6 +176,50 @@ function extractBrief(stdout: string): string {
   return out.slice(0, 6).join("\n");
 }
 
+type MarkSixCache = { ts: number; text: string };
+let marksixCache: MarkSixCache | null = null;
+const MARKSIX_CACHE_TTL_MS = 60_000;
+
+async function fetchMarkSixLatest(): Promise<string> {
+  const now = Date.now();
+  if (marksixCache && now - marksixCache.ts <= MARKSIX_CACHE_TTL_MS) return marksixCache.text;
+
+  const url = "https://lottery.hk/en/mark-six/results/";
+  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+  const html = await res.text();
+
+  const drawMatch = html.match(/\b(\d{2}\/\d{3})\b/);
+  const dateMatch = html.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+  const draw = drawMatch?.[1] || "-";
+  const date = dateMatch?.[1] || "-";
+
+  const start = drawMatch?.index != null ? drawMatch.index : 0;
+  const windowText = html.slice(start, start + 2500);
+  const nums: number[] = [];
+  for (const m of windowText.matchAll(/>\s*(\d{1,2})\s*</g)) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n >= 1 && n <= 49) nums.push(n);
+    if (nums.length >= 7) break;
+  }
+  const main = nums.slice(0, 6).sort((a, b) => a - b);
+  const special = nums[6];
+
+  const generatedIso = new Date().toISOString();
+  const lines = [
+    "🎰 六合彩 Mark Six 最新結果",
+    `期號: ${draw} | 日期: ${date}`,
+    main.length === 6 && special != null
+      ? `號碼: ${main.map((n) => String(n).padStart(2, "0")).join(" ")} + 特別號 ${String(special).padStart(2, "0")}`
+      : "號碼: N/A",
+    `來源: ${url}`,
+    `Generated: ${generatedIso}`,
+  ];
+
+  const out = lines.join("\n");
+  marksixCache = { ts: now, text: out };
+  return out;
+}
+
 async function runCached(key: string, run: () => Promise<{ outPath: string; stdout: string; stderr: string; ok: boolean }>): Promise<{ hit: boolean; outPath: string; brief: string; stdout: string; stderr: string; ok: boolean }> {
   const now = Date.now();
   const existing = cache.get(key);
@@ -203,6 +248,7 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
         "- `/summary NVDA` (brief only)",
         "- `/watch NVDA,AAPL,TSLA` (watchlist scan)",
         "- `/heatmap NVDA,AAPL,TSLA` (sector heatmap)",
+        "- `/marksix` (Mark Six latest result)",
         "- `/portfolio` (uses `portfolio.json`)",
         "",
         "- Profile (env): `GSTOCK_RISK=low|medium|high`, `GSTOCK_HORIZON=day|swing|invest`",
@@ -245,6 +291,11 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
     return;
   }
 
+  if (effectiveText === "🎰 六合彩 Mark6") {
+    await handleMessage(chatId, "/marksix");
+    return;
+  }
+
   if (effectiveText === "⚙️ Profile 設定") {
     await sendMessage(
       chatId,
@@ -257,6 +308,16 @@ async function handleMessage(chatId: number, text: string): Promise<void> {
       ].join("\n"),
       { replyMarkup: buildMainKeyboard() },
     );
+    return;
+  }
+
+  if (effectiveText === "/marksix") {
+    try {
+      const text = await fetchMarkSixLatest();
+      await sendMessage(chatId, `\`\`\`\n${escapeMarkdown(text)}\n\`\`\``, { replyMarkup: buildMainKeyboard() });
+    } catch (e: any) {
+      await sendMessage(chatId, `❌ Failed: ${escapeMarkdown(String(e?.message || e))}`, { replyMarkup: buildMainKeyboard() });
+    }
     return;
   }
 

@@ -156,6 +156,40 @@ async function sendMessage(token: string, chatId: number, text: string, options?
   }
 }
 
+async function fetchMarkSixLatest(): Promise<string> {
+  const url = "https://lottery.hk/en/mark-six/results/";
+  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
+  const html = await res.text();
+
+  const drawMatch = html.match(/\b(\d{2}\/\d{3})\b/);
+  const dateMatch = html.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
+  const draw = drawMatch?.[1] || "-";
+  const date = dateMatch?.[1] || "-";
+
+  const start = drawMatch?.index != null ? drawMatch.index : 0;
+  const windowText = html.slice(start, start + 2500);
+  const nums: number[] = [];
+  for (const m of windowText.matchAll(/>\s*(\d{1,2})\s*</g)) {
+    const n = Number(m[1]);
+    if (Number.isFinite(n) && n >= 1 && n <= 49) nums.push(n);
+    if (nums.length >= 7) break;
+  }
+  const main = nums.slice(0, 6).sort((a, b) => a - b);
+  const special = nums[6];
+
+  const generatedIso = new Date().toISOString();
+  const lines = [
+    "六合彩 Mark Six 最新結果",
+    `期號: ${draw} | 日期: ${date}`,
+    main.length === 6 && special != null
+      ? `號碼: ${main.map((n) => String(n).padStart(2, "0")).join(" ")} + 特別號 ${String(special).padStart(2, "0")}`
+      : "號碼: N/A",
+    `來源: ${url}`,
+    `Generated: ${generatedIso}`,
+  ];
+  return lines.join("\n");
+}
+
 type ChartData = {
   closes: number[];
   highs: number[];
@@ -508,10 +542,15 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       "- `/summary NVDA`",
       "- `/watch NVDA,AAPL,TSLA`",
       "- `/heatmap NVDA,AAPL,TSLA`",
+      "- `/marksix`",
       "- `/portfolio`",
       "",
       "Profile (env vars): RISK=low|medium|high, HORIZON=day|swing|invest",
     ].join("\n");
+  }
+
+  if (cmd === "marksix") {
+    return await fetchMarkSixLatest();
   }
 
   if (cmd === "portfolio") {
