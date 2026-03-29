@@ -3,9 +3,20 @@
 set -e
 
 if ! command -v bun >/dev/null 2>&1; then
-  echo "Error: bun is required but not installed." >&2
-  echo "Install it: curl -fsSL https://bun.sh/install | bash" >&2
-  exit 1
+  echo "Bun not found — installing automatically..."
+  if ! curl -fsSL https://bun.sh/install | bash; then
+    echo "Error: Bun auto-install failed." >&2
+    echo "Install it manually: curl -fsSL https://bun.sh/install | bash" >&2
+    exit 1
+  fi
+  # Pick up the newly installed bun from the default location
+  export PATH="$HOME/.bun/bin:$PATH"
+  if ! command -v bun >/dev/null 2>&1; then
+    echo "Error: bun installed but not found in PATH." >&2
+    echo "Open a new terminal and re-run setup, or add ~/.bun/bin to your PATH." >&2
+    exit 1
+  fi
+  echo "Bun installed successfully."
 fi
 
 INSTALL_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"

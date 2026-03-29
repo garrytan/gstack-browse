@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# gstack-open — cross-platform URL/file opener
+# Usage: gstack-open <url-or-path>
+#
+# Replaces bare `open` calls in skill templates, which is macOS-only.
+# Works on macOS, Linux (xdg-open / sensible-browser), and Windows (Git Bash / WSL).
+set -euo pipefail
+
+TARGET="${1:-}"
+if [ -z "$TARGET" ]; then
+  echo "gstack-open: missing argument" >&2
+  exit 1
+fi
+
+case "$(uname -s)" in
+  Darwin)
+    open "$TARGET"
+    ;;
+  Linux)
+    # WSL: delegate to Windows explorer
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+      explorer.exe "$TARGET" 2>/dev/null || cmd.exe /c start "" "$TARGET" 2>/dev/null || true
+    else
+      xdg-open "$TARGET" 2>/dev/null \
+        || sensible-browser "$TARGET" 2>/dev/null \
+        || x-www-browser "$TARGET" 2>/dev/null \
+        || { echo "gstack-open: no browser launcher found (tried xdg-open, sensible-browser, x-www-browser)" >&2; exit 1; }
+    fi
+    ;;
+  MINGW*|MSYS*|CYGWIN*)
+    start "" "$TARGET"
+    ;;
+  *)
+    # Unknown OS — try xdg-open as a best-effort fallback
+    xdg-open "$TARGET" 2>/dev/null || { echo "gstack-open: unsupported OS: $(uname -s)" >&2; exit 1; }
+    ;;
+esac

@@ -61,7 +61,7 @@ thing when AI makes the marginal cost near-zero. Read more: https://garryslist.o
 Then offer to open the essay in their default browser:
 
 \`\`\`bash
-open https://garryslist.org/posts/boil-the-ocean
+~/.claude/skills/gstack/bin/gstack-open https://garryslist.org/posts/boil-the-ocean
 touch ~/.gstack/.completeness-intro-seen
 \`\`\`
 

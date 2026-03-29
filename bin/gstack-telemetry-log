@@ -151,15 +151,37 @@ fi
 # ─── Construct and append JSON ───────────────────────────────
 mkdir -p "$ANALYTICS_DIR"
 
+# Sanitize a string for safe embedding in a JSONL value:
+# - strip newlines/carriage returns (prevent JSONL injection — extra lines in the file)
+# - escape backslashes and double-quotes (prevent JSON string corruption)
+# - truncate to $2 bytes (optional, default 200)
+sanitize_str() {
+  local val="$1"
+  local maxlen="${2:-200}"
+  printf '%s' "$val" \
+    | tr -d '\n\r' \
+    | head -c "$maxlen" \
+    | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 # Escape null fields
 ERR_FIELD="null"
-[ -n "$ERROR_CLASS" ] && ERR_FIELD="\"$ERROR_CLASS\""
+[ -n "$ERROR_CLASS" ] && ERR_FIELD="\"$(sanitize_str "$ERROR_CLASS" 100)\""
 
 ERR_MSG_FIELD="null"
-[ -n "$ERROR_MESSAGE" ] && ERR_MSG_FIELD="\"$(echo "$ERROR_MESSAGE" | head -c 200 | sed 's/"/\\"/g')\""
+[ -n "$ERROR_MESSAGE" ] && ERR_MSG_FIELD="\"$(sanitize_str "$ERROR_MESSAGE" 200)\""
 
 STEP_FIELD="null"
-[ -n "$FAILED_STEP" ] && STEP_FIELD="\"$(echo "$FAILED_STEP" | head -c 30)\""
+[ -n "$FAILED_STEP" ] && STEP_FIELD="\"$(sanitize_str "$FAILED_STEP" 30)\""
+
+# Sanitize fields that appear directly in the printf format string
+SKILL="$(sanitize_str "$SKILL" 60)"
+SESSION_ID="$(sanitize_str "$SESSION_ID" 60)"
+EVENT_TYPE="$(sanitize_str "$EVENT_TYPE" 40)"
+OUTCOME="$(sanitize_str "$OUTCOME" 20)"
+SOURCE="$(sanitize_str "$SOURCE" 20)"
+REPO_SLUG="$(sanitize_str "$REPO_SLUG" 120)"
+BRANCH="$(sanitize_str "$BRANCH" 120)"
 
 # Cap unreasonable durations
 if [ -n "$DURATION" ] && [ "$DURATION" -gt 86400 ] 2>/dev/null; then

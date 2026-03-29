@@ -3,7 +3,35 @@
 # Usage: gstack-review-log '{"skill":"...","timestamp":"...","status":"..."}'
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Security: validate the input is a single-line JSON object before writing.
+# Reject inputs containing newlines (JSONL injection) or that are not valid JSON.
+INPUT="${1:-}"
+if [ -z "$INPUT" ]; then
+  echo "gstack-review-log: missing argument" >&2
+  exit 1
+fi
+
+# Reject multi-line input — a single JSONL entry must be one line
+if printf '%s' "$INPUT" | grep -q $'\n'; then
+  echo "gstack-review-log: input contains newlines — rejected to prevent JSONL injection" >&2
+  exit 1
+fi
+
+# Validate JSON structure using node or python if available; silently skip on failure
+if command -v node >/dev/null 2>&1; then
+  if ! node -e "JSON.parse(process.argv[1])" "$INPUT" 2>/dev/null; then
+    echo "gstack-review-log: input is not valid JSON — rejected" >&2
+    exit 1
+  fi
+elif command -v python3 >/dev/null 2>&1; then
+  if ! python3 -c "import sys,json; json.loads(sys.argv[1])" "$INPUT" 2>/dev/null; then
+    echo "gstack-review-log: input is not valid JSON — rejected" >&2
+    exit 1
+  fi
+fi
+
 eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
 GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 mkdir -p "$GSTACK_HOME/projects/$SLUG"
-echo "$1" >> "$GSTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"
+printf '%s\n' "$INPUT" >> "$GSTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"
