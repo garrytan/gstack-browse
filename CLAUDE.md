@@ -368,3 +368,39 @@ The active skill lives at `~/.claude/skills/gstack/`. After making changes:
 Or copy the binaries directly:
 - `cp browse/dist/browse ~/.claude/skills/gstack/browse/dist/browse`
 - `cp design/dist/design ~/.claude/skills/gstack/design/dist/design`
+
+## gstack skills
+
+Installed at `~/.claude/skills/gstack/` (symlinks prefixed with `gstack-`):
+
+| Skill | Command | Description |
+|-------|---------|-------------|
+| autoplan | `/gstack-autoplan` | Auto-review pipeline: CEO → design → eng |
+| benchmark | `/gstack-benchmark` | Performance regression detection |
+| browse | `/gstack-browse` | Headless browser automation (Playwright) |
+| canary | `/gstack-canary` | Post-deploy monitoring loop |
+| careful | `/gstack-careful` | Careful mode — extra caution before destructive ops |
+| codex | `/gstack-codex` | Multi-AI second opinion via OpenAI Codex CLI |
+| connect-chrome | `/gstack-connect-chrome` | Headed Chrome with side panel |
+| cso | `/gstack-cso` | OWASP Top 10 + STRIDE security audit |
+| design-consultation | `/gstack-design-consultation` | Design system from scratch |
+| design-review | `/gstack-design-review` | Design audit + fix loop |
+| design-shotgun | `/gstack-design-shotgun` | Visual design exploration |
+| document-release | `/gstack-document-release` | Post-ship doc updates |
+| freeze | `/gstack-freeze` | Freeze branch — block merges |
+| gstack-upgrade | `/gstack-upgrade` | Upgrade gstack to latest version |
+| guard | `/gstack-guard` | Guard mode — confirm before every tool call |
+| investigate | `/gstack-investigate` | Systematic root-cause debugging |
+| land-and-deploy | `/gstack-land-and-deploy` | Merge → deploy → canary verify |
+| office-hours | `/gstack-office-hours` | YC Office Hours — startup diagnostic + builder brainstorm |
+| plan-ceo-review | `/gstack-plan-ceo-review` | CEO-level plan review |
+| plan-design-review | `/gstack-plan-design-review` | Report-only design audit |
+| plan-eng-review | `/gstack-plan-eng-review` | Engineering plan review |
+| qa | `/gstack-qa` | QA with fixes |
+| qa-only | `/gstack-qa-only` | Report-only QA, no fixes |
+| retro | `/gstack-retro` | Retrospective (includes global cross-project mode) |
+| review | `/gstack-review` | PR review |
+| setup-browser-cookies | `/gstack-setup-browser-cookies` | Set up browser cookies for automation |
+| setup-deploy | `/gstack-setup-deploy` | One-time deploy config |
+| ship | `/gstack-ship` | Full ship workflow |
+| unfreeze | `/gstack-unfreeze` | Unfreeze branch — re-enable merges |

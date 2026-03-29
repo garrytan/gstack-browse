@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.3.1] - 2026-03-28
+
+### Added
+
+- **Skills reference table in CLAUDE.md.** Every installed skill now has a one-line entry in the dev docs — command name, description, and skill directory. Faster orientation for contributors.
+
 ## [0.13.3.0] - 2026-03-28 — Lock It Down
 
 Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
