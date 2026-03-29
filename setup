@@ -4,7 +4,7 @@ set -e
 
 if ! command -v bun >/dev/null 2>&1; then
   echo "Error: bun is required but not installed." >&2
-  echo "Install it: curl -fsSL https://bun.sh/install | bash" >&2
+  echo "Install it: curl -fsSL https://bun.sh/install | BUN_VERSION=1.3.10 bash" >&2
   exit 1
 fi
 
@@ -62,8 +62,8 @@ if [ "$SKILL_PREFIX_FLAG" -eq 0 ]; then
       echo "  2) Namespaced: /gstack-qa, /gstack-ship, /gstack-review"
       echo "     Use this if you run other skill packs alongside gstack to avoid conflicts."
       echo ""
-      printf "Choice [1/2] (default: 1): "
-      read -r _prefix_choice </dev/tty 2>/dev/null || _prefix_choice=""
+      printf "Choice [1/2] (default: 1, auto-selects in 10s): "
+      read -t 10 -r _prefix_choice </dev/tty 2>/dev/null || _prefix_choice=""
       case "$_prefix_choice" in
         2) SKILL_PREFIX=1 ;;
         *) SKILL_PREFIX=0 ;;
