@@ -588,15 +588,44 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
   epsTrailing12Months: number | null;
   growthPct: number | null;
 }> {
-  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
-    symbol,
-  )}?modules=summaryDetail,defaultKeyStatistics,financialData`;
-  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0" } });
-  const json = await res.json();
-  const r = json?.quoteSummary?.result?.[0] || {};
-  const sd = r.summaryDetail || {};
-  const ks = r.defaultKeyStatistics || {};
-  const fd = r.financialData || {};
+  const cacheKey = new Request(`https://cache.local/yahoo/val/${encodeURIComponent(symbol)}`);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    try {
+      const json = await cached.json<any>();
+      const trailingPE = json?.trailingPE != null ? Number(json.trailingPE) : null;
+      const forwardPE = json?.forwardPE != null ? Number(json.forwardPE) : null;
+      const epsForward = json?.epsForward != null ? Number(json.epsForward) : null;
+      const epsTrailing12Months = json?.epsTrailing12Months != null ? Number(json.epsTrailing12Months) : null;
+      const growthPct = json?.growthPct != null ? Number(json.growthPct) : null;
+      return {
+        trailingPE: Number.isFinite(trailingPE as number) ? trailingPE : null,
+        forwardPE: Number.isFinite(forwardPE as number) ? forwardPE : null,
+        epsForward: Number.isFinite(epsForward as number) ? epsForward : null,
+        epsTrailing12Months: Number.isFinite(epsTrailing12Months as number) ? epsTrailing12Months : null,
+        growthPct: Number.isFinite(growthPct as number) ? growthPct : null,
+      };
+    } catch {
+      // ignore
+    }
+  }
+
+  const headers = { "user-agent": "Mozilla/5.0", accept: "application/json,text/plain,*/*" };
+
+  let trailingPE: number | null = null;
+  let forwardPE: number | null = null;
+  let epsForward: number | null = null;
+  let epsTTM: number | null = null;
+  let growthPct: number | null = null;
+
+  const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail,defaultKeyStatistics,financialData`;
+  try {
+    const res = await fetch(url, { headers });
+    const json = await res.json<any>();
+    const r = json?.quoteSummary?.result?.[0] || {};
+    const sd = r.summaryDetail || {};
+    const ks = r.defaultKeyStatistics || {};
+    const fd = r.financialData || {};
   const getNum = (obj: any, path: string[]): number | null => {
     try {
       let v: any = obj;
@@ -607,15 +636,35 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
       return null;
     }
   };
-  const trailingPE =
-    getNum(sd, ["trailingPE"]) ?? getNum(ks, ["trailingPE"]) ?? getNum(ks, ["trailingPE", "raw"]) ?? null;
-  const forwardPE =
-    getNum(sd, ["forwardPE"]) ?? getNum(ks, ["forwardPE"]) ?? getNum(fd, ["forwardPE"]) ?? null;
-  const epsForward = getNum(fd, ["epsForward"]) ?? null;
-  const epsTTM = getNum(ks, ["trailingEps"]) ?? getNum(fd, ["epsTrailingTwelveMonths"]) ?? null;
-  const growthRaw = getNum(fd, ["earningsGrowth"]) ?? getNum(fd, ["revenueGrowth"]) ?? null;
-  const growthPct = growthRaw != null ? growthRaw * 100 : null;
-  return { trailingPE, forwardPE, epsForward, epsTrailing12Months: epsTTM, growthPct };
+    trailingPE = getNum(sd, ["trailingPE"]) ?? getNum(ks, ["trailingPE"]) ?? getNum(ks, ["trailingPE", "raw"]) ?? null;
+    forwardPE = getNum(sd, ["forwardPE"]) ?? getNum(ks, ["forwardPE"]) ?? getNum(fd, ["forwardPE"]) ?? null;
+    epsForward = getNum(fd, ["epsForward"]) ?? null;
+    epsTTM = getNum(ks, ["trailingEps"]) ?? getNum(fd, ["epsTrailingTwelveMonths"]) ?? null;
+    const growthRaw = getNum(fd, ["earningsGrowth"]) ?? getNum(fd, ["revenueGrowth"]) ?? null;
+    growthPct = growthRaw != null ? growthRaw * 100 : null;
+  } catch {
+    // ignore
+  }
+
+  if (trailingPE == null && forwardPE == null) {
+    try {
+      const url2 = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
+      const res2 = await fetch(url2, { headers });
+      const json2 = await res2.json<any>();
+      const q = json2?.quoteResponse?.result?.[0] || {};
+      const toNum = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : null);
+      trailingPE = toNum(q.trailingPE) ?? trailingPE;
+      forwardPE = toNum(q.forwardPE) ?? forwardPE;
+      epsForward = toNum(q.epsForward) ?? epsForward;
+      epsTTM = toNum(q.epsTrailingEps) ?? toNum(q.epsTrailingTwelveMonths) ?? epsTTM;
+    } catch {
+      // ignore
+    }
+  }
+
+  const out = { trailingPE, forwardPE, epsForward, epsTrailing12Months: epsTTM, growthPct };
+  await caches.default.put(cacheKey, new Response(JSON.stringify(out), { headers: { "cache-control": "max-age=300" } }));
+  return out;
 }
 
 function parseUnit(envValue: string | undefined, fallback: number): number {
