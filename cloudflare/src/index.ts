@@ -1173,11 +1173,32 @@ async function fetchYahooChart(symbol: string): Promise<ChartData> {
   if (json.chart?.error) throw new Error(json.chart.error.description || "chart error");
   const r = json.chart.result[0];
   const q = r.indicators.quote[0];
-  const closes = (q.close || []).filter((x: any) => x != null).map((x: any) => Number(x));
-  const highs = (q.high || []).filter((x: any) => x != null).map((x: any) => Number(x));
-  const lows = (q.low || []).filter((x: any) => x != null).map((x: any) => Number(x));
-  const volumes = (q.volume || []).filter((x: any) => x != null).map((x: any) => Number(x));
-  const timestamps = (r.timestamp || []).filter((x: any) => x != null).map((x: any) => Number(x));
+  const rawTimestamps: number[] = (r.timestamp || []).map((x: any) => Number(x)).filter((x: any) => Number.isFinite(x));
+  const rawCloses: Array<number | null> = (q.close || []).map((x: any) => (x == null ? null : Number(x)));
+  const rawHighs: Array<number | null> = (q.high || []).map((x: any) => (x == null ? null : Number(x)));
+  const rawLows: Array<number | null> = (q.low || []).map((x: any) => (x == null ? null : Number(x)));
+  const rawVolumes: Array<number | null> = (q.volume || []).map((x: any) => (x == null ? null : Number(x)));
+
+  const n = Math.min(rawTimestamps.length, rawCloses.length, rawHighs.length, rawLows.length, rawVolumes.length);
+  const timestamps: number[] = [];
+  const closes: number[] = [];
+  const highs: number[] = [];
+  const lows: number[] = [];
+  const volumes: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const ts = rawTimestamps[i];
+    const c = rawCloses[i];
+    const h = rawHighs[i];
+    const l = rawLows[i];
+    const v = rawVolumes[i];
+    if (!Number.isFinite(ts)) continue;
+    if (!Number.isFinite(c as number) || !Number.isFinite(h as number) || !Number.isFinite(l as number)) continue;
+    timestamps.push(ts);
+    closes.push(Number(c));
+    highs.push(Number(h));
+    lows.push(Number(l));
+    volumes.push(Number.isFinite(v as number) ? Number(v) : 0);
+  }
   const asOfUnix =
     (r.meta?.regularMarketTime != null ? Number(r.meta.regularMarketTime) : 0) ||
     (timestamps.length ? timestamps[timestamps.length - 1] : 0) ||
@@ -1201,6 +1222,25 @@ function pickBack(values: number[], back: number): number {
   const idx = values.length - 1 - back;
   if (idx < 0) return values[0] ?? 0;
   return values[idx] ?? 0;
+}
+
+function ytdPct(timestamps: number[], closes: number[]): number | null {
+  const n = Math.min(timestamps.length, closes.length);
+  if (n < 2) return null;
+  const year = new Date().getUTCFullYear();
+  let start: number | null = null;
+  for (let i = 0; i < n; i++) {
+    const d = new Date(timestamps[i] * 1000);
+    if (d.getUTCFullYear() === year) {
+      const v = closes[i];
+      if (Number.isFinite(v) && v > 0) start = v;
+      break;
+    }
+  }
+  if (start == null) return null;
+  const last = closes[n - 1];
+  if (!Number.isFinite(last) || last <= 0) return null;
+  return ((last - start) / start) * 100;
 }
 
 function heatColor(bias: Bias, confidence: number, change1d: number): string {
@@ -1450,11 +1490,12 @@ function formatBrief(symbol: string, data: ChartData, profile: { risk: RiskToler
   const { bias, confidence } = computeBias(price, d20, d200, hist, rsi, profile);
   const { r1, s1 } = pivotsFromPreviousDay(data.highs, data.lows, data.closes);
   const invalidation = computeInvalidation(bias, d20, r1, s1);
+  const ytd = ytdPct(data.timestamps, data.closes);
 
   const lines = [
     `交易簡報: ${symbol}`,
     `趨勢偏向: ${biasLabelZh(bias)} | 信心度: ${confidence}%`,
-    `現價: ${price.toFixed(2)} ${data.currency} | RSI(14): ${rsi.toFixed(1)} | MACD(H): ${hist.toFixed(2)}`,
+    `現價: ${price.toFixed(2)} ${data.currency} | RSI(14): ${rsi.toFixed(1)} | MACD(H): ${hist.toFixed(2)}${ytd != null ? ` | YTD ${fmtPct(ytd)}` : ""}`,
     `日線20MA: ${d20.toFixed(2)} | 日線200MA: ${d200.toFixed(2)}`,
     `ATR(14): ${atr.toFixed(2)} | 失效點(Inval): ${invalidation.toFixed(2)}`,
   ];
@@ -1484,6 +1525,7 @@ function formatFull(symbol: string, data: ChartData, profile: { risk: RiskTolera
   const change1d = computePctChange(price, prev);
   const change5d = computePctChange(price, back5);
   const change1m = computePctChange(price, back21);
+  const ytd = ytdPct(data.timestamps, data.closes);
 
   const above20 = price > d20;
   const above200 = price > d200;
@@ -1544,7 +1586,7 @@ function formatFull(symbol: string, data: ChartData, profile: { risk: RiskTolera
   return [
     `交易簡報: ${symbol}`,
     `趨勢偏向: ${biasLabelZh(bias)} | 信心度: ${confidence}% | 結論: ${verdict}`,
-    `現價: ${price.toFixed(2)} ${data.currency} | 1日 ${fmtPct(change1d)} | 5日 ${fmtPct(change5d)} | 1月 ${fmtPct(change1m)}`,
+    `現價: ${price.toFixed(2)} ${data.currency} | 1日 ${fmtPct(change1d)} | 5日 ${fmtPct(change5d)} | 1月 ${fmtPct(change1m)}${ytd != null ? ` | YTD ${fmtPct(ytd)}` : ""}`,
     `失效點(Inval): ${invalidation.toFixed(2)} ${data.currency} | ATR(14): ${atr.toFixed(2)}（${atrPct.toFixed(1)}%） | R/R: ${rrRatio.toFixed(2)}x`,
     `建議: ${suggestedAction}`,
     "",
@@ -1672,6 +1714,7 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
         mv: number;
         ccy: string;
         pnlPct?: number;
+        ytdPct?: number;
         bias: Bias;
         conf: number;
         rsi: number;
@@ -1694,6 +1737,7 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
         const inval = computeInvalidation(bias, d20, r1, s1);
         const pnlPct =
           p.costBasis != null && p.costBasis > 0 ? ((price - p.costBasis) / p.costBasis) * 100 : undefined;
+        const ytd = ytdPct(data.timestamps, data.closes);
         rows.push({
           ticker: p.ticker,
           qty: p.quantity,
@@ -1702,6 +1746,7 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
           mv,
           ccy: data.currency,
           pnlPct,
+          ytdPct: ytd ?? undefined,
           bias,
           conf: confidence,
           rsi,
@@ -1736,13 +1781,14 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
         const totalMv = totalsByCcy.get(ccy) || 1;
         lines.push("");
         lines.push(`幣別: ${ccy}`);
-        lines.push("Ticker | Qty | Cost | Price | MV | Weight | PnL% | Bias | Conf | RSI | Inval");
+        lines.push("Ticker | Qty | Cost | Price | MV | Weight | PnL% | YTD | Bias | Conf | RSI | Inval");
         for (const r of group) {
           const w = (r.mv / totalMv) * 100;
           const cost = r.cost != null ? r.cost.toFixed(2) : "-";
           const pnl = r.pnlPct != null ? fmtPct(r.pnlPct) : "-";
+          const ytd = r.ytdPct != null ? fmtPct(r.ytdPct) : "-";
           lines.push(
-            `${r.ticker} | ${r.qty} | ${cost} | ${r.price.toFixed(2)} | ${r.mv.toFixed(2)} | ${w.toFixed(1)}% | ${pnl} | ${biasLabelZh(r.bias)} | ${r.conf}% | ${r.rsi.toFixed(1)} | ${r.inval.toFixed(2)}`,
+            `${r.ticker} | ${r.qty} | ${cost} | ${r.price.toFixed(2)} | ${r.mv.toFixed(2)} | ${w.toFixed(1)}% | ${pnl} | ${ytd} | ${biasLabelZh(r.bias)} | ${r.conf}% | ${r.rsi.toFixed(1)} | ${r.inval.toFixed(2)}`,
           );
         }
       }
