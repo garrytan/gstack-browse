@@ -1801,7 +1801,6 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
         growthPct != null && Number.isFinite(growthPct) ? Math.max(8, Math.min(30, growthPct * 0.4)) : null;
       const epsForFair = f.epsForward != null && f.epsForward > 0 ? f.epsForward : f.epsTrailing12Months;
       const fairPrice = fairPE != null && epsForFair != null && epsForFair > 0 ? fairPE * epsForFair : null;
-      const lastPrice = data.closes[data.closes.length - 1] || 0;
       const gapPct = fairPrice != null && fairPrice > 0 ? ((lastPrice - fairPrice) / fairPrice) * 100 : null;
       const lines: string[] = [];
       lines.push("");
