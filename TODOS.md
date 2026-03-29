@@ -1,5 +1,19 @@
 # TODOS
 
+## Sidebar Security
+
+### ML Prompt Injection Classifier
+
+**What:** Add DeBERTa-v3-base-prompt-injection-v2 via @huggingface/transformers v4 (WASM backend) as an ML defense layer for the Chrome sidebar. Reusable `browse/src/security.ts` module with `checkInjection()` API. Includes canary tokens, attack logging, shield icon, special telemetry (AskUserQuestion on detection even when telemetry off), and BrowseSafe-bench red team test harness (3,680 adversarial cases from Perplexity).
+
+**Why:** PR 1 fixes the architecture (command allowlist, XML framing, Opus default). But attackers can still trick Claude into navigating to phishing sites or exfiltrating visible page data via allowed browse commands. The ML classifier catches prompt injection patterns that architectural controls can't see. 94.8% accuracy, 99.6% recall, ~50-100ms inference via WASM. Defense-in-depth.
+
+**Context:** Full design doc with industry research, open source tool landscape, Codex review findings, and ambitious Bun-native vision (5ms inference via FFI + Apple Accelerate): [`docs/designs/ML_PROMPT_INJECTION_KILLER.md`](docs/designs/ML_PROMPT_INJECTION_KILLER.md). CEO plan with scope decisions: `~/.gstack/projects/garrytan-gstack/ceo-plans/2026-03-28-sidebar-prompt-injection-defense.md`.
+
+**Effort:** L (human: ~2 weeks / CC: ~3-4 hours)
+**Priority:** P0
+**Depends on:** Sidebar security fix PR (command allowlist + XML framing + arg fix) landing first
+
 ## Builder Ethos
 
 ### First-time Search Before Building intro

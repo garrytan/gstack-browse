@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.13.4.0] - 2026-03-29 — Sidebar Defense
+
+The Chrome sidebar now defends against prompt injection attacks. Three layers: XML-framed prompts with trust boundaries, a command allowlist that restricts bash to browse commands only, and Opus as the default model (harder to manipulate).
+
+### Fixed
+
+- **Sidebar agent now respects server-side args.** The sidebar-agent process was silently rebuilding its own Claude args from scratch, ignoring `--model`, `--allowedTools`, and other flags set by the server. Every server-side configuration change was silently dropped. Now uses the queued args.
+
+### Added
+
+- **XML prompt framing with trust boundaries.** User messages are wrapped in `<user-message>` tags with explicit instructions to treat content as data, not instructions. XML special characters (`< > &`) are escaped to prevent tag injection attacks.
+- **Bash command allowlist.** The sidebar's system prompt now restricts Claude to browse binary commands only (`$B goto`, `$B click`, `$B snapshot`, etc.). All other bash commands (`curl`, `rm`, `cat`, etc.) are forbidden. This prevents prompt injection from escalating to arbitrary code execution.
+- **Opus default for sidebar.** The sidebar now uses Opus (the most injection-resistant model) by default, instead of whatever model Claude Code happens to be running.
+- **ML prompt injection defense design doc.** Full design doc at `docs/designs/ML_PROMPT_INJECTION_KILLER.md` covering the follow-up ML classifier (DeBERTa, BrowseSafe-bench, Bun-native 5ms vision). P0 TODO for the next PR.
+
 ## [0.13.3.0] - 2026-03-28 — Lock It Down
 
 Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
