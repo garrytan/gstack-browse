@@ -306,6 +306,12 @@ body::after {
   font-family: var(--font-mono);
 }
 
+.agent-empty {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
 /* Thinking dots animation */
 .agent-thinking {
   display: flex;
