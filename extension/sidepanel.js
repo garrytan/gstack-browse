@@ -157,8 +157,15 @@ function handleAgentEvent(entry) {
     // Remove thinking indicator
     const thinking = document.getElementById('agent-thinking');
     if (thinking) thinking.remove();
-    // Add timestamp
     if (agentContainer) {
+      // Show notice when Claude finished but produced no text output
+      if (!agentTextEl) {
+        const notice = document.createElement('div');
+        notice.className = 'agent-empty';
+        notice.textContent = 'Done (no text output)';
+        agentContainer.appendChild(notice);
+      }
+      // Add timestamp
       const ts = document.createElement('span');
       ts.className = 'chat-time';
       ts.textContent = formatChatTime(entry.ts);

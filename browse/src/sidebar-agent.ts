@@ -162,7 +162,7 @@ async function askClaude(queueEntry: any): Promise<void> {
     // Use args from queue entry (server sets --model, --allowedTools, prompt framing).
     // Fall back to defaults only if queue entry has no args (backward compat).
     let claudeArgs = args || ['-p', prompt, '--output-format', 'stream-json', '--verbose',
-      '--allowedTools', 'Bash,Read,Glob,Grep'];
+      '--allowedTools', 'Bash,Read,Write,Glob,Grep'];
 
     // Validate cwd exists — queue may reference a stale worktree
     let effectiveCwd = cwd || process.cwd();
