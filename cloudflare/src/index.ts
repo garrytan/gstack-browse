@@ -5,6 +5,7 @@ type Env = {
   TELEGRAM_CHAT_ID?: string;
   WEBHOOK_SECRET?: string;
   PORTFOLIO?: string;
+  PORTFOLIO_POSITIONS?: string;
   RISK?: string;
   HORIZON?: string;
 };
@@ -825,11 +826,13 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       "- `/marksix`（預設 30 期）",
       "- `/marksix 60`",
       "- `/portfolio NVDA,AAPL,0700.HK`（臨時投資組合）",
-      "- `/portfolio`（使用 Worker env 的 PORTFOLIO）",
+      "- `/portfolio NVDA:15@167.52,0700.HK:100@493.4`（含數量/成本）",
+      "- `/portfolio`（使用 Worker env：PORTFOLIO_POSITIONS 或 PORTFOLIO）",
       "",
       "快捷選單：直接回覆 1/2/3/4/5/6 也可以（會提示你輸入代號）",
       "",
       "偏好設定（env vars）: RISK=low|medium|high, HORIZON=day|swing|invest",
+      "投資組合（env vars）: PORTFOLIO_POSITIONS=NVDA:15@167.52,0700.HK:100@493.4 或 PORTFOLIO=NVDA,AAPL,0700.HK",
     ].join("\n");
   }
 
@@ -840,7 +843,7 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
   }
 
   if (cmd === "portfolio") {
-    const spec = (arg || (env.PORTFOLIO || "").trim()).trim();
+    const spec = (arg || (env.PORTFOLIO_POSITIONS || env.PORTFOLIO || "").trim()).trim();
     if (!spec) {
       return "尚未設定投資組合。\n請輸入：/portfolio NVDA,AAPL,0700.HK\n或含數量成本：/portfolio NVDA:15@167.52,0700.HK:100@493.4\n（或在 Worker env 設定 PORTFOLIO）";
     }
@@ -1101,7 +1104,7 @@ export default {
       }
 
       if (sel === "PORTFOLIO") {
-        const spec = (env.PORTFOLIO || "").trim();
+        const spec = (env.PORTFOLIO_POSITIONS || env.PORTFOLIO || "").trim();
         if (!spec) {
           await setPending(chatId, "portfolio");
           ctx.waitUntil(sendMessage(token, chatId, "尚未設定 PORTFOLIO。請輸入投資組合清單（例如：NVDA,AAPL,0700.HK）。", { replyMarkup: buildHelpMenu() }));
@@ -1149,7 +1152,7 @@ export default {
           return new Response("OK", { status: 200 });
         }
         if (sel === "PORTFOLIO") {
-          const spec = (env.PORTFOLIO || "").trim();
+          const spec = (env.PORTFOLIO_POSITIONS || env.PORTFOLIO || "").trim();
           if (!spec) {
             await setPending(chatId, "portfolio");
             ctx.waitUntil(sendMessage(token, chatId, "尚未設定 PORTFOLIO。請輸入投資組合清單（例如：NVDA,AAPL,0700.HK）。", { replyMarkup: buildHelpMenu() }));
@@ -1201,7 +1204,7 @@ export default {
       return new Response("OK", { status: 200 });
     }
 
-    if (text === "/portfolio" && !(env.PORTFOLIO || "").trim()) {
+    if (text === "/portfolio" && !(env.PORTFOLIO_POSITIONS || env.PORTFOLIO || "").trim()) {
       await setPending(chatId, "portfolio");
       const prompt =
         "尚未設定 PORTFOLIO。\n請直接輸入投資組合清單（例如：NVDA,AAPL,0700.HK），或用 `/portfolio NVDA,AAPL,0700.HK`。";
