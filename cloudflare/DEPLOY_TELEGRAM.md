@@ -34,7 +34,14 @@ npx wrangler@latest secret put TELEGRAM_ALLOWED_CHAT_IDS
 
 Enter your Telegram chat id (or comma-separated list).
 
+
+Alternative (recommended, from repo root; avoids the “Required Worker name missing” error):
+
+```bash
+bun run telegram:whitelist --ids 6611272032,8714377309
+```
 Optional (enable `/portfolio` in the Worker):
+
 
 ```bash
 npx wrangler@latest secret put PORTFOLIO

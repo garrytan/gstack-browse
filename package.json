@@ -31,7 +31,8 @@
     "eval:select": "bun run scripts/eval-select.ts",
     "streak": "bun run scripts/gstack-streak.ts",
     "analytics": "bun run scripts/analytics.ts",
-    "telegram:bot": "bun run scripts/telegram-bot.ts"
+    "telegram:bot": "bun run scripts/telegram-bot.ts",
+    "telegram:whitelist": "bun run scripts/telegram-whitelist.ts --"
   },
   "dependencies": {
     "playwright": "^1.58.2",
