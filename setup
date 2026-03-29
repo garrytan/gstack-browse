@@ -281,7 +281,23 @@ link_claude_skill_dirs() {
       target="$skills_dir/$link_name"
       # Create or update symlink; skip if a real file/directory exists
       if [ -L "$target" ] || [ ! -e "$target" ]; then
-        ln -snf "gstack/$skill_name" "$target"
+        if [ "$link_name" != "$skill_name" ]; then
+          # Prefixed: create real dir with patched SKILL.md + symlinks for rest.
+          # Can't use a plain symlink because Claude Code reads the name: field
+          # from SKILL.md frontmatter, and the original says name: qa not gstack-qa.
+          rm -rf "$target"
+          mkdir -p "$target"
+          # Symlink all contents except SKILL.md (templates/, references/, etc.)
+          for item in "$skill_dir"/*; do
+            item_name="$(basename "$item")"
+            [ "$item_name" = "SKILL.md" ] && continue
+            ln -snf "$gstack_dir/$skill_name/$item_name" "$target/$item_name"
+          done
+          # Write SKILL.md with patched name: field so Claude Code registers it correctly
+          sed "s/^name: $skill_name\$/name: $link_name/" "$skill_dir/SKILL.md" > "$target/SKILL.md"
+        else
+          ln -snf "gstack/$skill_name" "$target"
+        fi
         linked+=("$link_name")
       fi
     fi
