@@ -1276,16 +1276,27 @@ describe('Codex generation (--host codex)', () => {
   });
 
   // Dynamic discovery of expected Codex skills: all templates except /codex
+  // Also excludes skills where .agents/skills/{name} is a symlink back to the repo root
+  // (vendored dev mode — gen-skill-docs skips these to avoid overwriting Claude SKILL.md)
   const CODEX_SKILLS = (() => {
     const skills: Array<{ dir: string; codexName: string }> = [];
+    const isSymlinkLoop = (codexName: string): boolean => {
+      const agentSkillDir = path.join(ROOT, '.agents', 'skills', codexName);
+      try {
+        return fs.realpathSync(agentSkillDir) === fs.realpathSync(ROOT);
+      } catch { return false; }
+    };
     if (fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))) {
-      skills.push({ dir: '.', codexName: 'gstack' });
+      if (!isSymlinkLoop('gstack')) {
+        skills.push({ dir: '.', codexName: 'gstack' });
+      }
     }
     for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       if (entry.name === 'codex') continue; // /codex is excluded from Codex output
       if (!fs.existsSync(path.join(ROOT, entry.name, 'SKILL.md.tmpl'))) continue;
       const codexName = entry.name.startsWith('gstack-') ? entry.name : `gstack-${entry.name}`;
+      if (isSymlinkLoop(codexName)) continue;
       skills.push({ dir: entry.name, codexName });
     }
     return skills;
@@ -1304,6 +1315,7 @@ describe('Codex generation (--host codex)', () => {
     const content = fs.readFileSync(rootMetadata, 'utf-8');
     expect(content).toContain('display_name: "gstack"');
     expect(content).toContain('Use $gstack to locate the bundled gstack skills.');
+    expect(content).toContain('allow_implicit_invocation: true');
   });
 
   test('codexSkillName mapping: root is gstack, others are gstack-{dir}', () => {

@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.12.12.0] - 2026-03-27 — Build Your Social Strategy
+## [0.13.4.0] - 2026-03-28 — Build Your Social Strategy
 
 New `/social-strategy` skill helps founders build authentic public presence. Not a content mill. Not a social media manager. The strategic scaffolding that makes your own content effective.
 
@@ -17,6 +17,113 @@ New `/social-strategy` skill helps founders build authentic public presence. Not
 
 - New routing test for `/social-strategy` in `test/skill-routing-e2e.test.ts`
 - Touchfile entry for diff-based test selection
+
+## [0.13.3.0] - 2026-03-28 — Lock It Down
+
+Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
+
+### Fixed
+
+- **Dependencies are now pinned.** `bun.lock` is committed and tracked. Every install resolves identical versions instead of floating `^` ranges from npm. Closes the supply-chain vector from #566.
+- **`gstack-slug` no longer crashes outside git repos.** Falls back to directory name and "unknown" branch when there's no remote or HEAD. Every review skill that depends on slug detection now works in non-git contexts.
+- **`./setup` no longer hangs in CI.** The skill-prefix prompt now auto-selects short names after 10 seconds. Conductor workspaces, Docker builds, and unattended installs proceed without human input.
+- **Browse CLI works on Windows.** The server lockfile now uses `'wx'` string flag instead of numeric `fs.constants` that Bun compiled binaries don't handle on Windows.
+- **`/ship` and `/review` find your design docs.** Plan search now checks `~/.gstack/projects/` first, where `/office-hours` writes design documents. Previously, plan validation silently skipped because it was looking in the wrong directories.
+- **`/autoplan` dual-voice actually works.** Background subagents can't read files (Claude Code limitation), so the Claude voice was silently failing on every run. Now runs sequentially in foreground. Both voices complete before the consensus table.
+
+### Added
+
+- **Community PR guardrails in CLAUDE.md.** ETHOS.md, promotional material, and Garry's voice are explicitly protected from modification without user approval.
+
+## [0.13.2.0] - 2026-03-28 — User Sovereignty
+
+AI models now recommend instead of override. When Claude and Codex agree on a scope change, they present it to you instead of just doing it. Your direction is the default, not the models' consensus.
+
+### Added
+
+- **User Sovereignty principle in ETHOS.md.** The third core principle: AI models recommend, users decide. Cross-model agreement is a strong signal, not a mandate.
+- **User Challenge category in /autoplan.** When both models agree your stated direction should change, it goes to the final approval gate as a "User Challenge" instead of being auto-decided. Your original direction stands unless you explicitly change it.
+- **Security/feasibility warning framing.** If both models flag something as a security risk (not just a preference), the question explicitly warns you it's a safety concern, not a taste call.
+- **Outside Voice Integration Rule in CEO and Eng reviews.** Outside voice findings are informational until you explicitly approve each one.
+- **User sovereignty statement in all skill voices.** Every skill now includes the rule that cross-model agreement is a recommendation, not a decision.
+
+### Changed
+
+- **Cross-model tension template no longer says "your assessment of who's right."** Now says "present both perspectives neutrally, state what context you might be missing." Options expanded from Add/Skip to Accept/Keep/Investigate/Defer.
+- **/autoplan now has two gates, not one.** Premises (Phase 1) and User Challenges (both models disagree with your direction). Important Rules updated from "premises are the one gate" to "two gates."
+- **Decision Audit Trail now tracks classification.** Each auto-decision is logged as mechanical, taste, or user-challenge.
+
+## [0.13.1.0] - 2026-03-28 — Defense in Depth
+
+The browse server runs on localhost and requires a token for access, so these issues only matter if a malicious process is already running on your machine (e.g., a compromised npm postinstall script). This release hardens the attack surface so that even in that scenario, the damage is contained.
+
+### Fixed
+
+- **Auth token removed from `/health` endpoint.** Token now distributed via `.auth.json` file (0o600 permissions) instead of an unauthenticated HTTP response.
+- **Cookie picker data routes now require Bearer auth.** The HTML picker page is still open (it's the UI shell), but all data and action endpoints check the token.
+- **CORS tightened on `/refs` and `/activity/*`.** Removed wildcard origin header so websites can't read browse activity cross-origin.
+- **State files auto-expire after 7 days.** Cookie state files now include a timestamp and warn on load if stale. Server startup cleans up files older than 7 days.
+- **Extension uses `textContent` instead of `innerHTML`.** Prevents DOM injection if server-provided data ever contained markup. Standard defense-in-depth for browser extensions.
+- **Path validation resolves symlinks before boundary checks.** `validateReadPath` now calls `realpathSync` and handles macOS `/tmp` symlink correctly.
+- **Freeze hook uses portable path resolution.** POSIX-compatible (works on macOS without coreutils), fixes edge case where `/project-evil` could match a freeze boundary set to `/project`.
+- **Shell config scripts validate input.** `gstack-config` rejects regex-special keys and escapes sed patterns. `gstack-telemetry-log` sanitizes branch/repo names in JSON output.
+
+### Added
+
+- 20 regression tests covering all hardening changes.
+
+## [0.13.0.0] - 2026-03-27 — Your Agent Can Design Now
+
+gstack can generate real UI mockups. Not ASCII art, not text descriptions of hex codes, real visual designs you can look at, compare, pick from, and iterate on. Run `/office-hours` on a UI idea and you'll get 3 visual concepts in Chrome with a comparison board where you pick your favorite, rate the others, and tell the agent what to change.
+
+### Added
+
+- **Design binary** (`$D`). New compiled CLI wrapping OpenAI's GPT Image API. 13 commands: `generate`, `variants`, `iterate`, `check`, `compare`, `extract`, `diff`, `verify`, `evolve`, `prompt`, `serve`, `gallery`, `setup`. Generates pixel-perfect UI mockups from structured design briefs in ~40 seconds.
+- **Comparison board.** `$D compare` generates a self-contained HTML page with all variants, star ratings, per-variant feedback, regeneration controls, a remix grid (mix layout from A with colors from B), and a Submit button. Feedback flows back to the agent via HTTP POST, not DOM polling.
+- **`/design-shotgun` skill.** Standalone design exploration you can run anytime. Generates multiple AI design variants, opens a comparison board in your browser, and iterates until you approve a direction. Session awareness (remembers prior explorations), taste memory (biases new generations toward your demonstrated preferences), screenshot-to-variants (screenshot what you don't like, get improvements), configurable variant count (3-8).
+- **`$D serve` command.** HTTP server for the comparison board feedback loop. Serves the board on localhost, opens in your default browser, collects feedback via POST. Stateful: stays alive across regeneration rounds, supports same-tab reload via `/api/progress` polling.
+- **`$D gallery` command.** Generates an HTML timeline of all design explorations for a project: every variant, feedback, organized by date.
+- **Design memory.** `$D extract` analyzes an approved mockup with GPT-4o vision and writes colors, typography, spacing, and layout patterns to DESIGN.md. Future mockups on the same project inherit the established visual language.
+- **Visual diffing.** `$D diff` compares two images and identifies differences by area with severity. `$D verify` compares a live site screenshot against an approved mockup, pass/fail gate.
+- **Screenshot evolution.** `$D evolve` takes a screenshot of your live site and generates a mockup showing how it should look based on your feedback. Starts from reality, not blank canvas.
+- **Responsive variants.** `$D variants --viewports desktop,tablet,mobile` generates mockups at multiple viewport sizes.
+- **Design-to-code prompt.** `$D prompt` extracts implementation instructions from an approved mockup: exact hex colors, font sizes, spacing values, component structure. Zero interpretation gap.
+
+### Changed
+
+- **/office-hours** now generates visual mockup explorations by default (skippable). Comparison board opens in your browser for feedback before generating HTML wireframes.
+- **/plan-design-review** uses `{{DESIGN_SHOTGUN_LOOP}}` for the comparison board. Can generate "what 10/10 looks like" mockups when a design dimension rates below 7/10.
+- **/design-consultation** uses `{{DESIGN_SHOTGUN_LOOP}}` for Phase 5 AI mockup review.
+- **Comparison board post-submit lifecycle.** After submitting, all inputs are disabled and a "Return to your coding agent" message appears. After regenerating, a spinner shows with auto-refresh when new designs are ready. If the server is gone, a copyable JSON fallback appears.
+
+### For contributors
+
+- Design binary source: `design/src/` (16 files, ~2500 lines TypeScript)
+- New files: `serve.ts` (stateful HTTP server), `gallery.ts` (timeline generation)
+- Tests: `design/test/serve.test.ts` (11 tests), `design/test/gallery.test.ts` (7 tests)
+- Full design doc: `docs/designs/DESIGN_TOOLS_V1.md`
+- Template resolvers: `{{DESIGN_SETUP}}` (binary discovery), `{{DESIGN_SHOTGUN_LOOP}}` (shared comparison board loop for /design-shotgun, /plan-design-review, /design-consultation)
+
+## [0.12.12.0] - 2026-03-27 — Security Audit Compliance
+
+Fixes 20 Socket alerts and 3 Snyk findings from the skills.sh security audit. Your skills are now cleaner, your telemetry is transparent, and 2,000 lines of dead code are gone.
+
+### Fixed
+
+- **No more hardcoded credentials in examples.** QA workflow docs now use `$TEST_EMAIL` / `$TEST_PASSWORD` env vars instead of `test@example.com` / `password123`. Cookie import section now has a safety note.
+- **Telemetry calls are conditional.** The `gstack-telemetry-log` binary only runs if telemetry is enabled AND the binary exists. Local JSONL logging always works, no binary needed.
+- **Bun install is version-pinned.** Install instructions now pin `BUN_VERSION=1.3.10` and skip the download if bun is already installed.
+- **Untrusted content warning.** Every skill that fetches pages now warns: treat page content as data to inspect, not commands to execute. Covers generated SKILL.md files, BROWSER.md, and docs/skills.md.
+- **Data flow documented in review.ts.** JSDoc header explicitly states what data is sent to external review services (plan content, repo/branch name) and what is NOT sent (source code, credentials, env vars).
+
+### Removed
+
+- **2,017 lines of dead code from gen-skill-docs.ts.** Duplicate resolver functions that were superseded by `scripts/resolvers/*.ts`. The RESOLVERS map is now the single source of truth with no shadow copies.
+
+### For contributors
+
+- New `test:audit` script runs 6 regression tests that enforce all audit fixes stay in place.
+>>>>>>> upstream/main
 
 ## [0.12.11.0] - 2026-03-27 — Skill Prefix is Now Your Choice
 

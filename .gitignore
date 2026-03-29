@@ -1,15 +1,16 @@
 .env
 node_modules/
 browse/dist/
+design/dist/
 bin/gstack-global-discover
 .gstack/
 .claude/skills/
 .agents/
 .context/
+extension/.auth.json
 .gstack-worktrees/
 /tmp/
 *.log
-bun.lock
 *.bun-build
 .env
 .env.local
