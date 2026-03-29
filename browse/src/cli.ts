@@ -2,19 +2,38 @@
  * gstack CLI — thin wrapper that talks to the persistent server
  *
  * Flow:
- *   1. Read .gstack/browse.json for port + token
- *   2. If missing or stale PID → start server in background
- *   3. Health check + version mismatch detection
- *   4. Send command via HTTP POST
- *   5. Print response to stdout (or stderr for errors)
+ *   1. If invoked with --server, run in server mode (bundled server.ts)
+ *   2. Read .gstack/browse.json for port + token
+ *   3. If missing or stale PID → start server in background
+ *   4. Health check + version mismatch detection
+ *   5. Send command via HTTP POST
+ *   6. Print response to stdout (or stderr for errors)
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolveConfig, ensureStateDir, readVersionHash } from './config';
 
+// ─── Server Mode Gate ─────────────────────────────────────────
+// When the compiled binary is invoked with --server, it runs as the
+// persistent Chromium daemon instead of the CLI. This eliminates the
+// fragile resolveServerScript() fallback chain for finding server.ts
+// on disk — server code is bundled into the same binary via
+// bun build --compile.
+const IS_SERVER_MODE = process.argv.includes('--server');
+
+if (IS_SERVER_MODE) {
+  // Dynamic import triggers server.ts's top-level start() call.
+  // The server keeps the process alive via Bun.serve() — the CLI
+  // code below initializes but main() is gated on !IS_SERVER_MODE.
+  import('./server');
+}
+
+// ─── CLI Mode ─────────────────────────────────────────────────
+
 const config = resolveConfig();
 const IS_WINDOWS = process.platform === 'win32';
+const IS_COMPILED = import.meta.dir.includes('$bunfs');
 const MAX_START_WAIT = IS_WINDOWS ? 15000 : (process.env.CI ? 30000 : 8000); // Node+Chromium takes longer on Windows
 
 export function resolveServerScript(
@@ -49,7 +68,14 @@ export function resolveServerScript(
   );
 }
 
-const SERVER_SCRIPT = resolveServerScript();
+// Lazy resolution: only needed in dev mode (compiled mode uses --server flag)
+let _serverScript: string | null = null;
+function getServerScript(): string {
+  if (_serverScript === null) {
+    _serverScript = resolveServerScript();
+  }
+  return _serverScript;
+}
 
 /**
  * On Windows, resolve the Node.js-compatible server bundle.
@@ -196,7 +222,7 @@ function cleanupLegacyState(): void {
             stdout: 'pipe', stderr: 'pipe', timeout: 2000,
           });
           const cmd = check.stdout.toString().trim();
-          if (cmd.includes('bun') || cmd.includes('server.ts')) {
+          if (cmd.includes('bun') || cmd.includes('server.ts') || cmd.includes('browse')) {
             try { process.kill(data.pid, 'SIGTERM'); } catch {}
           }
         }
@@ -238,9 +264,18 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
       `{detached:true,stdio:['ignore','ignore','ignore'],env:Object.assign({},process.env,` +
       `{BROWSE_STATE_FILE:${JSON.stringify(config.stateFile)}})}).unref()`;
     Bun.spawnSync(['node', '-e', launcherCode], { stdio: ['ignore', 'ignore', 'ignore'] });
+  } else if (IS_COMPILED) {
+    // Compiled binary: spawn ourselves with --server flag.
+    // Server code is bundled into the same binary, eliminating the need
+    // to locate server.ts on disk (the old resolveServerScript() chain).
+    proc = Bun.spawn([process.execPath, '--server'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile, ...extraEnv },
+    });
+    proc.unref();
   } else {
-    // macOS/Linux: Bun.spawn + unref works correctly
-    proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
+    // Dev mode: run server.ts directly via bun
+    proc = Bun.spawn(['bun', 'run', getServerScript()], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, BROWSE_STATE_FILE: config.stateFile, ...extraEnv },
     });
@@ -670,7 +705,7 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
   await sendCommand(state, command, commandArgs);
 }
 
-if (import.meta.main) {
+if (import.meta.main && !IS_SERVER_MODE) {
   main().catch((err) => {
     console.error(`[browse] ${err.message}`);
     process.exit(1);
