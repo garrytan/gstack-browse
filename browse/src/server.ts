@@ -161,17 +161,32 @@ export { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS };
 const browserManager = new BrowserManager();
 let isShuttingDown = false;
 
+// Check if a TCP port is free by binding a net.Server and immediately releasing it.
+// Using net.createServer (available in both Bun and Node.js) instead of Bun.serve so
+// that the async listen/close cycle is fully awaited before we return. Bun.serve +
+// server.stop() is racy on Windows via the Node.js polyfill: http.createServer.listen
+// is async but stop() doesn't await the close callback, causing EADDRINUSE when the
+// real server tries to bind the port we just "freed". See: github.com/garrytan/gstack/issues/486
+function isPortAvailable(port: number): Promise<boolean> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const net = require('net') as typeof import('net');
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(port, '127.0.0.1', () => {
+      srv.close(() => resolve(true));
+    });
+    srv.on('error', () => resolve(false));
+  });
+}
+
 // Find port: explicit BROWSE_PORT, or random in 10000-60000
 async function findPort(): Promise<number> {
   // Explicit port override (for debugging)
   if (BROWSE_PORT) {
-    try {
-      const testServer = Bun.serve({ port: BROWSE_PORT, fetch: () => new Response('ok') });
-      testServer.stop();
-      return BROWSE_PORT;
-    } catch {
+    if (!(await isPortAvailable(BROWSE_PORT))) {
       throw new Error(`[browse] Port ${BROWSE_PORT} (from BROWSE_PORT env) is in use`);
     }
+    return BROWSE_PORT;
   }
 
   // Random port with retry
@@ -180,13 +195,7 @@ async function findPort(): Promise<number> {
   const MAX_RETRIES = 5;
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     const port = MIN_PORT + Math.floor(Math.random() * (MAX_PORT - MIN_PORT));
-    try {
-      const testServer = Bun.serve({ port, fetch: () => new Response('ok') });
-      testServer.stop();
-      return port;
-    } catch {
-      continue;
-    }
+    if (await isPortAvailable(port)) return port;
   }
   throw new Error(`[browse] No available port after ${MAX_RETRIES} attempts in range ${MIN_PORT}-${MAX_PORT}`);
 }
@@ -321,13 +330,14 @@ async function start() {
       }
 
       // Health check — no auth required (now async)
+      // Note: currentUrl intentionally omitted — it could expose sensitive browsing
+      // context to any local process that can reach the health endpoint.
       if (url.pathname === '/health') {
         const healthy = await browserManager.isHealthy();
         return new Response(JSON.stringify({
           status: healthy ? 'healthy' : 'unhealthy',
           uptime: Math.floor((Date.now() - startTime) / 1000),
           tabs: browserManager.getTabCount(),
-          currentUrl: browserManager.getCurrentUrl(),
         }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
