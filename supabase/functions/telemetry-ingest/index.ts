@@ -43,9 +43,18 @@ Deno.serve(async (req) => {
       return new Response(`Batch too large (max ${MAX_BATCH_SIZE})`, { status: 400 });
     }
 
+    // Use the caller's apikey (anon key) instead of the service role key.
+    // RLS policies allow anon INSERT/SELECT on telemetry_events, and
+    // INSERT/SELECT/UPDATE on installations (for upsert). The service role
+    // key bypassed RLS entirely, which was unnecessary.
+    const callerKey = req.headers.get("apikey");
+    if (!callerKey) {
+      return new Response("Unauthorized — apikey header required", { status: 401 });
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      callerKey
     );
 
     // Validate and transform events
