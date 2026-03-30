@@ -70,3 +70,28 @@ describe('validateNavigationUrl', () => {
     await expect(validateNavigationUrl('not-a-url')).rejects.toThrow(/Invalid URL/i);
   });
 });
+
+describe('validateNavigationUrl — restoreState coverage', () => {
+  // These test the URL patterns that restoreState must now block
+  // (previously it called page.goto without validation)
+
+  it('blocks file:// URLs that could appear in saved state', async () => {
+    await expect(validateNavigationUrl('file:///etc/passwd')).rejects.toThrow(/scheme.*not allowed/i);
+  });
+
+  it('blocks chrome:// URLs that could appear in saved state', async () => {
+    await expect(validateNavigationUrl('chrome://settings')).rejects.toThrow(/scheme.*not allowed/i);
+  });
+
+  it('blocks metadata IPs that could be injected into state files', async () => {
+    await expect(validateNavigationUrl('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/cloud metadata/i);
+  });
+
+  it('allows normal https URLs from saved state', async () => {
+    await expect(validateNavigationUrl('https://example.com/page')).resolves.toBeUndefined();
+  });
+
+  it('allows localhost URLs from saved state', async () => {
+    await expect(validateNavigationUrl('http://localhost:3000/app')).resolves.toBeUndefined();
+  });
+});
