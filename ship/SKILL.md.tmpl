@@ -3,8 +3,10 @@ name: ship
 preamble-tier: 4
 version: 1.0.0
 description: |
-  Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION, update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy", "push to main", "create a PR", or "merge and push".
-  Proactively suggest when the user says code is ready or asks about deploying.
+  Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION,
+  update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy",
+  "push to main", "create a PR", or "merge and push".
+  Proactively suggest when the user says code is ready or asks about deploying. (gstack)
 allowed-tools:
   - Bash
   - Read
@@ -15,6 +17,7 @@ allowed-tools:
   - Agent
   - AskUserQuestion
   - WebSearch
+sensitive: true
 ---
 
 {{PREAMBLE}}
@@ -226,6 +229,8 @@ If multiple suites need to run, run them sequentially (each needs a test lane). 
 
 {{PLAN_VERIFICATION_EXEC}}
 
+{{LEARNINGS_SEARCH}}
+
 ---
 
 ## Step 3.5: Pre-Landing Review
@@ -239,6 +244,8 @@ Review the diff for structural issues that tests don't catch.
 3. Apply the review checklist in two passes:
    - **Pass 1 (CRITICAL):** SQL & Data Safety, LLM Output Trust Boundary
    - **Pass 2 (INFORMATIONAL):** All remaining categories
+
+{{CONFIDENCE_CALIBRATION}}
 
 {{DESIGN_REVIEW_LITE}}
 
@@ -316,15 +323,18 @@ For each classified comment:
 
 {{ADVERSARIAL_STEP}}
 
+{{LEARNINGS_LOG}}
+
 ## Step 4: Version bump (auto-decide)
 
 1. Read the current `VERSION` file (4-digit format: `MAJOR.MINOR.PATCH.MICRO`)
 
 2. **Auto-decide the bump level based on the diff:**
    - Count lines changed (`git diff origin/<base>...HEAD --stat | tail -1`)
+   - Check for feature signals: new route/page files (e.g. `app/*/page.tsx`, `pages/*.ts`), new DB migration/schema files, new test files alongside new source files, or branch name starting with `feat/`
    - **MICRO** (4th digit): < 50 lines changed, trivial tweaks, typos, config
-   - **PATCH** (3rd digit): 50+ lines changed, bug fixes, small-medium features
-   - **MINOR** (2nd digit): **ASK the user** — only for major features or significant architectural changes
+   - **PATCH** (3rd digit): 50+ lines changed, no feature signals detected
+   - **MINOR** (2nd digit): **ASK the user** if ANY feature signal is detected, OR 500+ lines changed, OR new modules/packages added
    - **MAJOR** (1st digit): **ASK the user** — only for milestones or breaking changes
 
 3. Compute the new version:

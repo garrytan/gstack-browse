@@ -41,6 +41,11 @@ case "${1:-}" in
     else
       echo "${KEY}: ${VALUE}" >> "$CONFIG_FILE"
     fi
+    # Auto-relink skills when prefix setting changes (skip during setup to avoid recursive call)
+    if [ "$KEY" = "skill_prefix" ] && [ -z "${GSTACK_SETUP_RUNNING:-}" ]; then
+      GSTACK_RELINK="$(dirname "$0")/gstack-relink"
+      [ -x "$GSTACK_RELINK" ] && "$GSTACK_RELINK" || true
+    fi
     ;;
   list)
     cat "$CONFIG_FILE" 2>/dev/null || true

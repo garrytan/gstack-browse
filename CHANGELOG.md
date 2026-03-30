@@ -1,5 +1,135 @@
 # Changelog
 
+## [0.13.8.0] - 2026-03-29 — Security Audit Round 2
+
+Browse output is now wrapped in trust boundary markers so agents can tell page content from tool output. Markers are escape-proof. The Chrome extension validates message senders. CDP binds to localhost only. Bun installs use checksum verification.
+
+### Fixed
+
+- **Trust boundary markers are escape-proof.** URLs sanitized (no newlines), marker strings escaped in content. A malicious page can't forge the END marker to break out of the untrusted block.
+
+### Added
+
+- **Content trust boundary markers.** Every browse command that returns page content (`text`, `html`, `links`, `forms`, `accessibility`, `console`, `dialog`, `snapshot`, `diff`, `resume`, `watch stop`) wraps output in `--- BEGIN/END UNTRUSTED EXTERNAL CONTENT ---` markers. Agents know what's page content vs tool output.
+- **Extension sender validation.** Chrome extension rejects messages from unknown senders and enforces a message type allowlist. Prevents cross-extension message spoofing.
+- **CDP localhost-only binding.** `bin/chrome-cdp` now passes `--remote-debugging-address=127.0.0.1` and `--remote-allow-origins` to prevent remote debugging exposure.
+- **Checksum-verified bun install.** The browse SKILL.md bootstrap now downloads the bun install script to a temp file and verifies SHA-256 before executing. No more piping curl to bash.
+
+### Removed
+
+- **Factory Droid support.** Removed `--host factory`, `.factory/` generated skills, Factory CI checks, and all Factory-specific code paths.
+
+## [0.13.7.0] - 2026-03-29 — Community Wave
+
+Six community fixes with 16 new tests. Telemetry off now means off everywhere. Skills are findable by name. And changing your prefix setting actually works now.
+
+### Fixed
+
+- **Telemetry off means off everywhere.** When you set telemetry to off, gstack no longer writes local JSONL analytics files. Previously "off" only stopped remote reporting. Now nothing is written anywhere. Clean trust contract.
+- **`find -delete` replaced with POSIX `-exec rm`.** Safety Net and other non-GNU environments no longer choke on session cleanup.
+- **No more preemptive context warnings.** `/plan-eng-review` no longer warns you about running low on context. The system handles compaction automatically.
+- **Sidebar security test updated** for Write tool fallback string change.
+- **`gstack-relink` no longer double-prefixes `gstack-upgrade`.** Setting `skill_prefix=true` was creating `gstack-gstack-upgrade` instead of keeping the existing name. Now matches `setup` script behavior.
+
+### Added
+
+- **Skill discoverability.** Every skill description now contains "(gstack)" so you can find gstack skills by searching in Claude Code's command palette.
+- **Feature signal detection in `/ship`.** Version bump now checks for new routes, migrations, test+source pairs, and `feat/` branches. Catches MINOR-worthy changes that line count alone misses.
+- **Sidebar Write tool.** Both the sidebar agent and headed-mode server now include Write in allowedTools. Write doesn't expand the attack surface beyond what Bash already provides.
+- **Sidebar stderr capture.** The sidebar agent now buffers stderr and includes it in error and timeout messages instead of silently discarding it.
+- **`bin/gstack-relink`** re-creates skill symlinks when you change `skill_prefix` via `gstack-config set`. No more manual `./setup` re-run needed.
+- **`bin/gstack-open-url`** cross-platform URL opener (macOS: `open`, Linux: `xdg-open`, Windows: `start`).
+
+## [0.13.6.0] - 2026-03-29 — GStack Learns
+
+Every session now makes the next one smarter. gstack remembers patterns, pitfalls, and preferences across sessions and uses them to improve every review, plan, debug, and ship. The more you use it, the better it gets on your codebase.
+
+### Added
+
+- **Project learnings system.** gstack automatically captures patterns and pitfalls it discovers during /review, /ship, /investigate, and other skills. Stored per-project at `~/.gstack/projects/{slug}/learnings.jsonl`. Append-only, Supabase-compatible schema.
+- **`/learn` skill.** Review what gstack has learned (`/learn`), search (`/learn search auth`), prune stale entries (`/learn prune`), export to markdown (`/learn export`), or check stats (`/learn stats`). Manually add learnings with `/learn add`.
+- **Confidence calibration.** Every review finding now includes a confidence score (1-10). High-confidence findings (7+) show normally, medium (5-6) show with a caveat, low (<5) are suppressed. No more crying wolf.
+- **"Learning applied" callouts.** When a review finding matches a past learning, gstack displays it: "Prior learning applied: [pattern] (confidence 8/10, from 2026-03-15)". You can see the compounding in action.
+- **Cross-project discovery.** gstack can search learnings from your other projects for matching patterns. Opt-in, with a one-time AskUserQuestion for consent. Stays local to your machine.
+- **Confidence decay.** Observed and inferred learnings lose 1 confidence point per 30 days. User-stated preferences never decay. A good pattern is a good pattern forever, but uncertain observations fade.
+- **Learnings count in preamble.** Every skill now shows "LEARNINGS: N entries loaded" during startup.
+- **5-release roadmap design doc.** `docs/designs/SELF_LEARNING_V0.md` maps the path from R1 (GStack Learns) through R4 (/autoship, one-command full feature) to R5 (Studio).
+
+## [0.13.5.1] - 2026-03-29 — Gitignore .factory
+
+### Changed
+
+- **Stop tracking `.factory/` directory.** Generated Factory Droid skill files are now gitignored, same as `.claude/skills/` and `.agents/`. Removes 29 generated SKILL.md files from the repo. The `setup` script and `bun run build` regenerate these on demand.
+
+## [0.13.5.0] - 2026-03-29 — Factory Droid Compatibility
+
+gstack now works with Factory Droid. Type `/qa` in Droid and get the same 29 skills you use in Claude Code. This makes gstack the first skill library that works across Claude Code, Codex, and Factory Droid.
+
+### Added
+
+- **Factory Droid support (`--host factory`).** Generate Factory-native skills with `bun run gen:skill-docs --host factory`. Skills install to `.factory/skills/` with proper frontmatter (`user-invocable: true`, `disable-model-invocation: true` for sensitive skills like /ship and /land-and-deploy).
+- **`--host all` flag.** One command generates skills for all 3 hosts. Fault-tolerant: catches per-host errors, only fails if Claude generation fails.
+- **`gstack-platform-detect` binary.** Prints a table of installed AI coding agents with versions, skill paths, and gstack status. Useful for debugging multi-host setups.
+- **Sensitive skill safety.** Six skills with side effects (ship, land-and-deploy, guard, careful, freeze, unfreeze) now declare `sensitive: true` in their templates. Factory Droids won't auto-invoke them. Claude and Codex output strips the field.
+- **Factory CI freshness check.** The skill-docs workflow now verifies Factory output is fresh on every PR.
+- **Factory awareness across operational tooling.** skill-check dashboard, gstack-uninstall, and setup script all know about Factory.
+
+### Changed
+
+- **Refactored multi-host generation.** Extracted `processExternalHost()` shared helper from the Codex-specific code block. Both Codex and Factory use the same function for output routing, symlink loop detection, frontmatter transformation, and path rewrites. Codex output is byte-identical after refactor.
+- **Build script uses `--host all`.** Replaces chained `gen:skill-docs` calls with a single `--host all` invocation.
+- **Tool name translation for Factory.** Claude Code tool names ("use the Bash tool") are translated to generic phrasing ("run this command") in Factory output, matching Factory's tool naming conventions.
+
+## [0.13.4.0] - 2026-03-29 — Sidebar Defense
+
+The Chrome sidebar now defends against prompt injection attacks. Three layers: XML-framed prompts with trust boundaries, a command allowlist that restricts bash to browse commands only, and Opus as the default model (harder to manipulate).
+
+### Fixed
+
+- **Sidebar agent now respects server-side args.** The sidebar-agent process was silently rebuilding its own Claude args from scratch, ignoring `--model`, `--allowedTools`, and other flags set by the server. Every server-side configuration change was silently dropped. Now uses the queued args.
+
+### Added
+
+- **XML prompt framing with trust boundaries.** User messages are wrapped in `<user-message>` tags with explicit instructions to treat content as data, not instructions. XML special characters (`< > &`) are escaped to prevent tag injection attacks.
+- **Bash command allowlist.** The sidebar's system prompt now restricts Claude to browse binary commands only (`$B goto`, `$B click`, `$B snapshot`, etc.). All other bash commands (`curl`, `rm`, `cat`, etc.) are forbidden. This prevents prompt injection from escalating to arbitrary code execution.
+- **Opus default for sidebar.** The sidebar now uses Opus (the most injection-resistant model) by default, instead of whatever model Claude Code happens to be running.
+- **ML prompt injection defense design doc.** Full design doc at `docs/designs/ML_PROMPT_INJECTION_KILLER.md` covering the follow-up ML classifier (DeBERTa, BrowseSafe-bench, Bun-native 5ms vision). P0 TODO for the next PR.
+
+## [0.13.3.0] - 2026-03-28 — Lock It Down
+
+Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
+
+### Fixed
+
+- **Dependencies are now pinned.** `bun.lock` is committed and tracked. Every install resolves identical versions instead of floating `^` ranges from npm. Closes the supply-chain vector from #566.
+- **`gstack-slug` no longer crashes outside git repos.** Falls back to directory name and "unknown" branch when there's no remote or HEAD. Every review skill that depends on slug detection now works in non-git contexts.
+- **`./setup` no longer hangs in CI.** The skill-prefix prompt now auto-selects short names after 10 seconds. Conductor workspaces, Docker builds, and unattended installs proceed without human input.
+- **Browse CLI works on Windows.** The server lockfile now uses `'wx'` string flag instead of numeric `fs.constants` that Bun compiled binaries don't handle on Windows.
+- **`/ship` and `/review` find your design docs.** Plan search now checks `~/.gstack/projects/` first, where `/office-hours` writes design documents. Previously, plan validation silently skipped because it was looking in the wrong directories.
+- **`/autoplan` dual-voice actually works.** Background subagents can't read files (Claude Code limitation), so the Claude voice was silently failing on every run. Now runs sequentially in foreground. Both voices complete before the consensus table.
+
+### Added
+
+- **Community PR guardrails in CLAUDE.md.** ETHOS.md, promotional material, and Garry's voice are explicitly protected from modification without user approval.
+
+## [0.13.2.0] - 2026-03-28 — User Sovereignty
+
+AI models now recommend instead of override. When Claude and Codex agree on a scope change, they present it to you instead of just doing it. Your direction is the default, not the models' consensus.
+
+### Added
+
+- **User Sovereignty principle in ETHOS.md.** The third core principle: AI models recommend, users decide. Cross-model agreement is a strong signal, not a mandate.
+- **User Challenge category in /autoplan.** When both models agree your stated direction should change, it goes to the final approval gate as a "User Challenge" instead of being auto-decided. Your original direction stands unless you explicitly change it.
+- **Security/feasibility warning framing.** If both models flag something as a security risk (not just a preference), the question explicitly warns you it's a safety concern, not a taste call.
+- **Outside Voice Integration Rule in CEO and Eng reviews.** Outside voice findings are informational until you explicitly approve each one.
+- **User sovereignty statement in all skill voices.** Every skill now includes the rule that cross-model agreement is a recommendation, not a decision.
+
+### Changed
+
+- **Cross-model tension template no longer says "your assessment of who's right."** Now says "present both perspectives neutrally, state what context you might be missing." Options expanded from Add/Skip to Accept/Keep/Investigate/Defer.
+- **/autoplan now has two gates, not one.** Premises (Phase 1) and User Challenges (both models disagree with your direction). Important Rules updated from "premises are the one gate" to "two gates."
+- **Decision Audit Trail now tracks classification.** Each auto-decision is logged as mechanical, taste, or user-challenge.
+
 ## [0.13.1.0] - 2026-03-28 — Defense in Depth
 
 The browse server runs on localhost and requires a token for access, so these issues only matter if a malicious process is already running on your machine (e.g., a compromised npm postinstall script). This release hardens the attack surface so that even in that scenario, the damage is contained.
