@@ -1,17 +1,20 @@
 ---
-name: design-shotgun
+name: design-html
 preamble-tier: 2
 version: 1.0.0
 description: |
-  Design shotgun: generate multiple AI design variants, open a comparison board,
-  collect structured feedback, and iterate. Standalone design exploration you can
-  run anytime. Use when: "explore designs", "show me options", "design variants",
-  "visual brainstorm", or "I don't like how this looks".
-  Proactively suggest when the user describes a UI feature but hasn't seen
-  what it could look like. (gstack)
+  Design finalization: takes an approved AI mockup from /design-shotgun and
+  generates production-quality Pretext-native HTML/CSS. Text actually reflows,
+  heights are computed, layouts are dynamic. 30KB overhead, zero deps.
+  Smart API routing: picks the right Pretext patterns for each design type.
+  Use when: "finalize this design", "turn this mockup into HTML", "implement
+  this design", or after /design-shotgun approves a direction.
+  Proactively suggest when user has approved a design in /design-shotgun. (gstack)
 allowed-tools:
   - Bash
   - Read
+  - Write
+  - Edit
   - Glob
   - Grep
   - Agent
@@ -51,7 +54,7 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"design-shotgun","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+  echo '{"skill":"design-html","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -391,11 +394,12 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /design-shotgun: Visual Design Exploration
+# /design-html: Pretext-Native HTML Engine
 
-You are a design brainstorming partner. Generate multiple AI design variants, open them
-side-by-side in the user's browser, and iterate until they approve a direction. This is
-visual brainstorming, not a review process.
+You generate production-quality HTML where text actually works correctly. Not CSS
+approximations. Computed layout via Pretext. Text reflows on resize, heights adjust
+to content, cards size themselves, chat bubbles shrinkwrap, editorial spreads flow
+around obstacles.
 
 ## DESIGN SETUP (run this check BEFORE any design mockup command)
 
@@ -440,355 +444,511 @@ MUST be saved to `~/.gstack/projects/$SLUG/designs/`, NEVER to `.context/`,
 `docs/designs/`, `/tmp/`, or any project-local directory. Design artifacts are USER
 data, not project files. They persist across branches, conversations, and workspaces.
 
-## Step 0: Session Detection
+## SETUP (run this check BEFORE any browse command)
 
-Check for prior design exploration sessions for this project:
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
+  echo "READY: $B"
+else
+  echo "NEEDS_SETUP"
+fi
+```
+
+If `NEEDS_SETUP`:
+1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
+2. Run: `cd <SKILL_DIR> && ./setup`
+3. If `bun` is not installed:
+   ```bash
+   if ! command -v bun >/dev/null 2>&1; then
+     BUN_VERSION="1.3.10"
+     BUN_INSTALL_SHA="bab8acfb046aac8c72407bdcce903957665d655d7acaa3e11c7c4616beae68dd"
+     tmpfile=$(mktemp)
+     curl -fsSL "https://bun.sh/install" -o "$tmpfile"
+     actual_sha=$(shasum -a 256 "$tmpfile" | awk '{print $1}')
+     if [ "$actual_sha" != "$BUN_INSTALL_SHA" ]; then
+       echo "ERROR: bun install script checksum mismatch" >&2
+       echo "  expected: $BUN_INSTALL_SHA" >&2
+       echo "  got:      $actual_sha" >&2
+       rm "$tmpfile"; exit 1
+     fi
+     BUN_VERSION="$BUN_VERSION" bash "$tmpfile"
+     rm "$tmpfile"
+   fi
+   ```
+
+---
+
+## Step 0: Input Detection
 
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-setopt +o nomatch 2>/dev/null || true
-_PREV=$(find ~/.gstack/projects/$SLUG/designs/ -name "approved.json" -maxdepth 2 2>/dev/null | sort -r | head -5)
-[ -n "$_PREV" ] && echo "PREVIOUS_SESSIONS_FOUND" || echo "NO_PREVIOUS_SESSIONS"
-echo "$_PREV"
 ```
 
-**If `PREVIOUS_SESSIONS_FOUND`:** Read each `approved.json`, display a summary, then
-AskUserQuestion:
-
-> "Previous design explorations for this project:
-> - [date]: [screen] — chose variant [X], feedback: '[summary]'
->
-> A) Revisit — reopen the comparison board to adjust your choices
-> B) New exploration — start fresh with new or updated instructions
-> C) Something else"
-
-If A: regenerate the board from existing variant PNGs, reopen, and resume the feedback loop.
-If B: proceed to Step 1.
-
-**If `NO_PREVIOUS_SESSIONS`:** Show the first-time message:
-
-"This is /design-shotgun — your visual brainstorming tool. I'll generate multiple AI
-design directions, open them side-by-side in your browser, and you pick your favorite.
-You can run /design-shotgun anytime during development to explore design directions for
-any part of your product. Let's start."
-
-## Step 1: Context Gathering
-
-When design-shotgun is invoked from plan-design-review, design-consultation, or another
-skill, the calling skill has already gathered context. Check for `$_DESIGN_BRIEF` — if
-it's set, skip to Step 2.
-
-When run standalone, gather context to build a proper design brief.
-
-**Required context (5 dimensions):**
-1. **Who** — who is the design for? (persona, audience, expertise level)
-2. **Job to be done** — what is the user trying to accomplish on this screen/page?
-3. **What exists** — what's already in the codebase? (existing components, pages, patterns)
-4. **User flow** — how do users arrive at this screen and where do they go next?
-5. **Edge cases** — long names, zero results, error states, mobile, first-time vs power user
-
-**Auto-gather first:**
-
-```bash
-cat DESIGN.md 2>/dev/null | head -80 || echo "NO_DESIGN_MD"
-```
-
-```bash
-ls src/ app/ pages/ components/ 2>/dev/null | head -30
-```
-
+1. Find the most recent `approved.json`:
 ```bash
 setopt +o nomatch 2>/dev/null || true
-ls ~/.gstack/projects/$SLUG/*office-hours* 2>/dev/null | head -5
+ls -t ~/.gstack/projects/$SLUG/designs/*/approved.json 2>/dev/null | head -1
 ```
 
-If DESIGN.md exists, tell the user: "I'll follow your design system in DESIGN.md by
-default. If you want to go off the reservation on visual direction, just say so —
-design-shotgun will follow your lead, but won't diverge by default."
+2. If found, read it. Extract: approved variant PNG path, user feedback, screen name.
 
-**Check for a live site to screenshot** (for the "I don't like THIS" use case):
+3. Read `DESIGN.md` if it exists in the repo root. These tokens take priority for
+   system-level values (fonts, brand colors, spacing scale).
 
-```bash
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null || echo "NO_LOCAL_SITE"
-```
-
-If a local site is running AND the user referenced a URL or said something like "I don't
-like how this looks," screenshot the current page and use `$D evolve` instead of
-`$D variants` to generate improvement variants from the existing design.
-
-**AskUserQuestion with pre-filled context:** Pre-fill what you inferred from the codebase,
-DESIGN.md, and office-hours output. Then ask for what's missing. Frame as ONE question
-covering all gaps:
-
-> "Here's what I know: [pre-filled context]. I'm missing [gaps].
-> Tell me: [specific questions about the gaps].
-> How many variants? (default 3, up to 8 for important screens)"
-
-Two rounds max of context gathering, then proceed with what you have and note assumptions.
-
-## Step 2: Taste Memory
-
-Read prior approved designs to bias generation toward the user's demonstrated taste:
-
+4. **Evolve mode:** Check for prior output:
 ```bash
 setopt +o nomatch 2>/dev/null || true
-_TASTE=$(find ~/.gstack/projects/$SLUG/designs/ -name "approved.json" -maxdepth 2 2>/dev/null | sort -r | head -10)
+ls -t ~/.gstack/projects/$SLUG/designs/*/finalized.html 2>/dev/null | head -1
 ```
+If a prior `finalized.html` exists, use AskUserQuestion:
+> Found a prior finalized HTML from a previous session. Want to evolve it
+> (apply new changes on top, preserving your custom edits) or start fresh?
+> A) Evolve — iterate on the existing HTML
+> B) Start fresh — regenerate from the approved mockup
 
-If prior sessions exist, read each `approved.json` and extract patterns from the
-approved variants. Include a taste summary in the design brief:
+If evolve: read the existing HTML. Apply changes on top during Step 3.
+If fresh: proceed normally.
 
-"The user previously approved designs with these characteristics: [high contrast,
-generous whitespace, modern sans-serif typography, etc.]. Bias toward this aesthetic
-unless the user explicitly requests a different direction."
+5. If no `approved.json` found, use AskUserQuestion:
+> No approved design found. You need a mockup first.
+> A) Run /design-shotgun — explore design variants and approve one
+> B) I have a PNG — let me provide the path
 
-Limit to last 10 sessions. Try/catch JSON parse on each (skip corrupted files).
+If B: accept a PNG file path from the user and proceed with that as the reference.
 
-## Step 3: Generate Variants
+---
 
-Set up the output directory:
+## Step 1: Design Analysis
+
+1. If `$D` is available (`DESIGN_READY`), extract a structured implementation spec:
+```bash
+$D prompt --image <approved-variant.png> --output json
+```
+This returns colors, typography, layout structure, and component inventory via GPT-4o vision.
+
+2. If `$D` is not available, read the approved PNG inline using the Read tool.
+   Describe the visual layout, colors, typography, and component structure yourself.
+
+3. Read `DESIGN.md` tokens. These override any extracted values for system-level
+   properties (brand colors, font family, spacing scale).
+
+4. Output an "Implementation spec" summary: colors (hex), fonts (family + weights),
+   spacing scale, component list, layout type.
+
+---
+
+## Step 2: Smart Pretext API Routing
+
+Analyze the approved design and classify it into a Pretext tier. Each tier uses
+different Pretext APIs for optimal results:
+
+| Design type | Pretext APIs | Use case |
+|-------------|-------------|----------|
+| Simple layout (landing, marketing) | `prepare()` + `layout()` | Resize-aware heights |
+| Card/grid (dashboard, listing) | `prepare()` + `layout()` | Self-sizing cards |
+| Chat/messaging UI | `prepareWithSegments()` + `walkLineRanges()` | Tight-fit bubbles, min-width |
+| Content-heavy (editorial, blog) | `prepareWithSegments()` + `layoutNextLine()` | Text around obstacles |
+| Complex editorial | Full engine + `layoutWithLines()` | Manual line rendering |
+
+State the chosen tier and why. Reference the specific Pretext APIs that will be used.
+
+---
+
+## Step 2.5: Framework Detection
+
+Check if the user's project uses a frontend framework:
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-_DESIGN_DIR=~/.gstack/projects/$SLUG/designs/<screen-name>-$(date +%Y%m%d)
-mkdir -p "$_DESIGN_DIR"
-echo "DESIGN_DIR: $_DESIGN_DIR"
+[ -f package.json ] && cat package.json | grep -o '"react"\|"svelte"\|"vue"\|"@angular/core"\|"solid-js"\|"preact"' | head -1 || echo "NONE"
 ```
 
-Replace `<screen-name>` with a descriptive kebab-case name from the context gathering.
+If a framework is detected, use AskUserQuestion:
+> Detected [React/Svelte/Vue] in your project. What format should the output be?
+> A) Vanilla HTML — self-contained preview file (recommended for first pass)
+> B) [React/Svelte/Vue] component — framework-native with Pretext hooks
 
-### Step 3a: Concept Generation
+If the user chooses framework output, ask one follow-up:
+> A) TypeScript
+> B) JavaScript
 
-Before any API calls, generate N text concepts describing each variant's design direction.
-Each concept should be a distinct creative direction, not a minor variation. Present them
-as a lettered list:
+For vanilla HTML: proceed to Step 3 with vanilla output.
+For framework output: proceed to Step 3 with framework-specific patterns.
+If no framework detected: default to vanilla HTML, no question needed.
 
-```
-I'll explore 3 directions:
+---
 
-A) "Name" — one-line visual description of this direction
-B) "Name" — one-line visual description of this direction
-C) "Name" — one-line visual description of this direction
-```
+## Step 3: Generate Pretext-Native HTML
 
-Draw on DESIGN.md, taste memory, and the user's request to make each concept distinct.
+### Pretext Source Embedding
 
-### Step 3b: Concept Confirmation
-
-Use AskUserQuestion to confirm before spending API credits:
-
-> "These are the {N} directions I'll generate. Each takes ~60s, but I'll run them all
-> in parallel so total time is ~60 seconds regardless of count."
-
-Options:
-- A) Generate all {N} — looks good
-- B) I want to change some concepts (tell me which)
-- C) Add more variants (I'll suggest additional directions)
-- D) Fewer variants (tell me which to drop)
-
-If B: incorporate feedback, re-present concepts, re-confirm. Max 2 rounds.
-If C: add concepts, re-present, re-confirm.
-If D: drop specified concepts, re-present, re-confirm.
-
-### Step 3c: Parallel Generation
-
-**If evolving from a screenshot** (user said "I don't like THIS"), take ONE screenshot
-first:
-
+For **vanilla HTML output**, check for the vendored Pretext bundle:
 ```bash
-$B screenshot "$_DESIGN_DIR/current.png"
+_PRETEXT_VENDOR=""
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/design-html/vendor/pretext.js" ] && _PRETEXT_VENDOR="$_ROOT/.claude/skills/gstack/design-html/vendor/pretext.js"
+[ -z "$_PRETEXT_VENDOR" ] && [ -f ~/.claude/skills/gstack/design-html/vendor/pretext.js ] && _PRETEXT_VENDOR=~/.claude/skills/gstack/design-html/vendor/pretext.js
+[ -n "$_PRETEXT_VENDOR" ] && echo "VENDOR: $_PRETEXT_VENDOR" || echo "VENDOR_MISSING"
 ```
 
-**Launch N Agent subagents in a single message** (parallel execution). Use the Agent
-tool with `subagent_type: "general-purpose"` for each variant. Each agent is independent
-and handles its own generation, quality check, verification, and retry.
+- If `VENDOR` found: read the file and inline it in a `<script>` tag. The HTML file
+  is fully self-contained with zero network dependencies.
+- If `VENDOR_MISSING`: use CDN import as fallback:
+  `<script type="module">import { prepare, layout, prepareWithSegments, walkLineRanges, layoutNextLine, layoutWithLines } from 'https://esm.sh/@chenglou/pretext'</script>`
+  Add a comment: `<!-- FALLBACK: vendor/pretext.js missing, using CDN -->`
 
-**Important: $D path propagation.** The `$D` variable from DESIGN SETUP is a shell
-variable that agents do NOT inherit. Substitute the resolved absolute path (from the
-`DESIGN_READY: /path/to/design` output in Step 0) into each agent prompt.
-
-**Agent prompt template** (one per variant, substitute all `{...}` values):
-
-```
-Generate a design variant and save it.
-
-Design binary: {absolute path to $D binary}
-Brief: {the full variant-specific brief for this direction}
-Output: /tmp/variant-{letter}.png
-Final location: {_DESIGN_DIR absolute path}/variant-{letter}.png
-
-Steps:
-1. Run: {$D path} generate --brief "{brief}" --output /tmp/variant-{letter}.png
-2. If the command fails with a rate limit error (429 or "rate limit"), wait 5 seconds
-   and retry. Up to 3 retries.
-3. If the output file is missing or empty after the command succeeds, retry once.
-4. Copy: cp /tmp/variant-{letter}.png {_DESIGN_DIR}/variant-{letter}.png
-5. Quality check: {$D path} check --image {_DESIGN_DIR}/variant-{letter}.png --brief "{brief}"
-   If quality check fails, retry generation once.
-6. Verify: ls -lh {_DESIGN_DIR}/variant-{letter}.png
-7. Report exactly one of:
-   VARIANT_{letter}_DONE: {file size}
-   VARIANT_{letter}_FAILED: {error description}
-   VARIANT_{letter}_RATE_LIMITED: exhausted retries
-```
-
-For the evolve path, replace step 1 with:
-```
-{$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output /tmp/variant-{letter}.png
-```
-
-**Why /tmp/ then cp?** In observed sessions, `$D generate --output ~/.gstack/...`
-failed with "The operation was aborted" while `--output /tmp/...` succeeded. This is
-a sandbox restriction. Always generate to `/tmp/` first, then `cp`.
-
-### Step 3d: Results
-
-After all agents complete:
-
-1. Read each generated PNG inline (Read tool) so the user sees all variants at once.
-2. Report status: "All {N} variants generated in ~{actual time}. {successes} succeeded,
-   {failures} failed."
-3. For any failures: report explicitly with the error. Do NOT silently skip.
-4. If zero variants succeeded: fall back to sequential generation (one at a time with
-   `$D generate`, showing each as it lands). Tell the user: "Parallel generation failed
-   (likely rate limiting). Falling back to sequential..."
-5. Proceed to Step 4 (comparison board).
-
-**Dynamic image list for comparison board:** When proceeding to Step 4, construct the
-image list from whatever variant files actually exist, not a hardcoded A/B/C list:
-
+For **framework output**, add to the project's dependencies instead:
 ```bash
-setopt +o nomatch 2>/dev/null || true  # zsh compat
-_IMAGES=$(ls "$_DESIGN_DIR"/variant-*.png 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+# Detect package manager
+[ -f bun.lockb ] && echo "bun add @chenglou/pretext" || \
+[ -f pnpm-lock.yaml ] && echo "pnpm add @chenglou/pretext" || \
+[ -f yarn.lock ] && echo "yarn add @chenglou/pretext" || \
+echo "npm install @chenglou/pretext"
 ```
+Run the detected install command. Then use standard imports in the component.
 
-Use `$_IMAGES` in the `$D compare --images` command.
+### HTML Generation
 
-## Step 4: Comparison Board + Feedback Loop
+Write a single file using the Write tool. Save to:
+`~/.gstack/projects/$SLUG/designs/<screen-name>-YYYYMMDD/finalized.html`
 
-### Comparison Board + Feedback Loop
+For framework output, save to:
+`~/.gstack/projects/$SLUG/designs/<screen-name>-YYYYMMDD/finalized.[tsx|svelte|vue]`
 
-Create the comparison board and serve it over HTTP:
+**Always include in vanilla HTML:**
+- Pretext source (inlined or CDN, see above)
+- CSS custom properties for design tokens from DESIGN.md / Step 1 extraction
+- Google Fonts via `<link>` tags + `document.fonts.ready` gate before first `prepare()`
+- Semantic HTML5 (`<header>`, `<nav>`, `<main>`, `<section>`, `<footer>`)
+- Responsive behavior via Pretext relayout (not just media queries)
+- Breakpoint-specific adjustments at 375px, 768px, 1024px, 1440px
+- ARIA attributes, heading hierarchy, focus-visible states
+- `contenteditable` on text elements + MutationObserver to re-prepare + re-layout on edit
+- ResizeObserver on containers to re-layout on resize
+- `prefers-color-scheme` media query for dark mode
+- `prefers-reduced-motion` for animation respect
+- Real content extracted from the mockup (never lorem ipsum)
 
-```bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
-```
+**Never include (AI slop blacklist):**
+- Purple/blue gradients as default
+- Generic 3-column feature grids
+- Center-everything layouts with no visual hierarchy
+- Decorative blobs, waves, or geometric patterns not in the mockup
+- Stock photo placeholder divs
+- "Get Started" / "Learn More" generic CTAs not from the mockup
+- Rounded-corner cards with drop shadows as the default component
+- Emoji as visual elements
+- Generic testimonial sections
+- Cookie-cutter hero sections with left-text right-image
 
-This command generates the board HTML, starts an HTTP server on a random port,
-and opens it in the user's default browser. **Run it in the background** with `&`
-because the agent needs to keep running while the user interacts with the board.
+### Pretext Wiring Patterns
 
-**IMPORTANT: Reading feedback via file polling (not stdout):**
+Use these patterns based on the tier selected in Step 2. These are the correct
+Pretext API usage patterns. Follow them exactly.
 
-The server writes feedback to files next to the board HTML. The agent polls for these:
-- `$_DESIGN_DIR/feedback.json` — written when user clicks Submit (final choice)
-- `$_DESIGN_DIR/feedback-pending.json` — written when user clicks Regenerate/Remix/More Like This
+**Pattern 1: Basic height computation (Simple layout, Card/grid)**
+```js
+import { prepare, layout } from './pretext-inline.js'
+// Or if inlined: const { prepare, layout } = window.Pretext
 
-**Polling loop** (run after launching `$D serve` in background):
+// 1. PREPARE — one-time, after fonts load
+await document.fonts.ready
+const elements = document.querySelectorAll('[data-pretext]')
+const prepared = new Map()
 
-```bash
-# Poll for feedback files every 5 seconds (up to 10 minutes)
-for i in $(seq 1 120); do
-  if [ -f "$_DESIGN_DIR/feedback.json" ]; then
-    echo "SUBMIT_RECEIVED"
-    cat "$_DESIGN_DIR/feedback.json"
-    break
-  elif [ -f "$_DESIGN_DIR/feedback-pending.json" ]; then
-    echo "REGENERATE_RECEIVED"
-    cat "$_DESIGN_DIR/feedback-pending.json"
-    rm "$_DESIGN_DIR/feedback-pending.json"
-    break
-  fi
-  sleep 5
-done
-```
+for (const el of elements) {
+  const text = el.textContent
+  const font = getComputedStyle(el).font
+  prepared.set(el, prepare(text, font))
+}
 
-The feedback JSON has this shape:
-```json
-{
-  "preferred": "A",
-  "ratings": { "A": 4, "B": 3, "C": 2 },
-  "comments": { "A": "Love the spacing" },
-  "overall": "Go with A, bigger CTA",
-  "regenerated": false
+// 2. LAYOUT — cheap, call on every resize
+function relayout() {
+  for (const [el, handle] of prepared) {
+    const { height } = layout(handle, el.clientWidth, parseFloat(getComputedStyle(el).lineHeight))
+    el.style.height = `${height}px`
+  }
+}
+
+// 3. RESIZE-AWARE
+new ResizeObserver(() => relayout()).observe(document.body)
+relayout()
+
+// 4. CONTENT-EDITABLE — re-prepare when text changes
+for (const el of elements) {
+  if (el.contentEditable === 'true') {
+    new MutationObserver(() => {
+      const font = getComputedStyle(el).font
+      prepared.set(el, prepare(el.textContent, font))
+      relayout()
+    }).observe(el, { characterData: true, subtree: true, childList: true })
+  }
 }
 ```
 
-**If `feedback-pending.json` found (`"regenerated": true`):**
-1. Read `regenerateAction` from the JSON (`"different"`, `"match"`, `"more_like_B"`,
-   `"remix"`, or custom text)
-2. If `regenerateAction` is `"remix"`, read `remixSpec` (e.g. `{"layout":"A","colors":"B"}`)
-3. Generate new variants with `$D iterate` or `$D variants` using updated brief
-4. Create new board: `$D compare --images "..." --output "$_DESIGN_DIR/design-board.html"`
-5. Parse the port from the `$D serve` stderr output (`SERVE_STARTED: port=XXXXX`),
-   then reload the board in the user's browser (same tab):
-   `curl -s -X POST http://127.0.0.1:PORT/api/reload -H 'Content-Type: application/json' -d '{"html":"$_DESIGN_DIR/design-board.html"}'`
-6. The board auto-refreshes. **Poll again** for the next feedback file.
-7. Repeat until `feedback.json` appears (user clicked Submit).
+**Pattern 2: Shrinkwrap / tight-fit containers (Chat bubbles)**
+```js
+import { prepareWithSegments, walkLineRanges } from './pretext-inline.js'
 
-**If `feedback.json` found (`"regenerated": false`):**
-1. Read `preferred`, `ratings`, `comments`, `overall` from the JSON
-2. Proceed with the approved variant
-
-**If `$D serve` fails or no feedback within 10 minutes:** Fall back to AskUserQuestion:
-"I've opened the design board. Which variant do you prefer? Any feedback?"
-
-**After receiving feedback (any path):** Output a clear summary confirming
-what was understood:
-
-"Here's what I understood from your feedback:
-PREFERRED: Variant [X]
-RATINGS: [list]
-YOUR NOTES: [comments]
-DIRECTION: [overall]
-
-Is this right?"
-
-Use AskUserQuestion to verify before proceeding.
-
-**Save the approved choice:**
-```bash
-echo '{"approved_variant":"<V>","feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+// Find the tightest width that produces the same line count
+function shrinkwrap(text, font, maxWidth, lineHeight) {
+  const segs = prepareWithSegments(text, font)
+  let bestWidth = maxWidth
+  walkLineRanges(segs, maxWidth, (lineCount, startIdx, endIdx) => {
+    // walkLineRanges calls back with progressively narrower widths
+    // The first call gives us the line count at maxWidth
+    // We want the narrowest width that still produces this line count
+  })
+  // Binary search for tightest width with same line count
+  const { lineCount: targetLines } = layout(prepare(text, font), maxWidth, lineHeight)
+  let lo = 0, hi = maxWidth
+  while (hi - lo > 1) {
+    const mid = (lo + hi) / 2
+    const { lineCount } = layout(prepare(text, font), mid, lineHeight)
+    if (lineCount === targetLines) hi = mid
+    else lo = mid
+  }
+  return hi
+}
 ```
 
-## Step 5: Feedback Confirmation
+**Pattern 3: Text around obstacles (Editorial layout)**
+```js
+import { prepareWithSegments, layoutNextLine } from './pretext-inline.js'
 
-After receiving feedback (via HTTP POST or AskUserQuestion fallback), output a clear
-summary confirming what was understood:
+function layoutAroundObstacles(text, font, containerWidth, lineHeight, obstacles) {
+  const segs = prepareWithSegments(text, font)
+  let state = null
+  let y = 0
+  const lines = []
 
-"Here's what I understood from your feedback:
+  while (true) {
+    // Calculate available width at current y position, accounting for obstacles
+    let availWidth = containerWidth
+    for (const obs of obstacles) {
+      if (y >= obs.top && y < obs.top + obs.height) {
+        availWidth -= obs.width
+      }
+    }
 
-PREFERRED: Variant [X]
-RATINGS: A: 4/5, B: 3/5, C: 2/5
-YOUR NOTES: [full text of per-variant and overall comments]
-DIRECTION: [regenerate action if any]
+    const result = layoutNextLine(segs, state, availWidth, lineHeight)
+    if (!result) break
 
-Is this right?"
+    lines.push({ text: result.text, width: result.width, x: 0, y })
+    state = result.state
+    y += lineHeight
+  }
 
-Use AskUserQuestion to confirm before saving.
+  return { lines, totalHeight: y }
+}
+```
 
-## Step 6: Save & Next Steps
+**Pattern 4: Full line-by-line rendering (Complex editorial)**
+```js
+import { prepareWithSegments, layoutWithLines } from './pretext-inline.js'
 
-Write `approved.json` to `$_DESIGN_DIR/` (handled by the loop above).
+const segs = prepareWithSegments(text, font)
+const { lines, height } = layoutWithLines(segs, containerWidth, lineHeight)
 
-If invoked from another skill: return the structured feedback for that skill to consume.
-The calling skill reads `approved.json` and the approved variant PNG.
+// lines = [{ text, width, x, y }, ...]
+// Use for Canvas/SVG rendering or custom DOM positioning
+for (const line of lines) {
+  const span = document.createElement('span')
+  span.textContent = line.text
+  span.style.position = 'absolute'
+  span.style.left = `${line.x}px`
+  span.style.top = `${line.y}px`
+  container.appendChild(span)
+}
+```
 
-If standalone, offer next steps via AskUserQuestion:
+### Pretext API Reference
 
-> "Design direction locked in. What's next?
-> A) Iterate more — refine the approved variant with specific feedback
-> B) Finalize — generate production Pretext-native HTML/CSS with /design-html
-> C) Save to plan — add this as an approved mockup reference in the current plan
-> D) Done — I'll use this later"
+```
+PRETEXT API CHEATSHEET:
+
+prepare(text, font) → handle
+  One-time text measurement. Call after document.fonts.ready.
+  Font: CSS shorthand like '16px Inter' or 'bold 24px Georgia'.
+
+layout(prepared, maxWidth, lineHeight) → { height, lineCount }
+  Fast layout computation. Call on every resize. Sub-millisecond.
+
+prepareWithSegments(text, font) → handle
+  Like prepare() but enables line-level APIs below.
+
+layoutWithLines(segs, maxWidth, lineHeight) → { lines: [{text, width, x, y}...], height }
+  Full line-by-line breakdown. For Canvas/SVG rendering.
+
+walkLineRanges(segs, maxWidth, onLine) → void
+  Calls onLine(lineCount, startIdx, endIdx) for each possible layout.
+  Find minimum width for N lines. For tight-fit containers.
+
+layoutNextLine(segs, state, maxWidth, lineHeight) → { text, width, state } | null
+  Iterator. Different maxWidth per line = text around obstacles.
+  Pass null as initial state. Returns null when text is exhausted.
+
+clearCache() → void
+  Clears internal measurement caches. Use when cycling many fonts.
+
+setLocale(locale?) → void
+  Retargets word segmenter for future prepare() calls.
+```
+
+---
+
+## Step 3.5: Live Reload Server
+
+After writing the HTML file, start a simple HTTP server for live preview:
+
+```bash
+# Start a simple HTTP server in the output directory
+_OUTPUT_DIR=$(dirname <path-to-finalized.html>)
+cd "$_OUTPUT_DIR"
+python3 -m http.server 0 --bind 127.0.0.1 &
+_SERVER_PID=$!
+_PORT=$(lsof -i -P -n | grep "$_SERVER_PID" | grep LISTEN | awk '{print $9}' | cut -d: -f2 | head -1)
+echo "SERVER: http://localhost:$_PORT/finalized.html"
+echo "PID: $_SERVER_PID"
+```
+
+If python3 is not available, fall back to:
+```bash
+open <path-to-finalized.html>
+```
+
+Tell the user: "Live preview running at http://localhost:$_PORT/finalized.html.
+After each edit, just refresh the browser (Cmd+R) to see changes."
+
+When the refinement loop ends (Step 4 exits), kill the server:
+```bash
+kill $_SERVER_PID 2>/dev/null || true
+```
+
+---
+
+## Step 4: Preview + Refinement Loop
+
+### Verification Screenshots
+
+If `$B` is available (browse binary), take verification screenshots at 3 viewports:
+
+```bash
+$B goto "file://<path-to-finalized.html>"
+$B screenshot /tmp/gstack-verify-mobile.png --width 375
+$B screenshot /tmp/gstack-verify-tablet.png --width 768
+$B screenshot /tmp/gstack-verify-desktop.png --width 1440
+```
+
+Show all three screenshots inline using the Read tool. Check for:
+- Text overflow (text cut off or extending beyond containers)
+- Layout collapse (elements overlapping or missing)
+- Responsive breakage (content not adapting to viewport)
+
+If issues are found, note them and fix before presenting to the user.
+
+If `$B` is not available, skip verification and note:
+"Browse binary not available. Skipping automated viewport verification."
+
+### Refinement Loop
+
+```
+LOOP:
+  1. If server is running, tell user to open http://localhost:PORT/finalized.html
+     Otherwise: open <path>/finalized.html
+
+  2. Show approved mockup PNG inline (Read tool) for visual comparison
+
+  3. AskUserQuestion:
+     "The HTML is live in your browser. Here's the approved mockup for comparison.
+      Try: resize the window (text should reflow dynamically),
+      click any text (it's editable, layout recomputes instantly).
+      What needs to change? Say 'done' when satisfied."
+
+  4. If "done" / "ship it" / "looks good" / "perfect" → exit loop, go to Step 5
+
+  5. Apply feedback using targeted Edit tool changes on the HTML file
+     (do NOT regenerate the entire file — surgical edits only)
+
+  6. Brief summary of what changed (2-3 lines max)
+
+  7. If verification screenshots are available, re-take them to confirm the fix
+
+  8. Go to LOOP
+```
+
+Maximum 10 iterations. If the user hasn't said "done" after 10, use AskUserQuestion:
+"We've done 10 rounds of refinement. Want to continue iterating or call it done?"
+
+---
+
+## Step 5: Save & Next Steps
+
+### Design Token Extraction
+
+If no `DESIGN.md` exists in the repo root, offer to create one from the generated HTML:
+
+Extract from the HTML:
+- CSS custom properties (colors, spacing, font sizes)
+- Font families and weights used
+- Color palette (primary, secondary, accent, neutral)
+- Spacing scale
+- Border radius values
+- Shadow values
+
+Use AskUserQuestion:
+> No DESIGN.md found. I can extract the design tokens from the HTML we just built
+> and create a DESIGN.md for your project. This means future /design-shotgun and
+> /design-html runs will be style-consistent automatically.
+> A) Create DESIGN.md from these tokens
+> B) Skip — I'll handle the design system later
+
+If A: write `DESIGN.md` to the repo root with the extracted tokens.
+
+### Save Metadata
+
+Write `finalized.json` alongside the HTML:
+```json
+{
+  "source_mockup": "<approved variant PNG path>",
+  "html_file": "<path to finalized.html or component file>",
+  "pretext_tier": "<selected tier>",
+  "framework": "<vanilla|react|svelte|vue>",
+  "iterations": <number of refinement iterations>,
+  "date": "<ISO 8601>",
+  "screen": "<screen name from approved.json>",
+  "branch": "<current branch>"
+}
+```
+
+### Next Steps
+
+Use AskUserQuestion:
+> Design finalized with Pretext-native layout. What's next?
+> A) Copy to project — copy the HTML/component into your codebase
+> B) Iterate more — keep refining
+> C) Done — I'll use this as a reference
+
+---
 
 ## Important Rules
 
-1. **Never save to `.context/`, `docs/designs/`, or `/tmp/`.** All design artifacts go
-   to `~/.gstack/projects/$SLUG/designs/`. This is enforced. See DESIGN_SETUP above.
-2. **Show variants inline before opening the board.** The user should see designs
-   immediately in their terminal. The browser board is for detailed feedback.
-3. **Confirm feedback before saving.** Always summarize what you understood and verify.
-4. **Taste memory is automatic.** Prior approved designs inform new generations by default.
-5. **Two rounds max on context gathering.** Don't over-interrogate. Proceed with assumptions.
-6. **DESIGN.md is the default constraint.** Unless the user says otherwise.
+- **Mockup fidelity over code elegance.** If pixel-matching the approved mockup requires
+  `width: 312px` instead of a CSS grid class, that's correct. The mockup is the source
+  of truth. Code cleanup happens later during component extraction.
+
+- **Always use Pretext for text layout.** Even if the design looks simple, Pretext
+  ensures correct height computation on resize. The overhead is 30KB. Every page benefits.
+
+- **Surgical edits in the refinement loop.** Use the Edit tool to make targeted changes,
+  not the Write tool to regenerate the entire file. The user may have made manual edits
+  via contenteditable that should be preserved.
+
+- **Real content only.** Extract text from the approved mockup. Never use "Lorem ipsum",
+  "Your text here", or placeholder content.
+
+- **One page per invocation.** For multi-page designs, run /design-html once per page.
+  Each run produces one HTML file.

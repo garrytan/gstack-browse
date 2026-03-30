@@ -1278,10 +1278,18 @@ After displaying the Review Readiness Dashboard, recommend the next review(s) ba
 
 **If both are needed, recommend eng review first** (required gate).
 
+**Recommend design exploration skills when appropriate** — /design-shotgun and /design-html
+produce design artifacts (mockups, HTML previews), not application code. They belong in
+plan mode alongside reviews. If this design review found visual issues that would benefit
+from exploring new directions, recommend /design-shotgun. If approved mockups exist and
+need to be turned into working HTML, recommend /design-html.
+
 Use AskUserQuestion to present the next step. Include only applicable options:
 - **A)** Run /plan-eng-review next (required gate)
 - **B)** Run /plan-ceo-review (only if fundamental product gaps found)
-- **C)** Skip — I'll handle reviews manually
+- **C)** Run /design-shotgun — explore visual design variants for issues found
+- **D)** Run /design-html — generate Pretext-native HTML from approved mockups
+- **E)** Skip — I'll handle next steps manually
 
 ## Formatting Rules
 * NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).

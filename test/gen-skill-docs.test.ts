@@ -586,10 +586,12 @@ describe('REVIEW_DASHBOARD resolver', () => {
     expect(content).toContain('/plan-ceo-review');
   });
 
-  test('plan-design-review chaining mentions eng and ceo reviews', () => {
+  test('plan-design-review chaining mentions eng, ceo, and design skills', () => {
     const content = fs.readFileSync(path.join(ROOT, 'plan-design-review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('/plan-eng-review');
     expect(content).toContain('/plan-ceo-review');
+    expect(content).toContain('/design-shotgun');
+    expect(content).toContain('/design-html');
   });
 
   test('ship does NOT contain review chaining', () => {

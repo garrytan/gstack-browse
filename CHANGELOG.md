@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.14.0.0] - 2026-03-30 — Design to Code
+
+You can now go from an approved design mockup to production-quality HTML with one command. `/design-html` takes the winning design from `/design-shotgun` and generates Pretext-native HTML where text actually reflows on resize, heights adjust to content, and layouts are dynamic. No more hardcoded CSS heights or broken text overflow.
+
+### Added
+
+- **`/design-html` skill.** Takes an approved mockup from `/design-shotgun` and generates self-contained HTML with Pretext for computed text layout. Smart API routing picks the right Pretext patterns for each design type (simple layouts, card grids, chat bubbles, editorial spreads). Includes a refinement loop where you preview in browser, give feedback, and iterate until it's right.
+- **Pretext vendored.** 30KB Pretext source bundled in `design-html/vendor/pretext.js` for offline, zero-dependency HTML output. Framework output (React/Svelte/Vue) uses npm install instead.
+- **Design pipeline chaining.** `/design-shotgun` Step 6 now offers `/design-html` as the next step. `/design-consultation` suggests it after producing screen-level designs. `/plan-design-review` chains to both `/design-shotgun` and `/design-html` alongside review skills.
+
+### Changed
+
+- **`/plan-design-review` next steps expanded.** Previously only chained to other review skills. Now also offers `/design-shotgun` (explore variants) and `/design-html` (generate HTML from approved mockups).
+
+## [0.13.10.0] - 2026-03-29 — Office Hours Gets a Reading List
+
+Repeat /office-hours users now get fresh, curated resources every session instead of the same YC closing. 34 hand-picked videos and essays from Garry Tan, Lightcone Podcast, YC Startup School, and Paul Graham, contextually matched to what came up during the session. The system remembers what it already showed you, so you never see the same recommendation twice.
+
+### Added
+
+- **Rotating founder resources in /office-hours closing.** 34 curated resources across 5 categories (Garry Tan videos, YC Backstory, Lightcone Podcast, YC Startup School, Paul Graham essays). Claude picks 2-3 per session based on session context, not randomly.
+- **Resource dedup log.** Tracks which resources were shown in `~/.gstack/projects/$SLUG/resources-shown.jsonl` so repeat users always see fresh content.
+- **Resource selection analytics.** Logs which resources get picked to `skill-usage.jsonl` so you can see patterns over time.
+- **Browser-open offer.** After showing resources, offers to open them in your browser so you can check them out later.
+
+### Fixed
+
+- **Build script chmod safety net.** `bun build --compile` output now gets `chmod +x` explicitly, preventing "permission denied" errors when binaries lose execute permission during workspace cloning or file transfer.
+
 ## [0.13.9.0] - 2026-03-29 — Composable Skills
 
 Skills can now load other skills inline. Write `{{INVOKE_SKILL:office-hours}}` in a template and the generator emits the right "read file, skip preamble, follow instructions" prose automatically. Handles host-aware paths and customizable skip lists.
