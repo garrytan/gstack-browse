@@ -282,9 +282,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // Token delivered via targeted sendResponse, not broadcast — limits exposure
+  // Token delivered via targeted sendResponse, not broadcast — limits exposure.
+  // Only respond to extension pages (sidepanel/popup) — content scripts have
+  // sender.tab set, so reject those to prevent token access from injected contexts.
   if (msg.type === 'getToken') {
-    sendResponse({ token: authToken });
+    if (sender.tab) {
+      console.warn('[gstack] Rejected getToken from content script context');
+      sendResponse({ token: null });
+    } else {
+      sendResponse({ token: authToken });
+    }
     return true;
   }
 

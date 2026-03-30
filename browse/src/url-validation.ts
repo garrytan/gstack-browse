@@ -18,9 +18,14 @@ const BLOCKED_IPV6_PREFIXES = ['fc', 'fd'];
 /**
  * Check if an IPv6 address falls within a blocked prefix range.
  * Handles the full ULA range (fc00::/7) — not just the exact literal fd00::.
+ * Only matches actual IPv6 addresses (must contain ':'), not hostnames
+ * like fd.example.com or fcustomer.com.
  */
 function isBlockedIpv6(addr: string): boolean {
   const normalized = addr.toLowerCase().replace(/^\[|\]$/g, '');
+  // Must contain a colon to be an IPv6 address — avoids false positives on
+  // hostnames like fd.example.com or fcustomer.com
+  if (!normalized.includes(':')) return false;
   return BLOCKED_IPV6_PREFIXES.some(prefix => normalized.startsWith(prefix));
 }
 

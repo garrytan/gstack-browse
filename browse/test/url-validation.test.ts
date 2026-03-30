@@ -78,6 +78,14 @@ describe('validateNavigationUrl', () => {
     await expect(validateNavigationUrl('http://[fc00::]/')).rejects.toThrow(/cloud metadata/i);
   });
 
+  it('does not block hostnames starting with fd (e.g. fd.example.com)', async () => {
+    await expect(validateNavigationUrl('https://fd.example.com/')).resolves.toBeUndefined();
+  });
+
+  it('does not block hostnames starting with fc (e.g. fcustomer.com)', async () => {
+    await expect(validateNavigationUrl('https://fcustomer.com/')).resolves.toBeUndefined();
+  });
+
   it('throws on malformed URLs', async () => {
     await expect(validateNavigationUrl('not-a-url')).rejects.toThrow(/Invalid URL/i);
   });
