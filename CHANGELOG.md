@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.3.0] - 2026-03-30 — Preview Deploy + Browser Verification in /ship
+
+`/ship` now deploys a preview build and browses it before creating the PR. If your project has deploy config (set up with `/setup-deploy`), the ship workflow automatically deploys a preview, detects which routes your branch changed, and verifies them in a headless browser. Results go into the PR body so reviewers can see what was verified. If anything failed, the PR gets a NEEDS ATTENTION banner at the top.
+
+### Added
+
+- **Preview deploy step (Step 7.5).** After pushing, `/ship` reads the `## Deploy` section from CLAUDE.md, runs the deploy command, captures the preview URL, and polls a health check. Supports Vercel, Netlify, and generic deploy CLIs. Non-blocking... if deploy fails, ship continues and notes it in the PR body.
+- **Targeted browser verification (Step 7.75).** Detects which routes changed from the diff (Next.js App Router, Pages, SvelteKit, Nuxt, API routes, component tracing), dispatches a browse subagent to check each one on the preview URL, and produces a PASS/FAIL table. Capped at 5 routes and 3 minutes.
+- **Conditional NEEDS ATTENTION banner.** PRs now get a banner at the top when there are unresolved items: skipped review findings, browser verification failures, overridden coverage gates, or deferred plan items. Clean ships just show the PR URL.
+- **Preview + verification in PR body.** Two new sections in the PR body: Preview Deployment (URL + health check result) and Browser Verification (the PASS/FAIL route table).
+- **Ship metrics tracking.** `preview_deploy` and `browser_verify` results are now logged to the ship metrics JSONL for `/retro` trend tracking.
+
+### Changed
+
+- Ship description updated to mention preview deploy and browser verify.
+- "Never stop for" list expanded to include preview deploy failures and browser verification failures.
+
 ## [0.14.2.0] - 2026-03-30 — Sidebar CSS Inspector + Per-Tab Agents
 
 The sidebar is now a visual design tool. Pick any element on the page and see the full CSS rule cascade, box model, and computed styles right in the Side Panel. Edit styles live and see changes instantly. Each browser tab gets its own independent agent, so you can work on multiple pages simultaneously without cross-talk. Cleanup is LLM-powered... the agent snapshots the page, understands it semantically, and removes the junk while keeping the site's identity.
