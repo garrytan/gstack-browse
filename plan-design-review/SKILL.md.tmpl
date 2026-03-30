@@ -9,7 +9,7 @@ description: |
   visual audits, use /design-review. Use when asked to "review the design plan"
   or "design critique".
   Proactively suggest when the user has a plan with UI/UX components that
-  should be reviewed before implementation.
+  should be reviewed before implementation. (gstack)
 allowed-tools:
   - Read
   - Edit
