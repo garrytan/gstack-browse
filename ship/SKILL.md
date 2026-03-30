@@ -5,8 +5,9 @@ version: 1.0.0
 description: |
   Ship workflow: detect + merge base branch, run tests, review diff, bump VERSION,
   update CHANGELOG, commit, push, create PR. Use when asked to "ship", "deploy",
-  "push to main", "create a PR", or "merge and push".
-  Proactively suggest when the user says code is ready or asks about deploying. (gstack)
+  "push to main", "create a PR", "merge and push", or "get it deployed".
+  Proactively invoke this skill (do NOT push/PR directly) when the user says code
+  is ready, asks about deploying, wants to push code up, or asks to create a PR. (gstack)
 allowed-tools:
   - Bash
   - Read
@@ -73,6 +74,14 @@ if [ -f "$_LEARN_FILE" ]; then
 else
   echo "LEARNINGS: 0"
 fi
+# Check if CLAUDE.md has routing rules
+_HAS_ROUTING="no"
+if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
+  _HAS_ROUTING="yes"
+fi
+_ROUTING_DECLINED=$(~/.claude/skills/gstack/bin/gstack-config get routing_declined 2>/dev/null || echo "false")
+echo "HAS_ROUTING: $_HAS_ROUTING"
+echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
 ```
 
 If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills AND do not
@@ -153,6 +162,49 @@ touch ~/.gstack/.proactive-prompted
 ```
 
 This only happens once. If `PROACTIVE_PROMPTED` is `yes`, skip this entirely.
+
+If `HAS_ROUTING` is `no` AND `ROUTING_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
+Check if a CLAUDE.md file exists in the project root. If it does not exist, create it.
+
+Use AskUserQuestion:
+
+> gstack works best when your project's CLAUDE.md includes skill routing rules.
+> This tells Claude to use specialized workflows (like /ship, /investigate, /qa)
+> instead of answering directly. It's a one-time addition, about 15 lines.
+
+Options:
+- A) Add routing rules to CLAUDE.md (recommended)
+- B) No thanks, I'll invoke skills manually
+
+If A: Append this section to the end of CLAUDE.md:
+
+```markdown
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+```
+
+Then commit the change: `git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"`
+
+If B: run `~/.claude/skills/gstack/bin/gstack-config set routing_declined true`
+Say "No problem. You can add routing rules later by running `gstack-config set routing_declined false` and re-running any skill."
+
+This only happens once per project. If `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`, skip this entirely.
 
 ## Voice
 
@@ -1721,7 +1773,7 @@ already knows. A good test: would this insight save time in a future session? If
 
 ---
 
-## Step 5: CHANGELOG (auto-generate)
+## CHANGELOG (auto-generate)
 
 1. Read `CHANGELOG.md` header to know the format.
 
@@ -1754,6 +1806,7 @@ already knows. A good test: would this insight save time in a future session? If
    - Write concise, descriptive bullet points
    - Insert after the file header (line 5), dated today
    - Format: `## [X.Y.Z.W] - YYYY-MM-DD`
+   - **Voice:** Lead with what the user can now **do** that they couldn't before. Use plain language, not implementation details. Never mention TODOS.md, internal tracking, or contributor-facing details.
 
 6. **Cross-check:** Compare your CHANGELOG entry against the commit list from step 2.
    Every commit must map to at least one bullet point. If any commit is unrepresented,

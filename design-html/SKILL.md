@@ -1,19 +1,24 @@
 ---
-name: qa-only
-preamble-tier: 4
+name: design-html
+preamble-tier: 2
 version: 1.0.0
 description: |
-  Report-only QA testing. Systematically tests a web application and produces a
-  structured report with health score, screenshots, and repro steps — but never
-  fixes anything. Use when asked to "just report bugs", "qa report only", or
-  "test but don't fix". For the full test-fix-verify loop, use /qa instead.
-  Proactively suggest when the user wants a bug report without any code changes. (gstack)
+  Design finalization: takes an approved AI mockup from /design-shotgun and
+  generates production-quality Pretext-native HTML/CSS. Text actually reflows,
+  heights are computed, layouts are dynamic. 30KB overhead, zero deps.
+  Smart API routing: picks the right Pretext patterns for each design type.
+  Use when: "finalize this design", "turn this mockup into HTML", "implement
+  this design", or after /design-shotgun approves a direction.
+  Proactively suggest when user has approved a design in /design-shotgun. (gstack)
 allowed-tools:
   - Bash
   - Read
   - Write
+  - Edit
+  - Glob
+  - Grep
+  - Agent
   - AskUserQuestion
-  - WebSearch
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -49,7 +54,7 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"qa-only","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+  echo '{"skill":"design-html","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -275,24 +280,6 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
-## Repo Ownership — See Something, Say Something
-
-`REPO_MODE` controls how to handle issues outside your branch:
-- **`solo`** — You own everything. Investigate and offer to fix proactively.
-- **`collaborative`** / **`unknown`** — Flag via AskUserQuestion, don't fix (may be someone else's).
-
-Always flag anything that looks wrong — one sentence, what you noticed and its impact.
-
-## Search Before Building
-
-Before building anything unfamiliar, **search first.** See `~/.claude/skills/gstack/ETHOS.md`.
-- **Layer 1** (tried and true) — don't reinvent. **Layer 2** (new and popular) — scrutinize. **Layer 3** (first principles) — prize above all.
-
-**Eureka:** When first-principles reasoning contradicts conventional wisdom, name it and log:
-```bash
-jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
-```
-
 ## Contributor Mode
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
@@ -407,25 +394,55 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /qa-only: Report-Only QA Testing
+# /design-html: Pretext-Native HTML Engine
 
-You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence. **NEVER fix anything.**
+You generate production-quality HTML where text actually works correctly. Not CSS
+approximations. Computed layout via Pretext. Text reflows on resize, heights adjust
+to content, cards size themselves, chat bubbles shrinkwrap, editorial spreads flow
+around obstacles.
 
-## Setup
+## DESIGN SETUP (run this check BEFORE any design mockup command)
 
-**Parse the user's request for these parameters:**
+```bash
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+D=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/design/dist/design" ] && D="$_ROOT/.claude/skills/gstack/design/dist/design"
+[ -z "$D" ] && D=~/.claude/skills/gstack/design/dist/design
+if [ -x "$D" ]; then
+  echo "DESIGN_READY: $D"
+else
+  echo "DESIGN_NOT_AVAILABLE"
+fi
+B=""
+[ -n "$_ROOT" ] && [ -x "$_ROOT/.claude/skills/gstack/browse/dist/browse" ] && B="$_ROOT/.claude/skills/gstack/browse/dist/browse"
+[ -z "$B" ] && B=~/.claude/skills/gstack/browse/dist/browse
+if [ -x "$B" ]; then
+  echo "BROWSE_READY: $B"
+else
+  echo "BROWSE_NOT_AVAILABLE (will use 'open' to view comparison boards)"
+fi
+```
 
-| Parameter | Default | Override example |
-|-----------|---------|-----------------:|
-| Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
-| Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
-| Scope | Full app (or diff-scoped) | `Focus on the billing page` |
-| Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
+If `DESIGN_NOT_AVAILABLE`: skip visual mockup generation and fall back to the
+existing HTML wireframe approach (`DESIGN_SKETCH`). Design mockups are a
+progressive enhancement, not a hard requirement.
 
-**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
+If `BROWSE_NOT_AVAILABLE`: use `open file://...` instead of `$B goto` to open
+comparison boards. The user just needs to see the HTML file in any browser.
 
-**Find the browse binary:**
+If `DESIGN_READY`: the design binary is available for visual mockup generation.
+Commands:
+- `$D generate --brief "..." --output /path.png` — generate a single mockup
+- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
+- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
+- `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
+- `$D check --image /path.png --brief "..."` — vision quality gate
+- `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
+
+**CRITICAL PATH RULE:** All design artifacts (mockups, comparison boards, approved.json)
+MUST be saved to `~/.gstack/projects/$SLUG/designs/`, NEVER to `.context/`,
+`docs/designs/`, `/tmp/`, or any project-local directory. Design artifacts are USER
+data, not project files. They persist across branches, conversations, and workspaces.
 
 ## SETUP (run this check BEFORE any browse command)
 
@@ -463,340 +480,475 @@ If `NEEDS_SETUP`:
    fi
    ```
 
-**Create output directories:**
+---
+
+## Step 0: Input Detection
 
 ```bash
-REPORT_DIR=".gstack/qa-reports"
-mkdir -p "$REPORT_DIR/screenshots"
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+```
+
+1. Find the most recent `approved.json`:
+```bash
+setopt +o nomatch 2>/dev/null || true
+ls -t ~/.gstack/projects/$SLUG/designs/*/approved.json 2>/dev/null | head -1
+```
+
+2. If found, read it. Extract: approved variant PNG path, user feedback, screen name.
+
+3. Read `DESIGN.md` if it exists in the repo root. These tokens take priority for
+   system-level values (fonts, brand colors, spacing scale).
+
+4. **Evolve mode:** Check for prior output:
+```bash
+setopt +o nomatch 2>/dev/null || true
+ls -t ~/.gstack/projects/$SLUG/designs/*/finalized.html 2>/dev/null | head -1
+```
+If a prior `finalized.html` exists, use AskUserQuestion:
+> Found a prior finalized HTML from a previous session. Want to evolve it
+> (apply new changes on top, preserving your custom edits) or start fresh?
+> A) Evolve — iterate on the existing HTML
+> B) Start fresh — regenerate from the approved mockup
+
+If evolve: read the existing HTML. Apply changes on top during Step 3.
+If fresh: proceed normally.
+
+5. If no `approved.json` found, use AskUserQuestion:
+> No approved design found. You need a mockup first.
+> A) Run /design-shotgun — explore design variants and approve one
+> B) I have a PNG — let me provide the path
+
+If B: accept a PNG file path from the user and proceed with that as the reference.
+
+---
+
+## Step 1: Design Analysis
+
+1. If `$D` is available (`DESIGN_READY`), extract a structured implementation spec:
+```bash
+$D prompt --image <approved-variant.png> --output json
+```
+This returns colors, typography, layout structure, and component inventory via GPT-4o vision.
+
+2. If `$D` is not available, read the approved PNG inline using the Read tool.
+   Describe the visual layout, colors, typography, and component structure yourself.
+
+3. Read `DESIGN.md` tokens. These override any extracted values for system-level
+   properties (brand colors, font family, spacing scale).
+
+4. Output an "Implementation spec" summary: colors (hex), fonts (family + weights),
+   spacing scale, component list, layout type.
+
+---
+
+## Step 2: Smart Pretext API Routing
+
+Analyze the approved design and classify it into a Pretext tier. Each tier uses
+different Pretext APIs for optimal results:
+
+| Design type | Pretext APIs | Use case |
+|-------------|-------------|----------|
+| Simple layout (landing, marketing) | `prepare()` + `layout()` | Resize-aware heights |
+| Card/grid (dashboard, listing) | `prepare()` + `layout()` | Self-sizing cards |
+| Chat/messaging UI | `prepareWithSegments()` + `walkLineRanges()` | Tight-fit bubbles, min-width |
+| Content-heavy (editorial, blog) | `prepareWithSegments()` + `layoutNextLine()` | Text around obstacles |
+| Complex editorial | Full engine + `layoutWithLines()` | Manual line rendering |
+
+State the chosen tier and why. Reference the specific Pretext APIs that will be used.
+
+---
+
+## Step 2.5: Framework Detection
+
+Check if the user's project uses a frontend framework:
+
+```bash
+[ -f package.json ] && cat package.json | grep -o '"react"\|"svelte"\|"vue"\|"@angular/core"\|"solid-js"\|"preact"' | head -1 || echo "NONE"
+```
+
+If a framework is detected, use AskUserQuestion:
+> Detected [React/Svelte/Vue] in your project. What format should the output be?
+> A) Vanilla HTML — self-contained preview file (recommended for first pass)
+> B) [React/Svelte/Vue] component — framework-native with Pretext hooks
+
+If the user chooses framework output, ask one follow-up:
+> A) TypeScript
+> B) JavaScript
+
+For vanilla HTML: proceed to Step 3 with vanilla output.
+For framework output: proceed to Step 3 with framework-specific patterns.
+If no framework detected: default to vanilla HTML, no question needed.
+
+---
+
+## Step 3: Generate Pretext-Native HTML
+
+### Pretext Source Embedding
+
+For **vanilla HTML output**, check for the vendored Pretext bundle:
+```bash
+_PRETEXT_VENDOR=""
+_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+[ -n "$_ROOT" ] && [ -f "$_ROOT/.claude/skills/gstack/design-html/vendor/pretext.js" ] && _PRETEXT_VENDOR="$_ROOT/.claude/skills/gstack/design-html/vendor/pretext.js"
+[ -z "$_PRETEXT_VENDOR" ] && [ -f ~/.claude/skills/gstack/design-html/vendor/pretext.js ] && _PRETEXT_VENDOR=~/.claude/skills/gstack/design-html/vendor/pretext.js
+[ -n "$_PRETEXT_VENDOR" ] && echo "VENDOR: $_PRETEXT_VENDOR" || echo "VENDOR_MISSING"
+```
+
+- If `VENDOR` found: read the file and inline it in a `<script>` tag. The HTML file
+  is fully self-contained with zero network dependencies.
+- If `VENDOR_MISSING`: use CDN import as fallback:
+  `<script type="module">import { prepare, layout, prepareWithSegments, walkLineRanges, layoutNextLine, layoutWithLines } from 'https://esm.sh/@chenglou/pretext'</script>`
+  Add a comment: `<!-- FALLBACK: vendor/pretext.js missing, using CDN -->`
+
+For **framework output**, add to the project's dependencies instead:
+```bash
+# Detect package manager
+[ -f bun.lockb ] && echo "bun add @chenglou/pretext" || \
+[ -f pnpm-lock.yaml ] && echo "pnpm add @chenglou/pretext" || \
+[ -f yarn.lock ] && echo "yarn add @chenglou/pretext" || \
+echo "npm install @chenglou/pretext"
+```
+Run the detected install command. Then use standard imports in the component.
+
+### HTML Generation
+
+Write a single file using the Write tool. Save to:
+`~/.gstack/projects/$SLUG/designs/<screen-name>-YYYYMMDD/finalized.html`
+
+For framework output, save to:
+`~/.gstack/projects/$SLUG/designs/<screen-name>-YYYYMMDD/finalized.[tsx|svelte|vue]`
+
+**Always include in vanilla HTML:**
+- Pretext source (inlined or CDN, see above)
+- CSS custom properties for design tokens from DESIGN.md / Step 1 extraction
+- Google Fonts via `<link>` tags + `document.fonts.ready` gate before first `prepare()`
+- Semantic HTML5 (`<header>`, `<nav>`, `<main>`, `<section>`, `<footer>`)
+- Responsive behavior via Pretext relayout (not just media queries)
+- Breakpoint-specific adjustments at 375px, 768px, 1024px, 1440px
+- ARIA attributes, heading hierarchy, focus-visible states
+- `contenteditable` on text elements + MutationObserver to re-prepare + re-layout on edit
+- ResizeObserver on containers to re-layout on resize
+- `prefers-color-scheme` media query for dark mode
+- `prefers-reduced-motion` for animation respect
+- Real content extracted from the mockup (never lorem ipsum)
+
+**Never include (AI slop blacklist):**
+- Purple/blue gradients as default
+- Generic 3-column feature grids
+- Center-everything layouts with no visual hierarchy
+- Decorative blobs, waves, or geometric patterns not in the mockup
+- Stock photo placeholder divs
+- "Get Started" / "Learn More" generic CTAs not from the mockup
+- Rounded-corner cards with drop shadows as the default component
+- Emoji as visual elements
+- Generic testimonial sections
+- Cookie-cutter hero sections with left-text right-image
+
+### Pretext Wiring Patterns
+
+Use these patterns based on the tier selected in Step 2. These are the correct
+Pretext API usage patterns. Follow them exactly.
+
+**Pattern 1: Basic height computation (Simple layout, Card/grid)**
+```js
+import { prepare, layout } from './pretext-inline.js'
+// Or if inlined: const { prepare, layout } = window.Pretext
+
+// 1. PREPARE — one-time, after fonts load
+await document.fonts.ready
+const elements = document.querySelectorAll('[data-pretext]')
+const prepared = new Map()
+
+for (const el of elements) {
+  const text = el.textContent
+  const font = getComputedStyle(el).font
+  prepared.set(el, prepare(text, font))
+}
+
+// 2. LAYOUT — cheap, call on every resize
+function relayout() {
+  for (const [el, handle] of prepared) {
+    const { height } = layout(handle, el.clientWidth, parseFloat(getComputedStyle(el).lineHeight))
+    el.style.height = `${height}px`
+  }
+}
+
+// 3. RESIZE-AWARE
+new ResizeObserver(() => relayout()).observe(document.body)
+relayout()
+
+// 4. CONTENT-EDITABLE — re-prepare when text changes
+for (const el of elements) {
+  if (el.contentEditable === 'true') {
+    new MutationObserver(() => {
+      const font = getComputedStyle(el).font
+      prepared.set(el, prepare(el.textContent, font))
+      relayout()
+    }).observe(el, { characterData: true, subtree: true, childList: true })
+  }
+}
+```
+
+**Pattern 2: Shrinkwrap / tight-fit containers (Chat bubbles)**
+```js
+import { prepareWithSegments, walkLineRanges } from './pretext-inline.js'
+
+// Find the tightest width that produces the same line count
+function shrinkwrap(text, font, maxWidth, lineHeight) {
+  const segs = prepareWithSegments(text, font)
+  let bestWidth = maxWidth
+  walkLineRanges(segs, maxWidth, (lineCount, startIdx, endIdx) => {
+    // walkLineRanges calls back with progressively narrower widths
+    // The first call gives us the line count at maxWidth
+    // We want the narrowest width that still produces this line count
+  })
+  // Binary search for tightest width with same line count
+  const { lineCount: targetLines } = layout(prepare(text, font), maxWidth, lineHeight)
+  let lo = 0, hi = maxWidth
+  while (hi - lo > 1) {
+    const mid = (lo + hi) / 2
+    const { lineCount } = layout(prepare(text, font), mid, lineHeight)
+    if (lineCount === targetLines) hi = mid
+    else lo = mid
+  }
+  return hi
+}
+```
+
+**Pattern 3: Text around obstacles (Editorial layout)**
+```js
+import { prepareWithSegments, layoutNextLine } from './pretext-inline.js'
+
+function layoutAroundObstacles(text, font, containerWidth, lineHeight, obstacles) {
+  const segs = prepareWithSegments(text, font)
+  let state = null
+  let y = 0
+  const lines = []
+
+  while (true) {
+    // Calculate available width at current y position, accounting for obstacles
+    let availWidth = containerWidth
+    for (const obs of obstacles) {
+      if (y >= obs.top && y < obs.top + obs.height) {
+        availWidth -= obs.width
+      }
+    }
+
+    const result = layoutNextLine(segs, state, availWidth, lineHeight)
+    if (!result) break
+
+    lines.push({ text: result.text, width: result.width, x: 0, y })
+    state = result.state
+    y += lineHeight
+  }
+
+  return { lines, totalHeight: y }
+}
+```
+
+**Pattern 4: Full line-by-line rendering (Complex editorial)**
+```js
+import { prepareWithSegments, layoutWithLines } from './pretext-inline.js'
+
+const segs = prepareWithSegments(text, font)
+const { lines, height } = layoutWithLines(segs, containerWidth, lineHeight)
+
+// lines = [{ text, width, x, y }, ...]
+// Use for Canvas/SVG rendering or custom DOM positioning
+for (const line of lines) {
+  const span = document.createElement('span')
+  span.textContent = line.text
+  span.style.position = 'absolute'
+  span.style.left = `${line.x}px`
+  span.style.top = `${line.y}px`
+  container.appendChild(span)
+}
+```
+
+### Pretext API Reference
+
+```
+PRETEXT API CHEATSHEET:
+
+prepare(text, font) → handle
+  One-time text measurement. Call after document.fonts.ready.
+  Font: CSS shorthand like '16px Inter' or 'bold 24px Georgia'.
+
+layout(prepared, maxWidth, lineHeight) → { height, lineCount }
+  Fast layout computation. Call on every resize. Sub-millisecond.
+
+prepareWithSegments(text, font) → handle
+  Like prepare() but enables line-level APIs below.
+
+layoutWithLines(segs, maxWidth, lineHeight) → { lines: [{text, width, x, y}...], height }
+  Full line-by-line breakdown. For Canvas/SVG rendering.
+
+walkLineRanges(segs, maxWidth, onLine) → void
+  Calls onLine(lineCount, startIdx, endIdx) for each possible layout.
+  Find minimum width for N lines. For tight-fit containers.
+
+layoutNextLine(segs, state, maxWidth, lineHeight) → { text, width, state } | null
+  Iterator. Different maxWidth per line = text around obstacles.
+  Pass null as initial state. Returns null when text is exhausted.
+
+clearCache() → void
+  Clears internal measurement caches. Use when cycling many fonts.
+
+setLocale(locale?) → void
+  Retargets word segmenter for future prepare() calls.
 ```
 
 ---
 
-## Test Plan Context
+## Step 3.5: Live Reload Server
 
-Before falling back to git diff heuristics, check for richer test plan sources:
+After writing the HTML file, start a simple HTTP server for live preview:
 
-1. **Project-scoped test plans:** Check `~/.gstack/projects/` for recent `*-test-plan-*.md` files for this repo
-   ```bash
-   setopt +o nomatch 2>/dev/null || true  # zsh compat
-   eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-   ls -t ~/.gstack/projects/$SLUG/*-test-plan-*.md 2>/dev/null | head -1
-   ```
-2. **Conversation context:** Check if a prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
-3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
+```bash
+# Start a simple HTTP server in the output directory
+_OUTPUT_DIR=$(dirname <path-to-finalized.html>)
+cd "$_OUTPUT_DIR"
+python3 -m http.server 0 --bind 127.0.0.1 &
+_SERVER_PID=$!
+_PORT=$(lsof -i -P -n | grep "$_SERVER_PID" | grep LISTEN | awk '{print $9}' | cut -d: -f2 | head -1)
+echo "SERVER: http://localhost:$_PORT/finalized.html"
+echo "PID: $_SERVER_PID"
+```
+
+If python3 is not available, fall back to:
+```bash
+open <path-to-finalized.html>
+```
+
+Tell the user: "Live preview running at http://localhost:$_PORT/finalized.html.
+After each edit, just refresh the browser (Cmd+R) to see changes."
+
+When the refinement loop ends (Step 4 exits), kill the server:
+```bash
+kill $_SERVER_PID 2>/dev/null || true
+```
 
 ---
 
-## Modes
+## Step 4: Preview + Refinement Loop
 
-### Diff-aware (automatic when on a feature branch with no URL)
+### Verification Screenshots
 
-This is the **primary mode** for developers verifying their work. When the user says `/qa` without a URL and the repo is on a feature branch, automatically:
+If `$B` is available (browse binary), take verification screenshots at 3 viewports:
 
-1. **Analyze the branch diff** to understand what changed:
-   ```bash
-   git diff main...HEAD --name-only
-   git log main..HEAD --oneline
-   ```
+```bash
+$B goto "file://<path-to-finalized.html>"
+$B screenshot /tmp/gstack-verify-mobile.png --width 375
+$B screenshot /tmp/gstack-verify-tablet.png --width 768
+$B screenshot /tmp/gstack-verify-desktop.png --width 1440
+```
 
-2. **Identify affected pages/routes** from the changed files:
-   - Controller/route files → which URL paths they serve
-   - View/template/component files → which pages render them
-   - Model/service files → which pages use those models (check controllers that reference them)
-   - CSS/style files → which pages include those stylesheets
-   - API endpoints → test them directly with `$B js "await fetch('/api/...')"`
-   - Static pages (markdown, HTML) → navigate to them directly
+Show all three screenshots inline using the Read tool. Check for:
+- Text overflow (text cut off or extending beyond containers)
+- Layout collapse (elements overlapping or missing)
+- Responsive breakage (content not adapting to viewport)
 
-   **If no obvious pages/routes are identified from the diff:** Do not skip browser testing. The user invoked /qa because they want browser-based verification. Fall back to Quick mode — navigate to the homepage, follow the top 5 navigation targets, check console for errors, and test any interactive elements found. Backend, config, and infrastructure changes affect app behavior — always verify the app still works.
+If issues are found, note them and fix before presenting to the user.
 
-3. **Detect the running app** — check common local dev ports:
-   ```bash
-   $B goto http://localhost:3000 2>/dev/null && echo "Found app on :3000" || \
-   $B goto http://localhost:4000 2>/dev/null && echo "Found app on :4000" || \
-   $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
-   ```
-   If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
+If `$B` is not available, skip verification and note:
+"Browse binary not available. Skipping automated viewport verification."
 
-4. **Test each affected page/route:**
-   - Navigate to the page
-   - Take a screenshot
-   - Check console for errors
-   - If the change was interactive (forms, buttons, flows), test the interaction end-to-end
-   - Use `snapshot -D` before and after actions to verify the change had the expected effect
+### Refinement Loop
 
-5. **Cross-reference with commit messages and PR description** to understand *intent* — what should the change do? Verify it actually does that.
+```
+LOOP:
+  1. If server is running, tell user to open http://localhost:PORT/finalized.html
+     Otherwise: open <path>/finalized.html
 
-6. **Check TODOS.md** (if it exists) for known bugs or issues related to the changed files. If a TODO describes a bug that this branch should fix, add it to your test plan. If you find a new bug during QA that isn't in TODOS.md, note it in the report.
+  2. Show approved mockup PNG inline (Read tool) for visual comparison
 
-7. **Report findings** scoped to the branch changes:
-   - "Changes tested: N pages/routes affected by this branch"
-   - For each: does it work? Screenshot evidence.
-   - Any regressions on adjacent pages?
+  3. AskUserQuestion:
+     "The HTML is live in your browser. Here's the approved mockup for comparison.
+      Try: resize the window (text should reflow dynamically),
+      click any text (it's editable, layout recomputes instantly).
+      What needs to change? Say 'done' when satisfied."
 
-**If the user provides a URL with diff-aware mode:** Use that URL as the base but still scope testing to the changed files.
+  4. If "done" / "ship it" / "looks good" / "perfect" → exit loop, go to Step 5
 
-### Full (default when URL is provided)
-Systematic exploration. Visit every reachable page. Document 5-10 well-evidenced issues. Produce health score. Takes 5-15 minutes depending on app size.
+  5. Apply feedback using targeted Edit tool changes on the HTML file
+     (do NOT regenerate the entire file — surgical edits only)
 
-### Quick (`--quick`)
-30-second smoke test. Visit homepage + top 5 navigation targets. Check: page loads? Console errors? Broken links? Produce health score. No detailed issue documentation.
+  6. Brief summary of what changed (2-3 lines max)
 
-### Regression (`--regression <baseline>`)
-Run full mode, then load `baseline.json` from a previous run. Diff: which issues are fixed? Which are new? What's the score delta? Append regression section to report.
+  7. If verification screenshots are available, re-take them to confirm the fix
+
+  8. Go to LOOP
+```
+
+Maximum 10 iterations. If the user hasn't said "done" after 10, use AskUserQuestion:
+"We've done 10 rounds of refinement. Want to continue iterating or call it done?"
 
 ---
 
-## Workflow
+## Step 5: Save & Next Steps
 
-### Phase 1: Initialize
+### Design Token Extraction
 
-1. Find browse binary (see Setup above)
-2. Create output directories
-3. Copy report template from `qa/templates/qa-report-template.md` to output dir
-4. Start timer for duration tracking
+If no `DESIGN.md` exists in the repo root, offer to create one from the generated HTML:
 
-### Phase 2: Authenticate (if needed)
+Extract from the HTML:
+- CSS custom properties (colors, spacing, font sizes)
+- Font families and weights used
+- Color palette (primary, secondary, accent, neutral)
+- Spacing scale
+- Border radius values
+- Shadow values
 
-**If the user specified auth credentials:**
+Use AskUserQuestion:
+> No DESIGN.md found. I can extract the design tokens from the HTML we just built
+> and create a DESIGN.md for your project. This means future /design-shotgun and
+> /design-html runs will be style-consistent automatically.
+> A) Create DESIGN.md from these tokens
+> B) Skip — I'll handle the design system later
 
-```bash
-$B goto <login-url>
-$B snapshot -i                    # find the login form
-$B fill @e3 "user@example.com"
-$B fill @e4 "[REDACTED]"         # NEVER include real passwords in report
-$B click @e5                      # submit
-$B snapshot -D                    # verify login succeeded
+If A: write `DESIGN.md` to the repo root with the extracted tokens.
+
+### Save Metadata
+
+Write `finalized.json` alongside the HTML:
+```json
+{
+  "source_mockup": "<approved variant PNG path>",
+  "html_file": "<path to finalized.html or component file>",
+  "pretext_tier": "<selected tier>",
+  "framework": "<vanilla|react|svelte|vue>",
+  "iterations": <number of refinement iterations>,
+  "date": "<ISO 8601>",
+  "screen": "<screen name from approved.json>",
+  "branch": "<current branch>"
+}
 ```
 
-**If the user provided a cookie file:**
+### Next Steps
 
-```bash
-$B cookie-import cookies.json
-$B goto <target-url>
-```
-
-**If 2FA/OTP is required:** Ask the user for the code and wait.
-
-**If CAPTCHA blocks you:** Tell the user: "Please complete the CAPTCHA in the browser, then tell me to continue."
-
-### Phase 3: Orient
-
-Get a map of the application:
-
-```bash
-$B goto <target-url>
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/initial.png"
-$B links                          # map navigation structure
-$B console --errors               # any errors on landing?
-```
-
-**Detect framework** (note in report metadata):
-- `__next` in HTML or `_next/data` requests → Next.js
-- `csrf-token` meta tag → Rails
-- `wp-content` in URLs → WordPress
-- Client-side routing with no page reloads → SPA
-
-**For SPAs:** The `links` command may return few results because navigation is client-side. Use `snapshot -i` to find nav elements (buttons, menu items) instead.
-
-### Phase 4: Explore
-
-Visit pages systematically. At each page:
-
-```bash
-$B goto <page-url>
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/page-name.png"
-$B console --errors
-```
-
-Then follow the **per-page exploration checklist** (see `qa/references/issue-taxonomy.md`):
-
-1. **Visual scan** — Look at the annotated screenshot for layout issues
-2. **Interactive elements** — Click buttons, links, controls. Do they work?
-3. **Forms** — Fill and submit. Test empty, invalid, edge cases
-4. **Navigation** — Check all paths in and out
-5. **States** — Empty state, loading, error, overflow
-6. **Console** — Any new JS errors after interactions?
-7. **Responsiveness** — Check mobile viewport if relevant:
-   ```bash
-   $B viewport 375x812
-   $B screenshot "$REPORT_DIR/screenshots/page-mobile.png"
-   $B viewport 1280x720
-   ```
-
-**Depth judgment:** Spend more time on core features (homepage, dashboard, checkout, search) and less on secondary pages (about, terms, privacy).
-
-**Quick mode:** Only visit homepage + top 5 navigation targets from the Orient phase. Skip the per-page checklist — just check: loads? Console errors? Broken links visible?
-
-### Phase 5: Document
-
-Document each issue **immediately when found** — don't batch them.
-
-**Two evidence tiers:**
-
-**Interactive bugs** (broken flows, dead buttons, form failures):
-1. Take a screenshot before the action
-2. Perform the action
-3. Take a screenshot showing the result
-4. Use `snapshot -D` to show what changed
-5. Write repro steps referencing screenshots
-
-```bash
-$B screenshot "$REPORT_DIR/screenshots/issue-001-step-1.png"
-$B click @e5
-$B screenshot "$REPORT_DIR/screenshots/issue-001-result.png"
-$B snapshot -D
-```
-
-**Static bugs** (typos, layout issues, missing images):
-1. Take a single annotated screenshot showing the problem
-2. Describe what's wrong
-
-```bash
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
-```
-
-**Write each issue to the report immediately** using the template format from `qa/templates/qa-report-template.md`.
-
-### Phase 6: Wrap Up
-
-1. **Compute health score** using the rubric below
-2. **Write "Top 3 Things to Fix"** — the 3 highest-severity issues
-3. **Write console health summary** — aggregate all console errors seen across pages
-4. **Update severity counts** in the summary table
-5. **Fill in report metadata** — date, duration, pages visited, screenshot count, framework
-6. **Save baseline** — write `baseline.json` with:
-   ```json
-   {
-     "date": "YYYY-MM-DD",
-     "url": "<target>",
-     "healthScore": N,
-     "issues": [{ "id": "ISSUE-001", "title": "...", "severity": "...", "category": "..." }],
-     "categoryScores": { "console": N, "links": N, ... }
-   }
-   ```
-
-**Regression mode:** After writing the report, load the baseline file. Compare:
-- Health score delta
-- Issues fixed (in baseline but not current)
-- New issues (in current but not baseline)
-- Append the regression section to the report
-
----
-
-## Health Score Rubric
-
-Compute each category score (0-100), then take the weighted average.
-
-### Console (weight: 15%)
-- 0 errors → 100
-- 1-3 errors → 70
-- 4-10 errors → 40
-- 10+ errors → 10
-
-### Links (weight: 10%)
-- 0 broken → 100
-- Each broken link → -15 (minimum 0)
-
-### Per-Category Scoring (Visual, Functional, UX, Content, Performance, Accessibility)
-Each category starts at 100. Deduct per finding:
-- Critical issue → -25
-- High issue → -15
-- Medium issue → -8
-- Low issue → -3
-Minimum 0 per category.
-
-### Weights
-| Category | Weight |
-|----------|--------|
-| Console | 15% |
-| Links | 10% |
-| Visual | 10% |
-| Functional | 20% |
-| UX | 15% |
-| Performance | 10% |
-| Content | 5% |
-| Accessibility | 15% |
-
-### Final Score
-`score = Σ (category_score × weight)`
-
----
-
-## Framework-Specific Guidance
-
-### Next.js
-- Check console for hydration errors (`Hydration failed`, `Text content did not match`)
-- Monitor `_next/data` requests in network — 404s indicate broken data fetching
-- Test client-side navigation (click links, don't just `goto`) — catches routing issues
-- Check for CLS (Cumulative Layout Shift) on pages with dynamic content
-
-### Rails
-- Check for N+1 query warnings in console (if development mode)
-- Verify CSRF token presence in forms
-- Test Turbo/Stimulus integration — do page transitions work smoothly?
-- Check for flash messages appearing and dismissing correctly
-
-### WordPress
-- Check for plugin conflicts (JS errors from different plugins)
-- Verify admin bar visibility for logged-in users
-- Test REST API endpoints (`/wp-json/`)
-- Check for mixed content warnings (common with WP)
-
-### General SPA (React, Vue, Angular)
-- Use `snapshot -i` for navigation — `links` command misses client-side routes
-- Check for stale state (navigate away and back — does data refresh?)
-- Test browser back/forward — does the app handle history correctly?
-- Check for memory leaks (monitor console after extended use)
+Use AskUserQuestion:
+> Design finalized with Pretext-native layout. What's next?
+> A) Copy to project — copy the HTML/component into your codebase
+> B) Iterate more — keep refining
+> C) Done — I'll use this as a reference
 
 ---
 
 ## Important Rules
 
-1. **Repro is everything.** Every issue needs at least one screenshot. No exceptions.
-2. **Verify before documenting.** Retry the issue once to confirm it's reproducible, not a fluke.
-3. **Never include credentials.** Write `[REDACTED]` for passwords in repro steps.
-4. **Write incrementally.** Append each issue to the report as you find it. Don't batch.
-5. **Never read source code.** Test as a user, not a developer.
-6. **Check console after every interaction.** JS errors that don't surface visually are still bugs.
-7. **Test like a user.** Use realistic data. Walk through complete workflows end-to-end.
-8. **Depth over breadth.** 5-10 well-documented issues with evidence > 20 vague descriptions.
-9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
-10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-11. **Show screenshots to the user.** After every `$B screenshot`, `$B snapshot -a -o`, or `$B responsive` command, use the Read tool on the output file(s) so the user can see them inline. For `responsive` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.
-12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
+- **Mockup fidelity over code elegance.** If pixel-matching the approved mockup requires
+  `width: 312px` instead of a CSS grid class, that's correct. The mockup is the source
+  of truth. Code cleanup happens later during component extraction.
 
----
+- **Always use Pretext for text layout.** Even if the design looks simple, Pretext
+  ensures correct height computation on resize. The overhead is 30KB. Every page benefits.
 
-## Output
+- **Surgical edits in the refinement loop.** Use the Edit tool to make targeted changes,
+  not the Write tool to regenerate the entire file. The user may have made manual edits
+  via contenteditable that should be preserved.
 
-Write the report to both local and project-scoped locations:
+- **Real content only.** Extract text from the approved mockup. Never use "Lorem ipsum",
+  "Your text here", or placeholder content.
 
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
-
-**Project-scoped:** Write test outcome artifact for cross-session context:
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
-```
-Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
-
-### Output Structure
-
-```
-.gstack/qa-reports/
-├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
-├── screenshots/
-│   ├── initial.png                        # Landing page annotated screenshot
-│   ├── issue-001-step-1.png               # Per-issue evidence
-│   ├── issue-001-result.png
-│   └── ...
-└── baseline.json                          # For regression mode
-```
-
-Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
-
----
-
-## Additional Rules (qa-only specific)
-
-11. **Never fix bugs.** Find and document only. Do not read source code, edit files, or suggest fixes in the report. Your job is to report what's broken, not to fix it. Use `/qa` for the test-fix-verify loop.
-12. **No test framework detected?** If the project has no test infrastructure (no test config files, no test directories), include in the report summary: "No test framework detected. Run `/qa` to bootstrap one and enable regression test generation."
+- **One page per invocation.** For multi-page designs, run /design-html once per page.
+  Each run produces one HTML file.
