@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'bun:test';
 import { validateOutputPath } from '../src/meta-commands';
-import { validateReadPath } from '../src/read-commands';
+import { validateReadPath, SENSITIVE_COOKIE_NAME, SENSITIVE_COOKIE_VALUE } from '../src/read-commands';
+import { BLOCKED_METADATA_HOSTS } from '../src/url-validation';
 import { symlinkSync, unlinkSync, writeFileSync, mkdirSync, existsSync, realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -127,48 +128,38 @@ describe('validateOutputPath — symlink resolution', () => {
   });
 });
 
-describe('cookie redaction', () => {
-  // These test the regex patterns used in the cookies command redaction
-  const SENSITIVE_NAME = /(^|[_.-])(token|secret|key|password|credential|auth|jwt|session|csrf|sid)($|[_.-])|api.?key/i;
-  const SENSITIVE_VALUE = /^(eyJ|sk-|sk_live_|sk_test_|pk_live_|pk_test_|rk_live_|sk-ant-|ghp_|gho_|github_pat_|xox[bpsa]-|AKIA[A-Z0-9]{16}|AIza|SG\.|Bearer\s|sbp_)/;
-
+describe('cookie redaction — production patterns', () => {
+  // Import production regexes directly to prevent drift between tests and implementation
   it('detects sensitive cookie names', () => {
-    expect(SENSITIVE_NAME.test('session_id')).toBe(true);
-    expect(SENSITIVE_NAME.test('auth_token')).toBe(true);
-    expect(SENSITIVE_NAME.test('csrf-token')).toBe(true);
-    expect(SENSITIVE_NAME.test('api_key')).toBe(true);
-    expect(SENSITIVE_NAME.test('jwt.payload')).toBe(true);
+    expect(SENSITIVE_COOKIE_NAME.test('session_id')).toBe(true);
+    expect(SENSITIVE_COOKIE_NAME.test('auth_token')).toBe(true);
+    expect(SENSITIVE_COOKIE_NAME.test('csrf-token')).toBe(true);
+    expect(SENSITIVE_COOKIE_NAME.test('api_key')).toBe(true);
+    expect(SENSITIVE_COOKIE_NAME.test('jwt.payload')).toBe(true);
   });
 
   it('ignores non-sensitive cookie names', () => {
-    expect(SENSITIVE_NAME.test('theme')).toBe(false);
-    expect(SENSITIVE_NAME.test('locale')).toBe(false);
-    expect(SENSITIVE_NAME.test('_ga')).toBe(false);
+    expect(SENSITIVE_COOKIE_NAME.test('theme')).toBe(false);
+    expect(SENSITIVE_COOKIE_NAME.test('locale')).toBe(false);
+    expect(SENSITIVE_COOKIE_NAME.test('_ga')).toBe(false);
   });
 
   it('detects sensitive cookie value prefixes', () => {
-    expect(SENSITIVE_VALUE.test('eyJhbGciOiJIUzI1NiJ9')).toBe(true); // JWT
-    expect(SENSITIVE_VALUE.test('sk-ant-abc123')).toBe(true); // Anthropic
-    expect(SENSITIVE_VALUE.test('ghp_xxxxxxxxxxxx')).toBe(true); // GitHub PAT
-    expect(SENSITIVE_VALUE.test('xoxb-token')).toBe(true); // Slack
+    expect(SENSITIVE_COOKIE_VALUE.test('eyJhbGciOiJIUzI1NiJ9')).toBe(true); // JWT
+    expect(SENSITIVE_COOKIE_VALUE.test('sk-ant-abc123')).toBe(true); // Anthropic
+    expect(SENSITIVE_COOKIE_VALUE.test('ghp_xxxxxxxxxxxx')).toBe(true); // GitHub PAT
+    expect(SENSITIVE_COOKIE_VALUE.test('xoxb-token')).toBe(true); // Slack
   });
 
   it('ignores non-sensitive values', () => {
-    expect(SENSITIVE_VALUE.test('dark')).toBe(false);
-    expect(SENSITIVE_VALUE.test('en-US')).toBe(false);
-    expect(SENSITIVE_VALUE.test('1234567890')).toBe(false);
+    expect(SENSITIVE_COOKIE_VALUE.test('dark')).toBe(false);
+    expect(SENSITIVE_COOKIE_VALUE.test('en-US')).toBe(false);
+    expect(SENSITIVE_COOKIE_VALUE.test('1234567890')).toBe(false);
   });
 });
 
-describe('DNS rebinding — IPv6 coverage', () => {
-  // Validates the BLOCKED_METADATA_HOSTS set includes IPv6 entries
-  const BLOCKED_METADATA_HOSTS = new Set([
-    '169.254.169.254',
-    'fd00::',
-    'metadata.google.internal',
-    'metadata.azure.internal',
-  ]);
-
+describe('DNS rebinding — production blocklist', () => {
+  // Import production blocklist directly to prevent drift between tests and implementation
   it('blocks fd00:: IPv6 metadata address', () => {
     expect(BLOCKED_METADATA_HOSTS.has('fd00::')).toBe(true);
   });

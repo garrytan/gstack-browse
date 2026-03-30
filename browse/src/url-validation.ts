@@ -3,7 +3,7 @@
  * Localhost and private IPs are allowed (primary use case: QA testing local dev servers).
  */
 
-const BLOCKED_METADATA_HOSTS = new Set([
+export const BLOCKED_METADATA_HOSTS = new Set([
   '169.254.169.254',  // AWS/GCP/Azure instance metadata
   'fd00::',           // IPv6 unique local (metadata in some cloud setups)
   'metadata.google.internal', // GCP metadata
