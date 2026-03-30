@@ -1,0 +1,309 @@
+---
+name: build
+preamble-tier: 3
+version: 1.0.0
+description: |
+  Build skill — the missing middle of the pipeline. Analyzes the current plan,
+  decides whether to route to /orch (parallel multi-agent) or build in-session
+  (sequential single-agent), then executes. Reads CLAUDE.md for project-specific
+  build/test commands. Implements changes, runs tests, fixes failures, iterates.
+  Use when asked to "build this", "implement this", "start building", "execute
+  the plan", "make it happen", or when transitioning from planning to coding.
+  Proactively suggest after /plan-eng-review completes. (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - Agent
+  - AskUserQuestion
+  - WebSearch
+---
+
+{{PREAMBLE}}
+
+{{BASE_BRANCH_DETECT}}
+
+# /build — Plan to Code
+
+You are running the `/build` skill. This is the bridge between planning and shipping.
+You analyze what needs to be built, decide the best execution strategy, and then
+build it — either by routing to /orch for parallel multi-agent execution or by
+building in-session for sequential work.
+
+## User-invocable
+When the user types `/build`, run this skill.
+
+## Arguments
+- `/build` — auto-detect plan, decide strategy, execute
+- `/build --orch` — force multi-agent execution via orch
+- `/build --here` — force in-session build (no orch)
+- `/build <task>` — build from a task description (no plan needed)
+
+---
+
+## Step 0: Gather context
+
+Run these checks to understand what we're building:
+
+```bash
+# Check for plan documents
+ls PLAN.md plan.md SPEC.md spec.md specs/*/SPEC.md 2>/dev/null
+ls docs/plans/*.md docs/designs/*.md 2>/dev/null | head -5
+```
+
+```bash
+# Check for gstack review artifacts
+eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
+ls -t ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null | head -1
+ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-test-plan-*.md 2>/dev/null | head -1
+ls -t ~/.gstack/projects/$SLUG/ceo-plans/*.md 2>/dev/null | head -1
+```
+
+```bash
+# Check for existing plan mode
+ls PLAN.md 2>/dev/null && head -50 PLAN.md
+```
+
+```bash
+# Read project config
+cat CLAUDE.md 2>/dev/null | head -100
+```
+
+```bash
+# Check orch availability
+PATH="$HOME/go/bin:$PATH" which orch 2>/dev/null && echo "ORCH_AVAILABLE" || echo "ORCH_NOT_AVAILABLE"
+```
+
+```bash
+# Check for running orch agents
+PATH="$HOME/go/bin:$PATH" orch ps 2>/dev/null || echo "NO_AGENTS"
+```
+
+Also check if you're currently in plan mode — if there's an active plan in the
+conversation, that IS the plan to build from.
+
+---
+
+## Step 1: Identify the plan
+
+Based on Step 0, determine what to build:
+
+1. **Active plan in conversation** — if the user just finished planning (plan mode,
+   /plan-ceo-review, /plan-eng-review), use that plan directly.
+2. **PLAN.md or SPEC.md in repo** — read it, use it as the build spec.
+3. **Review artifacts from gstack** — read the most recent review log to find the
+   reviewed plan.
+4. **User provided a task description** — use it directly.
+5. **Nothing found** — AskUserQuestion: "What are we building? Describe the task
+   or point me to a plan document."
+
+Read the full plan. Understand:
+- What are the deliverables?
+- What are the dependencies between them?
+- What's the expected test strategy?
+- Are there files/modules that can be built independently?
+
+---
+
+## Step 2: Route decision
+
+Analyze the plan and decide: **orch or in-session?**
+
+### Orch criteria (parallel multi-agent)
+
+Route to orch when ALL of these are true:
+- orch is available (detected in Step 0)
+- The plan has 3+ independent workstreams (e.g., backend API + frontend UI + tests)
+- Each workstream touches different files with minimal overlap
+- The total estimated work exceeds 30 minutes of focused coding
+- The user didn't pass `--here`
+
+### In-session criteria (sequential single-agent)
+
+Build in-session when ANY of these are true:
+- `--here` flag was passed
+- orch is not available
+- The plan is sequential (each step depends on the previous)
+- The plan touches fewer than 3 independent file groups
+- The total estimated work is under 30 minutes
+- The changes are tightly coupled (shared types, interfaces, data flow)
+
+### Present the decision
+
+```
+BUILD STRATEGY
+══════════════
+Plan:        <1-line summary>
+Workstreams: N identified
+Parallelism: [HIGH — independent modules | LOW — sequential dependencies]
+Estimated:   ~Xmin CC time
+
+RECOMMENDATION: [ORCH | IN-SESSION]
+Reason:      <why>
+```
+
+If `--orch` or `--here` was passed, skip the recommendation and go directly to
+the forced path. Otherwise, AskUserQuestion:
+
+"Ready to build. My recommendation:
+
+RECOMMENDATION: Choose [A/B] — <reason>
+
+A) Build in-session — I'll implement everything right here, step by step
+B) Route to /orch — spin up parallel agents for independent workstreams
+C) Let me adjust the plan first"
+
+- A: Proceed to Step 3 (in-session)
+- B: Proceed to Step 4 (orch handoff)
+- C: Stop — tell user to revise the plan
+
+---
+
+## Step 3: In-session build
+
+This is the core build loop. Implement the plan step by step.
+
+### Step 3.1: Extract build and test commands
+
+Read CLAUDE.md for project-specific commands:
+- Build command (e.g., `npm run build`, `cargo build`, `go build ./...`)
+- Test command (e.g., `npm test`, `pytest`, `cargo test`)
+- Lint command (e.g., `npm run lint`, `ruff check .`)
+- Dev server command (if applicable)
+
+If CLAUDE.md doesn't specify these, detect from project files:
+- `package.json` → check `scripts` for build/test/lint
+- `Makefile` → check targets
+- `pyproject.toml` → check `[tool.pytest]`, `[tool.ruff]`
+- `Cargo.toml` → cargo build/test
+- `go.mod` → go build/test
+
+If still unclear, AskUserQuestion: "What's the test command for this project?"
+Persist the answer to CLAUDE.md so we never ask again.
+
+### Step 3.2: Break plan into build steps
+
+Convert the plan into an ordered list of implementation steps. Each step should be:
+- A single logical change (one commit's worth)
+- Independently testable where possible
+- Ordered by dependency (foundations first, features second, tests third)
+
+Output the build plan:
+```
+BUILD PLAN
+══════════
+Step 1: <description> — <files to touch>
+Step 2: <description> — <files to touch>
+Step 3: <description> — <files to touch>
+...
+
+Test checkpoints: after steps [2, 4, 6]
+```
+
+### Step 3.3: Build loop
+
+For each step in the build plan:
+
+1. **Implement** — write the code. Read existing files before modifying. Follow
+   existing patterns and conventions in the codebase.
+
+2. **Verify** — at test checkpoints (or after every step that changes behavior):
+   - Run the test command
+   - Run the lint command (if available)
+   - If tests fail: read the error, diagnose the root cause, fix it, re-run
+   - If lint fails: fix lint errors, re-run
+   - Iterate until green
+
+3. **Report progress** — after each step:
+   ```
+   [Step N/M] ✓ <description>
+   Files: <files modified>
+   Tests: <PASS/FAIL — details if fail>
+   ```
+
+4. **If stuck** — if a step fails 3 times with the same error:
+   - Re-read the plan to check if the approach is wrong
+   - Search the codebase for examples of the pattern you're implementing
+   - WebSearch for the specific error if it's framework/library related
+   - If still stuck after investigation, AskUserQuestion with context
+
+### Step 3.4: Final verification
+
+After all steps complete:
+
+```bash
+# Run full test suite
+<test command>
+```
+
+```bash
+# Run linter
+<lint command>
+```
+
+```bash
+# Check what we built
+git diff --stat
+git diff origin/<base> --stat
+```
+
+Report the final status:
+```
+BUILD COMPLETE
+══════════════
+Steps:     M/M completed
+Tests:     PASS (N tests)
+Lint:      CLEAN
+Files:     X files changed, Y insertions, Z deletions
+
+Changes are staged but NOT committed.
+Run /review to check the diff, then /ship to land it.
+```
+
+---
+
+## Step 4: Orch handoff
+
+Route to /orch for parallel execution.
+
+### Step 4.1: Validate plan for parallelism
+
+Before handing off, verify the workstreams are truly independent:
+- List the files each workstream will touch
+- Check for overlaps — if two workstreams touch the same file, they're not independent
+- If overlaps exist, merge those workstreams or restructure
+
+### Step 4.2: Hand off
+
+Tell the user: "Routing to /orch for parallel execution."
+
+Then invoke /orch with the plan context. The plan document path or task description
+carries over.
+
+{{INVOKE_SKILL:orch}}
+
+---
+
+{{LEARNINGS_SEARCH}}
+
+{{LEARNINGS_LOG}}
+
+## Important Rules
+
+- **Read before writing.** Always read existing files before modifying them. Understand
+  conventions, patterns, and adjacent code.
+- **Test early, test often.** Don't implement 5 steps then test. Test at every checkpoint.
+- **Don't gold-plate.** Build what the plan says. Don't add features, refactor adjacent
+  code, or "improve" things beyond the spec.
+- **Persist project config.** If you discover build/test/lint commands, write them to
+  CLAUDE.md so future builds don't need to re-detect.
+- **Fail fast on ambiguity.** If the plan is unclear about a critical design decision,
+  ask before building the wrong thing. Don't guess on architecture.
+- **Bisect-ready changes.** Each logical change should be independently understandable.
+  Don't mix refactors with features.
+- **Search before building.** Before implementing a pattern, search the codebase for
+  existing examples. Match the project's conventions, not your defaults.

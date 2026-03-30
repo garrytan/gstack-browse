@@ -1,17 +1,25 @@
 ---
-name: orch
+name: build
+preamble-tier: 3
 version: 1.0.0
 description: |
-  Multi-agent orchestration via orch. Bridges gstack planning workflows into
-  parallel Claude Code agent execution. Detects plans, generates role specs,
-  spins up agents. Use when asked to "spin up agents", "run orch", "execute
-  this plan", "start building", or when a task is too large for one session.
+  Build skill — the missing middle of the pipeline. Analyzes the current plan,
+  decides whether to route to /orch (parallel multi-agent) or build in-session
+  (sequential single-agent), then executes. Reads CLAUDE.md for project-specific
+  build/test commands. Implements changes, runs tests, fixes failures, iterates.
+  Use when asked to "build this", "implement this", "start building", "execute
+  the plan", "make it happen", or when transitioning from planning to coding.
+  Proactively suggest after /plan-eng-review completes. (gstack)
 allowed-tools:
   - Bash
   - Read
   - Write
+  - Edit
+  - Grep
   - Glob
+  - Agent
   - AskUserQuestion
+  - WebSearch
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -47,7 +55,7 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"orch","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+  echo '{"skill":"build","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -405,207 +413,399 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# Orch: Multi-Agent Orchestration
+## Step 0: Detect platform and base branch
 
-You are running the `/orch` skill. This bridges gstack planning into orch execution.
-
-## What is orch?
-
-Orch runs multiple Claude Code instances in parallel via tmux. Each agent has its
-own context window, runs autonomously, and can communicate with other agents via
-file-based messaging. Agents persist even if you close your terminal.
-
-Use orch when:
-- The task will take 1+ hours of autonomous work
-- There's parallel work (backend + frontend, multiple subsystems)
-- You want a persistent reviewer watching the engineer's output
-- You want to walk away and check back later
-
-Don't use orch when:
-- The task fits in one session (< 30 min)
-- You want tight interactive control
-- The work is purely serial
-
-## Step 0: Detect orch
+First, detect the git hosting platform from the remote URL:
 
 ```bash
-PATH="$HOME/go/bin:$PATH" which orch 2>/dev/null && echo "ORCH_FOUND" || echo "ORCH_NOT_FOUND"
+git remote get-url origin 2>/dev/null
 ```
 
-If `ORCH_NOT_FOUND`:
-Tell the user:
-"orch is not installed. Install it from: https://github.com/jeffdhooton/orch
-Then run: `go install github.com/jeffdhooton/orch/cmd/orch@latest`"
-**STOP.** Do not continue.
+- If the URL contains "github.com" → platform is **GitHub**
+- If the URL contains "gitlab" → platform is **GitLab**
+- Otherwise, check CLI availability:
+  - `gh auth status 2>/dev/null` succeeds → platform is **GitHub** (covers GitHub Enterprise)
+  - `glab auth status 2>/dev/null` succeeds → platform is **GitLab** (covers self-hosted)
+  - Neither → **unknown** (use git-native commands only)
 
-## Step 1: Check context
+Determine which branch this PR/MR targets, or the repo's default branch if no
+PR/MR exists. Use the result as "the base branch" in all subsequent steps.
 
-Run these checks to understand the current state:
+**If GitHub:**
+1. `gh pr view --json baseRefName -q .baseRefName` — if succeeds, use it
+2. `gh repo view --json defaultBranchRef -q .defaultBranchRef.name` — if succeeds, use it
+
+**If GitLab:**
+1. `glab mr view -F json 2>/dev/null` and extract the `target_branch` field — if succeeds, use it
+2. `glab repo view -F json 2>/dev/null` and extract the `default_branch` field — if succeeds, use it
+
+**Git-native fallback (if unknown platform, or CLI commands fail):**
+1. `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'`
+2. If that fails: `git rev-parse --verify origin/main 2>/dev/null` → use `main`
+3. If that fails: `git rev-parse --verify origin/master 2>/dev/null` → use `master`
+
+If all fail, fall back to `main`.
+
+Print the detected base branch name. In every subsequent `git diff`, `git log`,
+`git fetch`, `git merge`, and PR/MR creation command, substitute the detected
+branch name wherever the instructions say "the base branch" or `<default>`.
+
+---
+
+# /build — Plan to Code
+
+You are running the `/build` skill. This is the bridge between planning and shipping.
+You analyze what needs to be built, decide the best execution strategy, and then
+build it — either by routing to /orch for parallel multi-agent execution or by
+building in-session for sequential work.
+
+## User-invocable
+When the user types `/build`, run this skill.
+
+## Arguments
+- `/build` — auto-detect plan, decide strategy, execute
+- `/build --orch` — force multi-agent execution via orch
+- `/build --here` — force in-session build (no orch)
+- `/build <task>` — build from a task description (no plan needed)
+
+---
+
+## Step 0: Gather context
+
+Run these checks to understand what we're building:
 
 ```bash
-# Check for recent gstack review artifacts
+# Check for plan documents
+ls PLAN.md plan.md SPEC.md spec.md specs/*/SPEC.md 2>/dev/null
+ls docs/plans/*.md docs/designs/*.md 2>/dev/null | head -5
+```
+
+```bash
+# Check for gstack review artifacts
 eval $(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-echo "SLUG: $SLUG"
-echo "BRANCH: $BRANCH"
+ls -t ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null | head -1
+ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-test-plan-*.md 2>/dev/null | head -1
+ls -t ~/.gstack/projects/$SLUG/ceo-plans/*.md 2>/dev/null | head -1
+```
 
-# Recent review artifacts
-REVIEW_LOG=$(ls -t ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl 2>/dev/null | head -1)
-[ -n "$REVIEW_LOG" ] && echo "REVIEW_LOG: $REVIEW_LOG" && tail -1 "$REVIEW_LOG" || echo "NO_REVIEW_LOG"
+```bash
+# Check for existing plan mode
+ls PLAN.md 2>/dev/null && head -50 PLAN.md
+```
 
-# Recent test plan from /plan-eng-review
-TEST_PLAN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-test-plan-*.md 2>/dev/null | head -1)
-[ -n "$TEST_PLAN" ] && echo "TEST_PLAN: $TEST_PLAN" || echo "NO_TEST_PLAN"
+```bash
+# Read project config
+cat CLAUDE.md 2>/dev/null | head -100
+```
 
-# Recent CEO plan
-CEO_PLAN=$(ls -t ~/.gstack/projects/$SLUG/ceo-plans/*.md 2>/dev/null | head -1)
-[ -n "$CEO_PLAN" ] && echo "CEO_PLAN: $CEO_PLAN" || echo "NO_CEO_PLAN"
+```bash
+# Check orch availability
+PATH="$HOME/go/bin:$PATH" which orch 2>/dev/null && echo "ORCH_AVAILABLE" || echo "ORCH_NOT_AVAILABLE"
+```
 
-# Check for plan documents in the repo
-echo "---REPO_PLANS---"
-ls specs/*/SPEC.md specs/*/*.md 2>/dev/null | head -10
-ls *.md 2>/dev/null | grep -i -E 'plan|spec' | head -5
-
-# Check if orch agents are already running
-echo "---ORCH_STATUS---"
+```bash
+# Check for running orch agents
 PATH="$HOME/go/bin:$PATH" orch ps 2>/dev/null || echo "NO_AGENTS"
 ```
 
-## Step 2: Decide path
+Also check if you're currently in plan mode — if there's an active plan in the
+conversation, that IS the plan to build from.
 
-Based on the context detected in Step 1, follow the appropriate branch:
+---
 
-### If agents are already running
-Show the orch ps output. Then AskUserQuestion:
+## Step 1: Identify the plan
 
-"Orch agents are already running. What would you like to do?
+Based on Step 0, determine what to build:
 
-A) Attach to an agent — jump into its tmux session
-B) Send a message to an agent
-C) Tear down all agents — stop everything
-D) Show logs — see what agents have been doing"
+1. **Active plan in conversation** — if the user just finished planning (plan mode,
+   /plan-ceo-review, /plan-eng-review), use that plan directly.
+2. **PLAN.md or SPEC.md in repo** — read it, use it as the build spec.
+3. **Review artifacts from gstack** — read the most recent review log to find the
+   reviewed plan.
+4. **User provided a task description** — use it directly.
+5. **Nothing found** — AskUserQuestion: "What are we building? Describe the task
+   or point me to a plan document."
 
-Handle the user's choice:
-- A: Ask which agent, then run `PATH="$HOME/go/bin:$PATH" orch attach <name>`
-- B: Ask which agent and what message, then run `PATH="$HOME/go/bin:$PATH" orch send <name> "<message>"`
-- C: Run `PATH="$HOME/go/bin:$PATH" orch down --all`
-- D: Run `PATH="$HOME/go/bin:$PATH" orch logs`
+Read the full plan. Understand:
+- What are the deliverables?
+- What are the dependencies between them?
+- What's the expected test strategy?
+- Are there files/modules that can be built independently?
 
-### If a recent gstack review exists (REVIEW_LOG found)
-Read the review log to check status. Then AskUserQuestion:
+---
 
-"Found reviewed plan from /plan-eng-review. Ready to execute.
+## Step 2: Route decision
 
-RECOMMENDATION: Choose A — the plan has been reviewed, generate specs and spin up agents.
+Analyze the plan and decide: **orch or in-session?**
 
-A) Generate specs from this plan and spin up agents
-B) I want to review the plan first (show it)
-C) I'll handle it manually"
+### Orch criteria (parallel multi-agent)
 
-- A: Proceed to Step 3
-- B: Read and display the plan, then re-offer A or C
-- C: Stop
+Route to orch when ALL of these are true:
+- orch is available (detected in Step 0)
+- The plan has 3+ independent workstreams (e.g., backend API + frontend UI + tests)
+- Each workstream touches different files with minimal overlap
+- The total estimated work exceeds 30 minutes of focused coding
+- The user didn't pass `--here`
 
-### If plan documents exist but no review
-Show the plans found. Then AskUserQuestion:
+### In-session criteria (sequential single-agent)
 
-"Found plan document(s) but no review on record.
+Build in-session when ANY of these are true:
+- `--here` flag was passed
+- orch is not available
+- The plan is sequential (each step depends on the previous)
+- The plan touches fewer than 3 independent file groups
+- The total estimated work is under 30 minutes
+- The changes are tightly coupled (shared types, interfaces, data flow)
 
-RECOMMENDATION: Choose B — running /plan-eng-review first catches issues before agents burn context on a flawed plan. (human: ~30min / CC+gstack: ~5min)
+### Present the decision
 
-A) Generate specs from [plan] and spin up agents anyway
-B) Run /plan-eng-review first (recommended)
-C) Skip review, just execute"
+```
+BUILD STRATEGY
+══════════════
+Plan:        <1-line summary>
+Workstreams: N identified
+Parallelism: [HIGH — independent modules | LOW — sequential dependencies]
+Estimated:   ~Xmin CC time
 
-- A: Proceed to Step 3 with the plan path
-- B: Tell user to run `/plan-eng-review` and come back
-- C: Proceed to Step 3
+RECOMMENDATION: [ORCH | IN-SESSION]
+Reason:      <why>
+```
 
-### If nothing exists
-AskUserQuestion:
+If `--orch` or `--here` was passed, skip the recommendation and go directly to
+the forced path. Otherwise, AskUserQuestion:
 
-"No existing plans or review artifacts found. What do you want to build?
+"Ready to build. My recommendation:
 
-Tell me the task, and I'll help you decide the best path.
+RECOMMENDATION: Choose [A/B] — <reason>
 
-A) Write a plan first, then execute (recommended for large tasks — 2+ hours of work)
-B) Generate specs directly from a task description
-C) This is small enough to do right here without orch"
+A) Build in-session — I'll implement everything right here, step by step
+B) Route to /orch — spin up parallel agents for independent workstreams
+C) Let me adjust the plan first"
 
-- A: Tell user to write a plan or run `/plan-eng-review` or `/plan-ceo-review`
-- B: Ask for the task description, proceed to Step 3 with `--task`
-- C: Stop — tell user to proceed normally in their current session
+- A: Proceed to Step 3 (in-session)
+- B: Proceed to Step 4 (orch handoff)
+- C: Stop — tell user to revise the plan
 
-## Step 3: Generate and launch
+---
 
-### Determine the specgen command
+## Step 3: In-session build
 
-If a plan document path is available (from review artifacts or repo):
+This is the core build loop. Implement the plan step by step.
+
+### Step 3.1: Extract build and test commands
+
+Read CLAUDE.md for project-specific commands:
+- Build command (e.g., `npm run build`, `cargo build`, `go build ./...`)
+- Test command (e.g., `npm test`, `pytest`, `cargo test`)
+- Lint command (e.g., `npm run lint`, `ruff check .`)
+- Dev server command (if applicable)
+
+If CLAUDE.md doesn't specify these, detect from project files:
+- `package.json` → check `scripts` for build/test/lint
+- `Makefile` → check targets
+- `pyproject.toml` → check `[tool.pytest]`, `[tool.ruff]`
+- `Cargo.toml` → cargo build/test
+- `go.mod` → go build/test
+
+If still unclear, AskUserQuestion: "What's the test command for this project?"
+Persist the answer to CLAUDE.md so we never ask again.
+
+### Step 3.2: Break plan into build steps
+
+Convert the plan into an ordered list of implementation steps. Each step should be:
+- A single logical change (one commit's worth)
+- Independently testable where possible
+- Ordered by dependency (foundations first, features second, tests third)
+
+Output the build plan:
+```
+BUILD PLAN
+══════════
+Step 1: <description> — <files to touch>
+Step 2: <description> — <files to touch>
+Step 3: <description> — <files to touch>
+...
+
+Test checkpoints: after steps [2, 4, 6]
+```
+
+### Step 3.3: Build loop
+
+For each step in the build plan:
+
+1. **Implement** — write the code. Read existing files before modifying. Follow
+   existing patterns and conventions in the codebase.
+
+2. **Verify** — at test checkpoints (or after every step that changes behavior):
+   - Run the test command
+   - Run the lint command (if available)
+   - If tests fail: read the error, diagnose the root cause, fix it, re-run
+   - If lint fails: fix lint errors, re-run
+   - Iterate until green
+
+3. **Report progress** — after each step:
+   ```
+   [Step N/M] ✓ <description>
+   Files: <files modified>
+   Tests: <PASS/FAIL — details if fail>
+   ```
+
+4. **If stuck** — if a step fails 3 times with the same error:
+   - Re-read the plan to check if the approach is wrong
+   - Search the codebase for examples of the pattern you're implementing
+   - WebSearch for the specific error if it's framework/library related
+   - If still stuck after investigation, AskUserQuestion with context
+
+### Step 3.4: Final verification
+
+After all steps complete:
+
 ```bash
-PATH="$HOME/go/bin:$PATH" orch specgen --from-plan <plan-path> --skills gstack --dir <project-dir>
+# Run full test suite
+<test command>
 ```
-
-If only a task description:
-```bash
-PATH="$HOME/go/bin:$PATH" orch specgen --task "<task description>" --skills gstack --dir <project-dir>
-```
-
-Where `<project-dir>` is the current working directory (from `pwd`).
-
-### Show generated specs
-
-After specgen completes, briefly summarize what was generated:
-```bash
-ls -la <output-dir>/*.md
-```
-
-Read each generated spec file and give a 1-2 line summary of what each agent will do.
-
-### Confirm launch
-
-AskUserQuestion:
-
-"Specs generated. Ready to spin up agents?
-
-A) Launch agents now
-B) Let me review the specs first (I'll show you the files)
-C) Cancel — I'll launch manually later"
-
-- A: Proceed to launch
-- B: Read and display each spec, then re-offer A or C
-- C: Stop with instructions for manual launch
-
-### Launch agents
 
 ```bash
-PATH="$HOME/go/bin:$PATH" orch up-dir <spec-dir> --skills gstack --dir <project-dir>
+# Run linter
+<lint command>
 ```
-
-### Show status
 
 ```bash
-PATH="$HOME/go/bin:$PATH" orch ps
+# Check what we built
+git diff --stat
+git diff origin/<base> --stat
 ```
 
-Display the result in a formatted table:
-
+Report the final status:
 ```
-+================================================+
-|              AGENTS RUNNING                     |
-+================================================+
-| Agent     | Role      | Status   | Spec         |
-|-----------|-----------|----------|--------------|
-| engineer  | builder   | running  | engineer.md  |
-| reviewer  | reviewer  | running  | reviewer.md  |
-+------------------------------------------------+
+BUILD COMPLETE
+══════════════
+Steps:     M/M completed
+Tests:     PASS (N tests)
+Lint:      CLEAN
+Files:     X files changed, Y insertions, Z deletions
 
-Commands:
-  orch ps              — check status
-  orch logs engineer   — see what engineer is doing
-  orch attach engineer — jump into the session
-  orch send engineer "focus on the API first"
-  orch down --all      — stop everything
-+================================================+
+Changes are staged but NOT committed.
+Run /review to check the diff, then /ship to land it.
 ```
 
-Tell the user: "Agents are running. You can close this terminal. Check back with `orch ps` or run `/orch` again to manage them."
+---
+
+## Step 4: Orch handoff
+
+Route to /orch for parallel execution.
+
+### Step 4.1: Validate plan for parallelism
+
+Before handing off, verify the workstreams are truly independent:
+- List the files each workstream will touch
+- Check for overlaps — if two workstreams touch the same file, they're not independent
+- If overlaps exist, merge those workstreams or restructure
+
+### Step 4.2: Hand off
+
+Tell the user: "Routing to /orch for parallel execution."
+
+Then invoke /orch with the plan context. The plan document path or task description
+carries over.
+
+Read the `/orch` skill file at `~/.claude/skills/gstack/orch/SKILL.md` using the Read tool.
+
+**If unreadable:** Skip with "Could not load /orch — skipping." and continue.
+
+Follow its instructions from top to bottom, **skipping these sections** (already handled by the parent skill):
+- Preamble (run first)
+- AskUserQuestion Format
+- Completeness Principle — Boil the Lake
+- Search Before Building
+- Contributor Mode
+- Completion Status Protocol
+- Telemetry (run last)
+- Step 0: Detect platform and base branch
+- Review Readiness Dashboard
+- Plan File Review Report
+- Prerequisite Skill Offer
+- Plan Status Footer
+
+Execute every other section at full depth. When the loaded skill's instructions are complete, continue with the next step below.
+
+---
+
+## Prior Learnings
+
+Search for relevant learnings from previous sessions:
+
+```bash
+_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
+echo "CROSS_PROJECT: $_CROSS_PROJ"
+if [ "$_CROSS_PROJ" = "true" ]; then
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+else
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
+fi
+```
+
+If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+
+> gstack can search learnings from your other projects on this machine to find
+> patterns that might apply here. This stays local (no data leaves your machine).
+> Recommended for solo developers. Skip if you work on multiple client codebases
+> where cross-contamination would be a concern.
+
+Options:
+- A) Enable cross-project learnings (recommended)
+- B) Keep learnings project-scoped only
+
+If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
+If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
+
+Then re-run the search with the appropriate flag.
+
+If learnings are found, incorporate them into your analysis. When a review finding
+matches a past learning, display:
+
+**"Prior learning applied: [key] (confidence N/10, from [date])"**
+
+This makes the compounding visible. The user should see that gstack is getting
+smarter on their codebase over time.
+
+## Capture Learnings
+
+If you discovered a non-obvious pattern, pitfall, or architectural insight during
+this session, log it for future sessions:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"build","type":"TYPE","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"SOURCE","files":["path/to/relevant/file"]}'
+```
+
+**Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
+(user stated), `architecture` (structural decision), `tool` (library/framework insight).
+
+**Sources:** `observed` (you found this in the code), `user-stated` (user told you),
+`inferred` (AI deduction), `cross-model` (both Claude and Codex agree).
+
+**Confidence:** 1-10. Be honest. An observed pattern you verified in the code is 8-9.
+An inference you're not sure about is 4-5. A user preference they explicitly stated is 10.
+
+**files:** Include the specific file paths this learning references. This enables
+staleness detection: if those files are later deleted, the learning can be flagged.
+
+**Only log genuine discoveries.** Don't log obvious things. Don't log things the user
+already knows. A good test: would this insight save time in a future session? If yes, log it.
+
+## Important Rules
+
+- **Read before writing.** Always read existing files before modifying them. Understand
+  conventions, patterns, and adjacent code.
+- **Test early, test often.** Don't implement 5 steps then test. Test at every checkpoint.
+- **Don't gold-plate.** Build what the plan says. Don't add features, refactor adjacent
+  code, or "improve" things beyond the spec.
+- **Persist project config.** If you discover build/test/lint commands, write them to
+  CLAUDE.md so future builds don't need to re-detect.
+- **Fail fast on ambiguity.** If the plan is unclear about a critical design decision,
+  ask before building the wrong thing. Don't guess on architecture.
+- **Bisect-ready changes.** Each logical change should be independently understandable.
+  Don't mix refactors with features.
+- **Search before building.** Before implementing a pattern, search the codebase for
+  existing examples. Match the project's conventions, not your defaults.
