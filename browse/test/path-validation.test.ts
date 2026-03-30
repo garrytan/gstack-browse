@@ -160,8 +160,10 @@ describe('cookie redaction — production patterns', () => {
 
 describe('DNS rebinding — production blocklist', () => {
   // Import production blocklist directly to prevent drift between tests and implementation
-  it('blocks fd00:: IPv6 metadata address', () => {
-    expect(BLOCKED_METADATA_HOSTS.has('fd00::')).toBe(true);
+  it('blocks fd00:: IPv6 metadata address via validateNavigationUrl', async () => {
+    // fd00:: is now blocked via prefix matching (isBlockedIpv6), not the exact-match set
+    const { validateNavigationUrl } = await import('../src/url-validation');
+    await expect(validateNavigationUrl('http://[fd00::]/')).rejects.toThrow(/cloud metadata/i);
   });
 
   it('blocks AWS/GCP IPv4 metadata address', () => {

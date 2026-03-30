@@ -19,7 +19,10 @@ const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const POLL_MS = 200;  // 200ms poll — keeps time-to-first-token low
 const B = process.env.BROWSE_BIN || path.resolve(__dirname, '../../.claude/skills/gstack/browse/dist/browse');
 
-const CANCEL_FILE = path.join(process.env.HOME || '/tmp', '.gstack', 'sidebar-agent-cancel');
+const CANCEL_DIR = path.join(process.env.HOME || '/tmp', '.gstack');
+function cancelFileForTab(tabId: number): string {
+  return path.join(CANCEL_DIR, `sidebar-agent-cancel-${tabId}`);
+}
 
 let lastLine = 0;
 let authToken: string | null = null;
@@ -239,8 +242,9 @@ async function askClaude(queueEntry: any): Promise<void> {
     let effectiveCwd = cwd || process.cwd();
     try { fs.accessSync(effectiveCwd); } catch { effectiveCwd = process.cwd(); }
 
-    // Clear any stale cancel signal before starting
-    try { fs.unlinkSync(CANCEL_FILE); } catch {}
+    // Clear any stale cancel signal for this tab before starting
+    const cancelFile = cancelFileForTab(tid);
+    try { fs.unlinkSync(cancelFile); } catch {}
 
     const proc = spawn('claude', claudeArgs, {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -257,14 +261,14 @@ async function askClaude(queueEntry: any): Promise<void> {
 
     proc.stdin.end();
 
-    // Poll for cancel signal from server's killAgent()
+    // Poll for per-tab cancel signal from server's killAgent()
     const cancelCheck = setInterval(() => {
       try {
-        if (fs.existsSync(CANCEL_FILE)) {
-          console.log('[sidebar-agent] Cancel signal received — killing claude subprocess');
+        if (fs.existsSync(cancelFile)) {
+          console.log(`[sidebar-agent] Cancel signal received for tab ${tid} — killing claude subprocess`);
           try { proc.kill('SIGTERM'); } catch {}
           setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 3000);
-          fs.unlinkSync(CANCEL_FILE);
+          fs.unlinkSync(cancelFile);
           clearInterval(cancelCheck);
         }
       } catch {}

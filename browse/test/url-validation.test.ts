@@ -62,8 +62,20 @@ describe('validateNavigationUrl', () => {
     await expect(validateNavigationUrl('http://0251.0376.0251.0376/')).rejects.toThrow(/cloud metadata/i);
   });
 
-  it('blocks IPv6 metadata with brackets', async () => {
+  it('blocks IPv6 metadata with brackets (fd00::)', async () => {
     await expect(validateNavigationUrl('http://[fd00::]/')).rejects.toThrow(/cloud metadata/i);
+  });
+
+  it('blocks IPv6 ULA fd00::1 (not just fd00::)', async () => {
+    await expect(validateNavigationUrl('http://[fd00::1]/')).rejects.toThrow(/cloud metadata/i);
+  });
+
+  it('blocks IPv6 ULA fd12:3456::1', async () => {
+    await expect(validateNavigationUrl('http://[fd12:3456::1]/')).rejects.toThrow(/cloud metadata/i);
+  });
+
+  it('blocks IPv6 ULA fc00:: (full fc00::/7 range)', async () => {
+    await expect(validateNavigationUrl('http://[fc00::]/')).rejects.toThrow(/cloud metadata/i);
   });
 
   it('throws on malformed URLs', async () => {

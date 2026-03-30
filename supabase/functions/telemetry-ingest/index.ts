@@ -120,8 +120,9 @@ Deno.serve(async (req) => {
     }
 
     // Upsert installations (update last_seen)
+    const upsertErrors: string[] = [];
     for (const [id, data] of installationUpserts) {
-      await supabase
+      const { error: upsertError } = await supabase
         .from("installations")
         .upsert(
           {
@@ -132,9 +133,16 @@ Deno.serve(async (req) => {
           },
           { onConflict: "installation_id" }
         );
+      if (upsertError) {
+        upsertErrors.push(`${id}: ${upsertError.message}`);
+      }
     }
 
-    return new Response(JSON.stringify({ inserted: rows.length }), {
+    const result: Record<string, any> = { inserted: rows.length };
+    if (upsertErrors.length > 0) {
+      result.upsertErrors = upsertErrors;
+    }
+    return new Response(JSON.stringify(result), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });

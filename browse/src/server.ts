@@ -524,9 +524,12 @@ function killAgent(): void {
     try { agentProcess.kill('SIGTERM'); } catch {}
     setTimeout(() => { try { agentProcess?.kill('SIGKILL'); } catch {} }, 3000);
   }
-  // Signal the sidebar-agent worker to cancel via a cancel file.
-  // The sidebar-agent process checks for this file and kills its claude subprocess.
-  const cancelFile = path.join(process.env.HOME || '/tmp', '.gstack', 'sidebar-agent-cancel');
+  // Signal the sidebar-agent worker to cancel via a per-tab cancel file.
+  // Using per-tab files prevents race conditions where one agent's cancel
+  // signal is consumed by a different tab's agent in concurrent mode.
+  const cancelDir = path.join(process.env.HOME || '/tmp', '.gstack');
+  const tabId = agentTabId ?? 0;
+  const cancelFile = path.join(cancelDir, `sidebar-agent-cancel-${tabId}`);
   try { fs.writeFileSync(cancelFile, Date.now().toString()); } catch {}
   agentProcess = null;
   agentStartTime = null;
