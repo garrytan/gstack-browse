@@ -177,51 +177,6 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
     try { fs.rmSync(nonGitDir, { recursive: true, force: true }); } catch {}
   }, 60_000);
 
-  testConcurrentIfSelected('contributor-mode', async () => {
-    const contribDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-contrib-'));
-    const logsDir = path.join(contribDir, 'contributor-logs');
-    fs.mkdirSync(logsDir, { recursive: true });
-
-    const result = await runSkillTest({
-      prompt: `You are in contributor mode (gstack_contributor=true). You just ran this browse command and it failed:
-
-$ /nonexistent/browse goto https://example.com
-/nonexistent/browse: No such file or directory
-
-Per the contributor mode instructions, file a field report to ${logsDir}/browse-missing-binary.md using the Write tool. Include all required sections: title, what you tried, what happened, rating, repro steps, raw output, what would make it a 10, and the date/version footer.`,
-      workingDirectory: contribDir,
-      maxTurns: 5,
-      timeout: 30_000,
-      testName: 'contributor-mode',
-      runId,
-    });
-
-    logCost('contributor mode', result);
-    // Override passed: this test intentionally triggers a browse error (nonexistent binary)
-    // so browseErrors will be non-empty — that's expected, not a failure
-    recordE2E(evalCollector, 'contributor mode report', 'Skill E2E tests', result, {
-      passed: result.exitReason === 'success',
-    });
-
-    // Verify a contributor log was created with expected format
-    const logFiles = fs.readdirSync(logsDir).filter(f => f.endsWith('.md'));
-    expect(logFiles.length).toBeGreaterThan(0);
-
-    // Verify report has key structural sections (agent may phrase differently)
-    const logContent = fs.readFileSync(path.join(logsDir, logFiles[0]), 'utf-8');
-    // Must have a title (# heading)
-    expect(logContent).toMatch(/^#\s/m);
-    // Must mention the failed command or browse
-    expect(logContent).toMatch(/browse|nonexistent|not found|no such file/i);
-    // Must have some kind of rating
-    expect(logContent).toMatch(/rating|\/10/i);
-    // Must have steps or reproduction info
-    expect(logContent).toMatch(/step|repro|reproduce/i);
-
-    // Clean up
-    try { fs.rmSync(contribDir, { recursive: true, force: true }); } catch {}
-  }, 90_000);
-
   testConcurrentIfSelected('session-awareness', async () => {
     const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-session-'));
 
