@@ -770,7 +770,7 @@ eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gst
 Append to `~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl`:
 
 ```bash
-echo '{"skill":"ship","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","coverage_pct":COVERAGE_PCT,"plan_items_total":PLAN_TOTAL,"plan_items_done":PLAN_DONE,"verification_result":"VERIFY_RESULT","version":"VERSION","branch":"BRANCH"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
+echo '{"skill":"ship","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","coverage_pct":COVERAGE_PCT,"plan_items_total":PLAN_TOTAL,"plan_items_done":PLAN_DONE,"verification_result":"VERIFY_RESULT","preview_deploy":"DEPLOY_RESULT","browser_verify":"BROWSER_RESULT","version":"VERSION","branch":"BRANCH"}' >> ~/.gstack/projects/$SLUG/$BRANCH-reviews.jsonl
 ```
 
 Substitute from earlier steps:
@@ -778,6 +778,8 @@ Substitute from earlier steps:
 - **PLAN_TOTAL**: total plan items extracted in Step 3.45 (0 if no plan file)
 - **PLAN_DONE**: count of DONE + CHANGED items from Step 3.45 (0 if no plan file)
 - **VERIFY_RESULT**: "pass", "fail", or "skipped" from Step 3.47
+- **DEPLOY_RESULT**: "success", "failed", or "skipped" from Step 7.5
+- **BROWSER_RESULT**: "N/M pass" (e.g., "3/3 pass"), "N/M pass, K/M fail", or "skipped" from Step 7.75
 - **VERSION**: from the VERSION file
 - **BRANCH**: current branch name
 
