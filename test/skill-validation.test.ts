@@ -853,6 +853,24 @@ describe('Completeness Principle in generated SKILL.md files', () => {
   });
 });
 
+describe('Language matching in generated SKILL.md files', () => {
+  const skillsWithVoiceDirective = [
+    'SKILL.md',
+    'browse/SKILL.md',
+    'review/SKILL.md',
+    'autoplan/SKILL.md',
+    'plan-ceo-review/SKILL.md',
+  ];
+
+  for (const skill of skillsWithVoiceDirective) {
+    test(`${skill} instructs the agent to match the user's language`, () => {
+      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
+      expect(content).toContain('**Language:** Match the user\'s language.');
+      expect(content).toContain('If the user is writing mostly in Chinese, respond in Chinese.');
+    });
+  }
+});
+
 // --- Part 7: Planted-bug fixture validation (A4) ---
 
 describe('Planted-bug fixture validation', () => {
