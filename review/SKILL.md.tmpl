@@ -6,7 +6,7 @@ description: |
   Pre-landing PR review. Analyzes diff against the base branch for SQL safety, LLM trust
   boundary violations, conditional side effects, and other structural issues. Use when
   asked to "review this PR", "code review", "pre-landing review", or "check my diff".
-  Proactively suggest when the user is about to merge or land code changes.
+  Proactively suggest when the user is about to merge or land code changes. (gstack)
 allowed-tools:
   - Bash
   - Read
