@@ -1,150 +1,150 @@
-# Architecture
+# 架构
 
-This document explains **why** gstack is built the way it is. For setup and commands, see CLAUDE.md. For contributing, see CONTRIBUTING.md.
+这份文档解释 gstack **为什么** 会按现在这种方式构建。关于安装与命令，请看 `CLAUDE.md`。关于贡献方式，请看 `CONTRIBUTING.md`。
 
-## The core idea
+## 核心想法
 
-gstack gives Claude Code a persistent browser and a set of opinionated workflow skills. The browser is the hard part — everything else is Markdown.
+gstack 给 Claude Code 提供了一个持久化浏览器，以及一套带明确倾向的工作流 skill。浏览器这一层才是难点，其余基本都是 Markdown。
 
-The key insight: an AI agent interacting with a browser needs **sub-second latency** and **persistent state**. If every command cold-starts a browser, you're waiting 3-5 seconds per tool call. If the browser dies between commands, you lose cookies, tabs, and login sessions. So gstack runs a long-lived Chromium daemon that the CLI talks to over localhost HTTP.
+关键洞察是：一个与浏览器交互的 AI agent，需要 **亚秒级延迟** 和 **持久状态**。如果每条命令都要冷启动一次浏览器，那每次工具调用都要等 3-5 秒。如果浏览器在命令之间死掉，cookie、标签页和登录会话也都会丢。所以 gstack 会运行一个长生命周期的 Chromium daemon，由 CLI 通过 localhost HTTP 与之通信。
 
 ```
 Claude Code                     gstack
 ─────────                      ──────
                                ┌──────────────────────┐
-  Tool call: $B snapshot -i    │  CLI (compiled binary)│
-  ─────────────────────────→   │  • reads state file   │
-                               │  • POST /command      │
-                               │    to localhost:PORT   │
+  Tool call: $B snapshot -i    │  CLI（编译后的二进制） │
+  ─────────────────────────→   │  • 读取 state file     │
+                               │  • 向 localhost:PORT   │
+                               │    POST /command       │
                                └──────────┬───────────┘
                                           │ HTTP
                                ┌──────────▼───────────┐
-                               │  Server (Bun.serve)   │
-                               │  • dispatches command  │
-                               │  • talks to Chromium   │
-                               │  • returns plain text  │
+                               │  Server（Bun.serve）  │
+                               │  • 分发命令            │
+                               │  • 与 Chromium 通信    │
+                               │  • 返回纯文本          │
                                └──────────┬───────────┘
                                           │ CDP
                                ┌──────────▼───────────┐
-                               │  Chromium (headless)   │
-                               │  • persistent tabs     │
-                               │  • cookies carry over  │
-                               │  • 30min idle timeout  │
+                               │  Chromium（headless） │
+                               │  • 持久化标签页        │
+                               │  • cookie 会沿用       │
+                               │  • 30 分钟空闲超时     │
                                └───────────────────────┘
 ```
 
-First call starts everything (~3s). Every call after: ~100-200ms.
+第一次调用会启动整套系统（约 3 秒）。之后每次调用约 100-200ms。
 
-## Why Bun
+## 为什么选 Bun
 
-Node.js would work. Bun is better here for three reasons:
+Node.js 也能用。但在这里 Bun 更合适，原因有四个：
 
-1. **Compiled binaries.** `bun build --compile` produces a single ~58MB executable. No `node_modules` at runtime, no `npx`, no PATH configuration. The binary just runs. This matters because gstack installs into `~/.claude/skills/` where users don't expect to manage a Node.js project.
+1. **可编译成单文件二进制。** `bun build --compile` 能产出一个约 58MB 的单独可执行文件。运行时不需要 `node_modules`，不需要 `npx`，也不需要配 PATH。二进制拿来就能跑。这很重要，因为 gstack 是安装到 `~/.claude/skills/` 下的，用户不会期待自己去维护一个 Node.js 项目。
 
-2. **Native SQLite.** Cookie decryption reads Chromium's SQLite cookie database directly. Bun has `new Database()` built in — no `better-sqlite3`, no native addon compilation, no gyp. One less thing that breaks on different machines.
+2. **原生 SQLite。** cookie 解密需要直接读取 Chromium 的 SQLite cookie 数据库。Bun 内置 `new Database()`，不需要 `better-sqlite3`，不需要原生 addon 编译，也不需要折腾 gyp。少一层跨机器失效点。
 
-3. **Native TypeScript.** The server runs as `bun run server.ts` during development. No compilation step, no `ts-node`, no source maps to debug. The compiled binary is for deployment; source files are for development.
+3. **原生 TypeScript。** 开发时服务端直接 `bun run server.ts`。不需要编译步骤，不需要 `ts-node`，调试时也不用额外处理 source map。发布时用编译后的二进制，开发时直接用源码。
 
-4. **Built-in HTTP server.** `Bun.serve()` is fast, simple, and doesn't need Express or Fastify. The server handles ~10 routes total. A framework would be overhead.
+4. **内置 HTTP 服务器。** `Bun.serve()` 足够快、足够简单，不需要 Express 或 Fastify。服务端总共也就十来个路由，上框架纯属额外负担。
 
-The bottleneck is always Chromium, not the CLI or server. Bun's startup speed (~1ms for the compiled binary vs ~100ms for Node) is nice but not the reason we chose it. The compiled binary and native SQLite are.
+这里真正的瓶颈永远是 Chromium，不是 CLI，也不是 server。Bun 的启动速度（编译后二进制约 1ms，对比 Node 约 100ms）不错，但这不是我们选它的主因。真正关键的是单文件二进制和原生 SQLite。
 
-## The daemon model
+## daemon 模型
 
-### Why not start a browser per command?
+### 为什么不为每条命令单独启动浏览器？
 
-Playwright can launch Chromium in ~2-3 seconds. For a single screenshot, that's fine. For a QA session with 20+ commands, it's 40+ seconds of browser startup overhead. Worse: you lose all state between commands. Cookies, localStorage, login sessions, open tabs — all gone.
+Playwright 启动 Chromium 大约要 2-3 秒。只截一张图时还可以接受，但如果是一个有 20+ 条命令的 QA 会话，光浏览器启动开销就会多出 40+ 秒。更糟的是，每条命令之间所有状态都会丢失。cookie、localStorage、登录会话、打开的标签页，全部清空。
 
-The daemon model means:
+daemon 模型带来这些收益：
 
-- **Persistent state.** Log in once, stay logged in. Open a tab, it stays open. localStorage persists across commands.
-- **Sub-second commands.** After the first call, every command is just an HTTP POST. ~100-200ms round-trip including Chromium's work.
-- **Automatic lifecycle.** The server auto-starts on first use, auto-shuts down after 30 minutes idle. No process management needed.
+- **状态持久化。** 登录一次，后面一直保持登录。打开一个标签页，它会一直存在。localStorage 在命令间保持不变。
+- **亚秒级命令。** 第一次调用之后，后续每条命令本质上都是一个 HTTP POST。包括 Chromium 的实际执行时间在内，往返约 100-200ms。
+- **自动生命周期管理。** 第一次使用自动启动 server，空闲 30 分钟自动关闭。不需要用户自己管进程。
 
-### State file
+### 状态文件
 
-The server writes `.gstack/browse.json` (atomic write via tmp + rename, mode 0o600):
+server 会写入 `.gstack/browse.json`（通过 tmp + rename 原子写入，权限 `0o600`）：
 
 ```json
 { "pid": 12345, "port": 34567, "token": "uuid-v4", "startedAt": "...", "binaryVersion": "abc123" }
 ```
 
-The CLI reads this file to find the server. If the file is missing or the server fails an HTTP health check, the CLI spawns a new server. On Windows, PID-based process detection is unreliable in Bun binaries, so the health check (GET /health) is the primary liveness signal on all platforms.
+CLI 通过读取这个文件找到 server。如果文件缺失，或者 server 的 HTTP 健康检查失败，CLI 就会拉起一个新的 server。在 Windows 上，Bun 二进制的 PID 级进程探测不可靠，因此在所有平台上，健康检查（`GET /health`）才是主要的存活信号。
 
-### Port selection
+### 端口选择
 
-Random port between 10000-60000 (retry up to 5 on collision). This means 10 Conductor workspaces can each run their own browse daemon with zero configuration and zero port conflicts. The old approach (scanning 9400-9409) broke constantly in multi-workspace setups.
+随机在 10000-60000 间选端口（碰撞时最多重试 5 次）。这样 10 个 Conductor 工作区都可以各自跑一个 browse daemon，不需要任何配置，也不会发生端口冲突。旧方案是扫描 9400-9409，在多工作区场景里几乎一直出问题。
 
-### Version auto-restart
+### 版本自动重启
 
-The build writes `git rev-parse HEAD` to `browse/dist/.version`. On each CLI invocation, if the binary's version doesn't match the running server's `binaryVersion`, the CLI kills the old server and starts a new one. This prevents the "stale binary" class of bugs entirely — rebuild the binary, next command picks it up automatically.
+构建时会把 `git rev-parse HEAD` 写进 `browse/dist/.version`。每次 CLI 调用时，如果当前二进制版本与运行中的 server 的 `binaryVersion` 不一致，CLI 就会杀掉旧 server 并启动新 server。这样可以彻底消灭“二进制过期”这类问题。只要重新构建了二进制，下一条命令就会自动接上新版。
 
-## Security model
+## 安全模型
 
-### Localhost only
+### 仅监听 localhost
 
-The HTTP server binds to `localhost`, not `0.0.0.0`. It's not reachable from the network.
+HTTP server 绑定在 `localhost`，不是 `0.0.0.0`。外网无法访问。
 
-### Bearer token auth
+### Bearer token 鉴权
 
-Every server session generates a random UUID token, written to the state file with mode 0o600 (owner-only read). Every HTTP request must include `Authorization: Bearer <token>`. If the token doesn't match, the server returns 401.
+每个 server 会话都会生成一个随机 UUID token，并把它写入权限为 `0o600` 的状态文件（只有 owner 可读）。每个 HTTP 请求都必须带 `Authorization: Bearer <token>`。如果 token 不匹配，server 返回 401。
 
-This prevents other processes on the same machine from talking to your browse server. The cookie picker UI (`/cookie-picker`) and health check (`/health`) are exempt — they're localhost-only and don't execute commands.
+这能防止同一台机器上的其他进程直接调用你的 browse server。cookie picker UI（`/cookie-picker`）和健康检查（`/health`）是例外，它们只暴露在 localhost 上，而且不会执行命令。
 
-### Cookie security
+### Cookie 安全
 
-Cookies are the most sensitive data gstack handles. The design:
+cookie 是 gstack 处理的最敏感数据。整体设计如下：
 
-1. **Keychain access requires user approval.** First cookie import per browser triggers a macOS Keychain dialog. The user must click "Allow" or "Always Allow." gstack never silently accesses credentials.
+1. **访问 Keychain 需要用户批准。** 每个浏览器第一次导入 cookie 时，macOS 都会弹出 Keychain 对话框。用户必须点击 “Allow” 或 “Always Allow”。gstack 不会静默访问你的凭据。
 
-2. **Decryption happens in-process.** Cookie values are decrypted in memory (PBKDF2 + AES-128-CBC), loaded into the Playwright context, and never written to disk in plaintext. The cookie picker UI never displays cookie values — only domain names and counts.
+2. **解密发生在进程内。** cookie 值会在内存中完成解密（PBKDF2 + AES-128-CBC），然后加载进 Playwright context，绝不会以明文写到磁盘。cookie picker UI 也不会展示 cookie 值，只显示域名和数量。
 
-3. **Database is read-only.** gstack copies the Chromium cookie DB to a temp file (to avoid SQLite lock conflicts with the running browser) and opens it read-only. It never modifies your real browser's cookie database.
+3. **数据库只读。** gstack 会先把 Chromium 的 cookie 数据库复制到一个临时文件（避免和正在运行的浏览器争抢 SQLite 锁），然后以只读方式打开。它绝不会修改你真实浏览器里的 cookie 数据库。
 
-4. **Key caching is per-session.** The Keychain password + derived AES key are cached in memory for the server's lifetime. When the server shuts down (idle timeout or explicit stop), the cache is gone.
+4. **密钥缓存只在当前会话内有效。** Keychain 密码和派生后的 AES key 只在 server 生命周期内缓存于内存中。server 一旦关闭（空闲超时或显式停止），缓存就消失。
 
-5. **No cookie values in logs.** Console, network, and dialog logs never contain cookie values. The `cookies` command outputs cookie metadata (domain, name, expiry) but values are truncated.
+5. **日志中不记录 cookie 值。** 控制台、网络和对话框日志都不会包含 cookie 值。`cookies` 命令输出的是 cookie 元数据（域名、名称、过期时间），值会被截断。
 
-### Shell injection prevention
+### 防止 Shell 注入
 
-The browser registry (Comet, Chrome, Arc, Brave, Edge) is hardcoded. Database paths are constructed from known constants, never from user input. Keychain access uses `Bun.spawn()` with explicit argument arrays, not shell string interpolation.
+浏览器注册表（Comet、Chrome、Arc、Brave、Edge）是硬编码的。数据库路径由已知常量拼接而来，不接受用户输入。Keychain 访问通过 `Bun.spawn()` 和显式参数数组完成，不通过 shell 字符串插值。
 
-## The ref system
+## ref 系统
 
-Refs (`@e1`, `@e2`, `@c1`) are how the agent addresses page elements without writing CSS selectors or XPath.
+Refs（`@e1`、`@e2`、`@c1`）让 agent 能直接引用页面元素，而不需要手写 CSS selector 或 XPath。
 
-### How it works
+### 工作方式
 
 ```
-1. Agent runs: $B snapshot -i
-2. Server calls Playwright's page.accessibility.snapshot()
-3. Parser walks the ARIA tree, assigns sequential refs: @e1, @e2, @e3...
-4. For each ref, builds a Playwright Locator: getByRole(role, { name }).nth(index)
-5. Stores Map<string, RefEntry> on the BrowserManager instance (role + name + Locator)
-6. Returns the annotated tree as plain text
+1. agent 运行：$B snapshot -i
+2. server 调用 Playwright 的 page.accessibility.snapshot()
+3. 解析器遍历 ARIA 树，顺序分配 ref：@e1、@e2、@e3...
+4. 为每个 ref 构建一个 Playwright Locator：getByRole(role, { name }).nth(index)
+5. 在 BrowserManager 实例上保存 Map<string, RefEntry>（包含 role、name、Locator）
+6. 将带注释的树以纯文本返回
 
-Later:
-7. Agent runs: $B click @e3
-8. Server resolves @e3 → Locator → locator.click()
+之后：
+7. agent 运行：$B click @e3
+8. server 解析 @e3 → Locator → locator.click()
 ```
 
-### Why Locators, not DOM mutation
+### 为什么用 Locator，而不是修改 DOM
 
-The obvious approach is to inject `data-ref="@e1"` attributes into the DOM. This breaks on:
+最直觉的办法，是往 DOM 里注入 `data-ref="@e1"` 之类的属性。但这会在下面这些场景出问题：
 
-- **CSP (Content Security Policy).** Many production sites block DOM modification from scripts.
-- **React/Vue/Svelte hydration.** Framework reconciliation can strip injected attributes.
-- **Shadow DOM.** Can't reach inside shadow roots from the outside.
+- **CSP（Content Security Policy）。** 很多生产站点会阻止脚本修改 DOM。
+- **React / Vue / Svelte hydration。** 框架的 reconciliation 可能把注入的属性删掉。
+- **Shadow DOM。** 你无法从外部直接深入 shadow root。
 
-Playwright Locators are external to the DOM. They use the accessibility tree (which Chromium maintains internally) and `getByRole()` queries. No DOM mutation, no CSP issues, no framework conflicts.
+Playwright Locator 是 DOM 之外的机制。它依赖的是可访问性树（由 Chromium 内部维护）和 `getByRole()` 查询。这样就不需要 DOM 注入，没有 CSP 问题，也不会和框架冲突。
 
-### Ref lifecycle
+### ref 生命周期
 
-Refs are cleared on navigation (the `framenavigated` event on the main frame). This is correct — after navigation, all locators are stale. The agent must run `snapshot` again to get fresh refs. This is by design: stale refs should fail loudly, not click the wrong element.
+导航发生时（主 frame 的 `framenavigated` 事件），refs 会被清空。这是正确行为，因为导航之后所有 locator 都失效了。agent 必须重新运行 `snapshot` 获取新 refs。这是刻意设计的：失效 ref 应该大声报错，而不是误点到错误元素。
 
-### Ref staleness detection
+### ref 失效检测
 
-SPAs can mutate the DOM without triggering `framenavigated` (e.g. React router transitions, tab switches, modal opens). This makes refs stale even though the page URL didn't change. To catch this, `resolveRef()` performs an async `count()` check before using any ref:
+SPA 可以在不触发 `framenavigated` 的情况下修改 DOM，例如 React Router 跳转、标签切换、模态框打开。这会让 refs 失效，即使 URL 没变。为了捕捉这类情况，`resolveRef()` 在使用 ref 前会先执行异步 `count()` 检查：
 
 ```
 resolveRef(@e3) → entry = refMap.get("e3")
@@ -153,101 +153,101 @@ resolveRef(@e3) → entry = refMap.get("e3")
                 → if count > 0: return { locator }
 ```
 
-This fails fast (~5ms overhead) instead of letting Playwright's 30-second action timeout expire on a missing element. The `RefEntry` stores `role` and `name` metadata alongside the Locator so the error message can tell the agent what the element was.
+这样可以快速失败（约 5ms 开销），而不是等到 Playwright 在一个不存在的元素上卡满 30 秒 action timeout。`RefEntry` 还会额外存储 `role` 和 `name` 元数据，好让错误信息能告诉 agent 这个元素原本是什么。
 
-### Cursor-interactive refs (@c)
+### 光标可交互 refs（`@c`）
 
-The `-C` flag finds elements that are clickable but not in the ARIA tree — things styled with `cursor: pointer`, elements with `onclick` attributes, or custom `tabindex`. These get `@c1`, `@c2` refs in a separate namespace. This catches custom components that frameworks render as `<div>` but are actually buttons.
+`-C` 标志会额外发现那些虽然不在 ARIA 树里、但实际上可点击的元素，例如带 `cursor: pointer` 样式的元素、带 `onclick` 的节点，或者自定义 `tabindex` 的组件。这些元素会被分配到独立命名空间里，形成 `@c1`、`@c2`。这样可以覆盖那些被框架渲染成 `<div>`、但行为上其实是按钮的自定义组件。
 
-## Logging architecture
+## 日志架构
 
-Three ring buffers (50,000 entries each, O(1) push):
-
-```
-Browser events → CircularBuffer (in-memory) → Async flush to .gstack/*.log
-```
-
-Console messages, network requests, and dialog events each have their own buffer. Flushing happens every 1 second — the server appends only new entries since the last flush. This means:
-
-- HTTP request handling is never blocked by disk I/O
-- Logs survive server crashes (up to 1 second of data loss)
-- Memory is bounded (50K entries × 3 buffers)
-- Disk files are append-only, readable by external tools
-
-The `console`, `network`, and `dialog` commands read from the in-memory buffers, not disk. Disk files are for post-mortem debugging.
-
-## SKILL.md template system
-
-### The problem
-
-SKILL.md files tell Claude how to use the browse commands. If the docs list a flag that doesn't exist, or miss a command that was added, the agent hits errors. Hand-maintained docs always drift from code.
-
-### The solution
+三个环形缓冲区（各 50,000 条，`O(1)` push）：
 
 ```
-SKILL.md.tmpl          (human-written prose + placeholders)
+浏览器事件 → CircularBuffer（内存中）→ 异步 flush 到 .gstack/*.log
+```
+
+控制台消息、网络请求和对话框事件各自有独立缓冲区。flush 每 1 秒执行一次，server 只会把上次 flush 之后的新条目追加到磁盘。这带来几个效果：
+
+- HTTP 请求处理永远不会被磁盘 I/O 阻塞
+- server 崩溃后日志仍能保住（最多丢失 1 秒数据）
+- 内存是有上界的（50K 条 × 3 个缓冲区）
+- 磁盘文件是 append-only，可供外部工具读取
+
+`console`、`network`、`dialog` 这些命令读取的是内存缓冲区，而不是磁盘。磁盘文件只是用于事后排障。
+
+## SKILL.md 模板系统
+
+### 问题
+
+SKILL.md 文件负责告诉 Claude 如何使用 browse 命令。如果文档里列了一个不存在的 flag，或者漏写了一个新加命令，agent 就会直接撞错。靠人手维护的文档一定会和代码漂移。
+
+### 解决方案
+
+```
+SKILL.md.tmpl          （人工编写的说明 + 占位符）
        ↓
-gen-skill-docs.ts      (reads source code metadata)
+gen-skill-docs.ts      （读取源码元数据）
        ↓
-SKILL.md               (committed, auto-generated sections)
+SKILL.md               （提交到仓库，自动生成的部分已展开）
 ```
 
-Templates contain the workflows, tips, and examples that require human judgment. Placeholders are filled from source code at build time:
+模板里只保留那些需要人工判断的工作流、提示和例子。占位符在构建时由源码填充：
 
-| Placeholder | Source | What it generates |
+| 占位符 | 来源 | 生成内容 |
 |-------------|--------|-------------------|
-| `{{COMMAND_REFERENCE}}` | `commands.ts` | Categorized command table |
-| `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | Flag reference with examples |
-| `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, AskUserQuestion format |
-| `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | Binary discovery + setup instructions |
-| `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for PR-targeting skills (ship, review, qa, plan-ceo-review) |
-| `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared QA methodology block for /qa and /qa-only |
-| `{{DESIGN_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared design audit methodology for /plan-design-review and /design-review |
-| `{{REVIEW_DASHBOARD}}` | `gen-skill-docs.ts` | Review Readiness Dashboard for /ship pre-flight |
-| `{{TEST_BOOTSTRAP}}` | `gen-skill-docs.ts` | Test framework detection, bootstrap, CI/CD setup for /qa, /ship, /design-review |
-| `{{CODEX_PLAN_REVIEW}}` | `gen-skill-docs.ts` | Optional cross-model plan review (Codex or Claude subagent fallback) for /plan-ceo-review and /plan-eng-review |
-| `{{DESIGN_SETUP}}` | `resolvers/design.ts` | Discovery pattern for `$D` design binary, mirrors `{{BROWSE_SETUP}}` |
-| `{{DESIGN_SHOTGUN_LOOP}}` | `resolvers/design.ts` | Shared comparison board feedback loop for /design-shotgun, /plan-design-review, /design-consultation |
+| `{{COMMAND_REFERENCE}}` | `commands.ts` | 分类后的命令表 |
+| `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | 带示例的 flag 参考 |
+| `{{PREAMBLE}}` | `gen-skill-docs.ts` | 启动块：更新检查、会话跟踪、contributor mode、AskUserQuestion 格式 |
+| `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | 二进制发现 + 安装说明 |
+| `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | 针对 PR 型 skill（ship、review、qa、plan-ceo-review）的动态 base branch 检测 |
+| `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | `/qa` 与 `/qa-only` 共用的 QA 方法块 |
+| `{{DESIGN_METHODOLOGY}}` | `gen-skill-docs.ts` | `/plan-design-review` 与 `/design-review` 共用的设计审计方法块 |
+| `{{REVIEW_DASHBOARD}}` | `gen-skill-docs.ts` | `/ship` pre-flight 的 Review Readiness Dashboard |
+| `{{TEST_BOOTSTRAP}}` | `gen-skill-docs.ts` | `/qa`、`/ship`、`/design-review` 共用的测试框架识别、bootstrap 与 CI/CD 配置 |
+| `{{CODEX_PLAN_REVIEW}}` | `gen-skill-docs.ts` | `/plan-ceo-review` 与 `/plan-eng-review` 的可选跨模型计划审查（Codex 或 Claude subagent fallback） |
+| `{{DESIGN_SETUP}}` | `resolvers/design.ts` | `$D` 设计二进制的发现模式，对齐 `{{BROWSE_SETUP}}` |
+| `{{DESIGN_SHOTGUN_LOOP}}` | `resolvers/design.ts` | `/design-shotgun`、`/plan-design-review`、`/design-consultation` 共用的对比板反馈循环 |
 
-This is structurally sound — if a command exists in code, it appears in docs. If it doesn't exist, it can't appear.
+这个结构是稳的：代码里有的命令，一定会出现在文档里；代码里没有的命令，就不可能凭空出现在文档里。
 
-### The preamble
+### preamble
 
-Every skill starts with a `{{PREAMBLE}}` block that runs before the skill's own logic. It handles five things in a single bash command:
+每个 skill 都以一个 `{{PREAMBLE}}` 块开头，在 skill 自身逻辑执行前先跑。它用一个 bash 命令同时处理五件事：
 
-1. **Update check** — calls `gstack-update-check`, reports if an upgrade is available.
-2. **Session tracking** — touches `~/.gstack/sessions/$PPID` and counts active sessions (files modified in the last 2 hours). When 3+ sessions are running, all skills enter "ELI16 mode" — every question re-grounds the user on context because they're juggling windows.
-3. **Contributor mode** — reads `gstack_contributor` from config. When true, the agent files casual field reports to `~/.gstack/contributor-logs/` when gstack itself misbehaves.
-4. **AskUserQuestion format** — universal format: context, question, `RECOMMENDATION: Choose X because ___`, lettered options. Consistent across all skills.
-5. **Search Before Building** — before building infrastructure or unfamiliar patterns, search first. Three layers of knowledge: tried-and-true (Layer 1), new-and-popular (Layer 2), first-principles (Layer 3). When first-principles reasoning reveals conventional wisdom is wrong, the agent names the "eureka moment" and logs it. See `ETHOS.md` for the full builder philosophy.
+1. **更新检查**：调用 `gstack-update-check`，判断是否有可用升级。
+2. **会话跟踪**：`touch ~/.gstack/sessions/$PPID`，并统计最近 2 小时内活跃的会话数（按文件修改时间计）。当同时存在 3+ 个会话时，所有 skill 都进入 “ELI16 mode”，因为用户此时通常正在多个窗口之间切换，所以每次提问都要重新帮用户锚定上下文。
+3. **contributor mode**：从配置里读取 `gstack_contributor`。为 true 时，如果 gstack 自己行为异常，agent 会把简短 field report 写到 `~/.gstack/contributor-logs/`。
+4. **AskUserQuestion 格式**：统一格式包括 context、question、`RECOMMENDATION: Choose X because ___` 和字母编号选项。所有 skill 都保持一致。
+5. **Search Before Building**：在搭基础设施或处理陌生模式前，先搜索。知识分三层：已验证可靠（Layer 1）、新但流行（Layer 2）、第一性原理（Layer 3）。当第一性原理推翻了传统共识时，agent 必须明确指出这个 “eureka moment”，并记录下来。完整的 builder 哲学见 `ETHOS.md`。
 
-### Why committed, not generated at runtime?
+### 为什么提交生成结果，而不是运行时生成？
 
-Three reasons:
+有三个原因：
 
-1. **Claude reads SKILL.md at skill load time.** There's no build step when a user invokes `/browse`. The file must already exist and be correct.
-2. **CI can validate freshness.** `gen:skill-docs --dry-run` + `git diff --exit-code` catches stale docs before merge.
-3. **Git blame works.** You can see when a command was added and in which commit.
+1. **Claude 会在加载 skill 时直接读取 SKILL.md。** 用户调用 `/browse` 时不会再额外跑一个构建步骤，所以文件必须事先存在且内容正确。
+2. **CI 可以校验新鲜度。** `gen:skill-docs --dry-run` + `git diff --exit-code` 能在合并前发现文档是否过期。
+3. **Git blame 可追溯。** 你可以清楚看到某个命令是什么时候加进来的、在哪个提交里加的。
 
-### Template test tiers
+### 模板测试分层
 
-| Tier | What | Cost | Speed |
+| 层级 | 内容 | 成本 | 速度 |
 |------|------|------|-------|
-| 1 — Static validation | Parse every `$B` command in SKILL.md, validate against registry | Free | <2s |
-| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, check for errors | ~$3.85 | ~20min |
-| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
+| 1 — 静态校验 | 解析 SKILL.md 中所有 `$B` 命令，并与 registry 校验 | 免费 | <2s |
+| 2 — 通过 `claude -p` 做 E2E | 启动真实 Claude 会话，逐个运行 skill，检查是否报错 | ~$3.85 | ~20min |
+| 3 — LLM 评审 | 用 Sonnet 评估文档的清晰度 / 完整性 / 可执行性 | ~$0.15 | ~30s |
 
-Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea is: catch 95% of issues for free, use LLMs only for judgment calls.
+第 1 层在每次 `bun test` 都会跑。第 2、3 层则通过 `EVALS=1` 控制。思路很简单：95% 的问题用免费手段先挡住，LLM 只用在需要判断的地方。
 
-## Command dispatch
+## 命令分发
 
-Commands are categorized by side effects:
+命令按副作用分类：
 
-- **READ** (text, html, links, console, cookies, ...): No mutations. Safe to retry. Returns page state.
-- **WRITE** (goto, click, fill, press, ...): Mutates page state. Not idempotent.
-- **META** (snapshot, screenshot, tabs, chain, ...): Server-level operations that don't fit neatly into read/write.
+- **READ**（text、html、links、console、cookies 等）：不修改状态，可安全重试，返回页面状态。
+- **WRITE**（goto、click、fill、press 等）：会修改页面状态，不是幂等操作。
+- **META**（snapshot、screenshot、tabs、chain 等）：属于 server 级操作，无法简单归入 read / write。
 
-This isn't just organizational. The server uses it for dispatch:
+这不只是为了整理文档。server 也依赖这套分类做分发：
 
 ```typescript
 if (READ_COMMANDS.has(cmd))  → handleReadCommand(cmd, args, bm)
@@ -255,65 +255,65 @@ if (WRITE_COMMANDS.has(cmd)) → handleWriteCommand(cmd, args, bm)
 if (META_COMMANDS.has(cmd))  → handleMetaCommand(cmd, args, bm, shutdown)
 ```
 
-The `help` command returns all three sets so agents can self-discover available commands.
+`help` 命令会返回这三组命令，方便 agent 自己发现可用能力。
 
-## Error philosophy
+## 错误哲学
 
-Errors are for AI agents, not humans. Every error message must be actionable:
+错误信息是给 AI agent 看的，不是给人看的。每条错误都必须可执行：
 
-- "Element not found" → "Element not found or not interactable. Run `snapshot -i` to see available elements."
-- "Selector matched multiple elements" → "Selector matched multiple elements. Use @refs from `snapshot` instead."
-- Timeout → "Navigation timed out after 30s. The page may be slow or the URL may be wrong."
+- `"Element not found"` → `"Element not found or not interactable. Run \`snapshot -i\` to see available elements."`
+- `"Selector matched multiple elements"` → `"Selector matched multiple elements. Use @refs from \`snapshot\` instead."`
+- 超时 → `"Navigation timed out after 30s. The page may be slow or the URL may be wrong."`
 
-Playwright's native errors are rewritten through `wrapError()` to strip internal stack traces and add guidance. The agent should be able to read the error and know what to do next without human intervention.
+Playwright 原生错误会通过 `wrapError()` 改写，去掉内部堆栈，并加上下一步指导。agent 看到错误后，应该不用人介入就知道下一步怎么做。
 
-### Crash recovery
+### 崩溃恢复
 
-The server doesn't try to self-heal. If Chromium crashes (`browser.on('disconnected')`), the server exits immediately. The CLI detects the dead server on the next command and auto-restarts. This is simpler and more reliable than trying to reconnect to a half-dead browser process.
+server 不尝试自愈。如果 Chromium 崩溃（`browser.on('disconnected')`），server 立即退出。CLI 会在下一条命令时检测到 server 已死，并自动重启。这比尝试重新连到一个半死不活的浏览器进程更简单，也更可靠。
 
-## E2E test infrastructure
+## E2E 测试基础设施
 
-### Session runner (`test/helpers/session-runner.ts`)
+### 会话运行器（`test/helpers/session-runner.ts`）
 
-E2E tests spawn `claude -p` as a completely independent subprocess — not via the Agent SDK, which can't nest inside Claude Code sessions. The runner:
+E2E 测试会把 `claude -p` 启动成一个完全独立的子进程，而不是通过 Agent SDK，因为 Agent SDK 不能嵌套在 Claude Code 会话里。runner 的流程是：
 
-1. Writes the prompt to a temp file (avoids shell escaping issues)
-2. Spawns `sh -c 'cat prompt | claude -p --output-format stream-json --verbose'`
-3. Streams NDJSON from stdout for real-time progress
-4. Races against a configurable timeout
-5. Parses the full NDJSON transcript into structured results
+1. 把 prompt 写进临时文件（避免 shell escaping 问题）
+2. 启动 `sh -c 'cat prompt | claude -p --output-format stream-json --verbose'`
+3. 从 stdout 流式读取 NDJSON，实时拿到进度
+4. 与可配置超时做 race
+5. 把完整 NDJSON transcript 解析成结构化结果
 
-The `parseNDJSON()` function is pure — no I/O, no side effects — making it independently testable.
+`parseNDJSON()` 是纯函数，没有 I/O，也没有副作用，因此可以单独测试。
 
-### Observability data flow
+### 可观测性数据流
 
 ```
   skill-e2e-*.test.ts
         │
-        │ generates runId, passes testName + runId to each call
+        │ 生成 runId，并把 testName + runId 传给每次调用
         │
   ┌─────┼──────────────────────────────┐
   │     │                              │
   │  runSkillTest()              evalCollector
   │  (session-runner.ts)         (eval-store.ts)
   │     │                              │
-  │  per tool call:              per addTest():
+  │  每次工具调用：              每次 addTest():
   │  ┌──┼──────────┐              savePartial()
   │  │  │          │                   │
   │  ▼  ▼          ▼                   ▼
   │ [HB] [PL]    [NJ]          _partial-e2e.json
-  │  │    │        │             (atomic overwrite)
+  │  │    │        │             （原子覆盖写入）
   │  │    │        │
   │  ▼    ▼        ▼
   │ e2e-  prog-  {name}
   │ live  ress   .ndjson
   │ .json .log
   │
-  │  on failure:
+  │  失败时：
   │  {name}-failure.json
   │
-  │  ALL files in ~/.gstack-dev/
-  │  Run dir: e2e-runs/{runId}/
+  │  所有文件都写到 ~/.gstack-dev/
+  │  Run 目录：e2e-runs/{runId}/
   │
   │         eval-watch.ts
   │              │
@@ -321,42 +321,43 @@ The `parseNDJSON()` function is pure — no I/O, no side effects — making it i
   │     read HB     read partial
   │        └─────┬─────┘
   │              ▼
-  │        render dashboard
-  │        (stale >10min? warn)
+  │        渲染 dashboard
+  │        （>10 分钟未更新则告警）
 ```
 
-**Split ownership:** session-runner owns the heartbeat (current test state), eval-store owns partial results (completed test state). The watcher reads both. Neither component knows about the other — they share data only through the filesystem.
+**职责拆分：** session-runner 负责 heartbeat（当前测试状态），eval-store 负责 partial results（已完成测试状态）。watcher 同时读取两者。它们彼此不知道对方存在，只通过文件系统共享数据。
 
-**Non-fatal everything:** All observability I/O is wrapped in try/catch. A write failure never causes a test to fail. The tests themselves are the source of truth; observability is best-effort.
+**任何观测都不能致命：** 所有可观测性 I/O 都被包在 try/catch 里。写失败绝不能让测试失败。测试本身才是真实来源，可观测性只是 best-effort。
 
-**Machine-readable diagnostics:** Each test result includes `exit_reason` (success, timeout, error_max_turns, error_api, exit_code_N), `timeout_at_turn`, and `last_tool_call`. This enables `jq` queries like:
+**机器可读诊断：** 每个测试结果都包含 `exit_reason`（`success`、`timeout`、`error_max_turns`、`error_api`、`exit_code_N`）、`timeout_at_turn` 和 `last_tool_call`。这样就能直接用 `jq` 分析：
+
 ```bash
 jq '.tests[] | select(.exit_reason == "timeout") | .last_tool_call' ~/.gstack-dev/evals/_partial-e2e.json
 ```
 
-### Eval persistence (`test/helpers/eval-store.ts`)
+### Eval 持久化（`test/helpers/eval-store.ts`）
 
-The `EvalCollector` accumulates test results and writes them in two ways:
+`EvalCollector` 会累计测试结果，并以两种方式落盘：
 
-1. **Incremental:** `savePartial()` writes `_partial-e2e.json` after each test (atomic: write `.tmp`, `fs.renameSync`). Survives kills.
-2. **Final:** `finalize()` writes a timestamped eval file (e.g. `e2e-20260314-143022.json`). The partial file is never cleaned up — it persists alongside the final file for observability.
+1. **增量写入：** `savePartial()` 会在每个测试后写 `_partial-e2e.json`（原子方式：写 `.tmp`，再 `fs.renameSync`）。即使进程被杀，也能保住进度。
+2. **最终写入：** `finalize()` 会写一个带时间戳的 eval 文件（例如 `e2e-20260314-143022.json`）。partial 文件不会被清理，它会和最终文件一起保留，供观测使用。
 
-`eval:compare` diffs two eval runs. `eval:summary` aggregates stats across all runs in `~/.gstack-dev/evals/`.
+`eval:compare` 用于比较两次 eval。`eval:summary` 会汇总 `~/.gstack-dev/evals/` 下所有运行记录的统计数据。
 
-### Test tiers
+### 测试分层
 
-| Tier | What | Cost | Speed |
+| 层级 | 内容 | 成本 | 速度 |
 |------|------|------|-------|
-| 1 — Static validation | Parse `$B` commands, validate against registry, observability unit tests | Free | <5s |
-| 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, scan for errors | ~$3.85 | ~20min |
-| 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
+| 1 — 静态校验 | 解析 `$B` 命令、对照 registry 校验、运行 observability 单测 | 免费 | <5s |
+| 2 — 通过 `claude -p` 做 E2E | 启动真实 Claude 会话，逐个运行 skill，并扫描报错 | ~$3.85 | ~20min |
+| 3 — LLM 评审 | 用 Sonnet 评估文档的清晰度 / 完整性 / 可执行性 | ~$0.15 | ~30s |
 
-Tier 1 runs on every `bun test`. Tiers 2+3 are gated behind `EVALS=1`. The idea: catch 95% of issues for free, use LLMs only for judgment calls and integration testing.
+第 1 层在每次 `bun test` 都会执行。第 2、3 层通过 `EVALS=1` 打开。策略还是一样：95% 的问题靠免费手段拦住，LLM 只用于判断与集成测试。
 
-## What's intentionally not here
+## 有意不做的部分
 
-- **No WebSocket streaming.** HTTP request/response is simpler, debuggable with curl, and fast enough. Streaming would add complexity for marginal benefit.
-- **No MCP protocol.** MCP adds JSON schema overhead per request and requires a persistent connection. Plain HTTP + plain text output is lighter on tokens and easier to debug.
-- **No multi-user support.** One server per workspace, one user. The token auth is defense-in-depth, not multi-tenancy.
-- **No Windows/Linux cookie decryption.** macOS Keychain is the only supported credential store. Linux (GNOME Keyring/kwallet) and Windows (DPAPI) are architecturally possible but not implemented.
-- **No iframe auto-discovery.** `$B frame` supports cross-frame interaction (CSS selector, @ref, `--name`, `--url` matching), but the ref system does not auto-crawl iframes during `snapshot`. You must explicitly enter a frame context first.
+- **不做 WebSocket 流式传输。** HTTP 请求 / 响应更简单，可以直接用 curl 调试，而且已经够快。流式传输会增加复杂度，但收益很有限。
+- **不做 MCP 协议。** MCP 每次请求都会带来 JSON schema 开销，而且要求持久连接。纯 HTTP + 纯文本输出更省 token，也更容易调试。
+- **不支持多用户。** 一个工作区一个 server，一个用户。token 鉴权只是防御性加固，不是为多租户设计。
+- **不支持 Windows / Linux 的 cookie 解密。** 目前只支持 macOS Keychain。Linux（GNOME Keyring / kwallet）和 Windows（DPAPI）在架构上能做，但现在没实现。
+- **不做 iframe 自动发现。** `$B frame` 已经支持跨 frame 交互（CSS selector、`@ref`、`--name`、`--url` 匹配），但 ref 系统不会在 `snapshot` 时自动爬 iframe。你必须先显式进入 frame 上下文。
