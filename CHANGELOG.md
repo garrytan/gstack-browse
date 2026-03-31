@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.15.0.0] - 2026-03-31 — news-summary v4: 教育+投資分析ブリーフィングスキル
+
+Daily Japanese stock market briefings, now with layered education, stock notes, a living glossary, and Chart.js candlestick charts — all written directly to your Obsidian vault.
+
+### Added
+
+- **`/news-summary` skill v4.0** — Full redesign from v2 (single-file output) to a structured Obsidian knowledge base. Collects from Nikkei, Kabutan, Shikiho, and NYT Japan via Chrome MCP (for paid content) with WebFetch/WebSearch fallback.
+- **Layer design (speed + education in one file).** Layer 1 is the speed-read briefing: market indicators, causal diagram, scenario, sector table, news list. Layer 2 is educational content in Obsidian `> [!info]-` collapsible callouts — causal chain explanations, wikilinks to glossary terms and stock notes. Beginners get the full picture without cognitive overload.
+- **Stock notes auto-created/updated** (`Stocks/{code}-{name}.md`). Each high/medium impact news item updates or creates a note with basic info, Shikiho data, and a rolling 20-item news history. The `## 自分のメモ` section is protected — the skill never touches it, so your handwritten notes survive every update.
+- **Living glossary** (`Glossary/{macro,market,geopolitics}/{term}.md`). Up to 5 new terms per run, with causal chain entries like "金利↑ → ドル円↑". Existing entries get new causal relationships appended (capped at 10 per term to prevent spam). Term filenames are sanitized for Windows NTFS.
+- **Weekly summary** (`Weekly/{YEAR}-W{NN}.md`). Cumulative weekly performance and themes, idempotent per session — re-running afternoon won't duplicate the morning entry.
+- **Mermaid xychart charts** embedded in the daily briefing (5-day index trend, sector comparison). No plugins needed for Obsidian.
+- **Chart.js HTML candlestick charts** (`Charts/{code}-{date}.html`) for high-impact stocks — OHLC + Bollinger Bands (20-day SMA ± 2σ, sample std dev). Skipped if fewer than 5 data points. Max 3 charts per run.
+- **Chrome MCP integration** (read-only). `tabs_create_mcp` for a dedicated tab, graceful degradation to WebFetch/WebSearch if Chrome MCP is unavailable. No login, no form input, no purchase clicks — read-only hard rule.
+- **JST timezone** (`TZ="Asia/Tokyo"`) on all date calculations so morning/afternoon detection is correct regardless of system clock.
+
+### For contributors
+
+- `news-summary/SKILL.md.tmpl` — source template (909 lines), edit this and run `bun run gen:skill-docs`
+- `news-summary/SKILL.md` — generated from template, do not edit directly
+- `sensitive: true` propagated to careful/freeze/guard/land-and-deploy/ship/unfreeze SKILL.md
+
 ## [0.14.5.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
 
 Re-running `/ship` after a failed push or PR creation no longer double-bumps your version or duplicates your CHANGELOG. And if you use `--prefix` mode, your skill names actually work now.
