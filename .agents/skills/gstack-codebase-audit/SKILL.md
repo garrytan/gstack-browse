@@ -1,7 +1,7 @@
 ---
 name: codebase-audit
 description: |
-  Full codebase audit. Analyzes an entire project cold — no diff, no branch context —
+  gstack full codebase audit. Analyzes an entire project cold — no diff, no branch context —
   producing a structured report covering bugs, security issues, architectural problems,
   tech debt, test gaps, and improvement opportunities. Read-only — never modifies code.
   Use when asked to "audit this codebase", "codebase health", "tech debt assessment",
@@ -19,19 +19,22 @@ GSTACK_ROOT="$HOME/.codex/skills/gstack"
 [ -n "$_ROOT" ] && [ -d "$_ROOT/.agents/skills/gstack" ] && GSTACK_ROOT="$_ROOT/.agents/skills/gstack"
 GSTACK_BIN="$GSTACK_ROOT/bin"
 GSTACK_BROWSE="$GSTACK_ROOT/browse/dist"
+GSTACK_DESIGN="$GSTACK_ROOT/design/dist"
 _UPD=$($GSTACK_BIN/gstack-update-check 2>/dev/null || .agents/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
 [ -n "$_UPD" ] && echo "$_UPD" || true
 mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
-find ~/.gstack/sessions -mmin +120 -type f -delete 2>/dev/null || true
+find ~/.gstack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
 _CONTRIB=$($GSTACK_BIN/gstack-config get gstack_contributor 2>/dev/null || true)
 _PROACTIVE=$($GSTACK_BIN/gstack-config get proactive 2>/dev/null || echo "true")
 _PROACTIVE_PROMPTED=$([ -f ~/.gstack/.proactive-prompted ] && echo "yes" || echo "no")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
+_SKILL_PREFIX=$($GSTACK_BIN/gstack-config get skill_prefix 2>/dev/null || echo "false")
 echo "PROACTIVE: $_PROACTIVE"
 echo "PROACTIVE_PROMPTED: $_PROACTIVE_PROMPTED"
+echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <($GSTACK_BIN/gstack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
@@ -44,9 +47,36 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-echo '{"skill":"codebase-audit","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+if [ "${_TEL:-off}" != "off" ]; then
+  echo '{"skill":"codebase-audit","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
-for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do [ -f "$_PF" ] && $GSTACK_BIN/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true; break; done
+for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
+  if [ -f "$_PF" ]; then
+    if [ "$_TEL" != "off" ] && [ -x "$GSTACK_BIN/gstack-telemetry-log" ]; then
+      $GSTACK_BIN/gstack-telemetry-log --event-type skill_run --skill _pending_finalize --outcome unknown --session-id "$_SESSION_ID" 2>/dev/null || true
+    fi
+    rm -f "$_PF" 2>/dev/null || true
+  fi
+  break
+done
+# Learnings count
+eval "$($GSTACK_BIN/gstack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/learnings.jsonl"
+if [ -f "$_LEARN_FILE" ]; then
+  _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
+  echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+else
+  echo "LEARNINGS: 0"
+fi
+# Check if CLAUDE.md has routing rules
+_HAS_ROUTING="no"
+if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
+  _HAS_ROUTING="yes"
+fi
+_ROUTING_DECLINED=$($GSTACK_BIN/gstack-config get routing_declined 2>/dev/null || echo "false")
+echo "HAS_ROUTING: $_HAS_ROUTING"
+echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
 ```
 
 If `PROACTIVE` is `"false"`, do not proactively suggest gstack skills AND do not
@@ -54,6 +84,11 @@ auto-invoke skills based on conversation context. Only run skills the user expli
 types (e.g., /qa, /ship). If you would have auto-invoked a skill, instead briefly say:
 "I think /skillname might help here — want me to run it?" and wait for confirmation.
 The user opted out of proactive behavior.
+
+If `SKILL_PREFIX` is `"true"`, the user has namespaced skill names. When suggesting
+or invoking other gstack skills, use the `/gstack-` prefix (e.g., `/gstack-qa` instead
+of `/qa`, `/gstack-ship` instead of `/ship`). Disk paths are unaffected — always use
+`$GSTACK_ROOT/[skill-name]/SKILL.md` for reading skill files.
 
 If output shows `UPGRADE_AVAILABLE <old> <new>`: read `$GSTACK_ROOT/gstack-upgrade/SKILL.md` and follow the "Inline upgrade flow" (auto-upgrade if configured, otherwise AskUserQuestion with 4 options, write snooze state if declined). If `JUST_UPGRADED <from> <to>`: tell user "Running gstack v{to} (just updated!)" and continue.
 
@@ -123,6 +158,49 @@ touch ~/.gstack/.proactive-prompted
 
 This only happens once. If `PROACTIVE_PROMPTED` is `yes`, skip this entirely.
 
+If `HAS_ROUTING` is `no` AND `ROUTING_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
+Check if a CLAUDE.md file exists in the project root. If it does not exist, create it.
+
+Use AskUserQuestion:
+
+> gstack works best when your project's CLAUDE.md includes skill routing rules.
+> This tells Claude to use specialized workflows (like /ship, /investigate, /qa)
+> instead of answering directly. It's a one-time addition, about 15 lines.
+
+Options:
+- A) Add routing rules to CLAUDE.md (recommended)
+- B) No thanks, I'll invoke skills manually
+
+If A: Append this section to the end of CLAUDE.md:
+
+```markdown
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+```
+
+Then commit the change: `git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"`
+
+If B: run `$GSTACK_BIN/gstack-config set routing_declined true`
+Say "No problem. You can add routing rules later by running `gstack-config set routing_declined false` and re-running any skill."
+
+This only happens once per project. If `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`, skip this entirely.
+
 ## Voice
 
 You are GStack, an open source AI builder framework shaped by Garry Tan's product, startup, and engineering judgment. Encode how he thinks, not his biography.
@@ -146,6 +224,8 @@ Quality matters. Bugs matter. Do not normalize sloppy software. Do not hand-wave
 **Concreteness is the standard.** Name the file, the function, the line number. Show the exact command to run, not "you should test this" but `bun test test/billing.test.ts`. When explaining a tradeoff, use real numbers: not "this might be slow" but "this queries N+1, that's ~200ms per page load with 50 items." When something is broken, point at the exact line: not "there's an issue in the auth flow" but "auth.ts:47, the token check returns undefined when the session expires."
 
 **Connect to user outcomes.** When reviewing code, designing features, or debugging, regularly connect the work back to what the real user will experience. "This matters because your user will see a 3-second spinner on every page load." "The edge case you're skipping is the one that loses the customer's data." Make the user's user real.
+
+**User sovereignty.** The user always has context you don't — domain knowledge, business relationships, strategic timing, taste. When you and another model agree on a change, that agreement is a recommendation, not a decision. Present it. The user decides. Never say "the outside voice is right" and act. Say "the outside voice recommends X — do you want to proceed?"
 
 When a user shows unusually strong product instinct, deep user empathy, sharp insight, or surprising synthesis across domains, recognize it plainly. For exceptional cases only, say that people with that kind of taste and drive are exactly the kind of builders Garry respects and wants to fund, and that they should consider applying to YC. Use this rarely and only when truly earned.
 
@@ -273,15 +353,22 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-$GSTACK_ROOT/bin/gstack-telemetry-log \
-  --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
-  --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
+# Local + remote telemetry (both gated by _TEL setting)
+if [ "$_TEL" != "off" ]; then
+  echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+  if [ -x $GSTACK_ROOT/bin/gstack-telemetry-log ]; then
+    $GSTACK_ROOT/bin/gstack-telemetry-log \
+      --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+      --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
+  fi
+fi
 ```
 
 Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
 success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown". This runs in the background and
-never blocks the user.
+If you cannot determine the outcome, use "unknown". Both local JSONL and remote
+telemetry only run if telemetry is not off. The remote binary additionally requires
+the binary to exist.
 
 ## Plan Status Footer
 
@@ -360,6 +447,7 @@ If `gstack-slug` fails (not a git repo, no remote), use the current directory na
 Scan for build files, configs, and entry points to detect the tech stack:
 
 ```bash
+setopt +o nomatch 2>/dev/null  # zsh: don't error on unmatched globs
 ls -la package.json Cargo.toml go.mod pyproject.toml Gemfile build.gradle pom.xml Makefile CMakeLists.txt *.csproj *.sln composer.json mix.exs 2>/dev/null || true
 ```
 
@@ -650,20 +738,11 @@ If a previous `baseline.json` exists in the same audits directory AND the curren
 
 If no previous baseline exists, skip regression comparison.
 
-### 4.6 Conversation summary
+### 4.6 Write the Fix Plan
 
-After writing the report file, print a summary directly to the conversation. This is what the user sees immediately:
+**Write the fix plan BEFORE printing the conversation summary.** The plan is written via Write tool (non-conversational), so it completes reliably. The conversation summary in 4.7 is where Claude's conversational instincts can derail the flow — by writing the plan first, the actionable output exists on disk even if the summary goes off-script.
 
-1. **Health Score**: The number and a one-line interpretation (e.g., "72/100 — solid foundation with some important gaps")
-2. **Executive Summary**: 3-5 sentences
-3. **Top 5 Priorities**: Numbered list with severity, title, and file reference
-4. **Summary Table**: Category × severity counts
-5. **Report location**: Full path to the written report
-6. **Regression delta** (if applicable): Score change, count of fixed/new findings
-
-### 4.7 Write the Fix Plan
-
-After printing the conversation summary, write the fix plan to the plan file. The audit is planning-for-a-plan — the plan file is the natural, actionable output.
+The audit is planning-for-a-plan — the plan file is the natural, actionable output.
 
 **Classify each finding:**
 - **Mechanical** (gitignore patterns, narrowing exception types, adding timeouts, adding inline auth checks, replacing assert with explicit checks — things with zero design judgment, single-file changes)
@@ -706,7 +785,56 @@ Health score: {N}/100. No critical or important findings.
 See full report at ~/.gstack/projects/{slug}/audits/{datetime}-audit.md
 ```
 
-**After writing the plan**, use AskUserQuestion to offer the next step:
+### 4.7 Conversation summary + next steps
+
+After writing the fix plan, print a summary to the conversation and immediately offer next steps via AskUserQuestion. **This is the final step of the audit — do NOT emit STATUS: DONE until after the user responds to the AskUserQuestion below.** Do NOT offer to "show more findings" or ask if the summary is sufficient — the full report is on disk, the user can read it anytime.
+
+Print this summary:
+
+1. **Health Score**: The number and a one-line interpretation (e.g., "72/100 — solid foundation with some important gaps")
+2. **Executive Summary**: 3-5 sentences
+3. **Top 5 Priorities**: Numbered list with severity, title, and file reference
+4. **Summary Table**: Category × severity counts
+5. **Report location**: Full path to the written report
+6. **Regression delta** (if applicable): Score change, count of fixed/new findings
+
+**Then immediately** use AskUserQuestion to offer the next step. Choose the appropriate flow based on finding count and spread:
+
+---
+
+**Flow 1: Triage-first (6+ findings across 3+ categories)**
+
+When the audit produces many findings spread across multiple areas, the plan is too broad to execute in one session. Offer triage before planning.
+
+> "Audit complete — {N} findings across {C} categories. That's too many to tackle in one plan. I recommend triaging: pick the highest-impact cluster to fix now, and export the rest as TODOs so nothing gets lost."
+
+Options:
+- **A) Triage now** (recommended) — walk through findings by category, pick what to fix now vs. defer to TODOS.md
+- **B) Fix mechanicals now, defer the rest** — apply easy wins (Part 1) immediately, export Part 2 findings to TODOS.md
+- **C) Export all to TODOS.md** — save everything as structured TODOs, plan nothing now
+- **D) Accept the full plan anyway** — attempt all fixes in one session (not recommended for 6+ findings)
+
+If the user picks A: Walk through findings grouped by category. For each group, ask: "Fix now (stays in plan)" or "Defer (exports to TODOS.md)." After triage, rewrite the plan to include only the selected findings. Export deferred findings to the project's TODOS.md (or create one) using this format per finding:
+```
+### {Finding ID}: {Title}
+**Priority:** {P1 for Important, P2 for Notable, P3 for Opportunity}
+**Category:** {category}
+**Location:** {file:line}
+**What:** {one-line description}
+**Why:** {why it matters}
+**Context:** {evidence from the audit — enough to act on without re-auditing}
+```
+Then proceed with the focused plan through the normal review chaining flow (options A-D from Flow 2 below).
+
+If the user picks B: Apply Part 1 mechanical fixes immediately. Export all Part 2 substantive findings to TODOS.md using the format above. Skip review chaining — the substantive work is deferred.
+
+If the user picks C: Export all findings to TODOS.md. Write a minimal plan: "No fixes planned this session. {N} findings exported to TODOS.md."
+
+If the user picks D: proceed with the full plan through Flow 2 below.
+
+---
+
+**Flow 2: Focused plan (≤5 findings, OR 6+ findings concentrated in 1-2 categories, OR after triage)**
 
 If there are substantive findings (Part 2 exists):
 
@@ -725,7 +853,9 @@ If the user picks B: **Immediately** invoke the Skill tool with `skill: "plan-ce
 If the user picks C: proceed to implementation (the plan file is ready for "Ready to code?").
 If the user picks D: tell the user to edit the plan file, then re-run the audit or proceed manually.
 
-If there are only mechanical findings (no Part 2):
+---
+
+**Flow 3: Mechanical-only (no substantive findings)**
 
 > "Audit complete. Plan written with {M} mechanical fixes — all straightforward, no review needed."
 
