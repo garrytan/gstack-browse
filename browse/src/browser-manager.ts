@@ -1022,8 +1022,8 @@ export class BrowserManager {
         const res = await req.response();
         if (res) {
           const url = req.url();
-          const body = await res.body().catch(() => null);
-          const size = body ? body.length : 0;
+          const cl = await res.headerValue('content-length');
+          const size = cl != null ? parseInt(cl, 10) : (await res.body().catch(() => null))?.length ?? 0;
           for (let i = networkBuffer.length - 1; i >= 0; i--) {
             const entry = networkBuffer.get(i);
             if (entry && entry.url === url && !entry.size) {
