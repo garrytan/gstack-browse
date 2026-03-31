@@ -567,6 +567,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
       cleanup_prefixed_claude_symlinks "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
     fi
     link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    "$SOURCE_GSTACK_DIR/bin/gstack-patch-names" "$SOURCE_GSTACK_DIR" "$SKILL_PREFIX"
     if [ "$LOCAL_INSTALL" -eq 1 ]; then
       echo "gstack ready (project-local)."
       echo "  skills: $INSTALL_SKILLS_DIR"
