@@ -22,7 +22,6 @@ allowed-tools:
   - mcp__Claude_in_Chrome__get_page_text
   - mcp__Claude_in_Chrome__find
   - mcp__Claude_in_Chrome__read_page
-  - mcp__Claude_in_Chrome__computer
   - mcp__Claude_in_Chrome__tabs_context_mcp
   - mcp__Claude_in_Chrome__tabs_create_mcp
   - mcp__Claude_in_Chrome__tabs_close_mcp
@@ -442,9 +441,14 @@ plan's living status.
 ## Step 0: 設定確認とディレクトリ準備
 
 Obsidianの出力先パスと日付情報を確認する。
+初回実行時にパスが見つからない場合はAskUserQuestionで確認する。
 
 ```bash
-VAULT="C:/Users/start/Desktop/Obsidian/Test"
+VAULT="${OBSIDIAN_VAULT:-C:/Users/start/Desktop/Obsidian/Test}"
+if [ ! -d "$VAULT" ]; then
+  echo "VAULT_NOT_FOUND: $VAULT"
+  echo "環境変数 OBSIDIAN_VAULT を設定するか、AskUserQuestionでパスを確認してください"
+fi
 DATE=$(TZ="Asia/Tokyo" date +%Y-%m-%d)
 MONTH=$(TZ="Asia/Tokyo" date +%Y-%m)
 HOUR=$(TZ="Asia/Tokyo" date +%H)
@@ -458,10 +462,14 @@ echo "DATE=$DATE SESSION=$SESSION MONTH=$MONTH WEEK=$WEEK"
 echo "VAULT=$VAULT"
 ```
 
+上記の結果に `VAULT_NOT_FOUND` が含まれる場合は、AskUserQuestionで
+「Obsidian Vaultのパスを入力してください（例: C:/Users/yourname/Documents/Obsidian/MyVault）」
+と確認し、以降のステップでそのパスを使用する。
+
 以下のディレクトリ構造を作成する:
 
 ```bash
-VAULT="C:/Users/start/Desktop/Obsidian/Test"
+VAULT="${OBSIDIAN_VAULT:-C:/Users/start/Desktop/Obsidian/Test}"
 MONTH=$(TZ="Asia/Tokyo" date +%Y-%m)
 mkdir -p "$VAULT/Daily/$MONTH"
 mkdir -p "$VAULT/Weekly"
@@ -479,7 +487,7 @@ echo "Directory structure ready"
 前回のブリーフィングと既存ノートを確認する:
 
 ```bash
-VAULT="C:/Users/start/Desktop/Obsidian/Test"
+VAULT="${OBSIDIAN_VAULT:-C:/Users/start/Desktop/Obsidian/Test}"
 echo "=== 直近ブリーフィング ==="
 find "$VAULT/Daily" -name "*.md" -type f 2>/dev/null | sort -r | head -3
 echo "=== 既存銘柄ノート ==="
