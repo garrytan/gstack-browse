@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# gstack-group — manage learnings groups
+#
+# Usage:
+#   gstack-group list              — show all groups and their projects
+#   gstack-group list --json       — machine-readable JSON output
+#   gstack-group create <name>     — create a new group (idempotent)
+#   gstack-group assign [<group>]  — assign current project to a group
+#   gstack-group which             — show which group the current project belongs to
+#
+# Groups are stored in ~/.gstack/groups.json. Learnings stay in per-project
+# JSONL files; groups only control which projects share learnings during search.
+#
+# On first access, migration runs: creates groups.json with "Personal" group
+# and assigns existing projects based on cross_project_learnings config.
+#
+# Env overrides (for testing):
+#   GSTACK_HOME  — override ~/.gstack state directory
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
+GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
+export GSTACK_STATE_DIR="${GSTACK_STATE_DIR:-$GSTACK_HOME}"
+GROUPS_FILE="$GSTACK_HOME/groups.json"
+
+# ── Helpers ────────────────────────────────────────────────────────────
+log_event() {
+  mkdir -p "$GSTACK_HOME/analytics"
+  echo "$1" >> "$GSTACK_HOME/analytics/group-events.jsonl" 2>/dev/null || true
+}
+
+write_groups() {
+  local content="$1"
+  local tmpfile
+  tmpfile="$(mktemp "${GROUPS_FILE}.XXXXXX")"
+  printf '%s' "$content" > "$tmpfile"
+  mv "$tmpfile" "$GROUPS_FILE"
+}
+
+# ── Migration ──────────────────────────────────────────────────────────
+ensure_groups() {
+  if [ -f "$GROUPS_FILE" ]; then
+    return 0
+  fi
+
+  mkdir -p "$GSTACK_HOME"
+
+  local cross_proj
+  cross_proj=$("$SCRIPT_DIR/gstack-config" get cross_project_learnings 2>/dev/null || echo "unset")
+
+  # Discover existing projects with learnings, build JSON array in bash
+  local json_arr="["
+  local first=true
+  if [ -d "$GSTACK_HOME/projects" ]; then
+    for f in "$GSTACK_HOME/projects"/*/learnings.jsonl; do
+      if [ -f "$f" ]; then
+        local proj_slug
+        proj_slug=$(basename "$(dirname "$f")")
+        $first || json_arr+=","
+        json_arr+="\"$proj_slug\""
+        first=false
+      fi
+    done
+  fi
+  json_arr+="]"
+
+  # Single bun call to build groups.json
+  local tmpfile
+  tmpfile="$(mktemp "${GROUPS_FILE}.XXXXXX")"
+
+  local mode="solo"
+  [ "$cross_proj" = "true" ] && mode="shared"
+
+  bun -e "
+    const projects = $json_arr;
+    const mode = '$mode';
+    const groups = { Personal: { created: new Date().toISOString() } };
+    const projectMap = {};
+    if (mode === 'shared') {
+      for (const p of projects) projectMap[p] = 'Personal';
+    } else {
+      for (const p of projects) {
+        groups[p] = { created: new Date().toISOString() };
+        projectMap[p] = p;
+      }
+    }
+    console.log(JSON.stringify({ groups, projects: projectMap }, null, 2));
+  " > "$tmpfile" 2>/dev/null
+
+  mv "$tmpfile" "$GROUPS_FILE"
+
+  if [ "$cross_proj" = "true" ]; then
+    "$SCRIPT_DIR/gstack-config" set learning_scope global 2>/dev/null || true
+  elif [ "$cross_proj" = "false" ]; then
+    "$SCRIPT_DIR/gstack-config" set learning_scope project 2>/dev/null || true
+  else
+    "$SCRIPT_DIR/gstack-config" set learning_scope group 2>/dev/null || true
+  fi
+
+  log_event '{"event":"migration","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","cross_proj":"'"$cross_proj"'"}'
+}
+
+# ── Commands ───────────────────────────────────────────────────────────
+cmd_list() {
+  ensure_groups
+
+  local json_flag="${1:-}"
+
+  if [ "$json_flag" = "--json" ]; then
+    cat "$GROUPS_FILE"
+    return 0
+  fi
+
+  bun -e "
+    const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+    const groups = Object.keys(data.groups || {});
+    const projects = data.projects || {};
+    for (const g of groups) {
+      const members = Object.entries(projects).filter(([_, v]) => v === g).map(([k]) => k);
+      console.log(g + ' (' + members.length + ' project' + (members.length !== 1 ? 's' : '') + ')');
+      for (const m of members) console.log('  - ' + m);
+    }
+  " 2>/dev/null
+}
+
+cmd_create() {
+  local name="${1:?Usage: gstack-group create <name>}"
+
+  if ! printf '%s' "$name" | grep -qE '^[a-zA-Z0-9._-]+$'; then
+    echo "Error: group name must contain only alphanumeric characters, dots, hyphens, and underscores" >&2
+    exit 1
+  fi
+
+  ensure_groups
+
+  local result
+  result=$(bun -e "
+    const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+    if (data.groups['$name']) {
+      console.log('EXISTS');
+    } else {
+      data.groups['$name'] = { created: new Date().toISOString() };
+      console.log(JSON.stringify(data, null, 2));
+    }
+  " 2>/dev/null)
+
+  if [ "$result" = "EXISTS" ]; then
+    return 0
+  fi
+
+  write_groups "$result"
+  log_event '{"event":"group_create","group":"'"$name"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+}
+
+cmd_assign() {
+  local group="${1:-}"
+
+  ensure_groups
+
+  if [ -z "$group" ]; then
+    echo "Usage: gstack-group assign <group>" >&2
+    echo "Available groups:" >&2
+    bun -e "
+      const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+      for (const g of Object.keys(data.groups || {})) console.log('  ' + g);
+    " 2>/dev/null >&2
+    exit 1
+  fi
+
+  # Single bun call: verify group exists + assign
+  local result
+  result=$(bun -e "
+    const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+    if (!data.groups['$group']) {
+      console.log('NOT_FOUND');
+    } else {
+      data.projects = data.projects || {};
+      data.projects['$SLUG'] = '$group';
+      console.log(JSON.stringify(data, null, 2));
+    }
+  " 2>/dev/null)
+
+  if [ "$result" = "NOT_FOUND" ] || [ -z "$result" ]; then
+    echo "Error: group '$group' not found." >&2
+    echo "Available groups:" >&2
+    bun -e "
+      const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+      for (const g of Object.keys(data.groups || {})) console.log('  ' + g);
+    " 2>/dev/null >&2
+    exit 1
+  fi
+
+  write_groups "$result"
+  log_event '{"event":"group_assign","project":"'"$SLUG"'","group":"'"$group"'","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}'
+}
+
+cmd_which() {
+  ensure_groups
+
+  bun -e "
+    try {
+      const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+      const g = (data.projects || {})['$SLUG'];
+      console.log(g || 'NO_GROUP');
+    } catch {
+      console.log('NO_GROUP');
+    }
+  " 2>/dev/null || echo "NO_GROUP"
+}
+
+cmd_suggest() {
+  ensure_groups
+
+  bun -e "
+    const data = JSON.parse(await Bun.file('$GROUPS_FILE').text());
+    const slug = '$SLUG';
+    const owner = slug.split('-')[0] || '';
+    const groups = Object.keys(data.groups || {});
+    const projects = data.projects || {};
+
+    const scored = groups.map(g => {
+      const members = Object.entries(projects).filter(([_, v]) => v === g).map(([k]) => k);
+      const ownerMatches = members.filter(m => m.split('-')[0] === owner).length;
+      return { group: g, ownerMatches, memberCount: members.length };
+    });
+
+    scored.sort((a, b) => {
+      if (b.ownerMatches !== a.ownerMatches) return b.ownerMatches - a.ownerMatches;
+      if (b.memberCount !== a.memberCount) return b.memberCount - a.memberCount;
+      return a.group.localeCompare(b.group);
+    });
+
+    for (const s of scored) {
+      const tag = s.ownerMatches > 0 ? ' (matches owner)' : '';
+      console.log(s.group + tag);
+    }
+  " 2>/dev/null
+}
+
+# ── Dispatch ───────────────────────────────────────────────────────────
+case "${1:-}" in
+  list)
+    shift
+    cmd_list "${1:-}"
+    ;;
+  create)
+    shift
+    cmd_create "${1:?Usage: gstack-group create <name>}"
+    ;;
+  assign)
+    shift
+    cmd_assign "${1:-}"
+    ;;
+  which)
+    cmd_which
+    ;;
+  suggest)
+    cmd_suggest
+    ;;
+  *)
+    echo "Usage: gstack-group {list|create|assign|which|suggest} [args]"
+    exit 1
+    ;;
+esac
