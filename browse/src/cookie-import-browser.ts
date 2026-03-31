@@ -40,6 +40,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { TEMP_DIR } from './platform';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -386,7 +387,7 @@ function openDb(dbPath: string, browserName: string): Database {
 }
 
 function openDbFromCopy(dbPath: string, browserName: string): Database {
-  const tmpPath = `/tmp/browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`;
+  const tmpPath = `${TEMP_DIR}/browse-cookies-${browserName.toLowerCase()}-${crypto.randomUUID()}.db`;
   try {
     fs.copyFileSync(dbPath, tmpPath);
     // Also copy WAL and SHM if they exist (for consistent reads)
