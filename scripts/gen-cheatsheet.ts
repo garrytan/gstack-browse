@@ -21,7 +21,7 @@ const OUTPUT = path.join(ROOT, 'docs', 'cheatsheet.html');
 
 // ─── --hide flag ───────────────────────────────────────────
 // Parse --hide safety,meta or --hide "safety, meta"
-const hideArg = process.argv.find(a => a.startsWith('--hide'));
+const hideArg = process.argv.find(a => a === '--hide' || a.startsWith('--hide='));
 const HIDDEN_GROUPS = new Set(
   (() => {
     if (!hideArg) return [];
