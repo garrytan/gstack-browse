@@ -51,11 +51,13 @@ function isMetadataIp(hostname: string): boolean {
 async function resolvesToBlockedIp(hostname: string): Promise<boolean> {
   try {
     const dns = await import('node:dns');
-    const { resolve4 } = dns.promises;
-    const addresses = await resolve4(hostname);
-    return addresses.some(addr => BLOCKED_METADATA_HOSTS.has(addr));
+    const { resolve4, resolve6 } = dns.promises;
+    const [v4, v6] = await Promise.all([
+      resolve4(hostname).catch(() => [] as string[]),
+      resolve6(hostname).catch(() => [] as string[]),
+    ]);
+    return [...v4, ...v6].some(addr => BLOCKED_METADATA_HOSTS.has(addr));
   } catch {
-    // DNS resolution failed — not a rebinding risk
     return false;
   }
 }
