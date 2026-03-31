@@ -449,33 +449,42 @@ Gather context before forming any hypothesis.
 
 ## Prior Learnings
 
-Search for relevant learnings from previous sessions:
+Check which learnings group this project belongs to:
 
 ```bash
-_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
-echo "CROSS_PROJECT: $_CROSS_PROJ"
-if [ "$_CROSS_PROJ" = "true" ]; then
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
-else
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
-fi
+~/.claude/skills/gstack/bin/gstack-group which 2>/dev/null || echo "NO_GROUP"
 ```
 
-If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+If the output is `NO_GROUP`, this project hasn't been assigned to a learnings group yet.
+Use AskUserQuestion:
 
-> gstack can search learnings from your other projects on this machine to find
-> patterns that might apply here. This stays local (no data leaves your machine).
-> Recommended for solo developers. Skip if you work on multiple client codebases
-> where cross-contamination would be a concern.
+> This project isn't in a learnings group yet. Learnings groups let gstack share
+> knowledge across related projects (e.g., all repos in your company's org).
+> Which group should this project belong to?
 
-Options:
-- A) Enable cross-project learnings (recommended)
-- B) Keep learnings project-scoped only
+To see available groups and get smart suggestions, run:
 
-If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
-If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
+```bash
+~/.claude/skills/gstack/bin/gstack-group suggest 2>/dev/null || ~/.claude/skills/gstack/bin/gstack-group list 2>/dev/null || echo "No groups yet"
+```
 
-Then re-run the search with the appropriate flag.
+Options: [list the groups from the output above] + "Create a new group"
+
+If "Create a new group": ask for a name, then run:
+```bash
+~/.claude/skills/gstack/bin/gstack-group create "GROUP_NAME" && ~/.claude/skills/gstack/bin/gstack-group assign "GROUP_NAME"
+```
+
+If an existing group: run:
+```bash
+~/.claude/skills/gstack/bin/gstack-group assign "GROUP_NAME"
+```
+
+After assignment (or if the project was already assigned), search for learnings:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-search --scope group --limit 10 2>/dev/null || true
+```
 
 If learnings are found, incorporate them into your analysis. When a review finding
 matches a past learning, display:
