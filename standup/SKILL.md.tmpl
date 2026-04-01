@@ -1,0 +1,170 @@
+---
+name: standup
+preamble-tier: 1
+version: 1.0.0
+description: |
+  Daily async standup generator. Analyzes recent commits, PR activity, and
+  TODOS.md to generate a concise standup update: what was done, what's next,
+  and any blockers. Use when asked for "standup", "daily update", "what did I
+  do today", or "write my standup".
+  Proactively invoke when the user asks what they worked on recently, wants to
+  share a daily update, or needs to summarize yesterday's progress. (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Glob
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+{{BASE_BRANCH_DETECT}}
+
+# /standup — Daily Async Standup Generator
+
+Generates a concise standup update from your actual git activity. No guessing — your commits tell the real story.
+
+## Arguments
+
+- `/standup` — default: work done since yesterday morning (local midnight)
+- `/standup today` — commits from today only
+- `/standup 24h` — last 24 hours of activity
+- `/standup 48h` — last 48 hours (covers a long weekend)
+- `/standup 3d` — last 3 days (use after time off)
+- `/standup <branch>` — activity on a specific branch vs base
+
+## Step 1: Parse arguments and set time window
+
+Parse the argument:
+- No argument or `today` → since yesterday midnight (covers yesterday + today so far)
+- `24h` → last 24 hours
+- `48h` → last 48 hours
+- `3d` → last 3 days
+- A branch name → commits on that branch vs base branch
+
+Compute an absolute start timestamp at local midnight for day-based windows. For
+hour-based windows, use `--since="N hours ago"`. This ensures consistent coverage
+regardless of what time you run the standup.
+
+---
+
+## Step 2: Collect activity signals
+
+Run these in order and collect the output.
+
+**Commits in the time window:**
+
+```bash
+git log --oneline --since="<absolute-start-timestamp>" --format="%h %s (%ai)" 2>/dev/null
+```
+
+**Pull requests opened or merged in the window:**
+
+```bash
+gh pr list --state all --limit 20 --json number,title,state,createdAt,mergedAt,url 2>/dev/null | \
+  python3 -c "
+import json,sys
+from datetime import datetime
+items = json.load(sys.stdin)
+cutoff = '<ISO-start>'
+for pr in items:
+    created = pr.get('createdAt','')
+    merged = pr.get('mergedAt','') or ''
+    if created >= cutoff or merged >= cutoff:
+        state = 'MERGED' if merged >= cutoff else pr['state'].upper()
+        print(f'  {state} #{pr[\"number\"]}: {pr[\"title\"]} {pr[\"url\"]}')
+" 2>/dev/null || echo "(gh not available or no PRs)"
+```
+
+**In-progress TODOS (if TODOS.md exists):**
+
+```bash
+grep -E "^\s*-\s+\[ \]|\bWIP\b|🚧|in.progress" TODOS.md 2>/dev/null | head -10 || echo "(no TODOS.md)"
+```
+
+**Current branch and uncommitted work:**
+
+```bash
+git branch --show-current && git status --short 2>/dev/null | head -10
+```
+
+---
+
+## Step 3: Build the standup
+
+Analyze the signals from Step 2 and write a standup in this format:
+
+```
+STANDUP — <day, date>
+════════════════════════════════════════
+
+YESTERDAY / DONE
+  • <concise summary of each commit cluster — group related commits>
+  • <merged PR title if any>
+
+TODAY / NEXT
+  • <current branch work in progress>
+  • <top TODOS.md items that are next up>
+  • <any planned follow-up from recent PR review feedback>
+
+BLOCKERS
+  • <any merge conflicts, failing tests, or review backlog>
+  • None (if nothing is blocking)
+
+LINKS
+  • PR #N: <title> — <url> (if any open PRs)
+```
+
+**Grouping rules:**
+- Cluster commits by topic (e.g., 3 commits touching auth/ → "Refactored auth middleware to use JWT")
+- Describe the *outcome*, not the diff ("Added retry logic" not "Changed lines 42-58 in client.ts")
+- If there are zero commits in the window, say so plainly: "No commits in the last X hours."
+- If on a long-lived feature branch, note the PR number/title as the primary unit of work
+
+**If the user asked for a specific output format** (Slack, email, Jira comment), adapt the format:
+- Slack: shorter bullets, no box-drawing chars, add emoji if appropriate
+- Email: add subject line `Standup – <Name> – <Date>`
+- Jira: plain text, no markdown
+
+---
+
+## Step 4: Check for blockers
+
+Scan for signals that something is stuck:
+
+```bash
+# Tests failing?
+git stash list 2>/dev/null | head -5
+# Any open review requests?
+gh pr list --state open --json number,title,reviewDecision,url 2>/dev/null | \
+  python3 -c "import json,sys; prs=json.load(sys.stdin); [print(f'  AWAITING_REVIEW #{p[\"number\"]}: {p[\"title\"]}') for p in prs if p.get('reviewDecision') in ('REVIEW_REQUIRED', None)]" 2>/dev/null || true
+```
+
+If PRs have been open > 48h without review, add to BLOCKERS: "PR #N waiting on review for Xh"
+
+---
+
+## Step 5: Output and copy
+
+Print the formatted standup. Then ask:
+
+Use AskUserQuestion:
+- **Context:** Standup generated for <date window>.
+- **RECOMMENDATION:** Choose A — standup is ready to paste.
+- A) Done — I'll copy this to my standup channel
+- B) Adjust format — tell me Slack/email/Jira and I'll reformat
+- C) Add context — I want to mention something specific
+
+On B: reformat as requested and re-present.
+On C: take the user's input, fold it into the standup, re-present.
+
+---
+
+## Important Rules
+
+- **Git activity is ground truth.** Don't invent work. If git shows nothing, say nothing happened.
+- **No fluff.** No "I had a productive day", no corporate filler. Just what changed and what's next.
+- **Cluster, don't list.** 8 commits for one feature = 1 bullet about the feature.
+- **One minute to read.** If the standup takes more than 60 seconds to read, it's too long. Trim.
+- **Blockers are optional but honest.** If something is stuck, say it. That's the whole point of standups.
+- **Local timezone for all timestamps.** Do NOT set TZ. Use the system default.
