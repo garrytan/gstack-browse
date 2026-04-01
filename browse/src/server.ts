@@ -528,6 +528,13 @@ function killAgent(): void {
   agentStartTime = null;
   currentMessage = null;
   agentStatus = 'idle';
+
+  // Signal sidebar-agent.ts to kill its active claude subprocess.
+  // sidebar-agent runs in a separate non-compiled Bun process (posix_spawn
+  // limitation). It polls the kill-signal file and terminates on any write.
+  const agentQueue = process.env.SIDEBAR_QUEUE_PATH || path.join(process.env.HOME || '/tmp', '.gstack', 'sidebar-agent-queue.jsonl');
+  const killFile = path.join(path.dirname(agentQueue), 'sidebar-agent-kill');
+  try { fs.writeFileSync(killFile, String(Date.now())); } catch {}
 }
 
 // Agent health check — detect hung processes

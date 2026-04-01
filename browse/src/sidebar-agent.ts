@@ -14,6 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const QUEUE = process.env.SIDEBAR_QUEUE_PATH || path.join(process.env.HOME || '/tmp', '.gstack', 'sidebar-agent-queue.jsonl');
+const KILL_FILE = path.join(path.dirname(QUEUE), 'sidebar-agent-kill');
 const SERVER_PORT = parseInt(process.env.BROWSE_SERVER_PORT || '34567', 10);
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const POLL_MS = 200;  // 200ms poll — keeps time-to-first-token low
@@ -23,6 +24,10 @@ let lastLine = 0;
 let authToken: string | null = null;
 // Per-tab processing — each tab can run its own agent concurrently
 const processingTabs = new Set<number>();
+// Active claude subprocesses — keyed by tabId for targeted kill
+const activeProcs = new Map<number, ReturnType<typeof spawn>>();
+// Kill-file timestamp last seen — avoids double-kill on same write
+let lastKillTs = 0;
 
 // ─── File drop relay ──────────────────────────────────────────
 
@@ -248,6 +253,9 @@ async function askClaude(queueEntry: any): Promise<void> {
       },
     });
 
+    // Track active procs so kill-file polling can terminate them
+    activeProcs.set(tid, proc);
+
     proc.stdin.end();
 
     let buffer = '';
@@ -268,6 +276,7 @@ async function askClaude(queueEntry: any): Promise<void> {
     });
 
     proc.on('close', (code) => {
+      activeProcs.delete(tid);
       if (buffer.trim()) {
         try { handleStreamEvent(JSON.parse(buffer), tid); } catch {}
       }
@@ -351,6 +360,27 @@ async function poll() {
 
 // ─── Main ────────────────────────────────────────────────────────
 
+function pollKillFile(): void {
+  try {
+    const stat = fs.statSync(KILL_FILE);
+    const mtime = stat.mtimeMs;
+    if (mtime > lastKillTs) {
+      lastKillTs = mtime;
+      if (activeProcs.size > 0) {
+        console.log(`[sidebar-agent] Kill signal received — terminating ${activeProcs.size} active agent(s)`);
+        for (const [tid, proc] of activeProcs) {
+          try { proc.kill('SIGTERM'); } catch {}
+          setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 2000);
+          processingTabs.delete(tid);
+        }
+        activeProcs.clear();
+      }
+    }
+  } catch {
+    // Kill file doesn't exist yet — normal state
+  }
+}
+
 async function main() {
   const dir = path.dirname(QUEUE);
   fs.mkdirSync(dir, { recursive: true });
@@ -364,6 +394,7 @@ async function main() {
   console.log(`[sidebar-agent] Browse binary: ${B}`);
 
   setInterval(poll, POLL_MS);
+  setInterval(pollKillFile, POLL_MS);
 }
 
 main().catch(console.error);
