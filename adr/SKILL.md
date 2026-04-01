@@ -1,21 +1,23 @@
 ---
-name: setup-deploy
+name: adr
 preamble-tier: 2
-version: 1.0.0
+version: 0.1.0
 description: |
-  Configure deployment settings for /land-and-deploy. Detects your deploy
-  platform (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, custom),
-  production URL, health check endpoints, and deploy status commands. Writes
-  the configuration to CLAUDE.md so all future deploys are automatic.
-  Use when: "setup deploy", "configure deployment", "set up land-and-deploy",
-  "how do I deploy with gstack", "add deploy config".
+  Architectural Decision Records. Five modes: create (/adr), list (/adr list),
+  check (/adr check), revisit (/adr revisit N), litmus-test (/adr litmus-test).
+  Plus /adr accept N, /adr renumber, /adr skipped utilities. Documents decisions
+  before code, not after. Integrates with /plan-eng-review, /review, /investigate.
+  Use when asked to "document a decision", "why did we choose X", "check ADRs",
+  "is this ADR-worthy", "what decisions have we made", or "architectural decision".
+  Proactively suggest when the user is about to make an architectural choice that
+  should be documented.
 allowed-tools:
   - Bash
   - Read
   - Write
   - Edit
-  - Glob
   - Grep
+  - Glob
   - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
@@ -51,7 +53,7 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-echo '{"skill":"setup-deploy","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"adr","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
   if [ -f "$_PF" ]; then
@@ -216,42 +218,6 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
-### ADR Decision Gate
-
-```bash
-_ADR_GATE=""
-if [ -d "docs/adr" ] && [ -f "docs/adr/.config" ]; then
-  _ADR_SENSITIVITY=$(grep 'sensitivity:' docs/adr/.config 2>/dev/null | sed 's/.*sensitivity:[[:space:]]*//' | tr -d '[:space:]')
-  [ -n "$_ADR_SENSITIVITY" ] && _ADR_GATE="active" && echo "ADR_GATE: active (sensitivity: $_ADR_SENSITIVITY)"
-fi
-```
-
-If `ADR_GATE` is active, follow these rules during this session:
-
-**Before implementing** any of these changes, pause and ask the user:
-- Adding a new external dependency, service, or infrastructure component
-- Choosing or changing a database, message queue, cache layer, or storage engine
-- Designing or modifying a public API signature (REST, GraphQL, SDK, webhook)
-- Modifying a data schema in ways that require migration
-- Selecting a framework, language, or architectural pattern that will propagate
-- Making a build-vs-buy decision
-- Introducing a new auth, authorization, or security mechanism
-- Committing to a third-party vendor or SaaS integration
-- Choosing a deployment architecture or hosting platform
-- Setting a caching, consistency, or replication strategy
-
-When a trigger fires:
-1. **Do not write code yet.** Pause before implementing.
-2. Explain in 2-3 sentences what you are about to do and why it is an architectural decision.
-3. The user responds:
-   - **"Skip"** or **"Go ahead"**: Log to `docs/adr/.skipped.jsonl` and continue:
-     ```bash
-     echo '{"date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","description":"DESCRIPTION","trigger":"TRIGGER_PATTERN"}' >> docs/adr/.skipped.jsonl
-     ```
-   - **"ADR this"**: Transition to `/adr` creation (Mode 1) with current context. Write the ADR before the code.
-   - **"Tell me more"**: Run litmus-test questions (reversibility, blast radius, future constraint, explanation test) to help decide.
-
-If sensitivity is `liberal`, only fire for high-confidence architectural decisions (new infrastructure, schema changes, public API changes). If `conservative` (default), fire for anything that matches the trigger list above.
 
 
 ## Contributor Mode
@@ -366,201 +332,405 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /setup-deploy — Configure Deployment for gstack
+# Architectural Decision Records
 
-You are helping the user configure their deployment so `/land-and-deploy` works
-automatically. Your job is to detect the deploy platform, production URL, health
-checks, and deploy status commands — then persist everything to CLAUDE.md.
+ADRs are compact, high-signal documents that answer the question agents and future
+humans most need answered: "what did we already consider and reject, and why?"
 
-After this runs once, `/land-and-deploy` reads CLAUDE.md and skips detection entirely.
+## Mode Detection
 
-## User-invocable
-When the user types `/setup-deploy`, run this skill.
+Parse the user's command to determine which mode to run:
 
-## Instructions
+- `/adr` or `/adr [topic]` → **Mode 1: Create**
+- `/adr list` or `/adr list [tag]` → **Mode 2: List**
+- `/adr check` or `/adr check [branch-or-description]` → **Mode 3: Check**
+- `/adr revisit [N]` or `/adr revisit [topic]` → **Mode 4: Revisit**
+- `/adr litmus-test` or `/adr litmus-test [description]` → **Mode 5: Litmus-Test**
+- `/adr accept [N]` → **Utility: Accept**
+- `/adr renumber` → **Utility: Renumber**
+- `/adr skipped` → **Utility: Skip Log Report**
 
-### Step 1: Check existing configuration
+---
 
-```bash
-grep -A 20 "## Deploy Configuration" CLAUDE.md 2>/dev/null || echo "NO_CONFIG"
-```
+## ADR Template
 
-If configuration already exists, show it and ask:
-
-- **Context:** Deploy configuration already exists in CLAUDE.md.
-- **RECOMMENDATION:** Choose A to update if your setup changed.
-- A) Reconfigure from scratch (overwrite existing)
-- B) Edit specific fields (show current config, let me change one thing)
-- C) Done — configuration looks correct
-
-If the user picks C, stop.
-
-### Step 2: Detect platform
-
-Run the platform detection from the deploy bootstrap:
-
-```bash
-# Platform config files
-[ -f fly.toml ] && echo "PLATFORM:fly" && cat fly.toml
-[ -f render.yaml ] && echo "PLATFORM:render" && cat render.yaml
-[ -f vercel.json ] || [ -d .vercel ] && echo "PLATFORM:vercel"
-[ -f netlify.toml ] && echo "PLATFORM:netlify" && cat netlify.toml
-[ -f Procfile ] && echo "PLATFORM:heroku"
-[ -f railway.json ] || [ -f railway.toml ] && echo "PLATFORM:railway"
-
-# GitHub Actions deploy workflows
-for f in $(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null); do
-  [ -f "$f" ] && grep -qiE "deploy|release|production|staging|cd" "$f" 2>/dev/null && echo "DEPLOY_WORKFLOW:$f"
-done
-
-# Project type
-[ -f package.json ] && grep -q '"bin"' package.json 2>/dev/null && echo "PROJECT_TYPE:cli"
-find . -maxdepth 1 -name '*.gemspec' 2>/dev/null | grep -q . && echo "PROJECT_TYPE:library"
-```
-
-### Step 3: Platform-specific setup
-
-Based on what was detected, guide the user through platform-specific configuration.
-
-#### Fly.io
-
-If `fly.toml` detected:
-
-1. Extract app name: `grep -m1 "^app" fly.toml | sed 's/app = "\(.*\)"/\1/'`
-2. Check if `fly` CLI is installed: `which fly 2>/dev/null`
-3. If installed, verify: `fly status --app {app} 2>/dev/null`
-4. Infer URL: `https://{app}.fly.dev`
-5. Set deploy status command: `fly status --app {app}`
-6. Set health check: `https://{app}.fly.dev` (or `/health` if the app has one)
-
-Ask the user to confirm the production URL. Some Fly apps use custom domains.
-
-#### Render
-
-If `render.yaml` detected:
-
-1. Extract service name and type from render.yaml
-2. Check for Render API key: `echo $RENDER_API_KEY | head -c 4` (don't expose the full key)
-3. Infer URL: `https://{service-name}.onrender.com`
-4. Render deploys automatically on push to the connected branch — no deploy workflow needed
-5. Set health check: the inferred URL
-
-Ask the user to confirm. Render uses auto-deploy from the connected git branch — after
-merge to main, Render picks it up automatically. The "deploy wait" in /land-and-deploy
-should poll the Render URL until it responds with the new version.
-
-#### Vercel
-
-If vercel.json or .vercel detected:
-
-1. Check for `vercel` CLI: `which vercel 2>/dev/null`
-2. If installed: `vercel ls --prod 2>/dev/null | head -3`
-3. Vercel deploys automatically on push — preview on PR, production on merge to main
-4. Set health check: the production URL from vercel project settings
-
-#### Netlify
-
-If netlify.toml detected:
-
-1. Extract site info from netlify.toml
-2. Netlify deploys automatically on push
-3. Set health check: the production URL
-
-#### GitHub Actions only
-
-If deploy workflows detected but no platform config:
-
-1. Read the workflow file to understand what it does
-2. Extract the deploy target (if mentioned)
-3. Ask the user for the production URL
-
-#### Custom / Manual
-
-If nothing detected:
-
-Use AskUserQuestion to gather the information:
-
-1. **How are deploys triggered?**
-   - A) Automatically on push to main (Fly, Render, Vercel, Netlify, etc.)
-   - B) Via GitHub Actions workflow
-   - C) Via a deploy script or CLI command (describe it)
-   - D) Manually (SSH, dashboard, etc.)
-   - E) This project doesn't deploy (library, CLI, tool)
-
-2. **What's the production URL?** (Free text — the URL where the app runs)
-
-3. **How can gstack check if a deploy succeeded?**
-   - A) HTTP health check at a specific URL (e.g., /health, /api/status)
-   - B) CLI command (e.g., `fly status`, `kubectl rollout status`)
-   - C) Check the GitHub Actions workflow status
-   - D) No automated way — just check the URL loads
-
-4. **Any pre-merge or post-merge hooks?**
-   - Commands to run before merging (e.g., `bun run build`)
-   - Commands to run after merge but before deploy verification
-
-### Step 4: Write configuration
-
-Read CLAUDE.md (or create it). Find and replace the `## Deploy Configuration` section
-if it exists, or append it at the end.
+Location: `docs/adr/NNNN-title-slug.md`
+Numbering: Sequential, zero-padded to 4 digits (0001, 0002, ...). Auto-assign the next number.
+Slug: Derive from title. Sanitize to `[a-z0-9-]` only, strip leading/trailing hyphens, max 60 chars.
 
 ```markdown
-## Deploy Configuration (configured by /setup-deploy)
-- Platform: {platform}
-- Production URL: {url}
-- Deploy workflow: {workflow file or "auto-deploy on push"}
-- Deploy status command: {command or "HTTP health check"}
-- Merge method: {squash/merge/rebase}
-- Project type: {web app / API / CLI / library}
-- Post-deploy health check: {health check URL or command}
+---
+number: NNNN
+title: Short descriptive title
+status: proposed | accepted | deprecated | superseded
+date: YYYY-MM-DD
+superseded_by: NNNN (if status is superseded)
+supersedes: NNNN (if this replaces an earlier ADR)
+tags: [comma, separated, domain, tags]
+trigger_conditions: [conditions under which this ADR should be revisited]
+---
 
-### Custom deploy hooks
-- Pre-merge: {command or "none"}
-- Deploy trigger: {command or "automatic on push to main"}
-- Deploy status: {command or "poll production URL"}
-- Health check: {URL or command}
+# NNNN. Short Descriptive Title
+
+## Status
+
+{proposed | accepted | deprecated | superseded by [NNNN](NNNN-title.md)}
+
+## Context
+
+What is the issue motivating this decision or change?
+What forces are at play (technical, business, regulatory, team, timeline)?
+What constraints limit our options?
+
+## Decision
+
+What is the change we are proposing and/or doing?
+State the decision clearly and directly.
+
+## Alternatives Considered
+
+### Alternative: [Name]
+- **Description:** What this approach would look like
+- **Advantages:** What it would give us
+- **Disadvantages:** Why we did not choose it
+- **Ruling rationale:** The specific reason this was rejected
+
+## Tradeoffs
+
+What are we explicitly giving up with this decision?
+
+**Technical tradeoffs:**
+- Performance, scalability, maintainability, complexity, coupling
+
+**Team and hiring tradeoffs:**
+- Talent pool constraints, skills required, bus factor
+
+**Business and operational tradeoffs:**
+- Vendor lock-in, licensing costs, operational burden, time-to-market impact
+
+**Regulatory and compliance tradeoffs:**
+- Data residency, audit requirements, certification implications
+
+For each tradeoff:
+- **What we gain:** [specific benefit]
+- **What we lose:** [specific cost]
+- **Why this tradeoff is acceptable:** [reasoning]
+
+## Consequences
+
+What becomes easier or harder because of this decision?
+What follow-on decisions are created or constrained?
+What risks does this introduce?
+
+## Trigger Conditions
+
+Under what circumstances should this decision be revisited? Be specific:
+- "If latency exceeds 200ms p95 in production"
+- "If we add more than 3 data sources"
+- "If the team grows beyond N engineers"
 ```
 
-### Step 5: Verify
+---
 
-After writing, verify the configuration works:
+## Mode 1: Create (`/adr` or `/adr [topic]`)
 
-1. If a health check URL was configured, try it:
+Walk through creating a new ADR. The skill asks questions that surface reasoning,
+alternatives, and tradeoffs that might otherwise go undocumented.
+
+### Step 0: Setup
+
 ```bash
-curl -sf "{health-check-url}" -o /dev/null -w "%{http_code}" 2>/dev/null || echo "UNREACHABLE"
+mkdir -p docs/adr
 ```
 
-2. If a deploy status command was configured, try it:
+### Step 1: Context Gathering
+
+Ask what decision needs to be documented. If invoked during or after another skill
+(e.g., mid-implementation, post-`/plan-eng-review`), pull context from the current
+conversation and relevant artifacts.
+
+If the user provided a topic in the command, use it as the starting point.
+
+### Step 2: Decision Clarification
+
+"State the decision in one sentence. No qualifiers."
+
+Force directness. If the user hedges ("we might..." or "we're considering..."),
+push: "Commit to a statement. You can always change it. What is the decision?"
+
+### Step 3: Alternatives Interrogation
+
+"What else did you consider? Why didn't you go with that?"
+
+Push for at least 2 alternatives. If the user says "nothing else was considered," push back:
+"Every decision has alternatives, even if the alternative is 'do nothing' or 'defer the
+decision.' What would you do if this approach turned out to be wrong?"
+
+For each alternative, get: description, advantages, disadvantages, and the specific
+ruling rationale (not just "we preferred the other one").
+
+### Step 4: Tradeoff Extraction (Adaptive Probing)
+
+"What are you giving up with this choice?"
+
+Probe across multiple dimensions. **Adapt depth to relevance:**
+
+- For dimensions clearly relevant to this decision, probe deeply with follow-up questions.
+- For dimensions that seem irrelevant, ask briefly: "Any [dimension] implications? If not,
+  we'll move on." Accept a quick "no" and skip.
+- For dimensions the user seems to be **avoiding**, push harder. Engineers skip hiring
+  implications. Product people skip operational burden. Founders skip "what happens when
+  I can't do everything myself."
+
+**Dimensions to probe:**
+- *Technical:* "What gets slower? What gets harder to change later? What breaks if
+  [assumption] turns out to be wrong?"
+- *Team/hiring:* "If you need to hire someone to work on this in 6 months, how hard
+  is that? If the person who built this leaves, can someone else maintain it?"
+- *Business/operational:* "What does this cost to run? Who's on call for it? Does this
+  create vendor lock-in? Does it affect your ability to ship other things?"
+- *Regulatory/compliance:* "Does this interact with any regulatory requirements? Data
+  residency, audit trails, certification?"
+
+### Step 5: Trigger Conditions
+
+"Under what circumstances would you revisit this decision?"
+
+Push for specifics, not vague "if requirements change." Examples:
+- "If latency exceeds 200ms p95 in production"
+- "If we add more than 3 data sources"
+- "If annual infrastructure costs exceed $X"
+
+### Step 6: Status Choice
+
+Use AskUserQuestion:
+
+> "Is this decision finalized or still open for discussion?"
+
+Options:
+- A) Accepted (decision is final, constrains future work)
+- B) Proposed (still open for discussion, does not constrain yet)
+
+### Step 7: Draft and Review
+
+Generate the complete ADR using the template above. Present for review.
+
+The user approves, edits, or rejects. If rejected, revise or abort.
+
+### Step 8: Write
+
+Determine the next sequential number:
+
 ```bash
-{deploy-status-command} 2>/dev/null | head -5 || echo "COMMAND_FAILED"
+NEXT=$(ls docs/adr/[0-9]*.md 2>/dev/null | sed 's/.*\///' | sed 's/-.*//' | sort -n | tail -1 | sed 's/^0*//')
+NEXT=$((${NEXT:-0} + 1))
+PADDED=$(printf "%04d" $NEXT)
+echo "Next ADR number: $PADDED"
 ```
 
-Report results. If anything failed, note it but don't block — the config is still
-useful even if the health check is temporarily unreachable.
+Derive the slug from the title: lowercase, replace spaces and non-alphanumeric with
+hyphens, strip leading/trailing hyphens, truncate to 60 chars.
 
-### Step 6: Summary
+Write to `docs/adr/{PADDED}-{slug}.md`.
 
+### Step 9: Supersession (if applicable)
+
+If this ADR supersedes an existing one:
+1. Update the old ADR's `status` to `superseded` and add `superseded_by: {new number}`.
+2. Add `supersedes: {old number}` to the new ADR's frontmatter.
+3. Generate a structured comparison showing what changed:
+   - What context changed (forces, constraints)
+   - What alternatives are new vs. carried forward
+   - What tradeoffs shifted
+   Include this comparison in the conversation output so the user can see the evolution.
+
+---
+
+## Mode 2: List (`/adr list` or `/adr list [tag]`)
+
+Summarize the project's architectural decision landscape.
+
+```bash
+if [ -d "docs/adr" ]; then
+  echo "ADR files:"
+  ls -1 docs/adr/[0-9]*.md 2>/dev/null || echo "  (none)"
+else
+  echo "No docs/adr/ directory found."
+fi
 ```
-DEPLOY CONFIGURATION — COMPLETE
-════════════════════════════════
-Platform:      {platform}
-URL:           {url}
-Health check:  {health check}
-Status cmd:    {status command}
-Merge method:  {merge method}
 
-Saved to CLAUDE.md. /land-and-deploy will use these settings automatically.
+1. Read all ADR files from `docs/adr/`.
+2. Parse frontmatter for status, tags, date, and trigger conditions.
+3. Present summary grouped by status: accepted, then proposed, then deprecated, then superseded.
+4. If a tag filter is provided, show only matching ADRs.
+5. Flag any ADRs whose trigger conditions may be relevant to the current work
+   (based on current branch, recent changes, or user context).
 
-Next steps:
-- Run /land-and-deploy to merge and deploy your current PR
-- Edit the "## Deploy Configuration" section in CLAUDE.md to change settings
-- Run /setup-deploy again to reconfigure
+Output is inline summary. No file output.
+
+---
+
+## Mode 3: Check (`/adr check`)
+
+Before making an architectural decision or merging a change, check whether existing
+ADRs constrain or inform the decision.
+
+```bash
+if [ -d "docs/adr" ]; then
+  ACCEPTED=$(grep -l 'status:.*accepted' docs/adr/[0-9]*.md 2>/dev/null)
+  echo "Accepted ADRs to check: $(echo "$ACCEPTED" | wc -l | tr -d ' ')"
+  # Show tags for filtering
+  echo "Tags found:"
+  grep 'tags:' docs/adr/[0-9]*.md 2>/dev/null | sed 's/.*tags://' | tr '[],' '\n' | sort -u | grep -v '^$' | head -20
+else
+  echo "No docs/adr/ directory. Nothing to check."
+fi
 ```
 
-## Important Rules
+1. Read all accepted ADRs. If many exist (20+), use tag-based filtering: identify which
+   files/systems the current diff touches, then filter ADRs by relevant tags.
+2. Analyze the current context:
+   - If on a branch with changes: examine the diff for architectural implications.
+   - If a description is provided: analyze the proposed change.
+   - If invoked during planning: analyze the plan.
+3. For each ADR, assess:
+   - **Contradictions:** Does the current change violate a decision? Flag with the specific
+     ADR number and the specific conflict.
+   - **Relevance:** Does an existing ADR provide context that should inform the current work?
+   - **Trigger conditions:** Has any ADR's trigger condition been met?
+4. Surface proposed ADRs as "pending decisions" context. They inform but do not constrain.
+5. Present findings. Example: "ADR-0003 says we use PostgreSQL for all persistent state.
+   This PR introduces a Redis cache for session data. Is this a new decision that should
+   be documented, or does it contradict 0003?"
 
-- **Never expose secrets.** Don't print full API keys, tokens, or passwords.
-- **Confirm with the user.** Always show the detected config and ask for confirmation before writing.
-- **CLAUDE.md is the source of truth.** All configuration lives there — not in a separate config file.
-- **Idempotent.** Running /setup-deploy multiple times overwrites the previous config cleanly.
-- **Platform CLIs are optional.** If `fly` or `vercel` CLI isn't installed, fall back to URL-based health checks.
+Output is inline analysis. May recommend creating a new ADR or revisiting an existing one.
+
+---
+
+## Mode 4: Revisit (`/adr revisit [N]`)
+
+Re-evaluate an existing ADR in light of changed context.
+
+1. Read the specified ADR (by number or topic search).
+2. Walk through each section with the user:
+   - **Context:** "Has anything changed about the forces at play?"
+   - **Alternatives:** "Are there new options that weren't available when this was written?"
+   - **Tradeoffs:** "Have the costs/benefits shifted? Is the tradeoff still acceptable?"
+   - **Trigger conditions:** "Have any of these been triggered?"
+3. If the decision still holds: update the date and add a `## Revisited` section noting
+   that it was reviewed and reaffirmed, with the date and brief reasoning.
+4. If the decision should change: create a new ADR that supersedes the old one, using the
+   full Mode 1 creation flow. Update the old ADR's status. Generate the supersession diff.
+
+---
+
+## Mode 5: Litmus-Test (`/adr litmus-test`)
+
+Help the user determine whether something rises to the level of an ADR. Solves the
+judgment problem: "I'm not sure if this is a Big Decision or just a thing I'm doing."
+
+Run through a short decision tree. Each answer determines the next question.
+
+### Question 1: Reversibility
+
+"If this turns out to be wrong, how hard is it to undo?"
+- *Easy to undo (hours, no external impact)* → leans toward "don't worry about it"
+- *Hard to undo (data migration, downstream consumers, infrastructure changes)* → leans toward ADR
+
+### Question 2: Blast Radius
+
+"What else does this touch beyond your own code?"
+- *Nothing, internal refactor, no API/schema changes* → leans toward "don't worry about it"
+- *Public API, data schemas, infrastructure, external integrations* → leans toward ADR
+- *Non-backwards-compatible changes to something with consumers* → strong signal for ADR
+
+### Question 3: Future Constraint
+
+"Does this close doors? Will future-you be locked into something because of this choice?"
+- *No, easily swapped later* → leans toward "don't worry about it"
+- *Yes, vendor lock-in, data format commitment, architectural pattern that propagates* → ADR
+
+### Question 4: Explanation Test
+
+"If someone joins the project in 3 months and looks at this, would they ask 'why did we do it this way?'"
+- *No, obvious or conventional* → don't worry about it
+- *Yes, non-obvious reasoning, rejected alternatives, important context* → ADR
+
+### Verdicts
+
+- **"Don't worry about it."** Explain why in one sentence. Stop here.
+- **"Borderline. Leave a code comment."** For decisions with some reasoning worth preserving
+  but not ADR-level. "Leave a comment explaining why you chose X over Y."
+- **"Yes, this needs an ADR. Let's write it."** Transition into Mode 1, carrying forward
+  the context from the litmus-test so the user doesn't re-explain. The reversibility, blast
+  radius, and constraint answers become seed material for the Context and Tradeoffs sections.
+
+---
+
+## Utility: Accept (`/adr accept [N]`)
+
+Transition a proposed ADR to accepted status.
+
+```bash
+ADR_FILE=$(ls docs/adr/$(printf "%04d" $1)-*.md 2>/dev/null | head -1)
+[ -n "$ADR_FILE" ] && echo "Found: $ADR_FILE" || echo "ADR not found"
+```
+
+1. Find the ADR file by number.
+2. Read it and verify status is `proposed`.
+3. Update `status: proposed` to `status: accepted` in the frontmatter.
+4. Update the `## Status` section body to match.
+5. Update the `date` field to today.
+6. Confirm to the user: "ADR-NNNN is now accepted and will constrain future work."
+
+---
+
+## Utility: Renumber (`/adr renumber`)
+
+Post-merge cleanup for numbering conflicts.
+
+```bash
+echo "Current ADR files:"
+ls -1 docs/adr/[0-9]*.md 2>/dev/null
+```
+
+1. Scan `docs/adr/` for all numbered ADR files.
+2. Detect duplicates or gaps in the sequence.
+3. If duplicates found: propose a renumbering plan. Show old → new mappings.
+4. Update all filenames, frontmatter `number` fields, and cross-references
+   (`superseded_by`, `supersedes`) to match the new numbering.
+5. Present the changes for user approval before writing.
+
+---
+
+## Utility: Skip Log Report (`/adr skipped`)
+
+Surface the skip log as a readable report.
+
+```bash
+if [ -f "docs/adr/.skipped.jsonl" ]; then
+  echo "Skip log entries:"
+  cat docs/adr/.skipped.jsonl
+else
+  echo "No skip log found."
+fi
+```
+
+1. Read `docs/adr/.skipped.jsonl`.
+2. Parse each JSONL line.
+3. Present a formatted summary grouped by date, with description and trigger pattern.
+4. If patterns emerge (same type of decision skipped repeatedly), note it:
+   "You've skipped [N] decisions about [pattern]. Consider whether the gate sensitivity
+   should be adjusted, or whether these decisions actually deserve ADRs."
+
+---
+
+## Conventions
+
+- File location: `docs/adr/NNNN-title-slug.md`
+- Numbering: Sequential, zero-padded 4 digits, auto-assigned
+- Status values: `proposed`, `accepted`, `deprecated`, `superseded` (no others)
+- Supersession: old ADR gets `superseded_by` + status change; new ADR gets `supersedes`
+- Slug: `[a-z0-9-]` only, max 60 chars, derived from title
+- Skip log: `docs/adr/.skipped.jsonl`, JSONL format, append-only
+- Sensitivity config: `docs/adr/.config` with `sensitivity: conservative | liberal`

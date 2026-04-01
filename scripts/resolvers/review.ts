@@ -62,6 +62,18 @@ Display:
 - CEO, Design, and Codex reviews are shown for context but never block shipping
 - If \\\`skip_eng_review\\\` config is \\\`true\\\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
 
+**ADR context:** After the dashboard, check for architectural decision records:
+\\\`\\\`\\\`bash
+ADR_DIR="docs/adr"
+if [ -d "$ADR_DIR" ]; then
+  ADR_COUNT=$(ls "$ADR_DIR"/[0-9]*.md 2>/dev/null | wc -l | tr -d ' ')
+  ADR_ACCEPTED=$(grep -l 'status:.*accepted' "$ADR_DIR"/[0-9]*.md 2>/dev/null | wc -l | tr -d ' ')
+  ADR_PROPOSED=$(grep -l 'status:.*proposed' "$ADR_DIR"/[0-9]*.md 2>/dev/null | wc -l | tr -d ' ')
+  echo "ADR: $ADR_COUNT total ($ADR_ACCEPTED accepted, $ADR_PROPOSED proposed)"
+fi
+\\\`\\\`\\\`
+If ADRs exist, display below the dashboard: "ADRs: {accepted} accepted, {proposed} proposed"
+
 **Staleness detection:** After displaying the dashboard, check if any existing reviews may be stale:
 - Parse the \\\`---HEAD---\\\` section from the bash output to get the current HEAD commit hash
 - For each review entry that has a \\\`commit\\\` field: compare it against the current HEAD. If different, count elapsed commits: \\\`git rev-list --count STORED_COMMIT..HEAD\\\`. Display: "Note: {skill} review from {date} may be stale — {N} commits since review"
