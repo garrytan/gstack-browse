@@ -271,9 +271,12 @@ async function askClaude(queueEntry: any): Promise<void> {
       if (buffer.trim()) {
         try { handleStreamEvent(JSON.parse(buffer), tid); } catch {}
       }
-      const doneEvent: Record<string, any> = { type: 'agent_done' };
-      if (code !== 0 && stderrBuffer.trim()) {
-        doneEvent.stderr = stderrBuffer.trim().slice(-500);
+      const failed = code !== 0;
+      const doneEvent: Record<string, any> = { type: failed ? 'agent_error' : 'agent_done' };
+      if (failed) {
+        doneEvent.error = stderrBuffer.trim()
+          ? stderrBuffer.trim().slice(-500)
+          : `Agent exited with code ${code}`;
       }
       sendEvent(doneEvent, tid).then(() => {
         processingTabs.delete(tid);

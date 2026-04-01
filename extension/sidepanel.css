@@ -140,6 +140,11 @@ body::after {
   transition: background 150ms;
 }
 .dot.connected { background: var(--success); }
+.dot.error { background: var(--error, #ef4444); }
+.dot.processing {
+  background: var(--amber-500);
+  animation: pulse 2s ease-in-out infinite;
+}
 .dot.reconnecting {
   background: var(--amber-500);
   animation: pulse 2s ease-in-out infinite;
