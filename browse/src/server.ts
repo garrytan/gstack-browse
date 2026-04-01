@@ -33,6 +33,49 @@ import * as crypto from 'crypto';
 // ─── Config ─────────────────────────────────────────────────────
 const config = resolveConfig();
 ensureStateDir(config);
+const SERVER_LOG_PATH = path.join(config.stateDir, 'browse-server.log');
+
+const originalConsoleLog = console.log.bind(console);
+const originalConsoleWarn = console.warn.bind(console);
+const originalConsoleError = console.error.bind(console);
+
+function appendServerLog(level: 'INFO' | 'WARN' | 'ERROR', args: unknown[]) {
+  try {
+    const rendered = args
+      .map((arg) => {
+        if (arg instanceof Error) return arg.stack || arg.message;
+        if (typeof arg === 'string') return arg;
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      })
+      .join(' ');
+    fs.appendFileSync(
+      SERVER_LOG_PATH,
+      `[${new Date().toISOString()}] [${level}] ${rendered}\n`,
+      { mode: 0o600 },
+    );
+  } catch {
+    // Best effort only — logging should never break the daemon.
+  }
+}
+
+console.log = (...args: unknown[]) => {
+  appendServerLog('INFO', args);
+  originalConsoleLog(...args);
+};
+
+console.warn = (...args: unknown[]) => {
+  appendServerLog('WARN', args);
+  originalConsoleWarn(...args);
+};
+
+console.error = (...args: unknown[]) => {
+  appendServerLog('ERROR', args);
+  originalConsoleError(...args);
+};
 
 // ─── Auth ───────────────────────────────────────────────────────
 const AUTH_TOKEN = crypto.randomUUID();

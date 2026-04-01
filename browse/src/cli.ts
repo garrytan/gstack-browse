@@ -17,6 +17,34 @@ const config = resolveConfig();
 const IS_WINDOWS = process.platform === 'win32';
 const MAX_START_WAIT = IS_WINDOWS ? 15000 : (process.env.CI ? 30000 : 8000); // Node+Chromium takes longer on Windows
 
+function isExecutable(filePath: string): boolean {
+  try {
+    fs.accessSync(filePath, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveBunExecutable(env: Record<string, string | undefined> = process.env): string {
+  const candidates = [
+    env.BUN_BIN,
+    path.join(env.HOME || '', '.bun', 'bin', IS_WINDOWS ? 'bun.exe' : 'bun'),
+    '/opt/homebrew/bin/bun',
+    '/usr/local/bin/bun',
+  ].filter((candidate): candidate is string => Boolean(candidate));
+
+  for (const candidate of candidates) {
+    if (isExecutable(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 'bun';
+}
+
+const BUN_BIN = resolveBunExecutable();
+
 export function resolveServerScript(
   env: Record<string, string | undefined> = process.env,
   metaDir: string = import.meta.dir,
@@ -239,12 +267,18 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
       `{BROWSE_STATE_FILE:${JSON.stringify(config.stateFile)}})}).unref()`;
     Bun.spawnSync(['node', '-e', launcherCode], { stdio: ['ignore', 'ignore', 'ignore'] });
   } else {
-    // macOS/Linux: Bun.spawn + unref works correctly
-    proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile, ...extraEnv },
-    });
-    proc.unref();
+    // macOS/Linux: Bun.spawn() + unref() is still not a reliable daemonization
+    // boundary here. The child can die after the parent CLI exits, which makes
+    // the browser session reset between commands. Use a detached Node launcher
+    // so the Bun server becomes a true session-independent background process.
+    const launcherCode =
+      `const{spawn}=require('child_process');` +
+      `spawn(${JSON.stringify(BUN_BIN)},['run',${JSON.stringify(SERVER_SCRIPT)}],` +
+      `{detached:true,stdio:['ignore','ignore','ignore'],env:Object.assign({},process.env,` +
+      `{BROWSE_STATE_FILE:${JSON.stringify(config.stateFile)},${Object.entries(extraEnv || {})
+        .map(([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`)
+        .join(',')}})}).unref()`;
+    Bun.spawnSync(['node', '-e', launcherCode], { stdio: ['ignore', 'ignore', 'ignore'] });
   }
 
   // Wait for server to become healthy.
@@ -259,27 +293,17 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     await Bun.sleep(100);
   }
 
-  // Server didn't start in time — try to get error details
-  if (proc?.stderr) {
-    // macOS/Linux: read stderr from the spawned process
-    const reader = proc.stderr.getReader();
-    const { value } = await reader.read();
-    if (value) {
-      const errText = new TextDecoder().decode(value);
-      throw new Error(`Server failed to start:\n${errText}`);
+  // Server didn't start in time — get error details from the startup log.
+  // The detached macOS/Linux path also uses stdio: ignore so the child can
+  // survive after the CLI exits.
+  const errorLogPath = path.join(config.stateDir, 'browse-startup-error.log');
+  try {
+    const errorLog = fs.readFileSync(errorLogPath, 'utf-8').trim();
+    if (errorLog) {
+      throw new Error(`Server failed to start:\n${errorLog}`);
     }
-  } else {
-    // Windows: check startup error log (server writes errors to disk since
-    // stderr is unavailable due to stdio: 'ignore' for detachment)
-    const errorLogPath = path.join(config.stateDir, 'browse-startup-error.log');
-    try {
-      const errorLog = fs.readFileSync(errorLogPath, 'utf-8').trim();
-      if (errorLog) {
-        throw new Error(`Server failed to start:\n${errorLog}`);
-      }
-    } catch (e: any) {
-      if (e.code !== 'ENOENT') throw e;
-    }
+  } catch (e: any) {
+    if (e.code !== 'ENOENT') throw e;
   }
   throw new Error(`Server failed to start within ${MAX_START_WAIT / 1000}s`);
 }
@@ -592,7 +616,7 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
           spawnSync('pkill', ['-f', 'sidebar-agent\\.ts'], { stdio: 'ignore', timeout: 3000 });
         } catch {}
 
-        const agentProc = Bun.spawn(['bun', 'run', agentScript], {
+        const agentProc = Bun.spawn([BUN_BIN, 'run', agentScript], {
           cwd: config.projectDir,
           env: {
             ...process.env,
