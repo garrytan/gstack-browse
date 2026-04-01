@@ -6,6 +6,8 @@
 const BLOCKED_METADATA_HOSTS = new Set([
   '169.254.169.254',  // AWS/GCP/Azure instance metadata
   'fd00::',           // IPv6 unique local (metadata in some cloud setups)
+  'fe80::1',          // IPv6 link-local (metadata in some setups)
+  '::ffff:169.254.169.254', // IPv4-mapped IPv6 form of link-local metadata
   'metadata.google.internal', // GCP metadata
   'metadata.azure.internal',  // Azure IMDS
 ]);
@@ -45,15 +47,28 @@ function isMetadataIp(hostname: string): boolean {
 }
 
 /**
- * Resolve a hostname to its IP addresses and check if any resolve to blocked metadata IPs.
- * Mitigates DNS rebinding: even if the hostname looks safe, the resolved IP might not be.
+ * Resolve a hostname to its IP addresses (both A and AAAA records) and check if any
+ * resolve to blocked metadata IPs. Mitigates DNS rebinding: even if the hostname looks
+ * safe, the resolved IP might not be. Checks IPv6 AAAA records in addition to IPv4 A
+ * records to prevent bypass via IPv6-only DNS responses.
  */
 async function resolvesToBlockedIp(hostname: string): Promise<boolean> {
   try {
     const dns = await import('node:dns');
-    const { resolve4 } = dns.promises;
-    const addresses = await resolve4(hostname);
-    return addresses.some(addr => BLOCKED_METADATA_HOSTS.has(addr));
+    const { resolve4, resolve6 } = dns.promises;
+
+    // Run both A and AAAA lookups concurrently; ignore individual failures
+    const [v4Addrs, v6Addrs] = await Promise.allSettled([
+      resolve4(hostname),
+      resolve6(hostname),
+    ]);
+
+    const allAddresses: string[] = [
+      ...(v4Addrs.status === 'fulfilled' ? v4Addrs.value : []),
+      ...(v6Addrs.status === 'fulfilled' ? v6Addrs.value : []),
+    ];
+
+    return allAddresses.some(addr => BLOCKED_METADATA_HOSTS.has(addr));
   } catch {
     // DNS resolution failed — not a rebinding risk
     return false;
