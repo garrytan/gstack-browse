@@ -10,6 +10,23 @@
   "license": "MIT",
   "keywords": ["bams", "org-chart", "pipeline", "crew", "gstack"],
   "commands": "./commands/",
-  "agents": "./agents/",
+  "agents": [
+    "./agents/automation-qa.md",
+    "./agents/backend-engineering.md",
+    "./agents/business-analysis.md",
+    "./agents/business-kpi.md",
+    "./agents/data-integration.md",
+    "./agents/defect-triage.md",
+    "./agents/experimentation.md",
+    "./agents/frontend-engineering.md",
+    "./agents/performance-evaluation.md",
+    "./agents/platform-devops.md",
+    "./agents/product-analytics.md",
+    "./agents/product-strategy.md",
+    "./agents/project-governance.md",
+    "./agents/qa-strategy.md",
+    "./agents/release-quality-gate.md",
+    "./agents/ux-research.md"
+  ],
   "skills": "./skills/"
 }
