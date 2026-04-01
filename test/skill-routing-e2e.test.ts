@@ -70,7 +70,7 @@ function installSkills(tmpDir: string) {
     'qa', 'qa-only', 'ship', 'review', 'plan-ceo-review', 'plan-eng-review',
     'plan-design-review', 'design-review', 'design-consultation', 'retro',
     'document-release', 'investigate', 'office-hours', 'browse', 'setup-browser-cookies',
-    'gstack-upgrade', 'humanizer',
+    'gstack-upgrade', 'humanizer', 'adr',
   ];
 
   // Install to both project-level and user-level skill directories

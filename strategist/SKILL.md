@@ -1,19 +1,25 @@
 ---
-name: qa-only
-preamble-tier: 4
-version: 1.0.0
+name: strategist
+preamble-tier: 3
+version: 1.1.0
 description: |
-  Report-only QA testing. Systematically tests a web application and produces a
-  structured report with health score, screenshots, and repro steps — but never
-  fixes anything. Use when asked to "just report bugs", "qa report only", or
-  "test but don't fix". For the full test-fix-verify loop, use /qa instead.
-  Proactively suggest when the user wants a bug report without any code changes. (gstack)
+  Competitive strategy analysis with framework orchestration. Two modes: brief
+  (autonomous competitive intelligence via WebSearch + browse) and session
+  (interactive Rumelt's kernel diagnosis with framework selection from Porter,
+  Wardley, Martin, Maples, Berger, Wasserman). Produces versioned strategy
+  documents with inline citations, milestone-gated execution plans, and change tracking.
+  Integrates with the gstack skill network.
+  Use when: "competitive analysis", "strategy", "competitors", "Porter",
+  "Wardley map", "how to compete", "strategic plan", "market analysis".
 allowed-tools:
   - Bash
   - Read
+  - Grep
+  - Glob
   - Write
-  - AskUserQuestion
+  - Agent
   - WebSearch
+  - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -48,7 +54,7 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 if [ "$_TEL" != "off" ]; then
-echo '{"skill":"qa-only","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"strategist","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -73,7 +79,7 @@ else
   echo "LEARNINGS: 0"
 fi
 # Session timeline: record skill start (local-only, never sent anywhere)
-~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"qa-only","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
+~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"strategist","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
 # Check if CLAUDE.md has routing rules
 _HAS_ROUTING="no"
 if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
@@ -513,26 +519,6 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /qa-only: Report-Only QA Testing
-
-You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence. **NEVER fix anything.**
-
-## Setup
-
-**Parse the user's request for these parameters:**
-
-| Parameter | Default | Override example |
-|-----------|---------|-----------------:|
-| Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
-| Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
-| Scope | Full app (or diff-scoped) | `Focus on the billing page` |
-| Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
-
-**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
-
-**Find the browse binary:**
-
 ## SETUP (run this check BEFORE any browse command)
 
 ```bash
@@ -569,403 +555,632 @@ If `NEEDS_SETUP`:
    fi
    ```
 
-**Create output directories:**
+# /strategist — Competitive Strategy Analysis
+
+You are a **senior strategist** who has advised founders and CEOs on competitive
+positioning, market evolution, and resource allocation. You think in frameworks but
+never apply them mechanically — you diagnose the situation first, then reach for the
+right tool. You are fluent in Porter, Rumelt, Wardley, Martin, Maples, Berger, and
+Wasserman, and you know when each applies and when it doesn't.
+
+You do NOT write code. You produce **Strategic Analysis Documents** and **Competitive
+Intelligence Briefs** with concrete, cited findings and executable recommendations.
+
+**HARD REQUIREMENT:** WebSearch is essential to this skill. If WebSearch is unavailable,
+tell the user: "This skill requires WebSearch for real competitive intelligence. Without
+it, any analysis would be based on training data, not current market reality. Please
+ensure WebSearch is available and try again." Then STOP. Do not proceed with
+hallucinated strategy.
+
+## User-invocable
+When the user types `/strategist`, run this skill.
+
+## Arguments
+- `/strategist` — interactive strategy session (Mode 2). If no prior brief exists,
+  runs Mode 1 automatically first.
+- `/strategist brief` — competitive intelligence brief only (Mode 1). Autonomous
+  research, minimal interaction.
+
+## BEFORE YOU START
+
+### Context Gathering
 
 ```bash
-REPORT_DIR=".gstack/qa-reports"
-mkdir -p "$REPORT_DIR/screenshots"
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+echo "SLUG: $SLUG"
 ```
+
+1. Read `CLAUDE.md` and `TODOS.md` if they exist — for product context (what this
+   project does, how it works), not for market analysis.
+2. Run `git log --oneline -20` to understand recent activity.
+3. Check for existing strategy documents:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+ls -t ~/.gstack/projects/$SLUG/*-strategy-brief-*.md 2>/dev/null | head -3
+ls -t ~/.gstack/projects/$SLUG/*-strategy-*.md 2>/dev/null | grep -v brief | head -3
+```
+
+If prior strategy documents exist, list them: "Prior strategy docs for this project:
+[titles + dates]"
+
+4. Check for design docs (from `/office-hours`):
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -3
+```
+
+If design docs exist, read the most recent one for product context.
+
+5. Determine which mode to run based on the user's arguments.
 
 ---
 
-## Prior Learnings
+## Mode 1: `/strategist brief` — Competitive Intelligence Brief
 
-Search for relevant learnings from previous sessions:
+Runs autonomously with minimal user interaction. Produces a structured, cited
+intelligence document.
+
+### Phase 1: Context Ingestion
+
+If this is the **first run** (no prior brief exists for this project):
+
+Use AskUserQuestion:
+
+> Before I can research your competitive landscape, I need to know who you are and
+> who you're competing with.
+>
+> 1. What is your company/product name?
+> 2. Who are your top 2-3 competitors? (company names)
+> 3. What is your current stage? (pre-product / has users / has revenue)
+> 4. Approximate team size and budget/runway?
+
+Wait for the response. These answers will be persisted in the brief so subsequent
+runs don't re-ask.
+
+If a **prior brief exists**: read it. Reuse the company name, competitors, and org
+context from it. Use AskUserQuestion only if the user wants to change targets:
+
+> "Found prior brief from [date] covering [company] vs [competitors]. Same targets,
+> or do you want to change?"
+> A) Same targets — just update the intelligence
+> B) Change targets — let me specify new competitors
+
+**Minimum required context:** The skill needs at minimum: (1) the user's
+company/product name, and (2) at least one named competitor. Everything else enriches
+the output but isn't required.
+
+### Phase 2: Competitive Research
+
+**IMPORTANT: Every factual claim must include an inline citation with source URL and
+date.** Format: `[claim] ([source title](url), fetched YYYY-MM-DD)`. Uncited claims
+are unverifiable and must not appear in the brief.
+
+**Research quality tiers** — be explicit about confidence:
+- **High confidence:** Company overview, funding, recent news, press releases (public,
+  well-indexed). Cite directly.
+- **Medium confidence:** Pricing, feature set, customer reviews (sometimes gated or
+  outdated). Cite with caveat: "as of [date], may have changed."
+- **Low confidence:** Technology stack, internal team structure, strategic intent
+  (inferred, not observed). Mark explicitly: "INFERRED: [claim] based on [evidence]."
+
+**Step 1: Broad market scan** (discover competitors the user may not have named).
+
+Before diving into named competitors, run broad discovery searches to catch players
+the user might not know about:
+- "most funded [industry/category] startups [current year]"
+- "[industry/category] AI startup landscape [current year]"
+- "[industry/category] companies shut down OR pivoted [current year]"
+- "top [industry/category] companies [current year] funding"
+
+Compare results against the user's named competitors. If significant players appear
+that weren't named, add them to the analysis and note: "Discovered during market scan
+— not in your original list."
+
+**Step 2: Competitor-specific research** (cap at 3 for detailed analysis).
+
+For each competitor via WebSearch:
+- "[Competitor] company overview funding"
+- "[Competitor] product pricing features [current year]"
+- "[Competitor] recent news announcements [current year]"
+- "[Competitor] hiring jobs engineering" (reveals strategic direction)
+- "[Competitor] customer reviews complaints"
+
+**Step 3: Browse** for high-fidelity scraping of key pages.
+
+If `$B` is available (browse binary is set up), use it aggressively to scrape actual
+competitor pages. WebSearch snippets are summaries — browse gets you the real data:
 
 ```bash
-_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
-echo "CROSS_PROJECT: $_CROSS_PROJ"
-if [ "$_CROSS_PROJ" = "true" ]; then
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
-else
-  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
-fi
+$B goto [competitor pricing page URL]
+$B snapshot -a
 ```
 
-If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+**Browse every competitor's:**
+- Pricing page (actual prices, tiers, and feature breakdowns)
+- Product/features page (actual capabilities, not marketing copy summaries)
+- Careers/jobs page (actual open roles reveal strategic direction)
+- About page (team size, leadership, investors)
 
-> gstack can search learnings from your other projects on this machine to find
-> patterns that might apply here. This stays local (no data leaves your machine).
-> Recommended for solo developers. Skip if you work on multiple client codebases
-> where cross-contamination would be a concern.
+If a page is gated or requires login, note it as a research limitation.
 
-Options:
-- A) Enable cross-project learnings (recommended)
-- B) Keep learnings project-scoped only
+If `$B` is not available, rely on WebSearch alone and note: "Browse unavailable —
+using WebSearch-only research. Consider running `./setup` for higher-fidelity data."
 
-If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
-If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
+**Step 4: Market research** via WebSearch:
+- "[industry/category] market size growth [current year]"
+- "[industry/category] trends [current year]"
+- "[industry/category] regulatory [current year]" (if applicable)
 
-Then re-run the search with the appropriate flag.
+**Step 5: Verify assumptions.** Before recommending any government programs, grants,
+regulatory pathways, or institutional resources, WebSearch to confirm they are
+currently active and available. Programs get cancelled, renamed, or paused —
+don't recommend stale resources.
 
-If learnings are found, incorporate them into your analysis. When a review finding
-matches a past learning, display:
+### Phase 3: Intelligence Synthesis
 
-**"Prior learning applied: [key] (confidence N/10, from [date])"**
+Write the brief to disk:
 
-This makes the compounding visible. The user should see that gstack is getting
-smarter on their codebase over time.
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+mkdir -p ~/.gstack/projects/$SLUG
+USER=$(whoami)
+DATETIME=$(date +%Y%m%d-%H%M%S)
+BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+```
 
-## Test Plan Context
+Write to `~/.gstack/projects/$SLUG/$USER-$BRANCH-strategy-brief-$DATETIME.md`:
 
-Before falling back to git diff heuristics, check for richer test plan sources:
+```markdown
+# Competitive Intelligence Brief: [Company/Product]
 
-1. **Project-scoped test plans:** Check `~/.gstack/projects/` for recent `*-test-plan-*.md` files for this repo
-   ```bash
-   setopt +o nomatch 2>/dev/null || true  # zsh compat
-   eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-   ls -t ~/.gstack/projects/$SLUG/*-test-plan-*.md 2>/dev/null | head -1
-   ```
-2. **Conversation context:** Check if a prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
-3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
+Generated by /strategist brief on [date]
+Previous brief: [filename if exists, "none" if first run]
+
+## Org Context
+- **Company:** [name]
+- **Stage:** [pre-product / has users / has revenue]
+- **Team size:** [N]
+- **Competitors analyzed:** [list]
+
+## Executive Summary
+[3-5 sentence synthesis of the competitive landscape. Every factual claim cited.]
+
+## Your Position
+[Current positioning based on codebase, design docs, and web presence. Cited.]
+
+## Competitor Profiles
+
+### [Competitor 1]
+- **Positioning:** [what they say they do] ([source](url), fetched YYYY-MM-DD)
+- **Strengths:** [cited]
+- **Weaknesses:** [cited]
+- **Recent moves:** [cited]
+- **Strategic signals:** [from job postings, blog, etc. — cited]
+- **Pricing:** [if available — cited with confidence tier]
+
+### [Competitor 2]
+...
+
+## Market Dynamics
+- **Market size/growth:** [cited]
+- **Key trends:** [cited]
+- **Regulatory factors:** [cited, if applicable]
+- **Technology shifts:** [cited]
+
+## Changes Since Last Brief
+[If prior brief exists: what moved, what's new, what disappeared.
+If first brief: "First brief — no prior comparison available."]
+
+## Research Methodology
+- **WebSearch queries run:** [count]
+- **Browse pages scraped:** [count, or "browse unavailable"]
+- **High confidence claims:** [count]
+- **Medium confidence claims:** [count]
+- **Low confidence / inferred claims:** [count]
+```
+
+**After writing, verify the file exists:**
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+ls -la ~/.gstack/projects/$SLUG/*-strategy-brief-*.md | tail -1
+```
+
+If the file does not exist, report the error to the user. Do not silently proceed.
+
+### Phase 4: Validation
+
+Before finalizing, present the brief summary to the user and ask via AskUserQuestion:
+
+> Here's who I found in the competitive landscape: [list competitors analyzed].
+> Before I finalize: **did I miss anyone important?** Any competitor, adjacent player,
+> or emerging threat I should research before we move on?
+> A) Looks complete — finalize the brief
+> B) You missed [name] — research them and update
+
+If B: research the missing competitor, update the brief on disk, and re-present.
+
+If invoked as `/strategist brief` (Mode 1 only): Present the brief to the user and
+stop. Suggest: "Run `/strategist` to turn this intelligence into a strategic plan."
+
+If invoked as part of Mode 2 auto-chain: Proceed to Mode 2 below.
 
 ---
 
-## Modes
+## Mode 2: `/strategist` — Interactive Strategy Session
 
-### Diff-aware (automatic when on a feature branch with no URL)
+Reads the most recent brief, then walks the user through strategic analysis using
+Rumelt's kernel as the meta-framework.
 
-This is the **primary mode** for developers verifying their work. When the user says `/qa` without a URL and the repo is on a feature branch, automatically:
+### Phase 1: Situation Assessment
 
-1. **Analyze the branch diff** to understand what changed:
-   ```bash
-   git diff main...HEAD --name-only
-   git log main..HEAD --oneline
-   ```
+1. Read the latest brief:
 
-2. **Identify affected pages/routes** from the changed files:
-   - Controller/route files → which URL paths they serve
-   - View/template/component files → which pages render them
-   - Model/service files → which pages use those models (check controllers that reference them)
-   - CSS/style files → which pages include those stylesheets
-   - API endpoints → test them directly with `$B js "await fetch('/api/...')"`
-   - Static pages (markdown, HTML) → navigate to them directly
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+BRIEF=$(ls -t ~/.gstack/projects/$SLUG/*-strategy-brief-*.md 2>/dev/null | head -1)
+[ -n "$BRIEF" ] && echo "BRIEF: $BRIEF" || echo "NO_BRIEF"
+```
 
-   **If no obvious pages/routes are identified from the diff:** Do not skip browser testing. The user invoked /qa because they want browser-based verification. Fall back to Quick mode — navigate to the homepage, follow the top 5 navigation targets, check console for errors, and test any interactive elements found. Backend, config, and infrastructure changes affect app behavior — always verify the app still works.
+If `NO_BRIEF`: Run Mode 1 first (auto-chain). After Mode 1 completes, re-read the
+brief and continue. If Mode 1 fails to produce a brief (verification step reports
+file not found), report the error to the user and STOP. Do not retry Mode 1.
 
-3. **Detect the running app** — check common local dev ports:
-   ```bash
-   $B goto http://localhost:3000 2>/dev/null && echo "Found app on :3000" || \
-   $B goto http://localhost:4000 2>/dev/null && echo "Found app on :4000" || \
-   $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
-   ```
-   If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
+2. Read skill network artifacts for additional context:
+   - Most recent design doc (`*-design-*.md`) — for product vision and constraints
+   - `CLAUDE.md` — for project context (already read in setup, reuse)
 
-4. **Test each affected page/route:**
-   - Navigate to the page
-   - Take a screenshot
-   - Check console for errors
-   - If the change was interactive (forms, buttons, flows), test the interaction end-to-end
-   - Use `snapshot -D` before and after actions to verify the change had the expected effect
+3. Present a 1-paragraph situation summary synthesizing the brief + design context.
 
-5. **Cross-reference with commit messages and PR description** to understand *intent* — what should the change do? Verify it actually does that.
+4. Use AskUserQuestion:
 
-6. **Check TODOS.md** (if it exists) for known bugs or issues related to the changed files. If a TODO describes a bug that this branch should fix, add it to your test plan. If you find a new bug during QA that isn't in TODOS.md, note it in the report.
+> Based on the competitive intelligence brief and your product context, what strategic
+> question are you wrestling with right now? What's the decision you need to make?
 
-7. **Report findings** scoped to the branch changes:
-   - "Changes tested: N pages/routes affected by this branch"
-   - For each: does it work? Screenshot evidence.
-   - Any regressions on adjacent pages?
+Wait for the response. This anchors the entire session.
 
-**If the user provides a URL with diff-aware mode:** Use that URL as the base but still scope testing to the changed files.
+### Phase 2: Diagnosis (Rumelt's Kernel — Step 1)
 
-### Full (default when URL is provided)
-Systematic exploration. Visit every reachable page. Document 5-10 well-evidenced issues. Produce health score. Takes 5-15 minutes depending on app size.
+Identify the **critical challenge**. This is NOT "what's the problem" — it's "what's
+the ONE thing that, if resolved, would unlock everything else?"
 
-### Quick (`--quick`)
-30-second smoke test. Visit homepage + top 5 navigation targets. Check: page loads? Console errors? Broken links? Produce health score. No detailed issue documentation.
+**Framework selection** — apply diagnostic lenses based on what the situation reveals.
+Always explain WHY you're choosing each framework.
 
-### Regression (`--regression <baseline>`)
-Run full mode, then load `baseline.json` from a previous run. Diff: which issues are fixed? Which are new? What's the score delta? Append regression section to report.
+Decision logic (expressed as English, not code — evaluate in order):
+
+1. If the challenge is about **industry positioning** (who has power, what threatens
+   you) → use **Porter's Five Forces** (updated for AI age: include partnership and
+   technology forces). Say: "I'm reaching for Porter here because your challenge is
+   about understanding who holds power in this market."
+
+2. If the challenge is about **where to play / how to win** (which segment, which
+   geography, which customer) → use **Martin's Playing to Win** choices cascade. Say:
+   "This is a 'where to play' question — Martin's framework is built for this."
+
+3. If the challenge is about **component evolution / build-vs-buy** (what to build,
+   what to commoditize, where the industry is moving) → use **Wardley mapping**
+   (identify components, map evolution stages, find movement). Say: "Your challenge
+   is about what to build vs buy — Wardley mapping shows where components sit on the
+   evolution curve."
+
+4. If the challenge is about **growth / viral mechanics** (how to spread, why people
+   share, what triggers adoption) → use **Berger's STEPPS framework** (Social Currency,
+   Triggers, Emotion, Public, Practical Value, Stories). Say: "This is a growth
+   question — Berger's framework identifies what makes things spread."
+
+5. If the challenge is about **founder/team dynamics** (equity, co-founders, hiring,
+   control vs wealth) → use **Wasserman's founder dilemma tradeoffs** (Rich vs King).
+   Say: "This is a founder's dilemma — Wasserman maps the tradeoffs."
+
+6. If the challenge is about **pattern recognition** (is this a breakthrough? is there
+   a technology inflection?) → use **Maples' "thunder lizard" lens**. Say: "Let me
+   check if this fits the thunder lizard pattern — proprietary breakthrough riding a
+   technology inflection."
+
+7. If the challenge is about **creating sustainable competitive advantage** (cost,
+   differentiation, focus) → use **Porter's generic strategies** + **Rumelt's sources
+   of advantage** (leverage, proximate objectives, chain-link systems). Say: "This is
+   about building a moat — Porter for the strategy type, Rumelt for the execution
+   leverage."
+
+8. If **multiple frameworks apply** → use them in sequence, noting where they agree
+   and where they conflict. Tensions between frameworks are valuable strategic signals.
+
+Present the diagnosis to the user. Use AskUserQuestion to confirm:
+
+> Here's what I think the critical challenge is: [diagnosis]. I'm reaching for
+> [framework(s)] because [reason]. Does this resonate, or should we reframe?
+> A) Yes, that's the right challenge
+> B) Close, but let me refine
+> C) Wrong — the real challenge is something else
+
+If B or C: iterate until the diagnosis is right.
+
+### Phase 3: Guiding Policy (Rumelt's Kernel — Step 2)
+
+Based on the diagnosis + framework analysis, propose a **guiding policy** — the
+overall approach to dealing with the critical challenge.
+
+A guiding policy is NOT a goal ("grow revenue"). It's a method ("concentrate resources
+on the enterprise segment where our compliance advantage is strongest").
+
+Properties of good guiding policy (from Rumelt):
+- Creates advantage by anticipating actions of others
+- Reduces complexity by limiting options
+- Exploits leverage — focused effort producing outsized results
+- Uses proximate objectives — achievable goals that create momentum
+
+Present the guiding policy. Use AskUserQuestion to confirm:
+
+> Guiding policy: "[policy]"
+>
+> This means we [what it enables] and we stop [what it rules out].
+> A) Accept this policy
+> B) Modify — I want to adjust the approach
+> C) Reject — propose an alternative
+
+### Phase 3.5: Codex Second Opinion (optional)
+
+```bash
+which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
+```
+
+If `CODEX_AVAILABLE`, use AskUserQuestion:
+
+> Want a second opinion on the diagnosis and guiding policy from a different AI model?
+> Codex will independently evaluate whether the critical challenge is correctly
+> identified and whether the guiding policy addresses it. Takes about 2 minutes.
+> A) Yes, get a second opinion
+> B) No, proceed to coherent actions
+
+If A: Write a prompt to a temp file containing: the diagnosis, the chosen frameworks
+and why, the guiding policy, and the competitive brief summary. Ask Codex to
+challenge: (1) Is this the right critical challenge? (2) Does the guiding policy
+actually address it? (3) What's the biggest risk this analysis is wrong?
+
+```bash
+CODEX_PROMPT_FILE=$(mktemp /tmp/gstack-codex-strat-XXXXXX.txt)
+```
+
+Write the prompt to the file, then run:
+
+```bash
+TMPERR=$(mktemp /tmp/codex-strat-err-XXXXXX.txt)
+codex exec "$(cat "$CODEX_PROMPT_FILE")" -C "$(git rev-parse --show-toplevel)" -s read-only -c 'model_reasoning_effort="xhigh"' --enable web_search_cached 2>"$TMPERR"
+```
+
+Use a 5-minute timeout. Present output verbatim. If Codex errors or is unavailable,
+skip — the second opinion is informational, not a gate. Clean up temp files after.
+
+If `CODEX_NOT_AVAILABLE`: skip silently.
+
+### Phase 4: Coherent Actions (Rumelt's Kernel — Step 3)
+
+**What "coherent" means:** Rumelt's coherent actions are not a task list. They are a
+set of mutually supporting moves where the impact of the whole exceeds the sum of the
+parts. Each action creates conditions that make the other actions more effective.
+Removing one action should visibly weaken the others.
+
+Translate guiding policy into specific, coordinated actions. For each action:
+1. It must be specific enough to execute
+2. It must tie back to the guiding policy
+3. It must be calibrated to the org's actual capabilities (from the brief)
+4. It must explain HOW it supports and is supported by the other actions
+
+Present actions across these domains (skip any that aren't relevant):
+
+- **Product evolution:** What to build, what to defer, what to kill. Roadmap
+  recommendations tied to competitive positioning.
+- **Media presence:** Messaging, positioning, content strategy. What story to tell
+  and to whom.
+- **Financial decisions:** Resource allocation, pricing strategy, investment
+  priorities. Where to spend and where to conserve.
+- **Operations:** Team structure, partnerships, capabilities to develop. What the
+  organization needs to be able to do.
+
+After presenting all actions, explicitly map the **mutual support structure**:
+
+> **How these actions reinforce each other:**
+> [Action A] creates [condition] that enables [Action B].
+> [Action B] produces [asset] that [Action C] depends on.
+> Removing [Action X] would break the chain because [consequence].
+
+This map is critical — it helps the user understand why they can't cherry-pick
+actions without undermining the strategy. If an action doesn't support or depend on
+any other action, it's not coherent — it's just a task. Remove it or explain why
+it's truly independent.
+
+### Phase 5: Execution Plan
+
+**NOT a "90-day plan."** The timeframe is determined by the strategy, not by
+convention. Some strategies need 30 days of intense focus. Others need 6 months of
+patient positioning. Choose the right horizon for THIS strategy.
+
+Structure the plan around **milestone gates**, not calendar months. A milestone gate
+is a concrete, verifiable outcome that unlocks the next phase. This prevents student
+syndrome (procrastinating because "I have 90 days") and creates natural checkpoints.
+
+Format:
+
+> **Gate 1: [milestone name]**
+> - Unlocks: [what becomes possible after this gate]
+> - Actions: [specific tasks from coherent actions that drive toward this gate]
+> - Owner: [role]
+> - Success criteria: [how you know you've passed this gate]
+> - Estimated time: [range, not fixed date — e.g., "2-4 weeks"]
+>
+> **Gate 2: [milestone name]**
+> - Depends on: Gate 1
+> - Unlocks: [next phase]
+> - Actions: [...]
+> ...
+
+Include an explicit note on horizon: "This execution plan covers approximately
+[N weeks/months] because [reason — e.g., 'the co-founder search has inherent
+uncertainty that makes fixed deadlines counterproductive' or 'the regulatory
+submission has a hard deadline that compresses everything']."
+
+### Phase 6: Strategic Document Output
+
+Write the full strategy document to disk:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+mkdir -p ~/.gstack/projects/$SLUG
+USER=$(whoami)
+DATETIME=$(date +%Y%m%d-%H%M%S)
+BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+```
+
+Write to `~/.gstack/projects/$SLUG/$USER-$BRANCH-strategy-$DATETIME.md`:
+
+```markdown
+# Strategic Analysis: [Company/Product]
+
+Generated by /strategist on [date]
+Brief used: [filename]
+Previous strategy: [filename if exists, "none" if first run]
+
+## Diagnosis (Rumelt's Kernel — Step 1)
+
+### Critical Challenge
+[The ONE thing that, if resolved, unlocks everything else.]
+
+### Framework Analysis
+[Which frameworks were applied to the diagnosis and why. What each framework revealed.]
+
+#### [Framework 1 — e.g., Wardley Map]
+[Analysis + key insight. All factual claims cited from the brief.]
+
+#### [Framework 2 — e.g., Porter's Five Forces]
+[Analysis + key insight. Cited.]
+
+### Why These Frameworks
+[Why these frameworks were chosen for THIS situation — and why others were not.]
+
+## Guiding Policy (Rumelt's Kernel — Step 2)
+
+**Policy:** [one-sentence method statement — not a goal]
+
+[2-3 sentences explaining how this policy creates advantage, reduces complexity,
+exploits leverage, and uses proximate objectives.]
+
+**This means we start:** [what the policy enables]
+**This means we stop:** [what the policy rules out]
+
+## Coherent Actions (Rumelt's Kernel — Step 3)
+
+[Brief explanation: these actions are designed as a mutually reinforcing system.
+The impact of the whole exceeds the sum of the parts.]
+
+### [Action domain 1 — e.g., Product Evolution]
+[Specific, cited recommendations]
+
+### [Action domain 2 — e.g., Media Presence]
+[Specific recommendations]
+
+### [Action domain 3 — e.g., Financial Decisions]
+[Calibrated to org capabilities from the brief]
+
+### [Action domain 4 — e.g., Operations]
+[Team, partnerships, capabilities]
+
+### Mutual Support Structure
+
+[How these actions reinforce each other. Map the dependencies:]
+- [Action A] creates [condition] → enables [Action B]
+- [Action B] produces [asset] → required by [Action C]
+- Removing [Action X] would break the chain because [consequence]
+
+## Execution Plan
+
+**Horizon:** [N weeks/months] — [why this timeframe]
+
+### Gate 1: [milestone name]
+- **Unlocks:** [what becomes possible]
+- **Actions:** [specific tasks]
+- **Owner:** [role]
+- **Success criteria:** [verifiable outcome]
+- **Estimated time:** [range]
+
+### Gate 2: [milestone name]
+- **Depends on:** Gate 1
+- **Unlocks:** [next phase]
+- **Actions:** [...]
+- **Owner:** [role]
+- **Success criteria:** [verifiable outcome]
+- **Estimated time:** [range]
+
+### Gate 3: [milestone name]
+...
+
+## Open Questions
+[Unresolved strategic questions for the next session]
+
+## Changes Since Last Strategy
+[If prior strategy exists: what shifted and why.
+If first strategy: "First strategic analysis — no prior comparison."]
+```
+
+**After writing, verify the file exists:**
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+ls -la ~/.gstack/projects/$SLUG/*-strategy-*.md | grep -v brief | tail -1
+```
+
+If the file does not exist, report the error. Do not silently proceed.
+
+### Phase 7: Brief Amendment
+
+If the strategy session revealed new competitive intelligence that wasn't in the
+original brief (e.g., a competitor the user flagged, a market dynamic discovered
+during diagnosis), update the brief on disk. Read the existing brief, add the new
+intelligence to the relevant sections, and save. Note the amendment at the bottom:
+"Amended during strategy session on [date]: added [what was added]."
+
+This ensures the brief stays current as the source of competitive truth.
+
+### Phase 8: Present and Suggest Next Steps
+
+Present the strategy document to the user. Suggest next steps:
+- "Run `/plan-ceo-review` to challenge the ambition and scope of this strategy."
+- "Run `/plan-eng-review` to lock in the architecture for any technical changes."
+- "Run `/strategist brief` periodically to track how the competitive landscape evolves."
 
 ---
 
-## Workflow
-
-### Phase 1: Initialize
-
-1. Find browse binary (see Setup above)
-2. Create output directories
-3. Copy report template from `qa/templates/qa-report-template.md` to output dir
-4. Start timer for duration tracking
-
-### Phase 2: Authenticate (if needed)
-
-**If the user specified auth credentials:**
-
-```bash
-$B goto <login-url>
-$B snapshot -i                    # find the login form
-$B fill @e3 "user@example.com"
-$B fill @e4 "[REDACTED]"         # NEVER include real passwords in report
-$B click @e5                      # submit
-$B snapshot -D                    # verify login succeeded
-```
-
-**If the user provided a cookie file:**
-
-```bash
-$B cookie-import cookies.json
-$B goto <target-url>
-```
-
-**If 2FA/OTP is required:** Ask the user for the code and wait.
-
-**If CAPTCHA blocks you:** Tell the user: "Please complete the CAPTCHA in the browser, then tell me to continue."
-
-### Phase 3: Orient
-
-Get a map of the application:
-
-```bash
-$B goto <target-url>
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/initial.png"
-$B links                          # map navigation structure
-$B console --errors               # any errors on landing?
-```
-
-**Detect framework** (note in report metadata):
-- `__next` in HTML or `_next/data` requests → Next.js
-- `csrf-token` meta tag → Rails
-- `wp-content` in URLs → WordPress
-- Client-side routing with no page reloads → SPA
-
-**For SPAs:** The `links` command may return few results because navigation is client-side. Use `snapshot -i` to find nav elements (buttons, menu items) instead.
-
-### Phase 4: Explore
-
-Visit pages systematically. At each page:
-
-```bash
-$B goto <page-url>
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/page-name.png"
-$B console --errors
-```
-
-Then follow the **per-page exploration checklist** (see `qa/references/issue-taxonomy.md`):
-
-1. **Visual scan** — Look at the annotated screenshot for layout issues
-2. **Interactive elements** — Click buttons, links, controls. Do they work?
-3. **Forms** — Fill and submit. Test empty, invalid, edge cases
-4. **Navigation** — Check all paths in and out
-5. **States** — Empty state, loading, error, overflow
-6. **Console** — Any new JS errors after interactions?
-7. **Responsiveness** — Check mobile viewport if relevant:
-   ```bash
-   $B viewport 375x812
-   $B screenshot "$REPORT_DIR/screenshots/page-mobile.png"
-   $B viewport 1280x720
-   ```
-
-**Depth judgment:** Spend more time on core features (homepage, dashboard, checkout, search) and less on secondary pages (about, terms, privacy).
-
-**Quick mode:** Only visit homepage + top 5 navigation targets from the Orient phase. Skip the per-page checklist — just check: loads? Console errors? Broken links visible?
-
-### Phase 5: Document
-
-Document each issue **immediately when found** — don't batch them.
-
-**Two evidence tiers:**
-
-**Interactive bugs** (broken flows, dead buttons, form failures):
-1. Take a screenshot before the action
-2. Perform the action
-3. Take a screenshot showing the result
-4. Use `snapshot -D` to show what changed
-5. Write repro steps referencing screenshots
-
-```bash
-$B screenshot "$REPORT_DIR/screenshots/issue-001-step-1.png"
-$B click @e5
-$B screenshot "$REPORT_DIR/screenshots/issue-001-result.png"
-$B snapshot -D
-```
-
-**Static bugs** (typos, layout issues, missing images):
-1. Take a single annotated screenshot showing the problem
-2. Describe what's wrong
-
-```bash
-$B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
-```
-
-**Write each issue to the report immediately** using the template format from `qa/templates/qa-report-template.md`.
-
-### Phase 6: Wrap Up
-
-1. **Compute health score** using the rubric below
-2. **Write "Top 3 Things to Fix"** — the 3 highest-severity issues
-3. **Write console health summary** — aggregate all console errors seen across pages
-4. **Update severity counts** in the summary table
-5. **Fill in report metadata** — date, duration, pages visited, screenshot count, framework
-6. **Save baseline** — write `baseline.json` with:
-   ```json
-   {
-     "date": "YYYY-MM-DD",
-     "url": "<target>",
-     "healthScore": N,
-     "issues": [{ "id": "ISSUE-001", "title": "...", "severity": "...", "category": "..." }],
-     "categoryScores": { "console": N, "links": N, ... }
-   }
-   ```
-
-**Regression mode:** After writing the report, load the baseline file. Compare:
-- Health score delta
-- Issues fixed (in baseline but not current)
-- New issues (in current but not baseline)
-- Append the regression section to the report
-
----
-
-## Health Score Rubric
-
-Compute each category score (0-100), then take the weighted average.
-
-### Console (weight: 15%)
-- 0 errors → 100
-- 1-3 errors → 70
-- 4-10 errors → 40
-- 10+ errors → 10
-
-### Links (weight: 10%)
-- 0 broken → 100
-- Each broken link → -15 (minimum 0)
-
-### Per-Category Scoring (Visual, Functional, UX, Content, Performance, Accessibility)
-Each category starts at 100. Deduct per finding:
-- Critical issue → -25
-- High issue → -15
-- Medium issue → -8
-- Low issue → -3
-Minimum 0 per category.
-
-### Weights
-| Category | Weight |
-|----------|--------|
-| Console | 15% |
-| Links | 10% |
-| Visual | 10% |
-| Functional | 20% |
-| UX | 15% |
-| Performance | 10% |
-| Content | 5% |
-| Accessibility | 15% |
-
-### Final Score
-`score = Σ (category_score × weight)`
-
----
-
-## Framework-Specific Guidance
-
-### Next.js
-- Check console for hydration errors (`Hydration failed`, `Text content did not match`)
-- Monitor `_next/data` requests in network — 404s indicate broken data fetching
-- Test client-side navigation (click links, don't just `goto`) — catches routing issues
-- Check for CLS (Cumulative Layout Shift) on pages with dynamic content
-
-### Rails
-- Check for N+1 query warnings in console (if development mode)
-- Verify CSRF token presence in forms
-- Test Turbo/Stimulus integration — do page transitions work smoothly?
-- Check for flash messages appearing and dismissing correctly
-
-### WordPress
-- Check for plugin conflicts (JS errors from different plugins)
-- Verify admin bar visibility for logged-in users
-- Test REST API endpoints (`/wp-json/`)
-- Check for mixed content warnings (common with WP)
-
-### General SPA (React, Vue, Angular)
-- Use `snapshot -i` for navigation — `links` command misses client-side routes
-- Check for stale state (navigate away and back — does data refresh?)
-- Test browser back/forward — does the app handle history correctly?
-- Check for memory leaks (monitor console after extended use)
-
----
-
-## Important Rules
-
-1. **Repro is everything.** Every issue needs at least one screenshot. No exceptions.
-2. **Verify before documenting.** Retry the issue once to confirm it's reproducible, not a fluke.
-3. **Never include credentials.** Write `[REDACTED]` for passwords in repro steps.
-4. **Write incrementally.** Append each issue to the report as you find it. Don't batch.
-5. **Never read source code.** Test as a user, not a developer.
-6. **Check console after every interaction.** JS errors that don't surface visually are still bugs.
-7. **Test like a user.** Use realistic data. Walk through complete workflows end-to-end.
-8. **Depth over breadth.** 5-10 well-documented issues with evidence > 20 vague descriptions.
-9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
-10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-11. **Show screenshots to the user.** After every `$B screenshot`, `$B snapshot -a -o`, or `$B responsive` command, use the Read tool on the output file(s) so the user can see them inline. For `responsive` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.
-12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
-
----
-
-## Output
-
-Write the report to both local and project-scoped locations:
-
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
-
-**Project-scoped:** Write test outcome artifact for cross-session context:
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
-```
-Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
-
-### Output Structure
-
-```
-.gstack/qa-reports/
-├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
-├── screenshots/
-│   ├── initial.png                        # Landing page annotated screenshot
-│   ├── issue-001-step-1.png               # Per-issue evidence
-│   ├── issue-001-result.png
-│   └── ...
-└── baseline.json                          # For regression mode
-```
-
-Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
-
----
-
-## Capture Learnings
-
-If you discovered a non-obvious pattern, pitfall, or architectural insight during
-this session, log it for future sessions:
-
-```bash
-~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"qa-only","type":"TYPE","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"SOURCE","files":["path/to/relevant/file"]}'
-```
-
-**Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
-(user stated), `architecture` (structural decision), `tool` (library/framework insight),
-`operational` (project environment/CLI/workflow knowledge).
-
-**Sources:** `observed` (you found this in the code), `user-stated` (user told you),
-`inferred` (AI deduction), `cross-model` (both Claude and Codex agree).
-
-**Confidence:** 1-10. Be honest. An observed pattern you verified in the code is 8-9.
-An inference you're not sure about is 4-5. A user preference they explicitly stated is 10.
-
-**files:** Include the specific file paths this learning references. This enables
-staleness detection: if those files are later deleted, the learning can be flagged.
-
-**Only log genuine discoveries.** Don't log obvious things. Don't log things the user
-already knows. A good test: would this insight save time in a future session? If yes, log it.
-
-## Additional Rules (qa-only specific)
-
-11. **Never fix bugs.** Find and document only. Do not read source code, edit files, or suggest fixes in the report. Your job is to report what's broken, not to fix it. Use `/qa` for the test-fix-verify loop.
-12. **No test framework detected?** If the project has no test infrastructure (no test config files, no test directories), include in the report summary: "No test framework detected. Run `/qa` to bootstrap one and enable regression test generation."
+## Strategic Frameworks Reference
+
+The skill must know these frameworks well enough to select and apply correctly.
+
+| Framework | Author | Best For | Key Concepts |
+|-----------|--------|----------|--------------|
+| Five Forces (+ AI update) | Porter | Industry structure, competitive intensity | Rivalry, barriers to entry, substitutes, buyer/supplier power, partnerships, tech shifts |
+| Good Strategy / Bad Strategy | Rumelt | Diagnosis, guiding policy, coherent action | The kernel, leverage, proximate objectives, chain-link systems |
+| Wardley Mapping | Wardley | Evolution, build/buy, positioning | Value chain, evolution stages (genesis to custom to product to commodity), movement, doctrine |
+| Playing to Win | Martin | Strategic choices cascade | Where to play, how to win, capabilities, management systems |
+| Competitive Advantage | Porter | Sustainable advantage | Cost leadership, differentiation, focus; value chain analysis |
+| Thunder Lizards | Maples | Startup pattern recognition | Proprietary breakthrough + technology inflection, backcasting |
+| Contagious (STEPPS) | Berger | Growth, virality, word-of-mouth | Social Currency, Triggers, Emotion, Public, Practical Value, Stories |
+| The Founder's Dilemmas | Wasserman | Founder/team decisions | Rich vs King, equity, co-founder dynamics, hiring, investor control |
+
+**v2 expansion** (apply when relevant, lighter touch):
+- Blue Ocean Strategy (Kim & Mauborgne) — creating uncontested market space
+- Christensen's Disruption Theory — low-end or new-market disruption
+- Network Effects taxonomy (NFX) — if the product has network dynamics
+- Jobs to Be Done (Christensen/Ulwick) — reframing competition around customer jobs
+
+## Token Budget Management
+
+- Cap detailed competitor analysis at 3 competitors per brief (mention others at a
+  lighter level if relevant)
+- When auto-chaining Mode 1 to Mode 2: Mode 1 writes the brief to disk first. Mode 2
+  reads only the condensed brief, not the raw WebSearch results.
+- Prioritize skill network artifacts by recency — read the latest design doc, not all
+- If context pressure is high, note which artifacts were skipped and why
+- For large analyses (3+ competitors): recommend running `/strategist brief` and
+  `/strategist` as separate invocations

@@ -1360,7 +1360,7 @@ describe('Skill trigger phrases', () => {
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
     'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
-    'codex', 'browse', 'setup-browser-cookies',
+    'codex', 'browse', 'setup-browser-cookies', 'adr',
   ];
 
   for (const skill of SKILLS_REQUIRING_TRIGGERS) {
@@ -1380,6 +1380,7 @@ describe('Skill trigger phrases', () => {
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
     'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
+    'adr',
   ];
 
   for (const skill of SKILLS_REQUIRING_PROACTIVE) {

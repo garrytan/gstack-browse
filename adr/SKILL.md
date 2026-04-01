@@ -1,20 +1,23 @@
 ---
-name: health
+name: adr
 preamble-tier: 2
-version: 1.0.0
+version: 0.1.0
 description: |
-  Code quality dashboard. Wraps existing project tools (type checker, linter,
-  test runner, dead code detector, shell linter), computes a weighted composite
-  0-10 score, and tracks trends over time. Use when: "health check",
-  "code quality", "how healthy is the codebase", "run all checks",
-  "quality score". (gstack)
+  gstack Architectural Decision Records. Five modes: create (/adr), list (/adr list),
+  check (/adr check), revisit (/adr revisit N), litmus-test (/adr litmus-test).
+  Plus /adr accept N, /adr renumber, /adr skipped utilities. Documents decisions
+  before code, not after. Integrates with /plan-eng-review, /review, /investigate.
+  Use when asked to "document a decision", "why did we choose X", "check ADRs",
+  "is this ADR-worthy", "what decisions have we made", or "architectural decision".
+  Proactively suggest when the user is about to make an architectural choice that
+  should be documented.
 allowed-tools:
   - Bash
   - Read
   - Write
   - Edit
-  - Glob
   - Grep
+  - Glob
   - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
@@ -50,7 +53,7 @@ echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
 if [ "$_TEL" != "off" ]; then
-echo '{"skill":"health","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"adr","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -75,7 +78,7 @@ else
   echo "LEARNINGS: 0"
 fi
 # Session timeline: record skill start (local-only, never sent anywhere)
-~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"health","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
+~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"adr","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
 # Check if CLAUDE.md has routing rules
 _HAS_ROUTING="no"
 if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
@@ -328,42 +331,6 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
-### ADR Decision Gate
-
-```bash
-_ADR_GATE=""
-if [ -d "docs/adr" ] && [ -f "docs/adr/.config" ]; then
-  _ADR_SENSITIVITY=$(grep 'sensitivity:' docs/adr/.config 2>/dev/null | sed 's/.*sensitivity:[[:space:]]*//' | tr -d '[:space:]')
-  [ -n "$_ADR_SENSITIVITY" ] && _ADR_GATE="active" && echo "ADR_GATE: active (sensitivity: $_ADR_SENSITIVITY)"
-fi
-```
-
-If `ADR_GATE` is active, follow these rules during this session:
-
-**Before implementing** any of these changes, pause and ask the user:
-- Adding a new external dependency, service, or infrastructure component
-- Choosing or changing a database, message queue, cache layer, or storage engine
-- Designing or modifying a public API signature (REST, GraphQL, SDK, webhook)
-- Modifying a data schema in ways that require migration
-- Selecting a framework, language, or architectural pattern that will propagate
-- Making a build-vs-buy decision
-- Introducing a new auth, authorization, or security mechanism
-- Committing to a third-party vendor or SaaS integration
-- Choosing a deployment architecture or hosting platform
-- Setting a caching, consistency, or replication strategy
-
-When a trigger fires:
-1. **Do not write code yet.** Pause before implementing.
-2. Explain in 2-3 sentences what you are about to do and why it is an architectural decision.
-3. The user responds:
-   - **"Skip"** or **"Go ahead"**: Log to `docs/adr/.skipped.jsonl` and continue:
-     ```bash
-     echo '{"date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","description":"DESCRIPTION","trigger":"TRIGGER_PATTERN"}' >> docs/adr/.skipped.jsonl
-     ```
-   - **"ADR this"**: Transition to `/adr` creation (Mode 1) with current context. Write the ADR before the code.
-   - **"Tell me more"**: Run litmus-test questions (reversibility, blast radius, future constraint, explanation test) to help decide.
-
-If sensitivity is `liberal`, only fire for high-confidence architectural decisions (new infrastructure, schema changes, public API changes). If `conservative` (default), fire for anything that matches the trigger list above.
 
 
 ## Completion Status Protocol
@@ -497,268 +464,405 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /health -- Code Quality Dashboard
+# Architectural Decision Records
 
-You are a **Staff Engineer who owns the CI dashboard**. You know that code quality
-isn't one metric -- it's a composite of type safety, lint cleanliness, test coverage,
-dead code, and script hygiene. Your job is to run every available tool, score the
-results, present a clear dashboard, and track trends so the team knows if quality
-is improving or slipping.
+ADRs are compact, high-signal documents that answer the question agents and future
+humans most need answered: "what did we already consider and reject, and why?"
 
-**HARD GATE:** Do NOT fix any issues. Produce the dashboard and recommendations only.
-The user decides what to act on.
+## Mode Detection
 
-## User-invocable
-When the user types `/health`, run this skill.
+Parse the user's command to determine which mode to run:
+
+- `/adr` or `/adr [topic]` → **Mode 1: Create**
+- `/adr list` or `/adr list [tag]` → **Mode 2: List**
+- `/adr check` or `/adr check [branch-or-description]` → **Mode 3: Check**
+- `/adr revisit [N]` or `/adr revisit [topic]` → **Mode 4: Revisit**
+- `/adr litmus-test` or `/adr litmus-test [description]` → **Mode 5: Litmus-Test**
+- `/adr accept [N]` → **Utility: Accept**
+- `/adr renumber` → **Utility: Renumber**
+- `/adr skipped` → **Utility: Skip Log Report**
 
 ---
 
-## Step 1: Detect Health Stack
+## ADR Template
 
-Read CLAUDE.md and look for a `## Health Stack` section. If found, parse the tools
-listed there and skip auto-detection.
-
-If no `## Health Stack` section exists, auto-detect available tools:
-
-```bash
-# Type checker
-[ -f tsconfig.json ] && echo "TYPECHECK: tsc --noEmit"
-
-# Linter
-[ -f biome.json ] || [ -f biome.jsonc ] && echo "LINT: biome check ."
-setopt +o nomatch 2>/dev/null || true
-ls eslint.config.* .eslintrc.* .eslintrc 2>/dev/null | head -1 | xargs -I{} echo "LINT: eslint ."
-[ -f .pylintrc ] || [ -f pyproject.toml ] && grep -q "pylint\|ruff" pyproject.toml 2>/dev/null && echo "LINT: ruff check ."
-
-# Test runner
-[ -f package.json ] && grep -q '"test"' package.json 2>/dev/null && echo "TEST: $(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json','utf8')).scripts.test)" 2>/dev/null)"
-[ -f pyproject.toml ] && grep -q "pytest" pyproject.toml 2>/dev/null && echo "TEST: pytest"
-[ -f Cargo.toml ] && echo "TEST: cargo test"
-[ -f go.mod ] && echo "TEST: go test ./..."
-
-# Dead code
-command -v knip >/dev/null 2>&1 && echo "DEADCODE: knip"
-[ -f package.json ] && grep -q '"knip"' package.json 2>/dev/null && echo "DEADCODE: npx knip"
-
-# Shell linting
-command -v shellcheck >/dev/null 2>&1 && ls *.sh scripts/*.sh bin/*.sh 2>/dev/null | head -1 | xargs -I{} echo "SHELL: shellcheck"
-```
-
-Use Glob to search for shell scripts:
-- `**/*.sh` (shell scripts in the repo)
-
-After auto-detection, present the detected tools via AskUserQuestion:
-
-"I detected these health check tools for this project:
-
-- Type check: `tsc --noEmit`
-- Lint: `biome check .`
-- Tests: `bun test`
-- Dead code: `knip`
-- Shell lint: `shellcheck *.sh`
-
-A) Looks right -- persist to CLAUDE.md and continue
-B) I need to adjust some tools (tell me which)
-C) Skip persistence -- just run these"
-
-If the user chooses A or B (after adjustments), append or update a `## Health Stack`
-section in CLAUDE.md:
+Location: `docs/adr/NNNN-title-slug.md`
+Numbering: Sequential, zero-padded to 4 digits (0001, 0002, ...). Auto-assign the next number.
+Slug: Derive from title. Sanitize to `[a-z0-9-]` only, strip leading/trailing hyphens, max 60 chars.
 
 ```markdown
-## Health Stack
+---
+number: NNNN
+title: Short descriptive title
+status: proposed | accepted | deprecated | superseded
+date: YYYY-MM-DD
+superseded_by: NNNN (if status is superseded)
+supersedes: NNNN (if this replaces an earlier ADR)
+tags: [comma, separated, domain, tags]
+trigger_conditions: [conditions under which this ADR should be revisited]
+---
 
-- typecheck: tsc --noEmit
-- lint: biome check .
-- test: bun test
-- deadcode: knip
-- shell: shellcheck *.sh scripts/*.sh
+# NNNN. Short Descriptive Title
+
+## Status
+
+{proposed | accepted | deprecated | superseded by [NNNN](NNNN-title.md)}
+
+## Context
+
+What is the issue motivating this decision or change?
+What forces are at play (technical, business, regulatory, team, timeline)?
+What constraints limit our options?
+
+## Decision
+
+What is the change we are proposing and/or doing?
+State the decision clearly and directly.
+
+## Alternatives Considered
+
+### Alternative: [Name]
+- **Description:** What this approach would look like
+- **Advantages:** What it would give us
+- **Disadvantages:** Why we did not choose it
+- **Ruling rationale:** The specific reason this was rejected
+
+## Tradeoffs
+
+What are we explicitly giving up with this decision?
+
+**Technical tradeoffs:**
+- Performance, scalability, maintainability, complexity, coupling
+
+**Team and hiring tradeoffs:**
+- Talent pool constraints, skills required, bus factor
+
+**Business and operational tradeoffs:**
+- Vendor lock-in, licensing costs, operational burden, time-to-market impact
+
+**Regulatory and compliance tradeoffs:**
+- Data residency, audit requirements, certification implications
+
+For each tradeoff:
+- **What we gain:** [specific benefit]
+- **What we lose:** [specific cost]
+- **Why this tradeoff is acceptable:** [reasoning]
+
+## Consequences
+
+What becomes easier or harder because of this decision?
+What follow-on decisions are created or constrained?
+What risks does this introduce?
+
+## Trigger Conditions
+
+Under what circumstances should this decision be revisited? Be specific:
+- "If latency exceeds 200ms p95 in production"
+- "If we add more than 3 data sources"
+- "If the team grows beyond N engineers"
 ```
 
 ---
 
-## Step 2: Run Tools
+## Mode 1: Create (`/adr` or `/adr [topic]`)
 
-Run each detected tool. For each tool:
+Walk through creating a new ADR. The skill asks questions that surface reasoning,
+alternatives, and tradeoffs that might otherwise go undocumented.
 
-1. Record the start time
-2. Run the command, capturing both stdout and stderr
-3. Record the exit code
-4. Record the end time
-5. Capture the last 50 lines of output for the report
+### Step 0: Setup
 
 ```bash
-# Example for each tool — run each independently
-START=$(date +%s)
-tsc --noEmit 2>&1 | tail -50
-EXIT_CODE=$?
-END=$(date +%s)
-echo "TOOL:typecheck EXIT:$EXIT_CODE DURATION:$((END-START))s"
+mkdir -p docs/adr
 ```
 
-Run tools sequentially (some may share resources or lock files). If a tool is not
-installed or not found, record it as `SKIPPED` with reason, not as a failure.
+### Step 1: Context Gathering
 
----
+Ask what decision needs to be documented. If invoked during or after another skill
+(e.g., mid-implementation, post-`/plan-eng-review`), pull context from the current
+conversation and relevant artifacts.
 
-## Step 3: Score Each Category
+If the user provided a topic in the command, use it as the starting point.
 
-Score each category on a 0-10 scale using this rubric:
+### Step 2: Decision Clarification
 
-| Category | Weight | 10 | 7 | 4 | 0 |
-|-----------|--------|------|-----------|------------|-----------|
-| Type check | 25% | Clean (exit 0) | <10 errors | <50 errors | >=50 errors |
-| Lint | 20% | Clean (exit 0) | <5 warnings | <20 warnings | >=20 warnings |
-| Tests | 30% | All pass (exit 0) | >95% pass | >80% pass | <=80% pass |
-| Dead code | 15% | Clean (exit 0) | <5 unused exports | <20 unused | >=20 unused |
-| Shell lint | 10% | Clean (exit 0) | <5 issues | >=5 issues | N/A (skip) |
+"State the decision in one sentence. No qualifiers."
 
-**Parsing tool output for counts:**
-- **tsc:** Count lines matching `error TS` in output.
-- **biome/eslint/ruff:** Count lines matching error/warning patterns. Parse the summary line if available.
-- **Tests:** Parse pass/fail counts from the test runner output. If the runner only reports exit code, use: exit 0 = 10, exit non-zero = 4 (assume some failures).
-- **knip:** Count lines reporting unused exports, files, or dependencies.
-- **shellcheck:** Count distinct findings (lines starting with "In ... line").
+Force directness. If the user hedges ("we might..." or "we're considering..."),
+push: "Commit to a statement. You can always change it. What is the decision?"
 
-**Composite score:**
-```
-composite = (typecheck_score * 0.25) + (lint_score * 0.20) + (test_score * 0.30) + (deadcode_score * 0.15) + (shell_score * 0.10)
-```
+### Step 3: Alternatives Interrogation
 
-If a category is skipped (tool not available), redistribute its weight proportionally
-among the remaining categories.
+"What else did you consider? Why didn't you go with that?"
 
----
+Push for at least 2 alternatives. If the user says "nothing else was considered," push back:
+"Every decision has alternatives, even if the alternative is 'do nothing' or 'defer the
+decision.' What would you do if this approach turned out to be wrong?"
 
-## Step 4: Present Dashboard
+For each alternative, get: description, advantages, disadvantages, and the specific
+ruling rationale (not just "we preferred the other one").
 
-Present results as a clear table:
+### Step 4: Tradeoff Extraction (Adaptive Probing)
 
-```
-CODE HEALTH DASHBOARD
-=====================
+"What are you giving up with this choice?"
 
-Project: <project name>
-Branch:  <current branch>
-Date:    <today>
+Probe across multiple dimensions. **Adapt depth to relevance:**
 
-Category      Tool              Score   Status     Duration   Details
-----------    ----------------  -----   --------   --------   -------
-Type check    tsc --noEmit      10/10   CLEAN      3s         0 errors
-Lint          biome check .      8/10   WARNING    2s         3 warnings
-Tests         bun test          10/10   CLEAN      12s        47/47 passed
-Dead code     knip               7/10   WARNING    5s         4 unused exports
-Shell lint    shellcheck        10/10   CLEAN      1s         0 issues
+- For dimensions clearly relevant to this decision, probe deeply with follow-up questions.
+- For dimensions that seem irrelevant, ask briefly: "Any [dimension] implications? If not,
+  we'll move on." Accept a quick "no" and skip.
+- For dimensions the user seems to be **avoiding**, push harder. Engineers skip hiring
+  implications. Product people skip operational burden. Founders skip "what happens when
+  I can't do everything myself."
 
-COMPOSITE SCORE: 9.1 / 10
+**Dimensions to probe:**
+- *Technical:* "What gets slower? What gets harder to change later? What breaks if
+  [assumption] turns out to be wrong?"
+- *Team/hiring:* "If you need to hire someone to work on this in 6 months, how hard
+  is that? If the person who built this leaves, can someone else maintain it?"
+- *Business/operational:* "What does this cost to run? Who's on call for it? Does this
+  create vendor lock-in? Does it affect your ability to ship other things?"
+- *Regulatory/compliance:* "Does this interact with any regulatory requirements? Data
+  residency, audit trails, certification?"
 
-Duration: 23s total
-```
+### Step 5: Trigger Conditions
 
-Use these status labels:
-- 10: `CLEAN`
-- 7-9: `WARNING`
-- 4-6: `NEEDS WORK`
-- 0-3: `CRITICAL`
+"Under what circumstances would you revisit this decision?"
 
-If any category scored below 7, list the top issues from that tool's output:
+Push for specifics, not vague "if requirements change." Examples:
+- "If latency exceeds 200ms p95 in production"
+- "If we add more than 3 data sources"
+- "If annual infrastructure costs exceed $X"
 
-```
-DETAILS: Lint (3 warnings)
-  biome check . output:
-    src/utils.ts:42 — lint/complexity/noForEach: Prefer for...of
-    src/api.ts:18 — lint/style/useConst: Use const instead of let
-    src/api.ts:55 — lint/suspicious/noExplicitAny: Unexpected any
-```
+### Step 6: Status Choice
 
----
+Use AskUserQuestion:
 
-## Step 5: Persist to Health History
+> "Is this decision finalized or still open for discussion?"
+
+Options:
+- A) Accepted (decision is final, constrains future work)
+- B) Proposed (still open for discussion, does not constrain yet)
+
+### Step 7: Draft and Review
+
+Generate the complete ADR using the template above. Present for review.
+
+The user approves, edits, or rejects. If rejected, revise or abort.
+
+### Step 8: Write
+
+Determine the next sequential number:
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+NEXT=$(ls docs/adr/[0-9]*.md 2>/dev/null | sed 's/.*\///' | sed 's/-.*//' | sort -n | tail -1 | sed 's/^0*//')
+NEXT=$((${NEXT:-0} + 1))
+PADDED=$(printf "%04d" $NEXT)
+echo "Next ADR number: $PADDED"
 ```
 
-Append one JSONL line to `~/.gstack/projects/$SLUG/health-history.jsonl`:
+Derive the slug from the title: lowercase, replace spaces and non-alphanumeric with
+hyphens, strip leading/trailing hyphens, truncate to 60 chars.
 
-```json
-{"ts":"2026-03-31T14:30:00Z","branch":"main","score":9.1,"typecheck":10,"lint":8,"test":10,"deadcode":7,"shell":10,"duration_s":23}
-```
+Write to `docs/adr/{PADDED}-{slug}.md`.
 
-Fields:
-- `ts` -- ISO 8601 timestamp
-- `branch` -- current git branch
-- `score` -- composite score (one decimal)
-- `typecheck`, `lint`, `test`, `deadcode`, `shell` -- individual category scores (integer 0-10)
-- `duration_s` -- total time for all tools in seconds
+### Step 9: Supersession (if applicable)
 
-If a category was skipped, set its value to `null`.
+If this ADR supersedes an existing one:
+1. Update the old ADR's `status` to `superseded` and add `superseded_by: {new number}`.
+2. Add `supersedes: {old number}` to the new ADR's frontmatter.
+3. Generate a structured comparison showing what changed:
+   - What context changed (forces, constraints)
+   - What alternatives are new vs. carried forward
+   - What tradeoffs shifted
+   Include this comparison in the conversation output so the user can see the evolution.
 
 ---
 
-## Step 6: Trend Analysis + Recommendations
+## Mode 2: List (`/adr list` or `/adr list [tag]`)
 
-Read the last 10 entries from `~/.gstack/projects/$SLUG/health-history.jsonl` (if the
-file exists and has prior entries).
+Summarize the project's architectural decision landscape.
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
-tail -10 ~/.gstack/projects/$SLUG/health-history.jsonl 2>/dev/null || echo "NO_HISTORY"
+if [ -d "docs/adr" ]; then
+  echo "ADR files:"
+  ls -1 docs/adr/[0-9]*.md 2>/dev/null || echo "  (none)"
+else
+  echo "No docs/adr/ directory found."
+fi
 ```
 
-**If prior entries exist, show the trend:**
+1. Read all ADR files from `docs/adr/`.
+2. Parse frontmatter for status, tags, date, and trigger conditions.
+3. Present summary grouped by status: accepted, then proposed, then deprecated, then superseded.
+4. If a tag filter is provided, show only matching ADRs.
+5. Flag any ADRs whose trigger conditions may be relevant to the current work
+   (based on current branch, recent changes, or user context).
 
-```
-HEALTH TREND (last 5 runs)
-==========================
-Date          Branch         Score   TC   Lint  Test  Dead  Shell
-----------    -----------    -----   --   ----  ----  ----  -----
-2026-03-28    main           9.4     10   9     10    8     10
-2026-03-29    feat/auth      8.8     10   7     10    7     10
-2026-03-30    feat/auth      8.2     10   6     9     7     10
-2026-03-31    feat/auth      9.1     10   8     10    7     10
-
-Trend: IMPROVING (+0.9 since last run)
-```
-
-**If score dropped vs the previous run:**
-1. Identify WHICH categories declined
-2. Show the delta for each declining category
-3. Correlate with tool output -- what specific errors/warnings appeared?
-
-```
-REGRESSIONS DETECTED
-  Lint: 9 -> 6 (-3) — 12 new biome warnings introduced
-    Most common: lint/complexity/noForEach (7 instances)
-  Tests: 10 -> 9 (-1) — 2 test failures
-    FAIL src/auth.test.ts > should validate token expiry
-    FAIL src/auth.test.ts > should reject malformed JWT
-```
-
-**Health improvement suggestions (always show these):**
-
-Prioritize suggestions by impact (weight * score deficit):
-
-```
-RECOMMENDATIONS (by impact)
-============================
-1. [HIGH]  Fix 2 failing tests (Tests: 9/10, weight 30%)
-   Run: bun test --verbose to see failures
-2. [MED]   Address 12 lint warnings (Lint: 6/10, weight 20%)
-   Run: biome check . --write to auto-fix
-3. [LOW]   Remove 4 unused exports (Dead code: 7/10, weight 15%)
-   Run: knip --fix to auto-remove
-```
-
-Rank by `weight * (10 - score)` descending. Only show categories below 10.
+Output is inline summary. No file output.
 
 ---
 
-## Important Rules
+## Mode 3: Check (`/adr check`)
 
-1. **Wrap, don't replace.** Run the project's own tools. Never substitute your own analysis for what the tool reports.
-2. **Read-only.** Never fix issues. Present the dashboard and let the user decide.
-3. **Respect CLAUDE.md.** If `## Health Stack` is configured, use those exact commands. Do not second-guess.
-4. **Skipped is not failed.** If a tool isn't available, skip it gracefully and redistribute weight. Do not penalize the score.
-5. **Show raw output for failures.** When a tool reports errors, include the actual output (tail -50) so the user can act on it without re-running.
-6. **Trends require history.** On first run, say "First health check -- no trend data yet. Run /health again after making changes to track progress."
-7. **Be honest about scores.** A codebase with 100 type errors and all tests passing is not healthy. The composite score should reflect reality.
+Before making an architectural decision or merging a change, check whether existing
+ADRs constrain or inform the decision.
+
+```bash
+if [ -d "docs/adr" ]; then
+  ACCEPTED=$(grep -l 'status:.*accepted' docs/adr/[0-9]*.md 2>/dev/null)
+  echo "Accepted ADRs to check: $(echo "$ACCEPTED" | wc -l | tr -d ' ')"
+  # Show tags for filtering
+  echo "Tags found:"
+  grep 'tags:' docs/adr/[0-9]*.md 2>/dev/null | sed 's/.*tags://' | tr '[],' '\n' | sort -u | grep -v '^$' | head -20
+else
+  echo "No docs/adr/ directory. Nothing to check."
+fi
+```
+
+1. Read all accepted ADRs. If many exist (20+), use tag-based filtering: identify which
+   files/systems the current diff touches, then filter ADRs by relevant tags.
+2. Analyze the current context:
+   - If on a branch with changes: examine the diff for architectural implications.
+   - If a description is provided: analyze the proposed change.
+   - If invoked during planning: analyze the plan.
+3. For each ADR, assess:
+   - **Contradictions:** Does the current change violate a decision? Flag with the specific
+     ADR number and the specific conflict.
+   - **Relevance:** Does an existing ADR provide context that should inform the current work?
+   - **Trigger conditions:** Has any ADR's trigger condition been met?
+4. Surface proposed ADRs as "pending decisions" context. They inform but do not constrain.
+5. Present findings. Example: "ADR-0003 says we use PostgreSQL for all persistent state.
+   This PR introduces a Redis cache for session data. Is this a new decision that should
+   be documented, or does it contradict 0003?"
+
+Output is inline analysis. May recommend creating a new ADR or revisiting an existing one.
+
+---
+
+## Mode 4: Revisit (`/adr revisit [N]`)
+
+Re-evaluate an existing ADR in light of changed context.
+
+1. Read the specified ADR (by number or topic search).
+2. Walk through each section with the user:
+   - **Context:** "Has anything changed about the forces at play?"
+   - **Alternatives:** "Are there new options that weren't available when this was written?"
+   - **Tradeoffs:** "Have the costs/benefits shifted? Is the tradeoff still acceptable?"
+   - **Trigger conditions:** "Have any of these been triggered?"
+3. If the decision still holds: update the date and add a `## Revisited` section noting
+   that it was reviewed and reaffirmed, with the date and brief reasoning.
+4. If the decision should change: create a new ADR that supersedes the old one, using the
+   full Mode 1 creation flow. Update the old ADR's status. Generate the supersession diff.
+
+---
+
+## Mode 5: Litmus-Test (`/adr litmus-test`)
+
+Help the user determine whether something rises to the level of an ADR. Solves the
+judgment problem: "I'm not sure if this is a Big Decision or just a thing I'm doing."
+
+Run through a short decision tree. Each answer determines the next question.
+
+### Question 1: Reversibility
+
+"If this turns out to be wrong, how hard is it to undo?"
+- *Easy to undo (hours, no external impact)* → leans toward "don't worry about it"
+- *Hard to undo (data migration, downstream consumers, infrastructure changes)* → leans toward ADR
+
+### Question 2: Blast Radius
+
+"What else does this touch beyond your own code?"
+- *Nothing, internal refactor, no API/schema changes* → leans toward "don't worry about it"
+- *Public API, data schemas, infrastructure, external integrations* → leans toward ADR
+- *Non-backwards-compatible changes to something with consumers* → strong signal for ADR
+
+### Question 3: Future Constraint
+
+"Does this close doors? Will future-you be locked into something because of this choice?"
+- *No, easily swapped later* → leans toward "don't worry about it"
+- *Yes, vendor lock-in, data format commitment, architectural pattern that propagates* → ADR
+
+### Question 4: Explanation Test
+
+"If someone joins the project in 3 months and looks at this, would they ask 'why did we do it this way?'"
+- *No, obvious or conventional* → don't worry about it
+- *Yes, non-obvious reasoning, rejected alternatives, important context* → ADR
+
+### Verdicts
+
+- **"Don't worry about it."** Explain why in one sentence. Stop here.
+- **"Borderline. Leave a code comment."** For decisions with some reasoning worth preserving
+  but not ADR-level. "Leave a comment explaining why you chose X over Y."
+- **"Yes, this needs an ADR. Let's write it."** Transition into Mode 1, carrying forward
+  the context from the litmus-test so the user doesn't re-explain. The reversibility, blast
+  radius, and constraint answers become seed material for the Context and Tradeoffs sections.
+
+---
+
+## Utility: Accept (`/adr accept [N]`)
+
+Transition a proposed ADR to accepted status.
+
+```bash
+ADR_FILE=$(ls docs/adr/$(printf "%04d" $1)-*.md 2>/dev/null | head -1)
+[ -n "$ADR_FILE" ] && echo "Found: $ADR_FILE" || echo "ADR not found"
+```
+
+1. Find the ADR file by number.
+2. Read it and verify status is `proposed`.
+3. Update `status: proposed` to `status: accepted` in the frontmatter.
+4. Update the `## Status` section body to match.
+5. Update the `date` field to today.
+6. Confirm to the user: "ADR-NNNN is now accepted and will constrain future work."
+
+---
+
+## Utility: Renumber (`/adr renumber`)
+
+Post-merge cleanup for numbering conflicts.
+
+```bash
+echo "Current ADR files:"
+ls -1 docs/adr/[0-9]*.md 2>/dev/null
+```
+
+1. Scan `docs/adr/` for all numbered ADR files.
+2. Detect duplicates or gaps in the sequence.
+3. If duplicates found: propose a renumbering plan. Show old → new mappings.
+4. Update all filenames, frontmatter `number` fields, and cross-references
+   (`superseded_by`, `supersedes`) to match the new numbering.
+5. Present the changes for user approval before writing.
+
+---
+
+## Utility: Skip Log Report (`/adr skipped`)
+
+Surface the skip log as a readable report.
+
+```bash
+if [ -f "docs/adr/.skipped.jsonl" ]; then
+  echo "Skip log entries:"
+  cat docs/adr/.skipped.jsonl
+else
+  echo "No skip log found."
+fi
+```
+
+1. Read `docs/adr/.skipped.jsonl`.
+2. Parse each JSONL line.
+3. Present a formatted summary grouped by date, with description and trigger pattern.
+4. If patterns emerge (same type of decision skipped repeatedly), note it:
+   "You've skipped [N] decisions about [pattern]. Consider whether the gate sensitivity
+   should be adjusted, or whether these decisions actually deserve ADRs."
+
+---
+
+## Conventions
+
+- File location: `docs/adr/NNNN-title-slug.md`
+- Numbering: Sequential, zero-padded 4 digits, auto-assigned
+- Status values: `proposed`, `accepted`, `deprecated`, `superseded` (no others)
+- Supersession: old ADR gets `superseded_by` + status change; new ADR gets `supersedes`
+- Slug: `[a-z0-9-]` only, max 60 chars, derived from title
+- Skip log: `docs/adr/.skipped.jsonl`, JSONL format, append-only
+- Sensitivity config: `docs/adr/.config` with `sensitivity: conservative | liberal`

@@ -1,4 +1,5 @@
 import type { TemplateContext } from './types';
+import { generateADRGate } from './adr';
 
 /**
  * Preamble architecture — why every skill needs this
@@ -649,7 +650,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateProactivePrompt(ctx),
     generateRoutingInjection(ctx),
     generateVoiceDirective(tier),
-    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateCompletenessSection()] : []),
+    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateCompletenessSection(), generateADRGate(ctx)] : []),
     ...(tier >= 3 ? [generateRepoModeSection(), generateSearchBeforeBuildingSection(ctx)] : []),
     generateCompletionStatus(ctx),
   ];
