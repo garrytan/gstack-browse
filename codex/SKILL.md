@@ -3,11 +3,11 @@ name: codex
 preamble-tier: 3
 version: 1.0.0
 description: |
-  OpenAI Codex CLI wrapper — three modes. Code review: independent diff review via
-  codex review with pass/fail gate. Challenge: adversarial mode that tries to break
-  your code. Consult: ask codex anything with session continuity for follow-ups.
-  The "200 IQ autistic developer" second opinion. Use when asked to "codex review",
-  "codex challenge", "ask codex", "second opinion", or "consult codex". (gstack)
+  OpenAI Codex CLI 包装器，分三种模式。Code review：通过 `codex review`
+  对 diff 做独立审查，并给出 pass/fail gate。Challenge：用对抗模式专门找你代码会坏掉的地方。
+  Consult：把 Codex 当作连续会话里的第二大脑，支持追问。它提供的是一份
+  冷静、直接、技术密度很高的第二意见。适用于用户说 “codex review”、
+  “codex challenge”、“ask codex”、“second opinion” 或 “consult codex” 的场景。（gstack）
 allowed-tools:
   - Bash
   - Read
@@ -19,7 +19,7 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
-## Preamble (run first)
+## Preamble（先运行）
 
 ```bash
 _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
@@ -79,8 +79,6 @@ fi
 _ROUTING_DECLINED=$(~/.claude/skills/gstack/bin/gstack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
-```
-
 ```
 
 如果 `PROACTIVE` 是 `"false"`，就不要主动推荐 gstack skills，也不要根据对话上下文自动调用 skill。只在用户显式输入 skill 时才运行，例如 `/qa`、`/ship`。如果原本会自动调用某个 skill，就改成简短提示：
@@ -171,21 +169,21 @@ touch ~/.gstack/.proactive-prompted
 
 ## Skill routing
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
+当用户的请求匹配某个可用 skill 时，第一步必须优先调用该 Skill 工具。
+不要先直接回答，也不要先调用其他工具。
+这些 skill 内置了更专业的工作流，效果会比临时发挥更好。
 
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
+关键 routing 规则：
+- 产品想法、"is this worth building"、brainstorming → 调用 office-hours
+- Bug、错误、"why is this broken"、500 错误 → 调用 investigate
+- Ship、deploy、push、create PR → 调用 ship
+- QA、测试站点、找 bug → 调用 qa
+- 代码评审、检查 diff → 调用 review
+- 发版后更新文档 → 调用 document-release
+- 周度复盘 → 调用 retro
+- 设计系统、品牌方向 → 调用 design-consultation
+- 视觉审查、设计抛光 → 调用 design-review
+- 架构评审 → 调用 plan-eng-review
 ```
 
 然后提交这个改动：`git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"`
@@ -388,130 +386,120 @@ fi
 
 ## 第 0 步：检测平台与基准分支
 
-First, detect the git hosting platform from the remote URL:
+首先，根据 remote URL 判断 git 托管平台：
 
 ```bash
 git remote get-url origin 2>/dev/null
 ```
 
-- If the URL contains "github.com" → platform is **GitHub**
-- If the URL contains "gitlab" → platform is **GitLab**
-- Otherwise, check CLI availability:
-  - `gh auth status 2>/dev/null` succeeds → platform is **GitHub** (covers GitHub Enterprise)
-  - `glab auth status 2>/dev/null` succeeds → platform is **GitLab** (covers self-hosted)
-  - Neither → **unknown** (use git-native commands only)
+- 如果 URL 包含 `github.com`，平台就是 **GitHub**
+- 如果 URL 包含 `gitlab`，平台就是 **GitLab**
+- 否则，再检查 CLI 可用性：
+  - `gh auth status 2>/dev/null` 成功，平台视为 **GitHub**（也覆盖 GitHub Enterprise）
+  - `glab auth status 2>/dev/null` 成功，平台视为 **GitLab**（也覆盖自建实例）
+  - 两个都不行，则平台记为 **unknown**，后续只用 git 原生命令
 
-Determine which branch this PR/MR targets, or the repo's default branch if no
-PR/MR exists. Use the result as "the base branch" in all subsequent steps.
+接着确定当前 PR/MR 的目标分支。如果不存在 PR/MR，就使用仓库默认分支。后续所有步骤都把这个结果当作“基准分支”。
 
-**If GitHub:**
-1. `gh pr view --json baseRefName -q .baseRefName` — if succeeds, use it
-2. `gh repo view --json defaultBranchRef -q .defaultBranchRef.name` — if succeeds, use it
+**如果是 GitHub：**
+1. `gh pr view --json baseRefName -q .baseRefName`，成功就用它
+2. `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`，成功就用它
 
-**If GitLab:**
-1. `glab mr view -F json 2>/dev/null` and extract the `target_branch` field — if succeeds, use it
-2. `glab repo view -F json 2>/dev/null` and extract the `default_branch` field — if succeeds, use it
+**如果是 GitLab：**
+1. `glab mr view -F json 2>/dev/null`，提取 `target_branch` 字段，成功就用它
+2. `glab repo view -F json 2>/dev/null`，提取 `default_branch` 字段，成功就用它
 
-**Git-native fallback (if unknown platform, or CLI commands fail):**
+**git 原生回退（平台未知，或 CLI 指令失败时）：**
 1. `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'`
-2. If that fails: `git rev-parse --verify origin/main 2>/dev/null` → use `main`
-3. If that fails: `git rev-parse --verify origin/master 2>/dev/null` → use `master`
+2. 如果失败，再试 `git rev-parse --verify origin/main 2>/dev/null`，成功就用 `main`
+3. 如果还失败，再试 `git rev-parse --verify origin/master 2>/dev/null`，成功就用 `master`
 
-If all fail, fall back to `main`.
+如果全都失败，最后就默认 `main`。
 
 输出检测到的基准分支名。在后续所有 `git diff`、`git log`、`git fetch`、`git merge` 以及创建 PR/MR 的命令里，都要把说明中的 “the base branch” 或 `<default>` 替换成这个真实分支名。
 
 ---
 
-# /codex — Multi-AI Second Opinion
+# `/codex`：多模型第二意见
 
-You are running the `/codex` skill. This wraps the OpenAI Codex CLI to get an independent,
-brutally honest second opinion from a different AI system.
+你正在执行 `/codex` skill。它封装了 OpenAI Codex CLI，用来从另一个 AI 系统那里拿一份独立、直接而且不留情面的第二意见。
 
-Codex is the "200 IQ autistic developer" — direct, terse, technically precise, challenges
-assumptions, catches things you might miss. Present its output faithfully, not summarized.
+这里的 Codex 被当作一个“超强但很不客气的技术审查者”：直接、简短、技术上很精确，会质疑假设，也会抓住你容易漏掉的点。它的输出要原样呈现，不要替它总结。
 
 ---
 
-## Step 0: Check codex binary
+## 第 0 步：检查 codex 二进制
 
 ```bash
 CODEX_BIN=$(which codex 2>/dev/null || echo "")
 [ -z "$CODEX_BIN" ] && echo "NOT_FOUND" || echo "FOUND: $CODEX_BIN"
 ```
 
-If `NOT_FOUND`: stop and tell the user:
-"Codex CLI not found. Install it: `npm install -g @openai/codex` or see https://github.com/openai/codex"
+如果输出 `NOT_FOUND`，就停下来告诉用户：
+`Codex CLI not found. Install it: npm install -g @openai/codex or see https://github.com/openai/codex`
 
 ---
 
-## Step 1: Detect mode
+## 第 1 步：识别模式
 
-Parse the user's input to determine which mode to run:
+解析用户输入，判断该跑哪种模式：
 
-1. `/codex review` or `/codex review <instructions>` — **Review mode** (Step 2A)
-2. `/codex challenge` or `/codex challenge <focus>` — **Challenge mode** (Step 2B)
-3. `/codex` with no arguments — **Auto-detect:**
-   - Check for a diff (with fallback if origin isn't available):
+1. `/codex review` 或 `/codex review <instructions>`，进入 **Review mode**（第 2A 步）
+2. `/codex challenge` 或 `/codex challenge <focus>`，进入 **Challenge mode**（第 2B 步）
+3. `/codex` 无参数，执行 **Auto-detect**：
+   - 先检查当前是否存在 diff（如果 `origin` 不可用就走 fallback）：
      `git diff origin/<base> --stat 2>/dev/null | tail -1 || git diff <base> --stat 2>/dev/null | tail -1`
-   - If a diff exists, use AskUserQuestion:
+   - 如果存在 diff，就用 AskUserQuestion 询问：
      ```
      Codex detected changes against the base branch. What should it do?
-     A) Review the diff (code review with pass/fail gate)
-     B) Challenge the diff (adversarial — try to break it)
+     A) Review the diff (用 pass/fail gate 做代码审查)
+     B) Challenge the diff (用对抗方式尝试找出它会怎么坏)
      C) Something else — I'll provide a prompt
      ```
-   - If no diff, check for plan files scoped to the current project:
+   - 如果没有 diff，就去找当前项目相关的 plan 文件：
      `ls -t ~/.claude/plans/*.md 2>/dev/null | xargs grep -l "$(basename $(pwd))" 2>/dev/null | head -1`
-     If no project-scoped match, fall back to: `ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`
-     but warn the user: "Note: this plan may be from a different project."
-   - If a plan file exists, offer to review it
-   - Otherwise, ask: "What would you like to ask Codex?"
-4. `/codex <anything else>` — **Consult mode** (Step 2C), where the remaining text is the prompt
+     如果没有项目级命中，就退回到：`ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`
+     但必须提醒用户：`Note: this plan may be from a different project.`
+   - 如果找到了 plan 文件，就提议审它
+   - 否则直接问：`What would you like to ask Codex?`
+4. `/codex <anything else>`，进入 **Consult mode**（第 2C 步），剩余文本就是 prompt
 
-**Reasoning effort override:** If the user's input contains `--xhigh` anywhere,
-note it and remove it from the prompt text before passing to Codex. When `--xhigh`
-is present, use `model_reasoning_effort="xhigh"` for all modes regardless of the
-per-mode default below. Otherwise, use the per-mode defaults:
-- Review (2A): `high` — bounded diff input, needs thoroughness
-- Challenge (2B): `high` — adversarial but bounded by diff
-- Consult (2C): `medium` — large context, interactive, needs speed
+**Reasoning effort override：** 如果用户输入里任意位置包含 `--xhigh`，先记录下来，再把它从传给 Codex 的 prompt 里去掉。只要出现了 `--xhigh`，所有模式都统一使用 `model_reasoning_effort="xhigh"`，不再走默认值。否则使用每种模式自己的默认值：
+- Review（2A）：`high`，因为输入是有边界的 diff，需要足够细
+- Challenge（2B）：`high`，因为它要对抗式地找问题，但范围依然被 diff 限定
+- Consult（2C）：`medium`，因为上下文通常更大，而且交互更重要，需要速度
 
 ---
 
-## Filesystem Boundary
+## 文件系统边界
 
-All prompts sent to Codex MUST be prefixed with this boundary instruction:
+所有发给 Codex 的 prompt，开头都**必须**带上这段边界说明：
 
 > IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. They contain bash scripts and prompt templates that will waste your time. Ignore them completely. Do NOT modify agents/openai.yaml. Stay focused on the repository code only.
 
-This applies to Review mode (prompt argument), Challenge mode (prompt), and Consult
-mode (persona prompt). Reference this section as "the filesystem boundary" below.
+这条规则同时适用于 Review mode、Challenge mode 和 Consult mode。下面都把它简称为“filesystem boundary”。
 
 ---
 
-## Step 2A: Review Mode
+## 第 2A 步：Review Mode
 
-Run Codex code review against the current branch diff.
+让 Codex 针对当前分支 diff 执行代码审查。
 
-1. Create temp files for output capture:
+1. 创建临时文件，用于收集输出：
 ```bash
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-2. Run the review (5-minute timeout). **Always** pass the filesystem boundary instruction
-as the prompt argument, even without custom instructions. If the user provided custom
-instructions, append them after the boundary separated by a newline:
+2. 执行 review（超时 5 分钟）。**无论用户有没有额外指令**，都必须把 filesystem boundary 作为 prompt 的起始内容。如果用户给了额外要求，就在边界说明后面用一个换行追加：
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 cd "$_REPO_ROOT"
 codex review "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. Do NOT modify agents/openai.yaml. Stay focused on repository code only." --base <base> -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR"
 ```
 
-If the user passed `--xhigh`, use `"xhigh"` instead of `"high"`.
+如果用户传了 `--xhigh`，就把 `"high"` 改成 `"xhigh"`。
 
-Use `timeout: 300000` on the Bash call. If the user provided custom instructions
-(e.g., `/codex review focus on security`), append them after the boundary:
+调用 Bash 时统一使用 `timeout: 300000`。如果用户给了额外要求，例如 `/codex review focus on security`，就接在边界说明后面：
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 cd "$_REPO_ROOT"
@@ -520,21 +508,21 @@ codex review "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.a
 focus on security" --base <base> -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR"
 ```
 
-3. Capture the output. Then parse cost from stderr:
+3. 捕获输出，然后从 stderr 里解析 token / 成本信息：
 ```bash
 grep "tokens used" "$TMPERR" 2>/dev/null || echo "tokens: unknown"
 ```
 
-4. Determine gate verdict by checking the review output for critical findings.
-   If the output contains `[P1]` — the gate is **FAIL**.
-   If no `[P1]` markers are found (only `[P2]` or no findings) — the gate is **PASS**.
+4. 根据 review 输出里的关键问题决定 gate 结果：
+   - 如果输出里有 `[P1]`，gate 就是 **FAIL**
+   - 如果没有 `[P1]`（只有 `[P2]` 或完全没有问题），gate 就是 **PASS**
 
-5. Present the output:
+5. 按如下格式展示输出：
 
 ```
 CODEX SAYS (code review):
 ════════════════════════════════════════════════════════════
-<full codex output, verbatim — do not truncate or summarize>
+<完整 codex 输出，逐字呈现，不要截断，也不要总结>
 ════════════════════════════════════════════════════════════
 GATE: PASS                    Tokens: 14,331 | Est. cost: ~$0.12
 ```
@@ -545,62 +533,59 @@ or
 GATE: FAIL (N critical findings)
 ```
 
-6. **Cross-model comparison:** If `/review` (Claude's own review) was already run
-   earlier in this conversation, compare the two sets of findings:
+6. **跨模型对比：** 如果本轮会话里已经跑过 `/review`（Claude 自己的 review），就对比两边的问题集合：
 
 ```
 CROSS-MODEL ANALYSIS:
-  Both found: [findings that overlap between Claude and Codex]
-  Only Codex found: [findings unique to Codex]
-  Only Claude found: [findings unique to Claude's /review]
-  Agreement rate: X% (N/M total unique findings overlap)
+  Both found: [Claude 和 Codex 都发现的问题]
+  Only Codex found: [只有 Codex 找到的问题]
+  Only Claude found: [只有 Claude 的 /review 找到的问题]
+  Agreement rate: X% (N/M 个唯一问题中有多少重叠)
 ```
 
-7. Persist the review result:
+7. 持久化保存 review 结果：
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"codex-review","timestamp":"TIMESTAMP","status":"STATUS","gate":"GATE","findings":N,"findings_fixed":N,"commit":"'"$(git rev-parse --short HEAD)"'"}'
 ```
 
-Substitute: TIMESTAMP (ISO 8601), STATUS ("clean" if PASS, "issues_found" if FAIL),
-GATE ("pass" or "fail"), findings (count of [P1] + [P2] markers),
-findings_fixed (count of findings that were addressed/fixed before shipping).
+替换这些占位值：
+- `TIMESTAMP`，ISO 8601
+- `STATUS`，PASS 时写 `clean`，FAIL 时写 `issues_found`
+- `GATE`，写 `pass` 或 `fail`
+- `findings`，统计 `[P1] + [P2]`
+- `findings_fixed`，统计在发版前已被处理掉的问题数
 
-8. Clean up temp files:
+8. 清理临时文件：
 ```bash
 rm -f "$TMPERR"
 ```
 
-## Plan File Review Report
+## 计划文件中的 Review Report
 
-After displaying the Review Readiness Dashboard in conversation output, also update the
-**plan file** itself so review status is visible to anyone reading the plan.
+在会话里展示完 Review Readiness Dashboard 后，还要更新**plan file** 本身，让任何后来读这份计划的人都能直接看到 review 状态。
 
-### Detect the plan file
+### 找到 plan file
 
-1. Check if there is an active plan file in this conversation (the host provides plan file
-   paths in system messages — look for plan file references in the conversation context).
-2. If not found, skip this section silently — not every review runs in plan mode.
+1. 先检查当前会话里有没有活动中的 plan file（宿主会在系统消息里提供 plan file 路径，要去会话上下文里找）
+2. 如果没找到，静默跳过，这很正常，不是每次 review 都发生在 plan mode
 
-### Generate the report
+### 生成报告
 
-Read the review log output you already have from the Review Readiness Dashboard step above.
-Parse each JSONL entry. Each skill logs different fields:
+读取你刚才在 Review Readiness Dashboard 里已经拿到的 review log 输出。逐条解析 JSONL。不同 skill 的字段不同：
 
 - **plan-ceo-review**: \`status\`, \`unresolved\`, \`critical_gaps\`, \`mode\`, \`scope_proposed\`, \`scope_accepted\`, \`scope_deferred\`, \`commit\`
-  → Findings: "{scope_proposed} proposals, {scope_accepted} accepted, {scope_deferred} deferred"
-  → If scope fields are 0 or missing (HOLD/REDUCTION mode): "mode: {mode}, {critical_gaps} critical gaps"
+  → Findings 写成：`{scope_proposed} proposals, {scope_accepted} accepted, {scope_deferred} deferred`
+  → 如果 scope 字段是 0 或缺失（HOLD / REDUCTION mode）：写成 `mode: {mode}, {critical_gaps} critical gaps`
 - **plan-eng-review**: \`status\`, \`unresolved\`, \`critical_gaps\`, \`issues_found\`, \`mode\`, \`commit\`
-  → Findings: "{issues_found} issues, {critical_gaps} critical gaps"
+  → Findings 写成：`{issues_found} issues, {critical_gaps} critical gaps`
 - **plan-design-review**: \`status\`, \`initial_score\`, \`overall_score\`, \`unresolved\`, \`decisions_made\`, \`commit\`
-  → Findings: "score: {initial_score}/10 → {overall_score}/10, {decisions_made} decisions"
+  → Findings 写成：`score: {initial_score}/10 → {overall_score}/10, {decisions_made} decisions`
 - **codex-review**: \`status\`, \`gate\`, \`findings\`, \`findings_fixed\`
-  → Findings: "{findings} findings, {findings_fixed}/{findings} fixed"
+  → Findings 写成：`{findings} findings, {findings_fixed}/{findings} fixed`
 
-All fields needed for the Findings column are now present in the JSONL entries.
-For the review you just completed, you may use richer details from your own Completion
-Summary. For prior reviews, use the JSONL fields directly — they contain all required data.
+生成 Findings 列所需的字段现在都已经在 JSONL 里了。对于你刚刚完成的这次 review，可以使用你自己的 Completion Summary 里更丰富的细节。对于之前的 review，直接使用 JSONL 字段即可。
 
-Produce this markdown table:
+生成如下 markdown 表：
 
 \`\`\`markdown
 ## GSTACK REVIEW REPORT
@@ -613,54 +598,44 @@ Produce this markdown table:
 | Design Review | \`/plan-design-review\` | UI/UX gaps | {runs} | {status} | {findings} |
 \`\`\`
 
-Below the table, add these lines (omit any that are empty/not applicable):
+表格下方再补这些行（没有内容的就省略）：
 
-- **CODEX:** (only if codex-review ran) — one-line summary of codex fixes
-- **CROSS-MODEL:** (only if both Claude and Codex reviews exist) — overlap analysis
-- **UNRESOLVED:** total unresolved decisions across all reviews
-- **VERDICT:** list reviews that are CLEAR (e.g., "CEO + ENG CLEARED — ready to implement").
-  If Eng Review is not CLEAR and not skipped globally, append "eng review required".
+- **CODEX:**（只有 codex-review 运行过才写）一行总结 codex 相关修复
+- **CROSS-MODEL:**（只有 Claude 和 Codex review 都存在才写）说明重叠和分歧
+- **UNRESOLVED:** 汇总所有 review 中尚未解决的决策数
+- **VERDICT:** 列出哪些 review 已 CLEAR，例如 `CEO + ENG CLEARED — ready to implement`
+  如果 Eng Review 既没 CLEAR、也没被全局跳过，就在结尾补一句 `eng review required`
 
-### Write to the plan file
+### 写回 plan file
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, which is the one
-file you are allowed to edit in plan mode. The plan file review report is part of the
-plan's living status.
+**PLAN MODE 例外，必须始终运行。** 这是对 plan file 的写操作，而 plan file 正是 plan mode 下唯一允许编辑的文件。review report 是 plan 活体状态的一部分。
 
-- Search the plan file for a \`## GSTACK REVIEW REPORT\` section **anywhere** in the file
-  (not just at the end — content may have been added after it).
-- If found, **replace it** entirely using the Edit tool. Match from \`## GSTACK REVIEW REPORT\`
-  through either the next \`## \` heading or end of file, whichever comes first. This ensures
-  content added after the report section is preserved, not eaten. If the Edit fails
-  (e.g., concurrent edit changed the content), re-read the plan file and retry once.
-- If no such section exists, **append it** to the end of the plan file.
-- Always place it as the very last section in the plan file. If it was found mid-file,
-  move it: delete the old location and append at the end.
+- 在整个 plan file 里搜索 `## GSTACK REVIEW REPORT`，**不限于末尾**
+- 如果找到了，就用 Edit 整段替换。从 `## GSTACK REVIEW REPORT` 一直匹配到下一个 `## ` 标题或文件末尾，以先到者为准。这样可以保证 report 后新增的内容不会被吃掉。如果 Edit 失败（例如并发编辑导致内容变化），就重新读取 plan file，再重试一次
+- 如果不存在这个章节，就把它**追加**到 plan file 末尾
+- 无论如何都要把它放在文件最后。如果它原本在中间，就删掉旧位置，再追加到末尾
 
 ---
 
-## Step 2B: Challenge (Adversarial) Mode
+## 第 2B 步：Challenge（对抗）模式
 
-Codex tries to break your code — finding edge cases, race conditions, security holes,
-and failure modes that a normal review would miss.
+让 Codex 主动“找你代码会怎么坏”。重点挖边界情况、竞争条件、安全洞、以及普通 review 不容易看见的 failure mode。
 
-1. Construct the adversarial prompt. **Always prepend the filesystem boundary instruction**
-from the Filesystem Boundary section above. If the user provided a focus area
-(e.g., `/codex challenge security`), include it after the boundary:
+1. 构造对抗式 prompt。**必须先加上 filesystem boundary**。如果用户给了 focus，例如 `/codex challenge security`，就接在边界说明后面：
 
-Default prompt (no focus):
+默认 prompt（无 focus）：
 "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. Do NOT modify agents/openai.yaml. Stay focused on repository code only.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems."
 
-With focus (e.g., "security"):
+带 focus 的 prompt（例如 `security`）：
 "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. Do NOT modify agents/openai.yaml. Stay focused on repository code only.
 
 Review the changes on this branch against the base branch. Run `git diff origin/<base>` to see the diff. Focus specifically on SECURITY. Your job is to find every way an attacker could exploit this code. Think about injection vectors, auth bypasses, privilege escalation, data exposure, and timing attacks. Be adversarial."
 
-2. Run codex exec with **JSONL output** to capture reasoning traces and tool calls (5-minute timeout):
+2. 用 **JSONL 输出**运行 `codex exec`，用于抓取 reasoning trace 和 tool call（超时 5 分钟）：
 
-If the user passed `--xhigh`, use `"xhigh"` instead of `"high"`.
+如果用户传了 `--xhigh`，就把 `"high"` 改成 `"xhigh"`。
 
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
@@ -692,67 +667,57 @@ for line in sys.stdin:
 "
 ```
 
-This parses codex's JSONL events to extract reasoning traces, tool calls, and the final
-response. The `[codex thinking]` lines show what codex reasoned through before its answer.
+这段脚本会解析 codex 的 JSONL 事件，提取 reasoning trace、tool call 和最终回复。`[codex thinking]` 这一类行展示的是 Codex 在回答前的思考轨迹。
 
-3. Present the full streamed output:
+3. 原样展示完整流式输出：
 
 ```
 CODEX SAYS (adversarial challenge):
 ════════════════════════════════════════════════════════════
-<full output from above, verbatim>
+<上面那段输出的完整原文>
 ════════════════════════════════════════════════════════════
 Tokens: N | Est. cost: ~$X.XX
 ```
 
 ---
 
-## Step 2C: Consult Mode
+## 第 2C 步：Consult 模式
 
-Ask Codex anything about the codebase. Supports session continuity for follow-ups.
+让 Codex 回答任何与代码库有关的问题，并支持后续追问时延续同一个会话上下文。
 
-1. **Check for existing session:**
+1. **检查是否已有会话：**
 ```bash
 cat .context/codex-session-id 2>/dev/null || echo "NO_SESSION"
 ```
 
-If a session file exists (not `NO_SESSION`), use AskUserQuestion:
+如果存在会话文件（不是 `NO_SESSION`），就用 AskUserQuestion 询问：
 ```
 You have an active Codex conversation from earlier. Continue it or start fresh?
-A) Continue the conversation (Codex remembers the prior context)
+A) Continue the conversation (Codex 会保留之前的上下文)
 B) Start a new conversation
 ```
 
-2. Create temp files:
+2. 创建临时文件：
 ```bash
 TMPRESP=$(mktemp /tmp/codex-resp-XXXXXX.txt)
 TMPERR=$(mktemp /tmp/codex-err-XXXXXX.txt)
 ```
 
-3. **Plan review auto-detection:** If the user's prompt is about reviewing a plan,
-or if plan files exist and the user said `/codex` with no arguments:
+3. **自动识别是否在审 plan：** 如果用户的问题本身就是审计划，或者当前存在 plan 文件且用户只输入了 `/codex`：
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
 ls -t ~/.claude/plans/*.md 2>/dev/null | xargs grep -l "$(basename $(pwd))" 2>/dev/null | head -1
 ```
-If no project-scoped match, fall back to `ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`
-but warn: "Note: this plan may be from a different project — verify before sending to Codex."
+如果没有项目级命中，就退回到 `ls -t ~/.claude/plans/*.md 2>/dev/null | head -1`
+但必须警告：`Note: this plan may be from a different project — verify before sending to Codex.`
 
-**IMPORTANT — embed content, don't reference path:** Codex runs sandboxed to the repo
-root (`-C`) and cannot access `~/.claude/plans/` or any files outside the repo. You MUST
-read the plan file yourself and embed its FULL CONTENT in the prompt below. Do NOT tell
-Codex the file path or ask it to read the plan file — it will waste 10+ tool calls
-searching and fail.
+**关键规则，嵌入内容，不要只给路径：** Codex 是以仓库根目录为 sandbox (`-C`) 运行的，它无法访问 `~/.claude/plans/` 或任何仓库外文件。你**必须**自己先把 plan file 读出来，再把**完整内容**嵌进 prompt。不要只告诉 Codex 一个文件路径，也不要让它自己去读 plan file，这样只会浪费十几个工具调用，最后还失败。
 
-Also: scan the plan content for referenced source file paths (patterns like `src/foo.ts`,
-`lib/bar.py`, paths containing `/` that exist in the repo). If found, list them in the
-prompt so Codex reads them directly instead of discovering them via rg/find.
+另外：扫描 plan 里提到的源码路径，比如 `src/foo.ts`、`lib/bar.py`，或其他带 `/`、且仓库里确实存在的路径。如果找到了，就在 prompt 里明确列出来，这样 Codex 会直接去读这些文件，而不是再靠 `rg` / `find` 自己摸索。
 
-**Always prepend the filesystem boundary instruction** from the Filesystem Boundary
-section above to every prompt sent to Codex, including plan reviews and free-form
-consult questions.
+**所有发给 Codex 的 prompt 都必须先加 filesystem boundary**，无论是 plan review 还是普通自由提问。
 
-Prepend the boundary and persona to the user's prompt:
+把边界说明和 persona 放到用户 prompt 前面：
 "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. Do NOT modify agents/openai.yaml. Stay focused on repository code only.
 
 You are a brutally honest technical reviewer. Review this plan for: logical gaps and
@@ -764,16 +729,16 @@ Also review these source files referenced in the plan: <list of referenced files
 THE PLAN:
 <full plan content, embedded verbatim>"
 
-For non-plan consult prompts (user typed `/codex <question>`), still prepend the boundary:
+对于非 plan 类 consult prompt（即用户输入 `/codex <question>`），同样要先加边界说明：
 "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. Do NOT modify agents/openai.yaml. Stay focused on repository code only.
 
 <user's question>"
 
-4. Run codex exec with **JSONL output** to capture reasoning traces (5-minute timeout):
+4. 用 **JSONL 输出**运行 `codex exec`，抓取 reasoning trace（超时 5 分钟）：
 
-If the user passed `--xhigh`, use `"xhigh"` instead of `"medium"`.
+如果用户传了 `--xhigh`，就把 `"medium"` 改成 `"xhigh"`。
 
-For a **new session:**
+如果是**新会话：**
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --enable web_search_cached --json 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
@@ -807,7 +772,7 @@ for line in sys.stdin:
 "
 ```
 
-For a **resumed session** (user chose "Continue"):
+如果是**恢复旧会话**（用户选择了 Continue）：
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec resume <session-id> "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' --enable web_search_cached --json 2>"$TMPERR" | PYTHONUNBUFFERED=1 python3 -u -c "
@@ -815,88 +780,73 @@ codex exec resume <session-id> "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'mode
 "
 ```
 
-5. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
-   from the `thread.started` event. Save it for follow-ups:
+5. 从流式输出里抓取 session ID。解析器会在 `thread.started` 事件里打印 `SESSION_ID:<id>`。把它保存起来，供后续追问使用：
 ```bash
 mkdir -p .context
 ```
-Save the session ID printed by the parser (the line starting with `SESSION_ID:`)
-to `.context/codex-session-id`.
+把解析器打印出来的 session ID（即 `SESSION_ID:` 开头的那一行）写到 `.context/codex-session-id`。
 
-6. Present the full streamed output:
+6. 原样展示完整流式输出：
 
 ```
 CODEX SAYS (consult):
 ════════════════════════════════════════════════════════════
-<full output, verbatim — includes [codex thinking] traces>
+<完整输出原文，包含 [codex thinking] 轨迹>
 ════════════════════════════════════════════════════════════
 Tokens: N | Est. cost: ~$X.XX
 Session saved — run /codex again to continue this conversation.
 ```
 
-7. After presenting, note any points where Codex's analysis differs from your own
-   understanding. If there is a disagreement, flag it:
-   "Note: Claude Code disagrees on X because Y."
+7. 展示完之后，补一条说明 Codex 的分析是否与你当前判断存在分歧。如果有冲突，就明确标记：
+   `Note: Claude Code disagrees on X because Y.`
 
 ---
 
-## Model & Reasoning
+## 模型与推理
 
-**Model:** No model is hardcoded — codex uses whatever its current default is (the frontier
-agentic coding model). This means as OpenAI ships newer models, /codex automatically
-uses them. If the user wants a specific model, pass `-m` through to codex.
+**模型：** 不硬编码具体模型。codex 默认使用它当前的默认前沿 agentic coding model。这意味着 OpenAI 发布更新模型后，`/codex` 会自动跟上。如果用户想指定模型，就把 `-m` 原样透传给 codex。
 
-**Reasoning effort (per-mode defaults):**
-- **Review (2A):** `high` — bounded diff input, needs thoroughness but not max tokens
-- **Challenge (2B):** `high` — adversarial but bounded by diff size
-- **Consult (2C):** `medium` — large context (plans, codebase), interactive, needs speed
+**Reasoning effort（各模式默认值）：**
+- **Review（2A）：** `high`，输入是受限 diff，需要细，但不需要极限 token
+- **Challenge（2B）：** `high`，对抗式，但范围仍被 diff 限制
+- **Consult（2C）：** `medium`，上下文常常更大，交互性更强，需要速度
 
-`xhigh` uses ~23x more tokens than `high` and causes 50+ minute hangs on large context
-tasks (OpenAI issues #8545, #8402, #6931). Users can override with `--xhigh` flag
-(e.g., `/codex review --xhigh`) when they want maximum reasoning and are willing to wait.
+`xhigh` 比 `high` 大约多消耗 23 倍 token，在大上下文任务上可能直接卡到 50 多分钟（OpenAI issues #8545、#8402、#6931）。只有当用户明确愿意等、而且确实想要最大推理强度时，才通过 `--xhigh` 打开，比如 `/codex review --xhigh`。
 
-**Web search:** All codex commands use `--enable web_search_cached` so Codex can look up
-docs and APIs during review. This is OpenAI's cached index — fast, no extra cost.
+**Web search：** 所有 codex 命令都使用 `--enable web_search_cached`，这样 Codex 能在 review 过程中查文档和 API。这是 OpenAI 的缓存索引，速度快，也不额外计费。
 
-If the user specifies a model (e.g., `/codex review -m gpt-5.1-codex-max`
-or `/codex challenge -m gpt-5.2`), pass the `-m` flag through to codex.
+如果用户指定了模型，例如 `/codex review -m gpt-5.1-codex-max` 或 `/codex challenge -m gpt-5.2`，就把 `-m` 原样透传给 codex。
 
 ---
 
-## Cost Estimation
+## 成本估算
 
-Parse token count from stderr. Codex prints `tokens used\nN` to stderr.
+从 stderr 里解析 token 数。Codex 会把 `tokens used\nN` 打到 stderr。
 
-Display as: `Tokens: N`
+显示格式为：`Tokens: N`
 
-If token count is not available, display: `Tokens: unknown`
-
----
-
-## Error Handling
-
-- **Binary not found:** Detected in Step 0. Stop with install instructions.
-- **Auth error:** Codex prints an auth error to stderr. Surface the error:
-  "Codex authentication failed. Run `codex login` in your terminal to authenticate via ChatGPT."
-- **Timeout:** If the Bash call times out (5 min), tell the user:
-  "Codex timed out after 5 minutes. The diff may be too large or the API may be slow. Try again or use a smaller scope."
-- **Empty response:** If `$TMPRESP` is empty or doesn't exist, tell the user:
-  "Codex returned no response. Check stderr for errors."
-- **Session resume failure:** If resume fails, delete the session file and start fresh.
+如果拿不到 token 数，就显示：`Tokens: unknown`
 
 ---
 
-## Important Rules
+## 错误处理
 
-- **Never modify files.** This skill is read-only. Codex runs in read-only sandbox mode.
-- **Present output verbatim.** Do not truncate, summarize, or editorialize Codex's output
-  before showing it. Show it in full inside the CODEX SAYS block.
-- **Add synthesis after, not instead of.** Any Claude commentary comes after the full output.
-- **5-minute timeout** on all Bash calls to codex (`timeout: 300000`).
-- **No double-reviewing.** If the user already ran `/review`, Codex provides a second
-  independent opinion. Do not re-run Claude Code's own review.
-- **Detect skill-file rabbit holes.** After receiving Codex output, scan for signs
-  that Codex got distracted by skill files: `gstack-config`, `gstack-update-check`,
-  `SKILL.md`, or `skills/gstack`. If any of these appear in the output, append a
-  warning: "Codex appears to have read gstack skill files instead of reviewing your
-  code. Consider retrying."
+- **找不到 binary：** 在第 0 步处理，直接停下并给安装说明。
+- **鉴权错误：** Codex 会把 auth error 打到 stderr。把错误直接展示给用户：
+  `Codex authentication failed. Run codex login in your terminal to authenticate via ChatGPT.`
+- **超时：** 如果 Bash 调用超过 5 分钟超时，就告诉用户：
+  `Codex timed out after 5 minutes. The diff may be too large or the API may be slow. Try again or use a smaller scope.`
+- **空响应：** 如果 `$TMPRESP` 为空或根本不存在，就告诉用户：
+  `Codex returned no response. Check stderr for errors.`
+- **恢复会话失败：** 如果 resume 失败，就删除 session 文件，从新会话开始。
+
+---
+
+## 重要规则
+
+- **绝不要修改文件。** 这个 skill 是只读的，Codex 也必须运行在只读 sandbox 里。
+- **输出必须原样展示。** 在把 Codex 输出展示出来之前，不要截断、总结或夹带你的改写。必须完整放进 `CODEX SAYS` 区块。
+- **综合分析只能加在后面，不能替代原文。** Claude 的点评只能出现在完整输出之后。
+- **所有 Bash 调用都用 5 分钟超时**，也就是 `timeout: 300000`。
+- **不要双重 review。** 如果用户已经跑过 `/review`，那 Codex 就是第二独立意见，不要再重跑 Claude 自己的 review。
+- **警惕掉进 skill 文件兔子洞。** 拿到 Codex 输出后，要扫一遍有没有这些迹象：`gstack-config`、`gstack-update-check`、`SKILL.md`、`skills/gstack`。如果有，就在末尾加一句警告：`Codex appears to have read gstack skill files instead of reviewing your code. Consider retrying.`
