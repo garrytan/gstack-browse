@@ -18,9 +18,38 @@ const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()];
 
 function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
+
+  // Basic containment check using lexical resolution only.
+  // This catches obvious traversal (../../../etc/passwd) but NOT symlinks.
   const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+  }
+
+  // Symlink check: resolve the real path of the nearest existing ancestor
+  // directory and re-validate. This closes the symlink bypass where a
+  // symlink inside /tmp or cwd points outside the safe zone.
+  //
+  // We resolve the parent dir (not the file itself — it may not exist yet).
+  // If the parent doesn't exist either we fall back up the tree.
+  let dir = path.dirname(resolved);
+  let realDir: string;
+  try {
+    realDir = fs.realpathSync(dir);
+  } catch {
+    // Parent doesn't exist — check the grandparent, or skip if inaccessible
+    try {
+      realDir = fs.realpathSync(path.dirname(dir));
+    } catch {
+      // Can't resolve — fail safe
+      throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+    }
+  }
+
+  const realResolved = path.join(realDir, path.basename(resolved));
+  const isRealSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(realResolved, dir));
+  if (!isRealSafe) {
+    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')} (symlink target blocked)`);
   }
 }
 
