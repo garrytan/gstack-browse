@@ -1,26 +1,67 @@
 # Changelog
 
-## [0.15.0.0] - 2026-03-31 — news-summary v4: 教育+投資分析ブリーフィングスキル
+## [0.15.2.0] - 2026-04-01 — news-summary v4: 教育+投資分析ブリーフィング
 
-Daily Japanese stock market briefings, now with layered education, stock notes, a living glossary, and Chart.js candlestick charts — all written directly to your Obsidian vault.
+Say `/news-summary` and get a full Japanese stock market briefing written to your Obsidian vault. Layer 1 is the speed-read: market data, causal Mermaid diagrams, sector tables, scenario analysis. Layer 2 is folded education callouts explaining why things move the way they do, with wikilinks to a living glossary. Stock notes and weekly summaries auto-update.
 
 ### Added
 
-- **`/news-summary` skill v4.0** — Full redesign from v2 (single-file output) to a structured Obsidian knowledge base. Collects from Nikkei, Kabutan, Shikiho, and NYT Japan via Chrome MCP (for paid content) with WebFetch/WebSearch fallback.
-- **Layer design (speed + education in one file).** Layer 1 is the speed-read briefing: market indicators, causal diagram, scenario, sector table, news list. Layer 2 is educational content in Obsidian `> [!info]-` collapsible callouts — causal chain explanations, wikilinks to glossary terms and stock notes. Beginners get the full picture without cognitive overload.
-- **Stock notes auto-created/updated** (`Stocks/{code}-{name}.md`). Each high/medium impact news item updates or creates a note with basic info, Shikiho data, and a rolling 20-item news history. The `## 自分のメモ` section is protected — the skill never touches it, so your handwritten notes survive every update.
-- **Living glossary** (`Glossary/{macro,market,geopolitics}/{term}.md`). Up to 5 new terms per run, with causal chain entries like "金利↑ → ドル円↑". Existing entries get new causal relationships appended (capped at 10 per term to prevent spam). Term filenames are sanitized for Windows NTFS.
-- **Weekly summary** (`Weekly/{YEAR}-W{NN}.md`). Cumulative weekly performance and themes, idempotent per session — re-running afternoon won't duplicate the morning entry.
-- **Mermaid xychart charts** embedded in the daily briefing (5-day index trend, sector comparison). No plugins needed for Obsidian.
-- **Chart.js HTML candlestick charts** (`Charts/{code}-{date}.html`) for high-impact stocks — OHLC + Bollinger Bands (20-day SMA ± 2σ, sample std dev). Skipped if fewer than 5 data points. Max 3 charts per run.
-- **Chrome MCP integration** (read-only). `tabs_create_mcp` for a dedicated tab, graceful degradation to WebFetch/WebSearch if Chrome MCP is unavailable. No login, no form input, no purchase clicks — read-only hard rule.
-- **JST timezone** (`TZ="Asia/Tokyo"`) on all date calculations so morning/afternoon detection is correct regardless of system clock.
+- **`/news-summary` skill v4.0** — Collects from Nikkei, Kabutan, Shikiho Online, and NYT Japan via Chrome MCP (paid content) with WebFetch/WebSearch fallback. Parallel collection groups cut execution time in half.
+- **Layer design.** Speed-read briefing + folded `> [!info]-` education callouts with causal chain explanations, multi-pathway analysis (経路A/B structure), sector impact tables, and background knowledge with real numbers.
+- **Stock notes** (`Stocks/{code}-{name}.md`). Auto-created/updated with today's news, basic data, and investment analysis. `## 自分のメモ` section is protected.
+- **Living glossary** (`Glossary/{macro,market,geopolitics}/{term}.md`). Deep format: multi-step Mermaid causal diagrams, sector impact tables, scenario tables, background knowledge with DCF calculations and concrete examples.
+- **Weekly summary** with prediction tracking. Friday afternoon sessions auto-verify Monday's scenario predictions against actual results.
+- **Session state file** (`.state.json`). Tracks scenario predictions, watchlist, and key metrics across runs for automatic "what changed since last time" detection.
+- **Chart.js candlestick template** extracted to `templates/candlestick.html` for context efficiency.
 
-### For contributors
+### Changed
 
-- `news-summary/SKILL.md.tmpl` — source template (909 lines), edit this and run `bun run gen:skill-docs`
-- `news-summary/SKILL.md` — generated from template, do not edit directly
-- `sensitive: true` propagated to careful/freeze/guard/land-and-deploy/ship/unfreeze SKILL.md
+- **Unified error handling.** Single error policy table at the top of the skill instead of scattered per-step rules. Edit-only for existing files (no Write fallback), retry-once for data sources,推測禁止 for all numbers.
+- **Preamble cleanup.** Removed session timeline logging, auto-learnings-search in preamble, /checkpoint and /health routing references. Added contributor mode detection.
+- **Telemetry gate fix.** `"$_TEL"` → `"${_TEL:-off}"` prevents writing analytics when telemetry is unset.
+
+## [0.15.1.0] - 2026-04-01 — Design Without Shotgun
+
+You can now run `/design-html` without having to run `/design-shotgun` first. The skill detects what design context exists (CEO plans, design review artifacts, approved mockups) and asks how you want to proceed. Start from a plan, a description, or a provided PNG, not just an approved mockup.
+
+### Changed
+
+- **`/design-html` works from any starting point.** Three routing modes: (A) approved mockup from /design-shotgun, (B) CEO plan and/or design variants without formal approval, (C) clean slate with just a description. Each mode asks the right questions and proceeds accordingly.
+- **AskUserQuestion for missing context.** Instead of blocking with "no approved design found," the skill now offers choices: run the planning skills first, provide a PNG, or just describe what you want and design live.
+
+## [0.15.0.0] - 2026-04-01 — Session Intelligence
+
+Your AI sessions now remember what happened. Plans, reviews, checkpoints, and health scores survive context compaction and compound across sessions. Every skill writes a timeline event, and the preamble reads recent artifacts on startup so the agent knows where you left off.
+
+### Added
+
+- **Session timeline.** Every skill auto-logs start/complete events to `timeline.jsonl`. Local-only, never sent anywhere, always on regardless of telemetry setting. /retro can now show "this week: 3 /review, 2 /ship across 3 branches."
+- **Context recovery.** After compaction or session start, the preamble lists your recent CEO plans, checkpoints, and reviews. The agent reads the most recent one to recover decisions and progress without asking you to repeat yourself.
+- **Cross-session injection.** On session start, the preamble prints your last skill run on this branch and your latest checkpoint. You see "Last session: /review (success)" before typing anything.
+- **Predictive skill suggestion.** If your last 3 sessions on a branch follow a pattern (review, ship, review), gstack suggests what you probably want next.
+- **Welcome back message.** Sessions synthesize a one-paragraph briefing: branch name, last skill, checkpoint status, health score.
+- **`/checkpoint` skill.** Save and resume working state snapshots. Captures git state, decisions made, remaining work. Supports cross-branch listing for Conductor workspace handoff between agents.
+- **`/health` skill.** Code quality scorekeeper. Wraps your project's tools (tsc, biome, knip, shellcheck, tests), computes a composite 0-10 score, tracks trends over time. When the score drops, it tells you exactly what changed and where to fix it.
+- **Timeline binaries.** `bin/gstack-timeline-log` and `bin/gstack-timeline-read` for append-only JSONL timeline storage.
+- **Routing rules.** /checkpoint and /health added to the skill routing injection.
+
+## [0.14.6.0] - 2026-03-31 — Recursive Self-Improvement
+
+gstack now learns from its own mistakes. Every skill session captures operational failures (CLI errors, wrong approaches, project quirks) and surfaces them in future sessions. No setup needed, just works.
+
+### Added
+
+- **Operational self-improvement.** When a command fails or you hit a project-specific gotcha, gstack logs it. Next session, it remembers. "bun test needs --timeout 30000" or "login flow requires cookie import first" ... the kind of stuff that wastes 10 minutes every time you forget it.
+- **Learnings summary in preamble.** When your project has 5+ learnings, gstack shows the top 3 at the start of every session so you see them before you start working.
+- **13 skills now learn.** office-hours, plan-ceo-review, plan-eng-review, plan-design-review, design-review, design-consultation, cso, qa, qa-only, and retro all now read prior learnings AND contribute new ones. Previously only review, ship, and investigate were wired.
+
+### Changed
+
+- **Contributor mode replaced.** The old contributor mode (manual opt-in, markdown reports to ~/.gstack/contributor-logs/) never fired in 18 days of heavy use. Replaced with automatic operational learning that captures the same insights without any setup.
+
+### Fixed
+
+- **learnings-show E2E test slug mismatch.** The test seeded learnings at a hardcoded path but gstack-slug computed a different path at runtime. Now computes the slug dynamically.
 
 ## [0.14.5.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
 
