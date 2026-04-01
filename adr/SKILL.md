@@ -3,7 +3,7 @@ name: adr
 preamble-tier: 2
 version: 0.1.0
 description: |
-  Architectural Decision Records. Five modes: create (/adr), list (/adr list),
+  gstack Architectural Decision Records. Five modes: create (/adr), list (/adr list),
   check (/adr check), revisit (/adr revisit N), litmus-test (/adr litmus-test).
   Plus /adr accept N, /adr renumber, /adr skipped utilities. Documents decisions
   before code, not after. Integrates with /plan-eng-review, /review, /investigate.
