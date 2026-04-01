@@ -163,7 +163,7 @@ touch ~/.gstack/.proactive-prompted
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -199,7 +199,7 @@ Key routing rules:
 
 用户永远掌握着你没有的上下文。跨模型一致意见只是建议，不是决策。最后拍板的是用户。
 
-## Contributor 模式
+## 贡献者模式
 
 如果 `_CONTRIB` 为 `true`，说明你处在 **contributor mode**。每完成一个主要工作流阶段，都要给 gstack 体验打一个 0-10 分。如果不是 10 分，并且存在一个可执行的 bug 或改进点，就提交一份 field report。
 
@@ -275,7 +275,7 @@ fi
 
 把 `SKILL_NAME` 替换成 frontmatter 中的实际 skill 名称，把 `OUTCOME` 替换成 `success` / `error` / `abort`，再把 `USED_BROWSE` 替换成 `$B` 是否被使用过（`true` / `false`）。如果无法判断结果，就用 `"unknown"`。本地 JSONL 和远程 telemetry 只有在 telemetry 不为 off 时才会运行；远程二进制还要求对应二进制文件实际存在。
 
-## 计划 模式 Safe Operations
+## 计划模式 Safe Operations
 
 在 plan mode 中，下面这些操作始终允许执行，因为它们产出的是帮助计划决策的工件，而不是代码修改：
 
@@ -306,7 +306,7 @@ fi
 - 如果输出是 `NO_REVIEWS` 或为空，就写下面这张占位表：
 
 ```markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|

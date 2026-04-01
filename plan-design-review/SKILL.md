@@ -179,7 +179,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -296,7 +296,7 @@ Before building anything unfamiliar, **搜索 first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -374,7 +374,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -409,7 +409,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -500,7 +500,7 @@ Commands: `generate` (single mockup), `variants` (multiple directions), `compare
 (side-by-side review board), `iterate` (refine with feedback), `check` (cross-model
 质量 gate via GPT-4o vision), `evolve` (improve from screenshot).
 
-配置方式 is handled by the DESIGN 配置方式 section below. If `DESIGN_READY` is printed,
+配置 is handled by the DESIGN 配置 section below. If `DESIGN_READY` is printed,
 the designer is available and you should use it.
 
 ## 设计 Principles
@@ -570,7 +570,7 @@ Analyze the plan. If it involves NONE of: new UI screens/pages, changes to exist
 
 Report findings before proceeding to Step 0.
 
-## 设计 配置方式 (run this check BEFORE any 设计 mockup command)
+## 设计 配置 (run this check BEFORE any 设计 mockup command)
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -637,7 +637,7 @@ AskUserQuestion: "I've rated this plan {N}/10 on design completeness. The bigges
 ## Step 0.5: Visual Mockups (DEFAULT when DESIGN_READY)
 
 If the plan involves any UI — screens, pages, components, visual changes — AND the
-gstack designer is available (`DESIGN_READY` was printed during 配置方式), **generate
+gstack designer is available (`DESIGN_READY` was printed during 配置), **generate
 mockups immediately.** Do not ask permission. This is the default behavior.
 
 Tell the user: "Generating visual mockups with the gstack designer. This is how we
@@ -669,7 +669,7 @@ mkdir -p "$_DESIGN_DIR"
 echo "DESIGN_DIR: $_DESIGN_DIR"
 ```
 
-Replace `<screen-name>` with a descriptive kebab-case name (e.g., `homepage-variants`, `settings-page`, `onboarding-flow`).
+Replace `<screen-name>` with a descriptive kebab-case name (e.g., `首页-variants`, `settings-page`, `onboarding-flow`).
 
 **Generate mockups ONE AT A TIME in this skill.** The inline review flow generates
 fewer variants and 收益 from sequential control. Note: /design-shotgun uses
@@ -929,7 +929,7 @@ Re-run loop: invoke /plan-design-review again → re-rate → sections at 8+ get
 
 ### "Show me what 10/10 looks like" (requires 设计 binary)
 
-If `DESIGN_READY` was printed during 配置方式 AND a dimension rates below 7/10,
+If `DESIGN_READY` was printed during 配置 AND a dimension rates below 7/10,
 offer to generate a visual mockup showing what the improved version would look like:
 
 ```bash
@@ -1233,7 +1233,7 @@ Note: `autoplan-voices` and `design-outside-voices` entries are audit-trail-only
 - For entries without a \`commit\` field (legacy entries): 展示 "Note: {skill} review from {date} has no commit 跟踪 — consider re-running for accurate staleness detection"
 - If all reviews match the current HEAD, do not 展示 any staleness notes
 
-## 计划 File 审查 报告
+## 计划 File 审查报告
 
 After displaying the Review Readiness Dashboard in conversation output, also update the
 **plan file** itself so review status is visible to anyone reading the plan.
@@ -1266,7 +1266,7 @@ Summary. For prior reviews, use the JSONL fields directly — they contain all r
 Produce this markdown table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|

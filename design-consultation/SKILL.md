@@ -181,7 +181,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -298,7 +298,7 @@ Before building anything unfamiliar, **搜索 first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -376,7 +376,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -411,7 +411,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -469,7 +469,7 @@ If the codebase is empty and purpose is unclear, say: *"I don't have a clear pic
 
 **Find the browse binary (optional — enables visual competitive research):**
 
-## 配置方式 (run this check BEFORE any browse command)
+## 配置 (run this check BEFORE any browse command)
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -509,7 +509,7 @@ If browse is 不可用, that's fine — visual research is optional. The skill w
 
 **Find the gstack designer (optional — enables AI mockup generation):**
 
-## 设计 配置方式 (run this check BEFORE any 设计 mockup command)
+## 设计 配置 (run this check BEFORE any 设计 mockup command)
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -641,7 +641,7 @@ which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 ```bash
 TMPERR_DESIGN=$(mktemp /tmp/codex-design-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-codex exec "Given this product context, propose a complete design direction:
+codex exec "Given this 产品上下文, propose a complete design direction:
 - Visual thesis: one sentence describing mood, material, and energy
 - Typography: specific font names (not defaults — no Inter/Roboto/Arial/system) + hex colors
 - Color system: CSS variables for background, surface, primary text, muted text, accent
@@ -693,7 +693,7 @@ This is the soul of the skill. Propose EVERYTHING as one coherent package.
 **AskUserQuestion Q2 — present the full proposal with SAFE/RISK breakdown:**
 
 ```
-Based on [product context] and [research findings / my design knowledge]:
+Based on [产品上下文] and [research findings / my design knowledge]:
 
 AESTHETIC: [direction] — [one-line rationale]
 DECORATION: [level] — [why this pairs with the aesthetic]
@@ -1036,7 +1036,7 @@ If `$D extract` was used in Phase 5 (Path A), use the extracted tokens as the pr
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| [today] | Initial design system created | Created by /design-consultation based on [product context / research] |
+| [today] | Initial design system created | Created by /design-consultation based on [产品上下文 / research] |
 ```
 
 **Update CLAUDE.md** (or create it if it doesn't exist) — append this section:

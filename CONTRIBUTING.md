@@ -26,7 +26,7 @@ bin/dev-setup                  # 启用 dev mode
 bin/dev-teardown               # 关闭 dev mode，回到全局安装
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 Contributor mode 会把 gstack 变成一个可自我改进的工具。启用后，Claude Code
 会定期回顾自己使用 gstack 的体验，并在每个主要工作流步骤结束时打 0-10 分。

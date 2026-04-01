@@ -56,7 +56,7 @@
 - **刻度：** 2xs(2px) xs(4px) sm(8px) md(16px) lg(24px) xl(32px) 2xl(48px) 3xl(64px)
 
 ## 布局
-- **方式：** dashboard 使用严格网格；landing page 使用更偏 editorial 的 hero 布局
+- **方式：** dashboard 使用严格网格；落地页 使用更偏 editorial 的 hero 布局
 - **Grid：** `lg+` 为 12 列，移动端为单列
 - **最大内容宽度：** 1200px（6xl）
 - **圆角：** sm: 4px，md: 8px，lg: 12px，full: 9999px

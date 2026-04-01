@@ -180,7 +180,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -297,7 +297,7 @@ Before building anything unfamiliar, **搜索 first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -375,7 +375,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -410,7 +410,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -639,7 +639,7 @@ ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 
 **If test framework detected** (config files or test directories found):
 Print "Test framework detected: {name} ({N} existing tests). Skipping bootstrap."
-Read 2-3 existing test files to learn conventions (naming, imports, assertion style, 配置方式 patterns).
+Read 2-3 existing test files to learn conventions (naming, imports, assertion style, 配置 patterns).
 Store conventions as prose context for use in Phase 8e.5 or Step 3.4. **Skip the rest of bootstrap.**
 
 **If BOOTSTRAP_DECLINED** appears: Print "Test bootstrap previously declined — skipping." **Skip the rest of bootstrap.**
@@ -688,7 +688,7 @@ If multiple runtimes detected (monorepo) → ask which runtime to set up first, 
 1. Install the chosen packages (npm/bun/gem/pip/etc.)
 2. Create minimal config file
 3. Create directory structure (test/, spec/, etc.)
-4. Create one 示例 test matching the project's code to verify 配置方式 works
+4. Create one 示例 test matching the project's code to verify 配置 works
 
 If package installation fails → debug once. If still failing → revert with `git checkout -- package.json package-lock.json` (or equivalent for the runtime). Warn user and continue without tests.
 
@@ -724,7 +724,7 @@ ls .gitlab-ci.yml .circleci/ bitrise.yml 2>/dev/null
 If `.github/` exists (or no CI detected — default to GitHub Actions):
 Create `.github/workflows/test.yml` with:
 - `runs-on: ubuntu-latest`
-- Appropriate 配置方式 action for the runtime (配置方式-node, 配置方式-ruby, 配置方式-python, etc.)
+- Appropriate 配置 action for the runtime (配置-node, 配置-ruby, 配置-python, etc.)
 - The same test command verified in B5
 - Trigger: push + pull_request
 
@@ -739,7 +739,7 @@ Write 测试.md with:
 - Framework name and version
 - How to run tests (the verified command from B5)
 - Test layers: Unit tests (what, where, when), Integration tests, Smoke tests, E2E tests
-- Conventions: file naming, assertion style, 配置方式/teardown patterns
+- Conventions: file naming, assertion style, 配置/teardown patterns
 
 ### B7. Update CLAUDE.md
 
@@ -983,7 +983,7 @@ ls jest.config.* vitest.config.* playwright.config.* cypress.config.* .rspec pyt
 ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 ```
 
-3. **If no framework detected:** falls through to the Test Framework Bootstrap step (Step 2.5) which handles full 配置方式.
+3. **If no framework detected:** falls through to the Test Framework Bootstrap step (Step 2.5) which handles full 配置.
 
 **0. Before/after test count:**
 

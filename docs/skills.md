@@ -37,7 +37,7 @@ Detailed guides for every gstack skill — philosophy, 工作流, and examples.
 | [@@INLINE54@@](#safety--guardrails) | **Full Safety** | Combines /careful + /freeze in one command. Maximum safety for prod work. |
 | [@@INLINE55@@](#safety--guardrails) | **Unlock** | Remove the /freeze boundary, allowing edits everywhere again. |
 | [@@INLINE56@@](#connect-chrome) | **Chrome Controller** | Launch your real Chrome controlled by gstack with the Side Panel extension. Watch every action live. |
-| [@@INLINE57@@](#setup-deploy) | **Deploy Configurator** | One-time 配置方式 for `/land-and-deploy`. Detects your 平台, production URL, and deploy commands. |
+| [@@INLINE57@@](#setup-deploy) | **Deploy Configurator** | One-time 配置 for `/land-and-deploy`. Detects your 平台, production URL, and deploy commands. |
 | [@@INLINE59@@](#gstack-upgrade) | **Self-Updater** | Upgrade gstack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
 
 ---
@@ -434,7 +434,7 @@ The skill remembers your preferences across sessions. If you consistently prefer
 ### 示例
 
 ```
-You:   /design-shotgun — hero section for a developer tools landing page
+You:   /design-shotgun — hero section for a developer tools 落地页
 
 Claude: [Generates 3 variants]
         Variant A: Bold typography, dark background, code snippet hero
@@ -646,7 +646,7 @@ It merges the PR, waits for CI, waits for the deploy to finish, then runs canary
 
 First run on a new project triggers a dry-run walk-through so you can verify the pipeline before it does anything irreversible. After that, it trusts the config and runs straight through.
 
-### 配置方式
+### 配置
 
 Run `/setup-deploy` first. It detects your 平台 (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, or custom), discovers your production URL and health check endpoints, and writes the config to CLAUDE.md. One-time, 60 seconds.
 
@@ -1106,7 +1106,7 @@ Set `auto_upgrade: true` in `~/.gstack/config.yaml` to skip the prompt entirely 
 
 [Greptile](https://greptile.com) is a YC company that reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production. It has genuinely saved my ass more than once. I love these guys.
 
-### 配置方式
+### 配置
 
 Install Greptile on your GitHub repo at [greptile.com](https://greptile.com) — it takes about 30 seconds. Once it's reviewing your PRs, gstack picks up its comments automatically. No additional configuration.
 

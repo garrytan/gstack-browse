@@ -175,7 +175,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -292,7 +292,7 @@ Before building anything unfamiliar, **搜索 first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -370,7 +370,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -405,7 +405,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -421,7 +421,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-## 配置方式 (run this check BEFORE any browse command)
+## 配置 (run this check BEFORE any browse command)
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -520,7 +520,7 @@ the ones listed below. The user said `/land-and-deploy` which means DO IT — bu
 readiness first.
 
 **Always stop for:**
-- **First-run dry-run validation (Step 1.5)** — shows deploy infrastructure and confirms 配置方式
+- **First-run dry-run validation (Step 1.5)** — shows deploy infrastructure and confirms 配置
 - **Pre-merge readiness gate (Step 3.5)** — reviews, tests, docs check before merge
 - GitHub CLI not authenticated
 - No PR found for this branch
@@ -586,7 +586,7 @@ if [ ! -f ~/.gstack/projects/$SLUG/land-deploy-confirmed ]; then
 else
   # Check if deploy config has changed since confirmation
   SAVED_HASH=$(cat ~/.gstack/projects/$SLUG/land-deploy-confirmed 2>/dev/null)
-  CURRENT_HASH=$(sed -n '/## Deploy Configuration/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+  CURRENT_HASH=$(sed -n '/## 部署配置/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
   # Also hash workflow files that affect deploy behavior
   WORKFLOW_HASH=$(find .github/workflows -maxdepth 1 \( -name '*deploy*' -o -name '*cd*' \) 2>/dev/null | xargs cat 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
   COMBINED_HASH="${CURRENT_HASH}-${WORKFLOW_HASH}"
@@ -617,7 +617,7 @@ Tell the user:
 
 Here's what that means: I'll detect your deploy infrastructure, test that my commands actually work, and show you exactly what will happen — step by step — before I touch anything. Deploys are irreversible once they hit production, so I want to earn your trust before I start merging.
 
-Let me take a look at your 配置方式."
+Let me take a look at your 配置."
 
 ### 1.5a: 部署 infrastructure detection
 
@@ -625,7 +625,7 @@ Run the deploy configuration bootstrap to detect the 平台 and settings:
 
 ```bash
 # Check for persisted 部署 config in CLAUDE.md
-DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
+DEPLOY_CONFIG=$(grep -A 20 "## 部署配置" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
 echo "$DEPLOY_CONFIG"
 
 # If config exists, parse it
@@ -724,7 +724,7 @@ CLI to verify the deploy worked."
 
 Check for staging environments in this order:
 
-1. **CLAUDE.md persisted config:** Check for a staging URL in the Deploy Configuration section:
+1. **CLAUDE.md persisted config:** Check for a staging URL in the 部署配置 section:
 ```bash
 grep -i "staging" CLAUDE.md 2>/dev/null | head -3
 ```
@@ -765,28 +765,28 @@ Tell the user: "That's everything I detected. Take a look at the table above —
 
 Present the full dry-run results to the user via AskUserQuestion:
 
-- **Re-ground:** "First deploy dry-run for [project] on branch [branch]. Above is what I detected about your deploy infrastructure. Nothing has been merged or deployed yet — this is just my understanding of your 配置方式."
+- **Re-ground:** "First deploy dry-run for [project] on branch [branch]. Above is what I detected about your deploy infrastructure. Nothing has been merged or deployed yet — this is just my understanding of your 配置."
 - Show the infrastructure validation table from 1.5b above.
 - List any warnings from command validation, with plain-English explanations.
 - If staging was detected, note: "I found a staging environment at {url/工作流}. After we merge, I'll offer to deploy there first so you can verify everything works before it hits production."
 - If no staging was detected, note: "I didn't find a staging environment. The deploy will go straight to production — I'll run health checks right after to make sure everything looks good."
-- **RECOMMENDATION:** Choose A if all validations passed. Choose B if there are issues to fix. Choose C to run /配置方式-deploy for a more thorough configuration.
+- **RECOMMENDATION:** Choose A if all validations passed. Choose B if there are issues to fix. Choose C to run /配置-deploy for a more thorough configuration.
 - A) That's right — this is how my project deploys. Let's go. (Completeness: 10/10)
 - B) Something's off — let me tell you what's wrong (Completeness: 10/10)
-- C) I want to configure this more carefully first (runs /配置方式-deploy) (Completeness: 10/10)
+- C) I want to configure this more carefully first (runs /配置-deploy) (Completeness: 10/10)
 
-**If A:** Tell the user: "Great — I've saved this configuration. Next time you run `/land-and-deploy`, I'll skip the dry run and go straight to readiness checks. If your deploy 配置方式 changes (new 平台, different 工作流, updated URLs), I'll automatically re-run the dry run to make sure I still have it right."
+**If A:** Tell the user: "Great — I've saved this configuration. Next time you run `/land-and-deploy`, I'll skip the dry run and go straight to readiness checks. If your deploy 配置 changes (new 平台, different 工作流, updated URLs), I'll automatically re-run the dry run to make sure I still have it right."
 
 Save the deploy config fingerprint so we can detect future changes:
 ```bash
 mkdir -p ~/.gstack/projects/$SLUG
-CURRENT_HASH=$(sed -n '/## Deploy Configuration/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+CURRENT_HASH=$(sed -n '/## 部署配置/,/^## /p' CLAUDE.md 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
 WORKFLOW_HASH=$(find .github/workflows -maxdepth 1 \( -name '*deploy*' -o -name '*cd*' \) 2>/dev/null | xargs cat 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
 echo "${CURRENT_HASH}-${WORKFLOW_HASH}" > ~/.gstack/projects/$SLUG/land-deploy-confirmed
 ```
 Continue to Step 2.
 
-**If B:** **STOP.** "Tell me what's different about your 配置方式 and I'll adjust. You can also run `/setup-deploy` to walk through the full configuration."
+**If B:** **STOP.** "Tell me what's different about your 配置 and I'll adjust. You can also run `/setup-deploy` to walk through the full configuration."
 
 **If C:** **STOP.** "Running `/setup-deploy` will walk through your deploy 平台, production URL, and health checks in detail. It saves everything to CLAUDE.md so I'll know exactly what to do next time. Run `/land-and-deploy` again when that's done."
 
@@ -1125,7 +1125,7 @@ First, run the deploy configuration bootstrap to detect or read persisted deploy
 
 ```bash
 # Check for persisted 部署 config in CLAUDE.md
-DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
+DEPLOY_CONFIG=$(grep -A 20 "## 部署配置" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
 echo "$DEPLOY_CONFIG"
 
 # If config exists, parse it

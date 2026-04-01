@@ -180,7 +180,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -279,7 +279,7 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -357,7 +357,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -392,7 +392,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -800,7 +800,7 @@ Before producing findings, run every candidate through this filter.
 15. Security concerns in documentation files (*.md) — **EXCEPTION:** SKILL.md files are NOT documentation. They are executable prompt code (skill definitions) that control AI agent behavior. Findings from Phase 8 (Skill Supply Chain) in SKILL.md files must NEVER be excluded under this rule.
 16. Missing audit logs — absence of logging is not a vulnerability
 17. Insecure randomness in non-security contexts (e.g., UI element IDs)
-18. Git history secrets committed AND removed in the same initial-配置方式 PR
+18. Git history secrets committed AND removed in the same initial-配置 PR
 19. Dependency CVEs with CVSS < 4.0 and no known exploit
 20. Docker issues in files named `Dockerfile.dev` or `Dockerfile.local` unless referenced in prod deploy configs
 21. CI/CD findings on archived or disabled 工作流

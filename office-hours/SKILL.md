@@ -185,7 +185,7 @@ If A: Append this section to the end of CLAUDE.md:
 
 ```markdown
 
-## 技能 routing
+## 技能路由
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill
 tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
@@ -302,7 +302,7 @@ Before building anything unfamiliar, **搜索 first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor 模式
+## 贡献者模式
 
 If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major 工作流 step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
 
@@ -380,7 +380,7 @@ If you cannot determine the outcome, use "unknown". Both local JSONL and remote
 telemetry only run if telemetry is not off. The remote binary additionally requires
 the binary to exist.
 
-## 计划 模式 Safe 操作
+## 计划模式 Safe 操作
 
 When in plan mode, these 操作 are always allowed because they produce
 artifacts that inform the plan, not code changes:
@@ -415,7 +415,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 - If the output is `NO_REVIEWS` or empty: write this placeholder table:
 
 \`\`\`markdown
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|
@@ -431,7 +431,7 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-## 配置方式 (run this check BEFORE any browse command)
+## 配置 (run this check BEFORE any browse command)
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -678,7 +678,7 @@ If the framing is imprecise, **reframe constructively** — don't dissolve the q
 
 **Red flags:** "We need to build the full 平台 before anyone can really use it." "We could strip it down but then it wouldn't be differentiated." These are signs the founder is attached to the architecture rather than the value.
 
-**Bonus push:** "What if the user didn't have to do anything at all to get value? No login, no integration, no 配置方式. What would that look like?"
+**Bonus push:** "What if the user didn't have to do anything at all to get value? No login, no integration, no 配置. What would that look like?"
 
 #### Q5: Observation & Surprise
 
@@ -1085,7 +1085,7 @@ $B screenshot /tmp/gstack-sketch.png
 ```
 
 If `$B` is 不可用 (browse binary not set up), skip the render step. Tell the
-user: "Visual sketch requires the browse binary. Run the 配置方式 script to enable it."
+user: "Visual sketch requires the browse binary. Run the 配置 script to enable it."
 
 **Step 4: Present and iterate**
 

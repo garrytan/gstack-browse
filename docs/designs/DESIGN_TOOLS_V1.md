@@ -619,7 +619,7 @@ design binary 和 browse binary 一起构建与分发：
 - Failure modes：0 个关键缺口（所有已识别 failure mode 都有错误处理和测试计划）
 - Lake Score：`7/7`，所有建议都选择了完整方案
 
-## GSTACK 审查 报告
+## GSTACK 审查报告
 
 | Review | Trigger | Why | Runs | Status | Findings |
 |--------|---------|-----|------|--------|----------|

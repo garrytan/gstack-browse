@@ -43,7 +43,7 @@ Every `/review` now dispatches specialist subagents in parallel. Instead of one 
 - **Review checklist refactored.** Categories now covered by specialists (test gaps, dead code, magic numbers, 表现, crypto) removed from the main checklist. Main agent focuses on CRITICAL pass only.
 - **Delivery Integrity enhanced.** The existing plan completion audit now investigates WHY items are missing (not just that they're missing) and logs plan-file discrepancies as learnings. Commit-message inference is informational only, never persisted.
 
-## [0.14.3.0] - 2026-03-31 — Always-On Adversarial 审查 + Scope Drift + 计划 模式 设计 Tools
+## [0.14.3.0] - 2026-03-31 — Always-On Adversarial 审查 + Scope Drift + 计划模式 设计 Tools
 
 Every code review now runs adversarial analysis from both Claude and Codex, regardless of diff size. A 5-line auth change gets the same cross-model scrutiny as a 500-line feature. The old "skip adversarial for small diffs" heuristic is gone... diff size was never a good proxy for risk.
 
@@ -141,7 +141,7 @@ Skills can now load other skills inline. Write `{{INVOKE_SKILL:office-hours}}` i
 - **`{{INVOKE_SKILL:skill-name}}` resolver.** Composable skill loading as a first-class resolver. Emits host-aware prose that tells Claude or Codex to read another skill's SKILL.md and follow it inline, skipping preamble sections. Supports optional `skip=` parameter for additional sections to skip.
 - **Parameterized resolver support.** The placeholder regex now handles `{{NAME:arg1:arg2}}`, enabling resolvers that take arguments at generation time. Fully backward compatible with existing `{{NAME}}` patterns.
 - **`{{CHANGELOG_WORKFLOW}}` resolver.** Changelog generation logic extracted from /ship into a reusable resolver. Includes voice 指导 ("lead with what the user can now do") inline.
-- **Frontmatter `name:` for skill registration.** 配置方式 script and gen-skill-docs now read `name:` from SKILL.md frontmatter for symlink naming. Enables directory names that differ from invocation names (e.g., `run-tests/` directory registered as `/test`).
+- **Frontmatter `name:` for skill registration.** 配置 script and gen-skill-docs now read `name:` from SKILL.md frontmatter for symlink naming. Enables directory names that differ from invocation names (e.g., `run-tests/` directory registered as `/test`).
 - **Proactive skill routing.** Skills now ask once to add routing rules to your project's CLAUDE.md. This makes Claude invoke the right skill automatically instead of answering directly. Your choice is remembered in `~/.gstack/config.yaml`.
 - **Annotated config file.** `~/.gstack/config.yaml` now gets a documented 请求头 on first creation explaining every setting. Edit it anytime.
 
@@ -227,7 +227,7 @@ gstack now works with Factory Droid. 类型 `/qa` in Droid and get the same 29 s
 - **`gstack-platform-detect` binary.** Prints a table of installed AI coding agents with versions, skill paths, and gstack status. Useful for 调试 multi-host setups.
 - **Sensitive skill safety.** Six skills with side effects (ship, land-and-deploy, guard, careful, freeze, unfreeze) now declare `sensitive: true` in their templates. Factory Droids won't auto-invoke them. Claude and Codex output strips the field.
 - **Factory CI freshness check.** The skill-docs 工作流 now verifies Factory output is fresh on every PR.
-- **Factory awareness across operational tooling.** skill-check dashboard, gstack-uninstall, and 配置方式 script all know about Factory.
+- **Factory awareness across operational tooling.** skill-check dashboard, gstack-uninstall, and 配置 script all know about Factory.
 
 ### Changed
 
@@ -252,7 +252,7 @@ The Chrome sidebar now defends against prompt injection attacks. Three layers: X
 
 ## [0.13.3.0] - 2026-03-28 — Lock It Down
 
-Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every 配置方式.
+Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every 配置.
 
 ### Fixed
 
@@ -358,11 +358,11 @@ Fixes 20 Socket alerts and 3 Snyk findings from the skills.sh security audit. Yo
 
 ## [0.12.11.0] - 2026-03-27 — 技能 Prefix is Now Your Choice
 
-You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/review`) or namespaced (`/gstack-qa`, `/gstack-ship`). 配置方式 asks on first run, remembers your preference, and switching is one command.
+You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/review`) or namespaced (`/gstack-qa`, `/gstack-ship`). 配置 asks on first run, remembers your preference, and switching is one command.
 
 ### Added
 
-- **Interactive prefix choice on first 配置方式.** New installs get a prompt: short names (`/qa`, `/ship`) or namespaced (`/gstack-qa`, `/gstack-ship`). Short names are recommended. Your choice is saved to `~/.gstack/config.yaml` and remembered across upgrades.
+- **Interactive prefix choice on first 配置.** New installs get a prompt: short names (`/qa`, `/ship`) or namespaced (`/gstack-qa`, `/gstack-ship`). Short names are recommended. Your choice is saved to `~/.gstack/config.yaml` and remembered across upgrades.
 - **`--prefix` flag.** Complement to `--no-prefix`. Both flags persist your choice so you only decide once.
 - **Reverse symlink cleanup.** Switching from namespaced to flat (or vice versa) now cleans up the old symlinks. No more duplicate commands showing up in Claude Code.
 - **Namespace-aware skill suggestions.** All 28 skill templates now check your prefix setting. When one skill suggests another (like `/ship` suggesting `/qa`), it uses the right name for your install.
@@ -370,7 +370,7 @@ You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/revi
 ### Fixed
 
 - **`gstack-config` works on Linux.** Replaced BSD-only `sed -i ''` with portable `mktemp`+`mv`. Config writes now work on GNU/Linux and WSL.
-- **Dead welcome message.** The "Welcome!" message on first install was never shown because `~/.gstack/` was created earlier in 配置方式. Fixed with a `.welcome-seen` sentinel file.
+- **Dead welcome message.** The "Welcome!" message on first install was never shown because `~/.gstack/` was created earlier in 配置. Fixed with a `.welcome-seen` sentinel file.
 
 ### For contributors
 
@@ -573,7 +573,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **Chrome extension.** Toolbar badge (green=connected, gray=not), Side Panel with activity feed + chat + refs tab, @ref overlays on the page, and a connection pill showing which window gstack controls. Auto-loads when you run `$B connect`.
 
-- **`/connect-chrome` skill.** Guided 配置方式: launches Chrome, verifies the extension, demos the activity feed, and introduces the sidebar chat.
+- **`/connect-chrome` skill.** Guided 配置: launches Chrome, verifies the extension, demos the activity feed, and introduces the sidebar chat.
 
 ### Changed
 
@@ -776,7 +776,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 ### Added
 
-- **E2E evals now run in CI on every PR.** 12 parallel GitHub Actions runners on Ubicloud spin up per PR, each running one test suite. Docker image pre-bakes bun, node, Claude CLI, and deps so 配置方式 is near-instant. Results posted as a PR comment with pass/fail + cost breakdown.
+- **E2E evals now run in CI on every PR.** 12 parallel GitHub Actions runners on Ubicloud spin up per PR, each running one test suite. Docker image pre-bakes bun, node, Claude CLI, and deps so 配置 is near-instant. Results posted as a PR comment with pass/fail + cost breakdown.
 - **3x faster eval runs.** All E2E tests run concurrently within files via `testConcurrentIfSelected`. Wall clock drops from ~18min to ~6min — limited by the slowest individual test, not sequential sum.
 - **Docker CI image** (`Dockerfile.ci`) with pre-installed toolchain. Rebuilds automatically when Dockerfile or package.json changes, cached by content hash in GHCR.
 
@@ -794,7 +794,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 ### Fixed
 
-- **Codex no longer rejects gstack skills with "invalid SKILL.md".** Existing installs had oversized description fields (>1024 chars) that Codex silently rejected. The build now errors if any Codex description exceeds 1024 chars, 配置方式 always regenerates `.agents/` to prevent stale files, and a one-time migration auto-cleans oversized descriptions on existing installs.
+- **Codex no longer rejects gstack skills with "invalid SKILL.md".** Existing installs had oversized description fields (>1024 chars) that Codex silently rejected. The build now errors if any Codex description exceeds 1024 chars, 配置 always regenerates `.agents/` to prevent stale files, and a one-time migration auto-cleans oversized descriptions on existing installs.
 - **`package.json` version now stays in sync with `VERSION`.** Was 6 minor versions behind. A new CI test catches future drift.
 
 ### Added
@@ -896,19 +896,19 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 ### Fixed
 
 - **Codex no longer shows "exceeds maximum length of 1024 characters" on startup.** Skill descriptions compressed from ~1,200 words to ~280 words — well under the limit. Every skill now has a test enforcing the cap.
-- **No more duplicate skill discovery.** Codex used to find both 来源 SKILL.md files and generated Codex skills, showing every skill twice. 配置方式 now creates a minimal runtime root at `~/.codex/skills/gstack` with only the assets Codex needs — no 来源 files exposed.
-- **Old direct installs auto-migrate.** If you previously cloned gstack into `~/.codex/skills/gstack`, 配置方式 detects this and moves it to `~/.gstack/repos/gstack` so skills aren't discovered from the 来源 checkout.
+- **No more duplicate skill discovery.** Codex used to find both 来源 SKILL.md files and generated Codex skills, showing every skill twice. 配置 now creates a minimal runtime root at `~/.codex/skills/gstack` with only the assets Codex needs — no 来源 files exposed.
+- **Old direct installs auto-migrate.** If you previously cloned gstack into `~/.codex/skills/gstack`, 配置 detects this and moves it to `~/.gstack/repos/gstack` so skills aren't discovered from the 来源 checkout.
 - **Sidecar directory no longer linked as a skill.** The `.agents/skills/gstack` runtime asset directory was incorrectly symlinked alongside real skills — now skipped.
 
 ### Added
 
 - **Repo-local Codex installs.** Clone gstack into `.agents/skills/gstack` inside any repo and run `./setup --host codex` — skills install next to the checkout, no global `~/.codex/` needed. Generated preambles auto-detect whether to use repo-local or global paths at runtime.
 - **Kiro CLI support.** `./setup --host kiro` installs skills for the Kiro agent 平台, rewriting paths and symlinking runtime assets. Auto-detected by `--host auto` if `kiro-cli` is installed.
-- **`.agents/` is now gitignored.** Generated Codex skill files are no longer committed — they're created at 配置方式 time from templates. Removes 14,000+ lines of generated output from the repo.
+- **`.agents/` is now gitignored.** Generated Codex skill files are no longer committed — they're created at 配置 time from templates. Removes 14,000+ lines of generated output from the repo.
 
 ### Changed
 
-- **`GSTACK_DIR` renamed to `SOURCE_GSTACK_DIR` / `INSTALL_GSTACK_DIR`** throughout the 配置方式 script for 清晰度 about which path points to the 来源 repo vs the install location.
+- **`GSTACK_DIR` renamed to `SOURCE_GSTACK_DIR` / `INSTALL_GSTACK_DIR`** throughout the 配置 script for 清晰度 about which path points to the 来源 repo vs the install location.
 - **CI validates Codex generation succeeds** instead of checking committed file freshness (since `.agents/` is no longer committed).
 
 ## [0.11.1.1] - 2026-03-22 — 计划 Files Always Show 审查 状态
@@ -1008,7 +1008,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **`ship-local-workflow` no longer wastes 6 of 15 turns.** Ship 工作流 步骤 are inlined in the test prompt instead of having the agent read the 700+ line SKILL.md at runtime.
 - **`design-consultation-core` no longer fails on synonym sections.** "Colors" matches "Color", "类型 System" matches "Typography" — fuzzy synonym-based matching with all 7 sections still required.
 
-## [0.9.7.0] - 2026-03-21 — 计划 File 审查 报告
+## [0.9.7.0] - 2026-03-21 — 计划 File 审查报告
 
 ### Added
 
@@ -1059,7 +1059,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 ### Fixed
 
-- **gstack now works on Windows 11.** 配置方式 no longer hangs when verifying Playwright, and the browse server automatically falls back to Node.js to work around a Bun pipe-handling bug on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). Just make sure Node.js is installed alongside Bun. macOS and Linux are completely unaffected.
+- **gstack now works on Windows 11.** 配置 no longer hangs when verifying Playwright, and the browse server automatically falls back to Node.js to work around a Bun pipe-handling bug on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). Just make sure Node.js is installed alongside Bun. macOS and Linux are completely unaffected.
 - **Path handling works on Windows.** All hardcoded `/tmp` paths and Unix-style path separators now use 平台-aware equivalents via a new `platform.ts` module. Path traversal protection works correctly with Windows backslash separators.
 
 ### Added
@@ -1151,7 +1151,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 ### Fixed
 
 - **Browse no longer navigates to dangerous URLs.** `goto`, `diff`, and `newtab` now block `file://`, `javascript:`, `data:` schemes and cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`). Localhost and private IPs are still allowed for local QA 测试. (Closes #17)
-- **配置方式 script tells you what's missing.** Running `./setup` without `bun` installed now shows a clear error with install instructions instead of a cryptic "command not found." (Closes #147)
+- **配置 script tells you what's missing.** Running `./setup` without `bun` installed now shows a clear error with install instructions instead of a cryptic "command not found." (Closes #147)
 - **`/debug` renamed to `/investigate`.** Claude Code has a built-in `/debug` command that shadowed the gstack skill. The systematic root-cause 调试 工作流 now lives at `/investigate`. (Closes #190)
 - **Shell injection surface reduced.** gstack-slug output is now sanitized to `[a-zA-Z0-9._-]` only, making both `eval` and `source` callers safe. (Closes #133)
 - **25 new security tests.** URL validation (16 tests) and path traversal validation (14 tests) now have dedicated unit test suites covering scheme blocking, metadata IP blocking, directory escapes, and prefix collision edge cases.
@@ -1567,16 +1567,16 @@ Read the philosophy: https://garryslist.org/posts/boil-the-ocean
 - `test/helpers/skill-parser.ts` — `getRemoteSlug()` for git remote detection.
 
 ### Fixed
-- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md 配置方式 blocks.
+- **Browse binary discovery broken for agents** — replaced `find-browse` indirection with explicit `browse/dist/browse` path in SKILL.md 配置 blocks.
 - **Update check exit code 1 misleading agents** — added `|| true` to prevent non-zero exit when no update available.
-- **browse/SKILL.md missing 配置方式 block** — added `{{BROWSE_SETUP}}` placeholder.
+- **browse/SKILL.md missing 配置 block** — added `{{BROWSE_SETUP}}` placeholder.
 - **plan-ceo-review timeout** — init git repo in test dir, skip codebase exploration, bump timeout to 420s.
 - Planted-bug eval reliability — simplified prompts, lowered detection baselines, resilient to max_turns flakes.
 
 ### Changed
 - **Template system expanded** — `{{UPDATE_CHECK}}` and `{{BROWSE_SETUP}}` placeholders in `gen-skill-docs.ts`. All browse-using skills generate from single 来源 of truth.
 - Enriched 14 command descriptions with specific arg formats, valid values, error behavior, and return types.
-- 配置方式 block checks workspace-local path first (for development), falls back to global install.
+- 配置 block checks workspace-local path first (for development), falls back to global install.
 - LLM eval judge upgraded from Haiku to Sonnet 4.6.
 - `generateHelpText()` auto-generated from COMMAND_DESCRIPTIONS (replaces hand-maintained help text).
 
@@ -1597,7 +1597,7 @@ Read the philosophy: https://garryslist.org/posts/boil-the-ocean
 - `test/helpers/skill-parser.ts` — extracts and validates `$B` commands from Markdown
 - `test/helpers/session-runner.ts` — Agent SDK wrapper with error pattern scanning and transcript saving
 - **ARCHITECTURE.md** — design decisions document covering daemon model, security, ref system, logging, crash recovery
-- **Conductor integration** (`conductor.json`) — lifecycle hooks for workspace 配置方式/teardown
+- **Conductor integration** (`conductor.json`) — lifecycle hooks for workspace 配置/teardown
 - **`.env` propagation** — `bin/dev-setup` copies `.env` from main worktree into Conductor workspaces automatically
 - `.env.example` template for API key configuration
 
@@ -1638,11 +1638,11 @@ Read the philosophy: https://garryslist.org/posts/boil-the-ocean
 - Log files location: `.gstack/browse-{console,network,dialog}.log` (was `/tmp/browse-*.log`)
 - Atomic state file writes: `.json.tmp` → rename (prevents partial reads)
 - CLI passes `BROWSE_STATE_FILE` to spawned server (server derives all paths from it)
-- SKILL.md 配置方式 checks parse META signals and handle `META:UPDATE_AVAILABLE`
+- SKILL.md 配置 checks parse META signals and handle `META:UPDATE_AVAILABLE`
 - `/qa` SKILL.md now describes four modes (diff-aware, full, quick, regression) with diff-aware as the default on feature branches
 - `jsonResponse`/`errorResponse` use options objects to prevent positional parameter confusion
 - Build script compiles both `browse` and `find-browse` binaries, cleans up `.bun-build` temp files
-- README updated with Greptile 配置方式 instructions, diff-aware QA examples, and revised demo transcript
+- README updated with Greptile 配置 instructions, diff-aware QA examples, and revised demo transcript
 
 ### Removed
 - `CONDUCTOR_PORT` magic offset (`browse_port = CONDUCTOR_PORT - 45600`)
@@ -1701,7 +1701,7 @@ Read the philosophy: https://garryslist.org/posts/boil-the-ocean
 - Fix unbounded restart loop in CLI when server crashes repeatedly on the same command
 - Cap console/network buffers at 50k entries (ring buffer) instead of growing without bound
 - Fix disk flush stopping silently after buffer hits the 50k cap
-- Fix `ln -snf` in 配置方式 to avoid creating nested symlinks on upgrade
+- Fix `ln -snf` in 配置 to avoid creating nested symlinks on upgrade
 - Use `git fetch && git reset --hard` instead of `git pull` for upgrades (handles force-pushes)
 - Simplify install: global-first with optional project 文案 (replaces submodule approach)
 - Restructured README: hero, before/after, demo transcript, troubleshooting section
