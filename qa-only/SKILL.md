@@ -3,11 +3,10 @@ name: qa-only
 preamble-tier: 4
 version: 1.0.0
 description: |
-  Report-only QA testing. Systematically tests a web application and produces a
-  structured report with health score, screenshots, and repro steps — but never
-  fixes anything. Use when asked to "just report bugs", "qa report only", or
-  "test but don't fix". For the full test-fix-verify loop, use /qa instead.
-  Proactively suggest when the user wants a bug report without any code changes. (gstack)
+  只做报告的 QA 测试。系统化测试一个 Web 应用，产出带健康分、截图和复现步骤的
+  结构化报告，但绝不修任何问题。适用于用户说 “just report bugs”、“qa report only”
+  或 “test but don't fix” 的场景。若要执行完整的测试-修复-验证闭环，应使用 `/qa`。
+  当用户只想拿 bug report、不希望发生任何代码改动时，也应主动建议使用。（gstack）
 allowed-tools:
   - Bash
   - Read
@@ -18,7 +17,7 @@ allowed-tools:
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
 
-## Preamble (run first)
+## Preamble（先运行）
 
 ```bash
 _UPD=$(~/.claude/skills/gstack/bin/gstack-update-check 2>/dev/null || .claude/skills/gstack/bin/gstack-update-check 2>/dev/null || true)
@@ -78,8 +77,6 @@ fi
 _ROUTING_DECLINED=$(~/.claude/skills/gstack/bin/gstack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
-```
-
 ```
 
 如果 `PROACTIVE` 是 `"false"`，就不要主动推荐 gstack skills，也不要根据对话上下文自动调用 skill。只在用户显式输入 skill 时才运行，例如 `/qa`、`/ship`。如果原本会自动调用某个 skill，就改成简短提示：
@@ -170,21 +167,21 @@ touch ~/.gstack/.proactive-prompted
 
 ## Skill routing
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
+当用户的请求匹配某个可用 skill 时，第一步必须优先调用该 Skill 工具。
+不要先直接回答，也不要先调用其他工具。
+这些 skill 内置了更专业的工作流，效果会比临时发挥更好。
 
-Key routing rules:
-- Product ideas, "is this worth building", brainstorming → invoke office-hours
-- Bugs, errors, "why is this broken", 500 errors → invoke investigate
-- Ship, deploy, push, create PR → invoke ship
-- QA, test the site, find bugs → invoke qa
-- Code review, check my diff → invoke review
-- Update docs after shipping → invoke document-release
-- Weekly retro → invoke retro
-- Design system, brand → invoke design-consultation
-- Visual audit, design polish → invoke design-review
-- Architecture review → invoke plan-eng-review
+关键 routing 规则：
+- 产品想法、"is this worth building"、brainstorming → 调用 office-hours
+- Bug、错误、"why is this broken"、500 错误 → 调用 investigate
+- Ship、deploy、push、create PR → 调用 ship
+- QA、测试站点、找 bug → 调用 qa
+- 代码评审、检查 diff → 调用 review
+- 发版后更新文档 → 调用 document-release
+- 周度复盘 → 调用 retro
+- 设计系统、品牌方向 → 调用 design-consultation
+- 视觉审查、设计抛光 → 调用 design-review
+- 架构评审 → 调用 plan-eng-review
 ```
 
 然后提交这个改动：`git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"`
@@ -385,27 +382,27 @@ fi
 
 **PLAN MODE 例外，必须始终运行。** 这一步会写计划文件，而计划文件正是 plan mode 下允许编辑的文件。review report 是计划状态的一部分。
 
-# /qa-only: Report-Only QA Testing
+# `/qa-only`：只报告、不修复的 QA 测试
 
-You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence. **NEVER fix anything.**
+你是一名 QA 工程师。要像真实用户一样测试 Web 应用，点所有该点的地方，填所有表单，检查每一种状态。最终产出一份带证据的结构化报告。**绝对不要修任何问题。**
 
-## Setup
+## 设置
 
-**Parse the user's request for these parameters:**
+**先从用户请求中解析这些参数：**
 
-| Parameter | Default | Override example |
-|-----------|---------|-----------------:|
-| Target URL | (auto-detect or required) | `https://myapp.com`, `http://localhost:3000` |
-| Mode | full | `--quick`, `--regression .gstack/qa-reports/baseline.json` |
-| Output dir | `.gstack/qa-reports/` | `Output to /tmp/qa` |
-| Scope | Full app (or diff-scoped) | `Focus on the billing page` |
-| Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
+| 参数 | 默认值 | 覆盖示例 |
+|------|--------|---------:|
+| 目标 URL | 自动检测，或必须提供 | `https://myapp.com`、`http://localhost:3000` |
+| 模式 | `full` | `--quick`、`--regression .gstack/qa-reports/baseline.json` |
+| 输出目录 | `.gstack/qa-reports/` | `Output to /tmp/qa` |
+| 范围 | 全应用（或按 diff 缩小） | `Focus on the billing page` |
+| 鉴权 | 无 | `Sign in to user@example.com`、`Import cookies from cookies.json` |
 
-**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
+**如果用户没给 URL，且当前在 feature branch 上：** 自动进入 **diff-aware mode**（见下方 Modes）。这是最常见场景，用户刚在分支上做完改动，想确认东西还正常。
 
-**Find the browse binary:**
+**找到 browse binary：**
 
-## SETUP (run this check BEFORE any browse command)
+## SETUP（在任何 browse 命令前先运行这个检查）
 
 ```bash
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -419,10 +416,10 @@ else
 fi
 ```
 
-If `NEEDS_SETUP`:
-1. Tell the user: "gstack browse needs a one-time build (~10 seconds). OK to proceed?" Then STOP and wait.
-2. Run: `cd <SKILL_DIR> && ./setup`
-3. If `bun` is not installed:
+如果输出 `NEEDS_SETUP`：
+1. 先告诉用户：`gstack browse needs a one-time build (~10 seconds). OK to proceed?` 然后停止等待
+2. 运行：`cd <SKILL_DIR> && ./setup`
+3. 如果没有安装 `bun`：
    ```bash
    if ! command -v bun >/dev/null 2>&1; then
      BUN_VERSION="1.3.10"
@@ -441,7 +438,7 @@ If `NEEDS_SETUP`:
    fi
    ```
 
-**Create output directories:**
+**创建输出目录：**
 
 ```bash
 REPORT_DIR=".gstack/qa-reports"
@@ -450,92 +447,92 @@ mkdir -p "$REPORT_DIR/screenshots"
 
 ---
 
-## Test Plan Context
+## 测试计划上下文
 
-Before falling back to git diff heuristics, check for richer test plan sources:
+在退回到 `git diff` 启发式之前，先检查是否存在更丰富的测试计划来源：
 
-1. **Project-scoped test plans:** Check `~/.gstack/projects/` for recent `*-test-plan-*.md` files for this repo
+1. **项目级测试计划：** 检查 `~/.gstack/projects/` 里是否有这个仓库最近的 `*-test-plan-*.md` 文件
    ```bash
    setopt +o nomatch 2>/dev/null || true  # zsh compat
    eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
    ls -t ~/.gstack/projects/$SLUG/*-test-plan-*.md 2>/dev/null | head -1
    ```
-2. **Conversation context:** Check if a prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
-3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
+2. **当前对话上下文：** 检查本轮会话里是否已经有 `/plan-eng-review` 或 `/plan-ceo-review` 产出的测试计划
+3. **谁更完整就用谁。** 只有当这两种来源都不存在时，才退回到 `git diff` 分析。
 
 ---
 
-## Modes
+## 模式
 
-### Diff-aware (automatic when on a feature branch with no URL)
+### Diff-aware（当处于 feature branch 且未提供 URL 时自动启用）
 
-This is the **primary mode** for developers verifying their work. When the user says `/qa` without a URL and the repo is on a feature branch, automatically:
+这是开发者验证自己改动时的**主模式**。当用户在 feature branch 上直接执行 `/qa`，却没有给 URL 时，自动执行以下流程：
 
-1. **Analyze the branch diff** to understand what changed:
+1. **分析分支 diff**，搞清楚改了什么：
    ```bash
    git diff main...HEAD --name-only
    git log main..HEAD --oneline
    ```
 
-2. **Identify affected pages/routes** from the changed files:
-   - Controller/route files → which URL paths they serve
-   - View/template/component files → which pages render them
-   - Model/service files → which pages use those models (check controllers that reference them)
-   - CSS/style files → which pages include those stylesheets
-   - API endpoints → test them directly with `$B js "await fetch('/api/...')"`
-   - Static pages (markdown, HTML) → navigate to them directly
+2. **从改动文件反推受影响页面 / 路由：**
+   - Controller / route 文件，对应它们服务的 URL
+   - View / template / component 文件，对应会渲染它们的页面
+   - Model / service 文件，对应依赖这些模型的页面（去看引用它们的 controller）
+   - CSS / style 文件，对应引入这些样式的页面
+   - API endpoint，可直接用 `$B js "await fetch('/api/...')"` 测
+   - 静态页面（markdown、HTML），直接导航过去
 
-   **If no obvious pages/routes are identified from the diff:** Do not skip browser testing. The user invoked /qa because they want browser-based verification. Fall back to Quick mode — navigate to the homepage, follow the top 5 navigation targets, check console for errors, and test any interactive elements found. Backend, config, and infrastructure changes affect app behavior — always verify the app still works.
+   **如果从 diff 里看不出明显的页面 / 路由：** 也不要跳过浏览器测试。用户调用 `/qa`，本质上就是要做基于浏览器的验证。这时退回到 Quick mode，打开首页、依次走前 5 个导航目标、检查 console 错误，并测试能看到的交互元素。后端、配置和基础设施改动同样会影响行为，所以始终要确认应用仍然能跑。
 
-3. **Detect the running app** — check common local dev ports:
+3. **检测运行中的应用**，依次试常见本地端口：
    ```bash
    $B goto http://localhost:3000 2>/dev/null && echo "Found app on :3000" || \
    $B goto http://localhost:4000 2>/dev/null && echo "Found app on :4000" || \
    $B goto http://localhost:8080 2>/dev/null && echo "Found app on :8080"
    ```
-   If no local app is found, check for a staging/preview URL in the PR or environment. If nothing works, ask the user for the URL.
+   如果没找到本地应用，就去 PR 或环境变量里找 staging / preview URL。还找不到，就问用户要 URL。
 
-4. **Test each affected page/route:**
-   - Navigate to the page
-   - Take a screenshot
-   - Check console for errors
-   - If the change was interactive (forms, buttons, flows), test the interaction end-to-end
-   - Use `snapshot -D` before and after actions to verify the change had the expected effect
+4. **测试每个受影响页面 / 路由：**
+   - 打开页面
+   - 截图
+   - 检查 console 是否报错
+   - 如果改动涉及交互（表单、按钮、流程），就从头到尾测通一次
+   - 在动作前后使用 `snapshot -D`，确认变化是否符合预期
 
-5. **Cross-reference with commit messages and PR description** to understand *intent* — what should the change do? Verify it actually does that.
+5. **结合 commit message 和 PR 描述理解意图**。这次改动理论上应该做成什么？然后验证它是否真的做到了。
 
-6. **Check TODOS.md** (if it exists) for known bugs or issues related to the changed files. If a TODO describes a bug that this branch should fix, add it to your test plan. If you find a new bug during QA that isn't in TODOS.md, note it in the report.
+6. **检查 `TODOS.md`**（如果存在），看里面有没有与这些改动文件相关的已知 bug 或问题。若某条 TODO 描述的是这条分支本应修掉的问题，就把它纳入测试计划。若你在 QA 中发现了 `TODOS.md` 里没有的新 bug，就写进报告。
 
-7. **Report findings** scoped to the branch changes:
-   - "Changes tested: N pages/routes affected by this branch"
-   - For each: does it work? Screenshot evidence.
-   - Any regressions on adjacent pages?
+7. **按分支改动范围出具报告：**
+   - `Changes tested: N pages/routes affected by this branch`
+   - 对每一项说明是否正常，并附上截图证据
+   - 检查相邻页面是否被带出回归
 
-**If the user provides a URL with diff-aware mode:** Use that URL as the base but still scope testing to the changed files.
+**如果用户在 diff-aware mode 下提供了 URL：** 就用它作为测试基准入口，但范围依然围绕改动文件。
 
-### Full (default when URL is provided)
-Systematic exploration. Visit every reachable page. Document 5-10 well-evidenced issues. Produce health score. Takes 5-15 minutes depending on app size.
+### Full（提供 URL 时的默认模式）
+系统化探索。访问所有可达页面，记录 5-10 个证据充分的问题，给出 health score。耗时一般在 5-15 分钟，取决于应用大小。
 
-### Quick (`--quick`)
-30-second smoke test. Visit homepage + top 5 navigation targets. Check: page loads? Console errors? Broken links? Produce health score. No detailed issue documentation.
+### Quick（`--quick`）
+30 秒 smoke test。访问首页和前 5 个导航目标，只检查：页面能否打开？console 是否报错？是否有明显坏链？需要给出 health score，但不要求详细 issue 文档。
 
-### Regression (`--regression <baseline>`)
-Run full mode, then load `baseline.json` from a previous run. Diff: which issues are fixed? Which are new? What's the score delta? Append regression section to report.
+### Regression（`--regression <baseline>`）
+先执行 full mode，再读取上一轮的 `baseline.json`。对比：哪些问题修掉了？哪些是新增的？健康分变化多少？最后把 regression 小节追加进报告。
 
 ---
 
-## Workflow
+## 工作流
 
-### Phase 1: Initialize
+### 第 1 阶段：初始化
 
-1. Find browse binary (see Setup above)
-2. Create output directories
-3. Copy report template from `qa/templates/qa-report-template.md` to output dir
-4. Start timer for duration tracking
+1. 找到 browse binary（见上面的 Setup）
+2. 创建输出目录
+3. 把 `qa/templates/qa-report-template.md` 复制到输出目录
+4. 启动计时器，用于记录耗时
 
-### Phase 2: Authenticate (if needed)
+### 第 2 阶段：鉴权（如需要）
 
-**If the user specified auth credentials:**
+**如果用户给了登录信息：**
 
 ```bash
 $B goto <login-url>
@@ -546,20 +543,20 @@ $B click @e5                      # submit
 $B snapshot -D                    # verify login succeeded
 ```
 
-**If the user provided a cookie file:**
+**如果用户给了 cookie 文件：**
 
 ```bash
 $B cookie-import cookies.json
 $B goto <target-url>
 ```
 
-**If 2FA/OTP is required:** Ask the user for the code and wait.
+**如果需要 2FA / OTP：** 向用户要验证码，然后等待。
 
-**If CAPTCHA blocks you:** Tell the user: "Please complete the CAPTCHA in the browser, then tell me to continue."
+**如果被 CAPTCHA 挡住：** 告诉用户：`Please complete the CAPTCHA in the browser, then tell me to continue.`
 
-### Phase 3: Orient
+### 第 3 阶段：建立地图
 
-Get a map of the application:
+先拿到应用的整体地图：
 
 ```bash
 $B goto <target-url>
@@ -568,17 +565,17 @@ $B links                          # map navigation structure
 $B console --errors               # any errors on landing?
 ```
 
-**Detect framework** (note in report metadata):
-- `__next` in HTML or `_next/data` requests → Next.js
-- `csrf-token` meta tag → Rails
-- `wp-content` in URLs → WordPress
-- Client-side routing with no page reloads → SPA
+**检测框架**（写进报告元数据）：
+- HTML 中出现 `__next` 或网络里出现 `_next/data` 请求，说明是 Next.js
+- 出现 `csrf-token` meta tag，说明可能是 Rails
+- URL 里有 `wp-content`，说明可能是 WordPress
+- 页面导航不刷新、纯客户端切换路由，说明是 SPA
 
-**For SPAs:** The `links` command may return few results because navigation is client-side. Use `snapshot -i` to find nav elements (buttons, menu items) instead.
+**对于 SPA：** `links` 命令可能返回很少结果，因为导航发生在客户端。应改用 `snapshot -i` 找到导航元素，比如按钮和菜单项。
 
-### Phase 4: Explore
+### 第 4 阶段：探索
 
-Visit pages systematically. At each page:
+系统化访问页面。每到一个页面，都先做：
 
 ```bash
 $B goto <page-url>
@@ -586,37 +583,37 @@ $B snapshot -i -a -o "$REPORT_DIR/screenshots/page-name.png"
 $B console --errors
 ```
 
-Then follow the **per-page exploration checklist** (see `qa/references/issue-taxonomy.md`):
+然后按 **逐页探索清单** 执行（见 `qa/references/issue-taxonomy.md`）：
 
-1. **Visual scan** — Look at the annotated screenshot for layout issues
-2. **Interactive elements** — Click buttons, links, controls. Do they work?
-3. **Forms** — Fill and submit. Test empty, invalid, edge cases
-4. **Navigation** — Check all paths in and out
-5. **States** — Empty state, loading, error, overflow
-6. **Console** — Any new JS errors after interactions?
-7. **Responsiveness** — Check mobile viewport if relevant:
+1. **Visual scan**，看带标注截图里有没有布局问题
+2. **Interactive elements**，把按钮、链接、控件都点一遍，看是否工作
+3. **Forms**，填写并提交，测试空值、非法输入和边界情况
+4. **Navigation**，检查所有进出路径
+5. **States**，观察空状态、加载态、报错态、溢出态
+6. **Console**，交互之后有没有新增 JS 报错
+7. **Responsiveness**，如果相关，就顺手测移动端视口：
    ```bash
    $B viewport 375x812
    $B screenshot "$REPORT_DIR/screenshots/page-mobile.png"
    $B viewport 1280x720
    ```
 
-**Depth judgment:** Spend more time on core features (homepage, dashboard, checkout, search) and less on secondary pages (about, terms, privacy).
+**深度判断：** 核心功能页面（首页、dashboard、checkout、search）多花时间，次要页面（about、terms、privacy）少花时间。
 
-**Quick mode:** Only visit homepage + top 5 navigation targets from the Orient phase. Skip the per-page checklist — just check: loads? Console errors? Broken links visible?
+**Quick mode：** 只访问首页和第 3 阶段识别出的前 5 个导航目标。跳过完整逐页清单，只看：能不能打开？console 报不报错？能不能看见坏链？
 
-### Phase 5: Document
+### 第 5 阶段：记录
 
-Document each issue **immediately when found** — don't batch them.
+每发现一个问题，就**立刻**记录。不要攒到最后一起写。
 
-**Two evidence tiers:**
+**证据分两档：**
 
-**Interactive bugs** (broken flows, dead buttons, form failures):
-1. Take a screenshot before the action
-2. Perform the action
-3. Take a screenshot showing the result
-4. Use `snapshot -D` to show what changed
-5. Write repro steps referencing screenshots
+**交互类 bug**（流程断掉、按钮失效、表单提交失败）：
+1. 先截动作前的图
+2. 执行动作
+3. 再截结果图
+4. 用 `snapshot -D` 展示发生了什么变化
+5. 写复现步骤时引用这些截图
 
 ```bash
 $B screenshot "$REPORT_DIR/screenshots/issue-001-step-1.png"
@@ -625,24 +622,24 @@ $B screenshot "$REPORT_DIR/screenshots/issue-001-result.png"
 $B snapshot -D
 ```
 
-**Static bugs** (typos, layout issues, missing images):
-1. Take a single annotated screenshot showing the problem
-2. Describe what's wrong
+**静态类 bug**（错字、布局问题、图片缺失）：
+1. 拍一张带标注的截图，直接展示问题
+2. 简要描述哪里不对
 
 ```bash
 $B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
 ```
 
-**Write each issue to the report immediately** using the template format from `qa/templates/qa-report-template.md`.
+**每个 issue 都立刻写进报告**，格式遵循 `qa/templates/qa-report-template.md`。
 
-### Phase 6: Wrap Up
+### 第 6 阶段：收尾
 
-1. **Compute health score** using the rubric below
-2. **Write "Top 3 Things to Fix"** — the 3 highest-severity issues
-3. **Write console health summary** — aggregate all console errors seen across pages
-4. **Update severity counts** in the summary table
-5. **Fill in report metadata** — date, duration, pages visited, screenshot count, framework
-6. **Save baseline** — write `baseline.json` with:
+1. **按下面的规则计算 health score**
+2. **写出 `Top 3 Things to Fix`**，也就是最严重的 3 个问题
+3. **写 console 健康摘要**，汇总所有页面看到的 console 错误
+4. **更新 summary table 中的 severity 统计**
+5. **补齐报告元数据**，包括日期、耗时、访问页面数、截图数、框架
+6. **保存 baseline**，写出一个 `baseline.json`：
    ```json
    {
      "date": "YYYY-MM-DD",
@@ -653,39 +650,39 @@ $B snapshot -i -a -o "$REPORT_DIR/screenshots/issue-002.png"
    }
    ```
 
-**Regression mode:** After writing the report, load the baseline file. Compare:
-- Health score delta
-- Issues fixed (in baseline but not current)
-- New issues (in current but not baseline)
-- Append the regression section to the report
+**Regression mode：** 报告写完后，再读取 baseline 文件，比较：
+- 健康分变化
+- 哪些问题在 baseline 里有、现在没有了，说明修好了
+- 哪些问题是这轮新增的
+- 把 regression 小节追加到报告中
 
 ---
 
-## Health Score Rubric
+## 健康分规则
 
-Compute each category score (0-100), then take the weighted average.
+先算每个类别的分数（0-100），再做加权平均。
 
-### Console (weight: 15%)
-- 0 errors → 100
-- 1-3 errors → 70
-- 4-10 errors → 40
-- 10+ errors → 10
+### Console（权重：15%）
+- 0 个错误，得 100
+- 1-3 个错误，得 70
+- 4-10 个错误，得 40
+- 10 个以上，得 10
 
-### Links (weight: 10%)
-- 0 broken → 100
-- Each broken link → -15 (minimum 0)
+### Links（权重：10%）
+- 0 个坏链，得 100
+- 每个坏链扣 15 分，最低到 0
 
-### Per-Category Scoring (Visual, Functional, UX, Content, Performance, Accessibility)
-Each category starts at 100. Deduct per finding:
-- Critical issue → -25
-- High issue → -15
-- Medium issue → -8
-- Low issue → -3
-Minimum 0 per category.
+### 分类打分（Visual、Functional、UX、Content、Performance、Accessibility）
+每个类别初始都是 100 分，按发现的问题扣分：
+- Critical，扣 25
+- High，扣 15
+- Medium，扣 8
+- Low，扣 3
+每个类别最低为 0。
 
-### Weights
-| Category | Weight |
-|----------|--------|
+### 权重
+| 类别 | 权重 |
+|------|------|
 | Console | 15% |
 | Links | 10% |
 | Visual | 10% |
@@ -695,86 +692,86 @@ Minimum 0 per category.
 | Content | 5% |
 | Accessibility | 15% |
 
-### Final Score
+### 最终分数
 `score = Σ (category_score × weight)`
 
 ---
 
-## Framework-Specific Guidance
+## 框架特定指引
 
 ### Next.js
-- Check console for hydration errors (`Hydration failed`, `Text content did not match`)
-- Monitor `_next/data` requests in network — 404s indicate broken data fetching
-- Test client-side navigation (click links, don't just `goto`) — catches routing issues
-- Check for CLS (Cumulative Layout Shift) on pages with dynamic content
+- 检查 console 是否有 hydration 错误（`Hydration failed`、`Text content did not match`）
+- 关注 network 里的 `_next/data` 请求，出现 404 往往意味着数据获取坏了
+- 测客户端导航时要真的点击链接，不要只 `goto`，这样才能抓出路由问题
+- 针对动态内容页面检查 CLS（Cumulative Layout Shift）
 
 ### Rails
-- Check for N+1 query warnings in console (if development mode)
-- Verify CSRF token presence in forms
-- Test Turbo/Stimulus integration — do page transitions work smoothly?
-- Check for flash messages appearing and dismissing correctly
+- 如果是 development mode，检查 console 是否有 N+1 query 警告
+- 确认表单里存在 CSRF token
+- 测一下 Turbo / Stimulus 集成，页面切换是否平滑
+- 检查 flash message 是否出现和消失正常
 
 ### WordPress
-- Check for plugin conflicts (JS errors from different plugins)
-- Verify admin bar visibility for logged-in users
-- Test REST API endpoints (`/wp-json/`)
-- Check for mixed content warnings (common with WP)
+- 检查插件冲突，不同插件之间的 JS 错误很常见
+- 确认登录用户能看到 admin bar
+- 测一下 REST API endpoint（`/wp-json/`）
+- 检查 mixed content warning，这在 WP 里很常见
 
-### General SPA (React, Vue, Angular)
-- Use `snapshot -i` for navigation — `links` command misses client-side routes
-- Check for stale state (navigate away and back — does data refresh?)
-- Test browser back/forward — does the app handle history correctly?
-- Check for memory leaks (monitor console after extended use)
-
----
-
-## Important Rules
-
-1. **Repro is everything.** Every issue needs at least one screenshot. No exceptions.
-2. **Verify before documenting.** Retry the issue once to confirm it's reproducible, not a fluke.
-3. **Never include credentials.** Write `[REDACTED]` for passwords in repro steps.
-4. **Write incrementally.** Append each issue to the report as you find it. Don't batch.
-5. **Never read source code.** Test as a user, not a developer.
-6. **Check console after every interaction.** JS errors that don't surface visually are still bugs.
-7. **Test like a user.** Use realistic data. Walk through complete workflows end-to-end.
-8. **Depth over breadth.** 5-10 well-documented issues with evidence > 20 vague descriptions.
-9. **Never delete output files.** Screenshots and reports accumulate — that's intentional.
-10. **Use `snapshot -C` for tricky UIs.** Finds clickable divs that the accessibility tree misses.
-11. **Show screenshots to the user.** After every `$B screenshot`, `$B snapshot -a -o`, or `$B responsive` command, use the Read tool on the output file(s) so the user can see them inline. For `responsive` (3 files), Read all three. This is critical — without it, screenshots are invisible to the user.
-12. **Never refuse to use the browser.** When the user invokes /qa or /qa-only, they are requesting browser-based testing. Never suggest evals, unit tests, or other alternatives as a substitute. Even if the diff appears to have no UI changes, backend changes affect app behavior — always open the browser and test.
+### 通用 SPA（React、Vue、Angular）
+- 导航时多用 `snapshot -i`，因为 `links` 往往抓不到客户端路由
+- 检查 stale state，切走再回来时数据是否刷新
+- 测浏览器前进后退，确认历史栈处理正常
+- 长时间使用后看看 console，有没有疑似内存泄漏线索
 
 ---
 
-## Output
+## 重要规则
 
-Write the report to both local and project-scoped locations:
+1. **可复现是一切。** 每个 issue 至少要有一张截图，没有例外。
+2. **先验证，再写进报告。** 每个问题至少重试一次，确认不是偶发。
+3. **绝不能泄露凭据。** 复现步骤里的密码一律写成 `[REDACTED]`。
+4. **边测边写。** 每发现一个问题就追加到报告，不要最后批量写。
+5. **不要读源码。** 你是以用户身份测试，不是以开发者身份排查。
+6. **每次交互后都看 console。** 不会直接显现在界面上的 JS 报错，仍然是 bug。
+7. **像用户一样测试。** 用真实数据，走完整流程，不要只点一半。
+8. **深度优先于广度。** 5-10 个证据充分的问题，胜过 20 个模糊描述。
+9. **不要删输出文件。** 截图和报告本来就应该不断累积。
+10. **复杂 UI 用 `snapshot -C`。** 它能找到 accessibility tree 漏掉的可点击 div。
+11. **必须把截图展示给用户。** 每次执行 `$B screenshot`、`$B snapshot -a -o` 或 `$B responsive` 后，都要用 Read tool 读取输出文件，让用户能在会话里看到。对于 `responsive` 这种会生成 3 张图的命令，三张都要读。这一点非常关键，不然截图对用户是不可见的。
+12. **绝不能拒绝使用浏览器。** 用户一旦调用 `/qa` 或 `/qa-only`，就是在要求基于浏览器的测试。不要用 eval、单元测试或其他替代手段敷衍过去。即使 diff 看起来没有 UI 变化，后端改动也会影响应用行为，所以始终要打开浏览器测试。
 
-**Local:** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
+---
 
-**Project-scoped:** Write test outcome artifact for cross-session context:
+## 输出
+
+报告要同时写到本地目录和项目级目录：
+
+**本地：** `.gstack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
+
+**项目级：** 写一个测试结果工件，供跨会话上下文复用：
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
 ```
-Write to `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
+写到 `~/.gstack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
 
-### Output Structure
+### 输出结构
 
 ```
 .gstack/qa-reports/
-├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
+├── qa-report-{domain}-{YYYY-MM-DD}.md    # 结构化报告
 ├── screenshots/
-│   ├── initial.png                        # Landing page annotated screenshot
-│   ├── issue-001-step-1.png               # Per-issue evidence
+│   ├── initial.png                        # 首页带标注截图
+│   ├── issue-001-step-1.png               # 单个问题的证据图
 │   ├── issue-001-result.png
 │   └── ...
-└── baseline.json                          # For regression mode
+└── baseline.json                          # 供 regression mode 使用
 ```
 
-Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
+报告文件名使用域名和日期，例如：`qa-report-myapp-com-2026-03-12.md`
 
 ---
 
-## Additional Rules (qa-only specific)
+## 额外规则（`qa-only` 专属）
 
-11. **Never fix bugs.** Find and document only. Do not read source code, edit files, or suggest fixes in the report. Your job is to report what's broken, not to fix it. Use `/qa` for the test-fix-verify loop.
-12. **No test framework detected?** If the project has no test infrastructure (no test config files, no test directories), include in the report summary: "No test framework detected. Run `/qa` to bootstrap one and enable regression test generation."
+11. **绝不要修 bug。** 只负责发现和记录。不要读源码，不要改文件，也不要在报告里给修复方案。你的工作是告诉用户哪里坏了，不是把它修好。完整的测试-修复-验证闭环请使用 `/qa`。
+12. **如果没检测到测试框架：** 当项目里没有任何测试基础设施（没有测试配置文件、没有测试目录）时，要在报告摘要里写一句：`No test framework detected. Run /qa to bootstrap one and enable regression test generation.`
