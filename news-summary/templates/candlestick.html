@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{銘柄名} ({code}) - {DATE}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  body { font-family: sans-serif; max-width: 960px; margin: 0 auto; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
+  h1 { color: #00d4ff; margin-bottom: 4px; }
+  .meta { color: #888; font-size: 0.9em; margin-bottom: 16px; }
+  canvas { background: #16213e; border-radius: 8px; }
+  .comment { margin-top: 16px; padding: 12px; background: #0f3460; border-radius: 8px; }
+  .comment h3 { margin: 0 0 8px; color: #00d4ff; }
+</style>
+</head>
+<body>
+<h1>{銘柄名} ({code})</h1>
+<p class="meta">{DATE} 時点 | ローソク足 + ボリンジャーバンド (20日, ±2σ)</p>
+<canvas id="chart" width="900" height="450"></canvas>
+<div class="comment">
+  <h3>分析コメント</h3>
+  <p>{ANALYSIS_COMMENT}</p>
+</div>
+<script>
+// OHLCデータ — Step 2で収集した値で埋める
+// 例: { x: new Date('2026-03-25').getTime(), o: 38000, h: 38500, l: 37800, c: 38200 }
+const ohlcData = [
+  /* {OHLC_DATA} */
+];
+
+// ボリンジャーバンド計算 (20日SMA ± 2σ)
+function calcBollinger(data, period = 20) {
+  const result = { mid: [], upper: [], lower: [] };
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) { result.mid.push(null); result.upper.push(null); result.lower.push(null); continue; }
+    const slice = data.slice(i - period + 1, i + 1).map(d => d.c);
+    const mean = slice.reduce((a, b) => a + b, 0) / period;
+    const std = Math.sqrt(slice.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / (period - 1));
+    result.mid.push({ x: data[i].x, y: Math.round(mean) });
+    result.upper.push({ x: data[i].x, y: Math.round(mean + 2 * std) });
+    result.lower.push({ x: data[i].x, y: Math.round(mean - 2 * std) });
+  }
+  return result;
+}
+
+const bb = calcBollinger(ohlcData);
+const ctx = document.getElementById('chart').getContext('2d');
+
+new Chart(ctx, {
+  data: {
+    datasets: [
+      {
+        type: 'candlestick',
+        label: '{銘柄名}',
+        data: ohlcData,
+        color: { up: '#26a69a', down: '#ef5350', unchanged: '#999' }
+      },
+      {
+        type: 'line', label: 'BB上限(+2σ)', data: bb.upper,
+        borderColor: 'rgba(255,200,0,0.6)', borderWidth: 1, pointRadius: 0, fill: false, tension: 0.1
+      },
+      {
+        type: 'line', label: 'BB中央(SMA20)', data: bb.mid,
+        borderColor: 'rgba(255,255,255,0.5)', borderWidth: 1, pointRadius: 0,
+        borderDash: [4, 4], fill: false, tension: 0.1
+      },
+      {
+        type: 'line', label: 'BB下限(-2σ)', data: bb.lower,
+        borderColor: 'rgba(255,200,0,0.6)', borderWidth: 1, pointRadius: 0,
+        fill: '-2', backgroundColor: 'rgba(255,200,0,0.05)', tension: 0.1
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: '#e0e0e0', boxWidth: 12 } },
+      tooltip: { callbacks: {
+        label: ctx => ctx.dataset.type === 'candlestick'
+          ? `O:${ctx.raw.o} H:${ctx.raw.h} L:${ctx.raw.l} C:${ctx.raw.c}`
+          : `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString()}`
+      }}
+    },
+    scales: {
+      x: { type: 'time', time: { unit: 'day', displayFormats: { day: 'M/d' } },
+           ticks: { color: '#aaa' }, grid: { color: '#2a2a4a' } },
+      y: { ticks: { color: '#aaa', callback: v => v.toLocaleString() }, grid: { color: '#2a2a4a' } }
+    }
+  }
+});
+</script>
+</body>
+</html>
