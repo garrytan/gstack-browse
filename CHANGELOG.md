@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.14.6.0] - 2026-03-31 — Recursive Self-Improvement
+
+gstack now learns from its own mistakes. Every skill session captures operational failures (CLI errors, wrong approaches, project quirks) and surfaces them in future sessions. No setup needed, just works.
+
+### Added
+
+- **Operational self-improvement.** When a command fails or you hit a project-specific gotcha, gstack logs it. Next session, it remembers. "bun test needs --timeout 30000" or "login flow requires cookie import first" ... the kind of stuff that wastes 10 minutes every time you forget it.
+- **Learnings summary in preamble.** When your project has 5+ learnings, gstack shows the top 3 at the start of every session so you see them before you start working.
+- **13 skills now learn.** office-hours, plan-ceo-review, plan-eng-review, plan-design-review, design-review, design-consultation, cso, qa, qa-only, and retro all now read prior learnings AND contribute new ones. Previously only review, ship, and investigate were wired.
+
+### Changed
+
+- **Contributor mode replaced.** The old contributor mode (manual opt-in, markdown reports to ~/.gstack/contributor-logs/) never fired in 18 days of heavy use. Replaced with automatic operational learning that captures the same insights without any setup.
+
+### Fixed
+
+- **learnings-show E2E test slug mismatch.** The test seeded learnings at a hardcoded path but gstack-slug computed a different path at runtime. Now computes the slug dynamically.
+
 ## [0.14.5.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
 
 Re-running `/ship` after a failed push or PR creation no longer double-bumps your version or duplicates your CHANGELOG. And if you use `--prefix` mode, your skill names actually work now.

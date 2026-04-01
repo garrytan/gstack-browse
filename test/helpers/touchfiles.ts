@@ -41,8 +41,8 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'skillmd-no-local-binary':  ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'skillmd-outside-git':      ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
 
-  'contributor-mode':           ['SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'session-awareness':        ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
+  'operational-learning':     ['scripts/resolvers/preamble.ts', 'bin/gstack-learnings-log'],
 
   // QA (+ test-server dependency)
   'qa-quick':       ['qa/**', 'browse/src/**', 'browse/test/test-server.ts'],
@@ -193,8 +193,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'skillmd-setup-discovery': 'gate',
   'skillmd-no-local-binary': 'gate',
   'skillmd-outside-git': 'gate',
-  'contributor-mode': 'gate',
   'session-awareness': 'gate',
+  'operational-learning': 'gate',
 
   // QA — gate for functional, periodic for quality/benchmarks
   'qa-quick': 'gate',

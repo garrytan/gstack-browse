@@ -27,7 +27,6 @@ mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
 _PROACTIVE=$(~/.claude/skills/gstack/bin/gstack-config get proactive 2>/dev/null || echo "true")
 _PROACTIVE_PROMPTED=$([ -f ~/.gstack/.proactive-prompted ] && echo "yes" || echo "no")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
@@ -48,8 +47,8 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"retro","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"retro","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -67,6 +66,9 @@ _LEARN_FILE="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/learnings.j
 if [ -f "$_LEARN_FILE" ]; then
   _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+  if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
+    ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 3 2>/dev/null || true
+  fi
 else
   echo "LEARNINGS: 0"
 fi
@@ -273,24 +275,6 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
-## Contributor Mode
-
-If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
-
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
-
-**To file:** write `~/.gstack/contributor-logs/{slug}.md`:
-```
-# {Title}
-**What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
-## Repro
-1. {step}
-## What would make this a 10
-{one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.
-
 ## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
@@ -316,6 +300,24 @@ ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
 ```
 
+## Operational Self-Improvement
+
+Before completing, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Replace SKILL_NAME with the current skill name. Only log genuine operational discoveries.
+Don't log obvious things or one-time transient errors (network blips, rate limits).
+A good test: would knowing this save 5+ minutes in a future session? If yes, log it.
+
 ## Telemetry (run last)
 
 After the skill workflow completes (success, error, or abort), log the telemetry event.
@@ -334,22 +336,22 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-# Local + remote telemetry (both gated by _TEL setting)
+# Local analytics (gated on telemetry setting)
 if [ "$_TEL" != "off" ]; then
-  echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-  if [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
-    ~/.claude/skills/gstack/bin/gstack-telemetry-log \
-      --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
-      --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
-  fi
+echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
+  ~/.claude/skills/gstack/bin/gstack-telemetry-log \
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 fi
 ```
 
 Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
 success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown". Both local JSONL and remote
-telemetry only run if telemetry is not off. The remote binary additionally requires
-the binary to exist.
+If you cannot determine the outcome, use "unknown". The local JSONL always logs. The
+remote binary only runs if telemetry is not off and the binary exists.
 
 ## Plan Mode Safe Operations
 
@@ -478,6 +480,44 @@ Usage: /retro [window | compare | global]
 ```
 
 **If the first argument is `global`:** Skip the normal repo-scoped retro (Steps 1-14). Instead, follow the **Global Retrospective** flow at the end of this document. The optional second argument is the time window (default 7d). This mode does NOT require being inside a git repo.
+
+## Prior Learnings
+
+Search for relevant learnings from previous sessions:
+
+```bash
+_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
+echo "CROSS_PROJECT: $_CROSS_PROJ"
+if [ "$_CROSS_PROJ" = "true" ]; then
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+else
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
+fi
+```
+
+If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+
+> gstack can search learnings from your other projects on this machine to find
+> patterns that might apply here. This stays local (no data leaves your machine).
+> Recommended for solo developers. Skip if you work on multiple client codebases
+> where cross-contamination would be a concern.
+
+Options:
+- A) Enable cross-project learnings (recommended)
+- B) Keep learnings project-scoped only
+
+If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
+If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
+
+Then re-run the search with the appropriate flag.
+
+If learnings are found, incorporate them into your analysis. When a review finding
+matches a past learning, display:
+
+**"Prior learning applied: [key] (confidence N/10, from [date])"**
+
+This makes the compounding visible. The user should see that gstack is getting
+smarter on their codebase over time.
 
 ### Step 1: Gather Raw Data
 
@@ -708,7 +748,8 @@ this session, log it for future sessions:
 ```
 
 **Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
-(user stated), `architecture` (structural decision), `tool` (library/framework insight).
+(user stated), `architecture` (structural decision), `tool` (library/framework insight),
+`operational` (project environment/CLI/workflow knowledge).
 
 **Sources:** `observed` (you found this in the code), `user-stated` (user told you),
 `inferred` (AI deduction), `cross-model` (both Claude and Codex agree).

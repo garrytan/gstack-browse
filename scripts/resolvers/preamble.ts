@@ -8,9 +8,8 @@ import type { TemplateContext } from './types';
  * repo mode detection, and telemetry.
  *
  * Telemetry data flow:
- *   1. If _TEL != "off": local JSONL append to ~/.gstack/analytics/ (inline, inspectable)
+ *   1. Always: local JSONL append to ~/.gstack/analytics/ (inline, inspectable)
  *   2. If _TEL != "off" AND binary exists: gstack-telemetry-log for remote reporting
- *   When telemetry is off, nothing is written anywhere. Clean trust contract.
  */
 
 function generatePreambleBash(ctx: TemplateContext): string {
@@ -34,7 +33,6 @@ mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
-_CONTRIB=$(${ctx.paths.binDir}/gstack-config get gstack_contributor 2>/dev/null || true)
 _PROACTIVE=$(${ctx.paths.binDir}/gstack-config get proactive 2>/dev/null || echo "true")
 _PROACTIVE_PROMPTED=$([ -f ~/.gstack/.proactive-prompted ] && echo "yes" || echo "no")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
@@ -55,8 +53,8 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: \${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-if [ "\${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"${ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"${ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -74,6 +72,9 @@ _LEARN_FILE="\${GSTACK_HOME:-$HOME/.gstack}/projects/\${SLUG:-unknown}/learnings
 if [ -f "$_LEARN_FILE" ]; then
   _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+  if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
+    ${ctx.paths.binDir}/gstack-learnings-search --limit 3 2>/dev/null || true
+  fi
 else
   echo "LEARNINGS: 0"
 fi
@@ -379,27 +380,7 @@ jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg b
 \`\`\``;
 }
 
-function generateContributorMode(): string {
-  return `## Contributor Mode
-
-If \`_CONTRIB\` is \`true\`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
-
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
-
-**To file:** write \`~/.gstack/contributor-logs/{slug}.md\`:
-\`\`\`
-# {Title}
-**What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
-## Repro
-1. {step}
-## What would make this a 10
-{one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-\`\`\`
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.`;
-}
-
-function generateCompletionStatus(): string {
+function generateCompletionStatus(ctx: TemplateContext): string {
   return `## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
@@ -425,6 +406,24 @@ ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
 \`\`\`
 
+## Operational Self-Improvement
+
+Before completing, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+\`\`\`bash
+${ctx.paths.binDir}/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+\`\`\`
+
+Replace SKILL_NAME with the current skill name. Only log genuine operational discoveries.
+Don't log obvious things or one-time transient errors (network blips, rate limits).
+A good test: would knowing this save 5+ minutes in a future session? If yes, log it.
+
 ## Telemetry (run last)
 
 After the skill workflow completes (success, error, or abort), log the telemetry event.
@@ -443,22 +442,22 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-# Local + remote telemetry (both gated by _TEL setting)
+# Local analytics (gated on telemetry setting)
 if [ "$_TEL" != "off" ]; then
-  echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-  if [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
-    ~/.claude/skills/gstack/bin/gstack-telemetry-log \\
-      --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \\
-      --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
-  fi
+echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
+  ~/.claude/skills/gstack/bin/gstack-telemetry-log \\
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \\
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 fi
 \`\`\`
 
 Replace \`SKILL_NAME\` with the actual skill name from frontmatter, \`OUTCOME\` with
 success/error/abort, and \`USED_BROWSE\` with true/false based on whether \`$B\` was used.
-If you cannot determine the outcome, use "unknown". Both local JSONL and remote
-telemetry only run if telemetry is not off. The remote binary additionally requires
-the binary to exist.
+If you cannot determine the outcome, use "unknown". The local JSONL always logs. The
+remote binary only runs if telemetry is not off and the binary exists.
 
 ## Plan Mode Safe Operations
 
@@ -570,7 +569,7 @@ Avoid filler, throat-clearing, generic optimism, founder cosplay, and unsupporte
 
 // Preamble Composition (tier → sections)
 // ─────────────────────────────────────────────
-// T1: core + upgrade + lake + telemetry + voice(trimmed) + contributor + completion
+// T1: core + upgrade + lake + telemetry + voice(trimmed) + completion
 // T2: T1 + voice(full) + ask + completeness
 // T3: T2 + repo-mode + search
 // T4: (same as T3 — TEST_FAILURE_TRIAGE is a separate {{}} placeholder, not preamble)
@@ -595,8 +594,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateVoiceDirective(tier),
     ...(tier >= 2 ? [generateAskUserFormat(ctx), generateCompletenessSection()] : []),
     ...(tier >= 3 ? [generateRepoModeSection(), generateSearchBeforeBuildingSection(ctx)] : []),
-    generateContributorMode(),
-    generateCompletionStatus(),
+    generateCompletionStatus(ctx),
   ];
   return sections.join('\n\n');
 }

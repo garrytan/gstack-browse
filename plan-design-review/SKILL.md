@@ -30,7 +30,6 @@ mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
 _PROACTIVE=$(~/.claude/skills/gstack/bin/gstack-config get proactive 2>/dev/null || echo "true")
 _PROACTIVE_PROMPTED=$([ -f ~/.gstack/.proactive-prompted ] && echo "yes" || echo "no")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
@@ -51,8 +50,8 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"plan-design-review","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"plan-design-review","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -70,6 +69,9 @@ _LEARN_FILE="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/learnings.j
 if [ -f "$_LEARN_FILE" ]; then
   _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+  if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
+    ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 3 2>/dev/null || true
+  fi
 else
   echo "LEARNINGS: 0"
 fi
@@ -294,24 +296,6 @@ Before building anything unfamiliar, **search first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor Mode
-
-If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
-
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
-
-**To file:** write `~/.gstack/contributor-logs/{slug}.md`:
-```
-# {Title}
-**What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
-## Repro
-1. {step}
-## What would make this a 10
-{one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.
-
 ## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
@@ -337,6 +321,24 @@ ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
 ```
 
+## Operational Self-Improvement
+
+Before completing, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Replace SKILL_NAME with the current skill name. Only log genuine operational discoveries.
+Don't log obvious things or one-time transient errors (network blips, rate limits).
+A good test: would knowing this save 5+ minutes in a future session? If yes, log it.
+
 ## Telemetry (run last)
 
 After the skill workflow completes (success, error, or abort), log the telemetry event.
@@ -355,22 +357,22 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-# Local + remote telemetry (both gated by _TEL setting)
+# Local analytics (gated on telemetry setting)
 if [ "$_TEL" != "off" ]; then
-  echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-  if [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
-    ~/.claude/skills/gstack/bin/gstack-telemetry-log \
-      --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
-      --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
-  fi
+echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
+  ~/.claude/skills/gstack/bin/gstack-telemetry-log \
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 fi
 ```
 
 Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
 success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown". Both local JSONL and remote
-telemetry only run if telemetry is not off. The remote binary additionally requires
-the binary to exist.
+If you cannot determine the outcome, use "unknown". The local JSONL always logs. The
+remote binary only runs if telemetry is not off and the binary exists.
 
 ## Plan Mode Safe Operations
 
@@ -942,6 +944,44 @@ descriptions of what 10/10 looks like.
 
 ## Review Sections (7 passes, after scope is agreed)
 
+## Prior Learnings
+
+Search for relevant learnings from previous sessions:
+
+```bash
+_CROSS_PROJ=$(~/.claude/skills/gstack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
+echo "CROSS_PROJECT: $_CROSS_PROJ"
+if [ "$_CROSS_PROJ" = "true" ]; then
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+else
+  ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
+fi
+```
+
+If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+
+> gstack can search learnings from your other projects on this machine to find
+> patterns that might apply here. This stays local (no data leaves your machine).
+> Recommended for solo developers. Skip if you work on multiple client codebases
+> where cross-contamination would be a concern.
+
+Options:
+- A) Enable cross-project learnings (recommended)
+- B) Keep learnings project-scoped only
+
+If A: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings true`
+If B: run `~/.claude/skills/gstack/bin/gstack-config set cross_project_learnings false`
+
+Then re-run the search with the appropriate flag.
+
+If learnings are found, incorporate them into your analysis. When a review finding
+matches a past learning, display:
+
+**"Prior learning applied: [key] (confidence N/10, from [date])"**
+
+This makes the compounding visible. The user should see that gstack is getting
+smarter on their codebase over time.
+
 ### Pass 1: Information Architecture
 Rate 0-10: Does the plan define what the user sees first, second, third?
 FIX TO 10: Add information hierarchy to the plan. Include ASCII diagram of screen/page structure and navigation flow. Apply "constraint worship" — if you can only show 3 things, which 3?
@@ -1297,6 +1337,31 @@ plan's living status.
 - If no such section exists, **append it** to the end of the plan file.
 - Always place it as the very last section in the plan file. If it was found mid-file,
   move it: delete the old location and append at the end.
+
+## Capture Learnings
+
+If you discovered a non-obvious pattern, pitfall, or architectural insight during
+this session, log it for future sessions:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"plan-design-review","type":"TYPE","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"SOURCE","files":["path/to/relevant/file"]}'
+```
+
+**Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
+(user stated), `architecture` (structural decision), `tool` (library/framework insight),
+`operational` (project environment/CLI/workflow knowledge).
+
+**Sources:** `observed` (you found this in the code), `user-stated` (user told you),
+`inferred` (AI deduction), `cross-model` (both Claude and Codex agree).
+
+**Confidence:** 1-10. Be honest. An observed pattern you verified in the code is 8-9.
+An inference you're not sure about is 4-5. A user preference they explicitly stated is 10.
+
+**files:** Include the specific file paths this learning references. This enables
+staleness detection: if those files are later deleted, the learning can be flagged.
+
+**Only log genuine discoveries.** Don't log obvious things. Don't log things the user
+already knows. A good test: would this insight save time in a future session? If yes, log it.
 
 ## Next Steps — Review Chaining
 
