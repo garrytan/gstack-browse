@@ -1,5 +1,19 @@
 # TODOS
 
+## Sidebar Security
+
+### ML Prompt Injection Classifier
+
+**What:** Add DeBERTa-v3-base-prompt-injection-v2 via @huggingface/transformers v4 (WASM backend) as an ML defense layer for the Chrome sidebar. Reusable `browse/src/security.ts` module with `checkInjection()` API. Includes canary tokens, attack logging, shield icon, special telemetry (AskUserQuestion on detection even when telemetry off), and BrowseSafe-bench red team test harness (3,680 adversarial cases from Perplexity).
+
+**Why:** PR 1 fixes the architecture (command allowlist, XML framing, Opus default). But attackers can still trick Claude into navigating to phishing sites or exfiltrating visible page data via allowed browse commands. The ML classifier catches prompt injection patterns that architectural controls can't see. 94.8% accuracy, 99.6% recall, ~50-100ms inference via WASM. Defense-in-depth.
+
+**Context:** Full design doc with industry research, open source tool landscape, Codex review findings, and ambitious Bun-native vision (5ms inference via FFI + Apple Accelerate): [`docs/designs/ML_PROMPT_INJECTION_KILLER.md`](docs/designs/ML_PROMPT_INJECTION_KILLER.md). CEO plan with scope decisions: `~/.gstack/projects/garrytan-gstack/ceo-plans/2026-03-28-sidebar-prompt-injection-defense.md`.
+
+**Effort:** L (human: ~2 weeks / CC: ~3-4 hours)
+**Priority:** P0
+**Depends on:** Sidebar security fix PR (command allowlist + XML framing + arg fix) landing first
+
 ## Builder Ethos
 
 ### First-time Search Before Building intro
@@ -632,43 +646,149 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Priority:** P3
 **Depends on:** Telemetry data showing freeze hook fires in real /investigate sessions
 
-## Strategist
+## Context Intelligence
 
-### CSO/retro artifact ingestion
+### Context recovery preamble
 
-**What:** Add CSO and retro artifact ingestion to `/strategist brief` when those skills gain persistent project-scoped output.
+**What:** Add ~10 lines of prose to the preamble telling the agent to re-read gstack artifacts (CEO plans, design reviews, eng reviews, checkpoints) after compaction or context degradation.
 
-**Why:** Security posture (from `/cso`) and shipping velocity (from `/retro`) are valuable strategic inputs. Currently those skills write to stdout or `.context/` dirs that aren't accessible cross-skill.
+**Why:** gstack skills produce valuable artifacts stored at `~/.gstack/projects/$SLUG/`. When Claude's auto-compaction fires, it preserves a generic summary but doesn't know these artifacts exist. The plans and reviews that shaped the current work silently vanish from context, even though they're still on disk. This is the thing nobody else in the Claude Code ecosystem is solving, because nobody else has gstack's artifact architecture.
 
-**Context:** `/strategist` design doc lists these as "reads from" but they don't actually persist to `~/.gstack/projects/` yet. When `/cso` and `/retro` gain project-scoped artifact output, add the appropriate globs to `/strategist`'s context ingestion phase.
+**Context:** Inspired by Anthropic's `claude-progress.txt` pattern for long-running agents. Also informed by claude-mem's "progressive disclosure" approach. See `docs/designs/SESSION_INTELLIGENCE.md` for the broader vision. CEO plan: `~/.gstack/projects/garrytan-gstack/ceo-plans/2026-03-31-session-intelligence-layer.md`.
 
-**Effort:** S (once upstream skills persist artifacts)
+**Effort:** S (human: ~30 min / CC: ~5 min)
+**Priority:** P1
+**Depends on:** None
+**Key files:** `scripts/resolvers/preamble.ts`
+
+### Session timeline
+
+**What:** Append one-line JSONL entry to `~/.gstack/projects/$SLUG/timeline.jsonl` after every skill run (timestamp, skill, branch, outcome). `/retro` renders the timeline.
+
+**Why:** Makes AI-assisted work history visible. `/retro` can show "this week: 3 /review, 2 /ship, 1 /investigate." Provides the observability layer for the session intelligence architecture.
+
+**Effort:** S (human: ~1h / CC: ~5 min)
+**Priority:** P1
+**Depends on:** None
+**Key files:** `scripts/resolvers/preamble.ts`, `retro/SKILL.md.tmpl`
+
+### Cross-session context injection
+
+**What:** When a new gstack session starts on a branch with recent checkpoints or plans, the preamble prints a one-line summary: "Last session: implemented JWT auth, 3/5 tasks done." Agent knows where you left off before reading any files.
+
+**Why:** Claude starts every session fresh. This one-liner orients the agent immediately. Similar to claude-mem's SessionStart hook pattern but simpler and integrated.
+
+**Effort:** S (human: ~2h / CC: ~10 min)
 **Priority:** P2
-**Depends on:** `/cso` and `/retro` writing to `~/.gstack/projects/`
+**Depends on:** Context recovery preamble
 
-### Autoplan integration
+### /checkpoint skill
 
-**What:** Integrate `/strategist` into `/autoplan`'s review pipeline. If a strategy doc exists, surface it as context during reviews. Optionally offer to run `/strategist brief` first.
+**What:** Manual skill to snapshot current working state: what's being done and why, files being edited, decisions made (and rationale), what's done vs. remaining, critical types/signatures. Saved to `~/.gstack/projects/$SLUG/checkpoints/<timestamp>.md`.
 
-**Why:** Without this, the default planning path (`/autoplan`) bypasses competitive strategy entirely. A strategy doc should inform scope and ambition decisions in CEO review.
+**Why:** Useful before stepping away from a long session, before known-complex operations that might trigger compaction, for handing off context to a different agent/workspace, or coming back to a project after days away.
 
-**Context:** `/autoplan` currently runs CEO, design, and eng reviews. Strategy docs at `*-strategy-*.md` should be discoverable alongside design docs. The simplest integration: `/autoplan` reads strategy docs if they exist (same as it reads design docs) and mentions `/strategist` as a prerequisite option.
+**Effort:** M (human: ~1 week / CC: ~30 min)
+**Priority:** P2
+**Depends on:** Context recovery preamble
+**Key files:** New `checkpoint/SKILL.md.tmpl`, `scripts/gen-skill-docs.ts`
+
+### Session Intelligence Layer design doc
+
+**What:** Write `docs/designs/SESSION_INTELLIGENCE.md` describing the architectural vision: gstack as the persistent brain that survives Claude's ephemeral context. Every skill writes to `~/.gstack/projects/$SLUG/`, preamble re-reads, `/retro` rolls up.
+
+**Why:** Connects context recovery, health, checkpoint, and timeline features into a coherent architecture. Nobody else in the ecosystem is building this.
+
+**Effort:** S (human: ~2h / CC: ~15 min)
+**Priority:** P1
+**Depends on:** None
+
+## Health
+
+### /health — Project Health Dashboard
+
+**What:** Skill that runs type-check, lint, test suite, and dead code scan, then reports a composite 0-10 health score with breakdown by category. Tracks over time in `~/.gstack/health/<project-slug>/` for trend detection. Optionally integrates CodeScene MCP for deeper complexity/cohesion/coupling analysis.
+
+**Why:** No quick way to get "state of the codebase" before starting work. CodeScene peer-reviewed research shows AI-generated code increases static analysis warnings by 30%, code complexity by 41%, and change failure rates by 30%. Users need guardrails. Like `/qa` but for code quality rather than browser behavior.
+
+**Context:** Reads CLAUDE.md for project-specific commands (platform-agnostic principle). Runs checks in parallel. `/retro` can pull from health history for trend sparklines.
+
+**Effort:** M (human: ~1 week / CC: ~30 min)
+**Priority:** P1
+**Depends on:** None
+**Key files:** New `health/SKILL.md.tmpl`, `scripts/gen-skill-docs.ts`
+
+### /health as /ship gate
+
+**What:** If health score exists and drops below a configurable threshold, `/ship` warns before creating the PR: "Health dropped from 8/10 to 5/10 this branch — 3 new lint warnings, 1 test failure. Ship anyway?"
+
+**Why:** Quality gate that prevents shipping degraded code. Configurable threshold so it's not blocking for teams that don't use `/health`.
+
+**Effort:** S (human: ~1h / CC: ~5 min)
+**Priority:** P2
+**Depends on:** /health skill
+
+## Swarm
+
+### Swarm primitive — reusable multi-agent dispatch
+
+**What:** Extract Review Army's dispatch pattern into a reusable resolver (`scripts/resolvers/swarm.ts`). Wire into `/ship` for parallel pre-ship checks (type-check + lint + test in parallel sub-agents). Make available to `/qa`, `/investigate`, `/health`.
+
+**Why:** Review Army proved parallel sub-agents work brilliantly (5 agents = 835K tokens of working memory vs. 167K for one). The pattern is locked inside `review-army.ts`. Other skills need it too. Claude Code Agent Teams (official, Feb 2026) validates the team-lead-delegates-to-specialists pattern. Gartner: multi-agent inquiries surged 1,445% in one year.
+
+**Context:** Start with the specific `/ship` use case. Extract shared parts only after 2+ consumers reveal what config parameters are actually needed. Avoid premature abstraction. Can leverage existing WorktreeManager for isolation.
+
+**Effort:** L (human: ~2 weeks / CC: ~2 hours)
+**Priority:** P2
+**Depends on:** None
+**Key files:** `scripts/resolvers/review-army.ts`, new `scripts/resolvers/swarm.ts`, `ship/SKILL.md.tmpl`, `lib/worktree.ts`
+
+## Refactoring
+
+### /refactor-prep — Pre-Refactor Token Hygiene
+
+**What:** Skill that detects project language/framework, runs appropriate dead code detection (knip/ts-prune for TS/JS, vulture/autoflake for Python, staticcheck/deadcode for Go, cargo udeps for Rust), strips dead imports/exports/props/console.logs, and commits cleanup separately.
+
+**Why:** Dirty codebases accelerate context compaction. Dead imports, unused exports, and orphaned code eat tokens that contribute nothing but everything to triggering compaction mid-refactor. Cleaning first buys back 20%+ of context budget. Reports lines removed and estimated token savings.
+
+**Effort:** M (human: ~1 week / CC: ~30 min)
+**Priority:** P2
+**Depends on:** None
+**Key files:** New `refactor-prep/SKILL.md.tmpl`, `scripts/gen-skill-docs.ts`
+
+## Factory Droid
+
+### Browse MCP server for Factory Droid
+
+**What:** Expose gstack's browse binary and key workflows as an MCP server that Factory Droid connects to natively. Factory users would run /mcp, add the gstack server, and get browse, QA, and review capabilities as Factory tools.
+
+**Why:** Factory already supports 40+ MCP servers in its registry. Getting gstack's browse binary listed there is a distribution play. Nobody else has a real compiled browser binary as an MCP tool. This is the thing that makes gstack uniquely valuable on Factory Droid.
+
+**Context:** Option A (--host factory compatibility shim) ships first in v0.13.4.0. Option B is the follow-up that provides deeper integration. The browse binary is already a stateless CLI, so wrapping it as an MCP server is straightforward (stdin/stdout JSON-RPC). Each browse command becomes an MCP tool.
+
+**Effort:** L (human: ~1 week / CC: ~5 hours)
+**Priority:** P1
+**Depends on:** --host factory (Option A, shipping in v0.13.4.0)
+
+### .agent/skills/ dual output for cross-agent compatibility
+
+**What:** Factory also reads from `<repo>/.agent/skills/` as a cross-agent compatibility path. Could output there in addition to `.factory/skills/` for broader reach across other agents that use the `.agent` convention.
+
+**Why:** Multiple AI agents beyond Factory may adopt the `.agent/skills/` convention. Outputting there too would give free compatibility.
 
 **Effort:** S
-**Priority:** P2
-**Depends on:** `/strategist` skill existing and being dogfooded
+**Priority:** P3
+**Depends on:** --host factory
 
-### E2E eval test for /strategist
+### Custom Droid definitions alongside skills
 
-**What:** Write E2E eval test after the first dogfood session. Use real output as ground truth. Test: (a) brief produces a file with inline citations, (b) session produces a strategy doc with framework selection rationale, (c) 90-day plan items are specific not generic.
+**What:** Factory has "custom droids" (subagents with tool restrictions, model selection, autonomy levels). Could ship `gstack-qa.md` droid configs alongside skills that restrict tools to read-only + execute for safety.
 
-**Why:** Without an eval, quality regressions in the template are invisible. The template's framework selection logic and citation requirements need automated validation.
-
-**Context:** Classify as `periodic` tier (non-deterministic, quality benchmark). Dogfood session produces real output to calibrate eval expectations. Add touchfile entry in `test/helpers/touchfiles.ts` with `strategist/**` dependency.
+**Why:** Deeper Factory integration. Droid configs give Factory users tighter control over what gstack skills can do.
 
 **Effort:** M
-**Priority:** P2
-**Depends on:** First dogfood session completing
+**Priority:** P3
+**Depends on:** --host factory
 
 ## Completed
 

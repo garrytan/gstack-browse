@@ -9,7 +9,7 @@ description: |
   of truth. For existing sites, use /plan-design-review to infer the system instead.
   Use when asked to "design system", "brand guidelines", or "create DESIGN.md".
   Proactively suggest when starting a new project's UI with no existing
-  design system or DESIGN.md.
+  design system or DESIGN.md. (gstack)
 allowed-tools:
   - Bash
   - Read
@@ -78,6 +78,8 @@ If `DESIGN_READY`: Phase 5 will generate AI mockups of your proposed design syst
 If `DESIGN_NOT_AVAILABLE`: Phase 5 falls back to the HTML preview page (still good).
 
 ---
+
+{{LEARNINGS_SEARCH}}
 
 ## Phase 1: Product Context
 
@@ -413,7 +415,13 @@ List all decisions. Flag any that used agent defaults without explicit user conf
 - B) I want to change something (specify what)
 - C) Start over
 
+After shipping DESIGN.md, if the session produced screen-level mockups or page layouts
+(not just system-level tokens), suggest:
+"Want to see this design system as working Pretext-native HTML? Run /design-html."
+
 ---
+
+{{LEARNINGS_LOG}}
 
 ## Important Rules
 
