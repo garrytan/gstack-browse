@@ -1,21 +1,16 @@
-# Design: Design Shotgun — Browser-to-Agent Feedback Loop
+# 设计：Design Shotgun，浏览器到 Agent 的反馈闭环
 
-Generated on 2026-03-27
-Branch: garrytan/agent-design-tools
-Status: LIVING DOCUMENT — update as bugs are found and fixed
+生成时间：2026-03-27  
+分支：`garrytan/agent-design-tools`  
+状态：`LIVING DOCUMENT`，随着发现和修复 bug 持续更新
 
-## What This Feature Does
+## 这个功能做什么
 
-Design Shotgun generates multiple AI design mockups, opens them side-by-side in the
-user's real browser as a comparison board, and collects structured feedback (pick a
-favorite, rate alternatives, leave notes, request regeneration). The feedback flows
-back to the coding agent, which acts on it: either proceeding with the approved
-variant or generating new variants and reloading the board.
+Design Shotgun 会生成多份 AI 设计稿，把它们并排打开在用户真实浏览器中的一个 comparison board 上，并收集结构化反馈，例如选择最喜欢的方案、给其他方案打分、留下备注、请求重新生成。然后这些反馈会回流给 coding agent，由 agent 基于反馈继续执行，要么接受选中的变体继续推进，要么生成新变体并刷新 comparison board。
 
-The user never leaves their browser tab. The agent never asks redundant questions.
-The board is the feedback mechanism.
+用户始终停留在浏览器标签页里。agent 不会重复追问。board 本身就是反馈机制。
 
-## The Core Problem: Two Worlds That Must Talk
+## 核心问题：两个必须通信的世界
 
 ```
   ┌─────────────────────┐          ┌──────────────────────┐
@@ -31,11 +26,9 @@ The board is the feedback mechanism.
   └─────────────────────┘          └──────────────────────┘
 ```
 
-The "???" is the hard part. The user clicks a button in Chrome. The agent running in
-a terminal needs to know about it. These are two completely separate processes with
-no shared memory, no shared event bus, no WebSocket connection.
+中间这个 “???” 才是最难的部分。用户在 Chrome 里点了一个按钮，而运行在终端里的 agent 需要知道这件事。它们是两个完全独立的进程，没有共享内存，没有共享事件总线，也没有 WebSocket 连接。
 
-## Architecture: How the Linkage Works
+## 架构：这个连接是怎么实现的
 
 ```
   USER'S BROWSER                    $D serve (Bun HTTP)              AGENT
@@ -61,15 +54,15 @@ no shared memory, no shared event bus, no WebSocket connection.
        │                                   │                   reads file]
 ```
 
-### The Three Files
+### 三个文件
 
-| File | Written when | Means | Agent action |
+| 文件 | 写入时机 | 含义 | Agent 动作 |
 |------|-------------|-------|-------------|
-| `feedback.json` | User clicks Submit | Final selection, done | Read it, proceed |
-| `feedback-pending.json` | User clicks Regenerate/More Like This | Wants new options | Read it, delete it, generate new variants, reload board |
-| `feedback.json` (round 2+) | User clicks Submit after regeneration | Final selection after iteration | Read it, proceed |
+| `feedback.json` | 用户点击 Submit | 最终选择，流程结束 | 读取并继续 |
+| `feedback-pending.json` | 用户点击 Regenerate / More Like This | 用户想要新方案 | 读取后删除，生成新变体并刷新 board |
+| `feedback.json`（第 2 轮及以后） | 用户在重新生成后点击 Submit | 多轮迭代后的最终选择 | 读取并继续 |
 
-### The State Machine
+### 状态机
 
 ```
   $D serve starts
@@ -102,188 +95,142 @@ no shared memory, no shared event bus, no WebSocket connection.
                                  └──────────────┘
 ```
 
-### Port Discovery
+### 端口发现
 
-The agent backgrounds `$D serve` and reads stderr for the port:
+agent 会把 `$D serve` 放到后台运行，并从 stderr 中读取端口：
 
 ```
 SERVE_STARTED: port=54321 html=/path/to/board.html
 SERVE_BROWSER_OPENED: url=http://127.0.0.1:54321
 ```
 
-The agent parses `port=XXXXX` from stderr. This port is needed later to POST
-`/api/reload` when the user requests regeneration. If the agent loses the port
-number, it cannot reload the board.
+agent 会从 stderr 中解析出 `port=XXXXX`。后续如果用户请求重新生成，agent 需要这个端口来向 `/api/reload` 发 POST。只要 agent 丢了这个端口号，就无法刷新 board。
 
-### Why 127.0.0.1, Not localhost
+### 为什么用 127.0.0.1，而不是 localhost
 
-`localhost` can resolve to IPv6 `::1` on some systems while Bun.serve() listens
-on IPv4 only. More importantly, `localhost` sends all dev cookies for every domain
-the developer has been working on. On a machine with many active sessions, this
-blows past Bun's default header size limit (HTTP 431 error). `127.0.0.1` avoids
-both issues.
+在某些系统上，`localhost` 可能会解析到 IPv6 的 `::1`，而 Bun.serve() 只监听 IPv4。更重要的是，`localhost` 会附带开发者当前机器上所有本地域名相关的开发 cookie。在一个同时跑着多个活跃会话的机器上，这很容易把 Bun 默认的 header size limit 顶爆，最终触发 HTTP 431。使用 `127.0.0.1` 可以同时规避这两个问题。
 
-## Every Edge Case and Pitfall
+## 全部边界情况与陷阱
 
-### 1. The Zombie Form Problem
+### 1. Zombie Form 问题
 
-**What:** User submits feedback, the POST succeeds, the server exits. But the HTML
-page is still open in Chrome. It looks interactive. The user might edit their
-feedback and click Submit again. Nothing happens because the server is gone.
+**现象：** 用户提交反馈后，POST 成功，server 退出。但这个 HTML 页面仍然开着，看起来还是可以交互。用户可能继续修改反馈，再点一次 Submit。但此时什么都不会发生，因为 server 已经没了。
 
-**Fix:** After successful POST, the board JS:
-- Disables ALL inputs (buttons, radios, textareas, star ratings)
-- Hides the Regenerate bar entirely
-- Replaces the Submit button with: "Feedback received! Return to your coding agent."
-- Shows: "Want to make more changes? Run `/design-shotgun` again."
-- The page becomes a read-only record of what was submitted
+**修复方式：** 成功 POST 后，board 的 JS 会：
 
-**Implemented in:** `compare.ts:showPostSubmitState()` (line 484)
+- 禁用**所有**输入（按钮、单选、文本域、星级评分）
+- 直接隐藏整个 Regenerate bar
+- 把 Submit 按钮替换成：`"Feedback received! Return to your coding agent."`
+- 显示：`"Want to make more changes? Run /design-shotgun again."`
+- 页面变成一份只读的已提交记录
 
-### 2. The Dead Server Problem
+**实现位置：** `compare.ts:showPostSubmitState()`（第 484 行）
 
-**What:** The server times out (10 min default) or crashes while the user still has
-the board open. User clicks Submit. The fetch() fails silently.
+### 2. Dead Server 问题
 
-**Fix:** The `postFeedback()` function has a `.catch()` handler. On network failure:
-- Shows red error banner: "Connection lost"
-- Displays the collected feedback JSON in a copyable `<pre>` block
-- User can copy-paste it directly into their coding agent
+**现象：** server 超时（默认 10 分钟）或崩溃了，但用户的 board 页面还在 Chrome 里开着。用户点击 Submit，`fetch()` 静默失败。
 
-**Implemented in:** `compare.ts:showPostFailure()` (line 546)
+**修复方式：** `postFeedback()` 带有 `.catch()` 处理器。网络失败时：
 
-### 3. The Stale Regeneration Spinner
+- 显示红色错误横幅：`"Connection lost"`
+- 把当前已收集到的 feedback JSON 显示在一个可复制的 `<pre>` 块里
+- 用户可以手动把这段 JSON 复制粘贴回 coding agent
 
-**What:** User clicks Regenerate. Board shows spinner and polls `/api/progress`
-every 2 seconds. Agent crashes or takes too long to generate new variants. The
-spinner spins forever.
+**实现位置：** `compare.ts:showPostFailure()`（第 546 行）
 
-**Fix:** Progress polling has a hard 5-minute timeout (150 polls x 2s interval).
-After 5 minutes:
-- Spinner replaced with: "Something went wrong."
-- Shows: "Run `/design-shotgun` again in your coding agent."
-- Polling stops. Page becomes informational.
+### 3. 过期的 Regeneration Spinner
 
-**Implemented in:** `compare.ts:startProgressPolling()` (line 511)
+**现象：** 用户点击 Regenerate 后，board 显示 spinner，并每 2 秒轮询一次 `/api/progress`。如果 agent 崩溃了，或者生成新变体太慢，spinner 会永远转下去。
 
-### 4. The file:// URL Problem (THE ORIGINAL BUG)
+**修复方式：** 进度轮询有硬性 5 分钟超时（150 次轮询 × 2 秒）。超过 5 分钟后：
 
-**What:** The skill template originally used `$B goto file:///path/to/board.html`.
-But `browse/src/url-validation.ts:71` blocks `file://` URLs for security. The
-fallback `open file://...` opens the user's macOS browser, but `$B eval` polls
-Playwright's headless browser (different process, never loaded the page).
-Agent polls empty DOM forever.
+- spinner 替换为：`"Something went wrong."`
+- 显示：`"Run /design-shotgun again in your coding agent."`
+- 停止轮询
+- 页面转为只提供信息
 
-**Fix:** `$D serve` serves over HTTP. Never use `file://` for the board. The
-`--serve` flag on `$D compare` combines board generation and HTTP serving in
-one command.
+**实现位置：** `compare.ts:startProgressPolling()`（第 511 行）
 
-**Evidence:** See `.context/attachments/image-v2.png` — a real user hit this exact
-bug. The agent correctly diagnosed: (1) `$B goto` rejects `file://` URLs,
-(2) no polling loop even with the browse daemon.
+### 4. `file://` URL 问题（最初的那个 bug）
 
-### 5. The Double-Click Race
+**现象：** skill 模板最开始用的是 `$B goto file:///path/to/board.html`。但 `browse/src/url-validation.ts:71` 出于安全原因会拦截 `file://` URL。后备方案 `open file://...` 虽然能在用户的 macOS 浏览器里打开页面，但 `$B eval` 轮询的是 Playwright 的 headless 浏览器，那是另一个进程，根本没加载这个页面。结果 agent 会永远对着一个空 DOM 轮询。
 
-**What:** User clicks Submit twice rapidly. Two POST requests arrive at the server.
-First one sets state to "done" and schedules exit(0) in 100ms. Second one arrives
-during that 100ms window.
+**修复方式：** `$D serve` 必须通过 HTTP 提供页面。永远不要把 comparison board 走 `file://`。`$D compare` 上的 `--serve` 标志已经把 board 生成和 HTTP 提供合并成一个命令。
 
-**Current state:** NOT fully guarded. The `handleFeedback()` function doesn't check
-if state is already "done" before processing. The second POST would succeed and
-write a second `feedback.json` (harmless, same data). The exit still fires after
-100ms.
+**证据：** 可参见 `.context/attachments/image-v2.png`，真实用户确实踩到了这个 bug。agent 当时的诊断是正确的：
 
-**Risk:** Low. The board disables all inputs on the first successful POST response,
-so a second click would need to arrive within ~1ms. And both writes would contain
-the same feedback data.
+1. `$B goto` 会拒绝 `file://` URL
+2. 即使有 browse daemon，也不存在对应的轮询闭环
 
-**Potential fix:** Add `if (state === 'done') return Response.json({error: 'already submitted'}, {status: 409})` at the top of `handleFeedback()`.
+### 5. 双击提交竞态
 
-### 6. The Port Coordination Problem
+**现象：** 用户快速连点两次 Submit。两次 POST 都打到 server。第一次会把状态设为 `"done"` 并在 100ms 后调度 `exit(0)`。第二次请求可能正好在这 100ms 窗口内到达。
 
-**What:** Agent backgrounds `$D serve` and parses `port=54321` from stderr. Agent
-needs this port later to POST `/api/reload` during regeneration. If the agent
-loses context (conversation compresses, context window fills up), it may not
-remember the port.
+**当前状态：** 还没有完全防住。`handleFeedback()` 顶部没有检查当前 state 是否已经是 `"done"`。第二个 POST 仍然会成功，并写出第二份 `feedback.json`（通常无害，因为内容相同）。100ms 后退出仍然会发生。
 
-**Current state:** The port is printed to stderr once. The agent must remember it.
-There is no port file written to disk.
+**风险：** 低。因为在第一个成功响应之后，board 会立即禁用所有输入。想打出第二次点击，基本要发生在 ~1ms 量级内，而且两次写入的内容通常相同。
 
-**Potential fix:** Write a `serve.pid` or `serve.port` file next to the board HTML
-on startup. Agent can read it anytime:
+**潜在修复：** 在 `handleFeedback()` 顶部加入：
+
+`if (state === 'done') return Response.json({error: 'already submitted'}, {status: 409})`
+
+### 6. 端口协同问题
+
+**现象：** agent 把 `$D serve` 放到后台跑，并从 stderr 里拿到 `port=54321`。后续做 regeneration 时，它还得用这个端口向 `/api/reload` 发请求。如果 agent 丢失上下文（对话被压缩、上下文窗口被填满），它可能就记不住这个端口。
+
+**当前状态：** 端口只会在 stderr 中打印一次。agent 必须自己记住。当前没有把端口写到磁盘。
+
+**潜在修复：** 启动时在 board HTML 旁边写一个 `serve.pid` 或 `serve.port` 文件。这样 agent 可以随时读：
+
 ```bash
 cat "$_DESIGN_DIR/serve.port"  # → 54321
 ```
 
-### 7. The Feedback File Cleanup Problem
+### 7. 反馈文件清理问题
 
-**What:** `feedback-pending.json` from a regeneration round is left on disk. If the
-agent crashes before reading it, the next `$D serve` session finds a stale file.
+**现象：** 某一轮 regeneration 生成的 `feedback-pending.json` 留在磁盘上。如果 agent 在读取前崩溃，下一次 `$D serve` 会看到这个过期文件。
 
-**Current state:** The polling loop in the resolver template says to delete
-`feedback-pending.json` after reading it. But this depends on the agent following
-instructions perfectly. Stale files could confuse a new session.
+**当前状态：** resolver template 中的轮询循环会要求 agent 在读取后删除 `feedback-pending.json`。但这依赖 agent 完全按说明执行。过期文件仍有可能干扰下一次会话。
 
-**Potential fix:** `$D serve` could check for and delete stale feedback files on
-startup. Or: name files with timestamps (`feedback-pending-1711555200.json`).
+**潜在修复：** `$D serve` 在启动时自动检查并删除过期 feedback 文件。或者把文件加上时间戳，例如 `feedback-pending-1711555200.json`。
 
-### 8. Sequential Generate Rule
+### 8. 串行生成规则
 
-**What:** The underlying OpenAI GPT Image API rate-limits concurrent image generation
-requests. When 3 `$D generate` calls run in parallel, 1 succeeds and 2 get aborted.
+**现象：** 底层 OpenAI GPT Image API 会对并发图像生成请求做限流。如果 3 个 `$D generate` 并行发起，通常只会有 1 个成功，另外 2 个会被中止。
 
-**Fix:** The skill template must explicitly say: "Generate mockups ONE AT A TIME.
-Do not parallelize `$D generate` calls." This is a prompt-level instruction, not
-a code-level lock. The design binary does not enforce sequential execution.
+**修复方式：** skill 模板必须明确写出：**“一次只生成一张。不要并行执行 `$D generate`。”** 这是 prompt 层约束，而不是代码锁。设计二进制本身并不会强制串行执行。
 
-**Risk:** Agents are trained to parallelize independent work. Without an explicit
-instruction, they will try to run 3 generates simultaneously. This wastes API calls
-and money.
+**风险：** 高。agent 天生倾向于把独立工作并行化。如果没有显式说明，它就会尝试同时跑 3 个 generate。这会浪费 API 调用和成本。
 
-### 9. The AskUserQuestion Redundancy
+### 9. AskUserQuestion 冗余
 
-**What:** After the user submits feedback via the board (with preferred variant,
-ratings, comments all in the JSON), the agent asks them again: "Which variant do
-you prefer?" This is annoying. The whole point of the board is to avoid this.
+**现象：** 用户已经通过 board 提交了反馈，其中包含偏好方案、评分和备注，结果 agent 又追问一次：“你更喜欢哪个方案？” 这会很烦。board 的意义本来就是避免这种重复追问。
 
-**Fix:** The skill template must say: "Do NOT use AskUserQuestion to ask the user's
-preference. Read `feedback.json`, it contains their selection. Only AskUserQuestion
-to confirm you understood correctly, not to re-ask."
+**修复方式：** skill 模板必须写明：**不要**用 AskUserQuestion 去重新询问用户偏好。直接读取 `feedback.json`，里面已经有用户选择。最多只用 AskUserQuestion 确认你理解得是否正确，而不是重新问一遍。
 
-### 10. The CORS Problem
+### 10. CORS 问题
 
-**What:** If the board HTML references external resources (fonts, images from CDN),
-the browser sends requests with `Origin: http://127.0.0.1:PORT`. Most CDNs allow
-this, but some might block it.
+**现象：** 如果 board HTML 引用了外部资源（比如 CDN 字体、CDN 图片），浏览器会带着 `Origin: http://127.0.0.1:PORT` 去请求。大多数 CDN 会允许，但有些可能会拦截。
 
-**Current state:** The server does not set CORS headers. The board HTML is
-self-contained (images base64-encoded, styles inline), so this hasn't been an
-issue in practice.
+**当前状态：** server 没有设置 CORS headers。board HTML 当前是完全自包含的（图片做成 base64、样式内联），所以现实里还没出现过问题。
 
-**Risk:** Low for current design. Would matter if the board loaded external
-resources.
+**风险：** 在当前设计下风险很低。如果未来 board 开始依赖外部资源，这个问题才会真正出现。
 
-### 11. The Large Payload Problem
+### 11. 大 payload 问题
 
-**What:** No size limit on POST bodies to `/api/feedback`. If the board somehow
-sends a multi-MB payload, `req.json()` will parse it all into memory.
+**现象：** `/api/feedback` 的 POST body 目前没有大小限制。如果 board 某次意外发出了一个多 MB 的 payload，`req.json()` 会整块读进内存。
 
-**Current state:** In practice, feedback JSON is ~500 bytes to ~2KB. The risk is
-theoretical, not practical. The board JS constructs a fixed-shape JSON object.
+**当前状态：** 实际中的 feedback JSON 通常只有 ~500 字节到 ~2KB，风险更偏理论层面。board 的 JS 本身生成的是固定 shape 的 JSON。
 
-### 12. The fs.writeFileSync Error
+### 12. `fs.writeFileSync` 错误
 
-**What:** `feedback.json` write in `serve.ts:138` uses `fs.writeFileSync()` with no
-try/catch. If the disk is full or the directory is read-only, this throws and
-crashes the server. The user sees a spinner forever (server is dead, but board
-doesn't know).
+**现象：** `serve.ts:138` 里写 `feedback.json` 时使用 `fs.writeFileSync()`，但没有 try/catch。如果磁盘满了，或者目录是只读的，这里会直接 throw 并把 server 打崩。用户看到的会是一个永远转下去的 spinner（server 已死，但 board 并不知道）。
 
-**Risk:** Low in practice (the board HTML was just written to the same directory,
-proving it's writable). But a try/catch with a 500 response would be cleaner.
+**风险：** 实际中很低，因为 board HTML 刚刚才写到同一个目录，这至少证明目录在当下是可写的。但用 try/catch 包一层，再返回 500 会更稳。
 
-## The Complete Flow (Step by Step)
+## 完整流程（逐步）
 
-### Happy Path: User Picks on First Try
+### Happy Path：用户第一次就选中
 
 ```
 1. Agent runs: $D compare --images "A.png,B.png,C.png" --output board.html --serve &
@@ -306,7 +253,7 @@ proving it's writable). But a try/catch with a 500 response would be cleaner.
 17. Agent reads it, summarizes to user, proceeds
 ```
 
-### Regeneration Path: User Wants Different Options
+### Regeneration Path：用户想看不同方向
 
 ```
 1-6.  Same as above
@@ -335,16 +282,16 @@ proving it's writable). But a try/catch with a 500 response would be cleaner.
 25. User picks one, clicks Submit → happy path from step 10
 ```
 
-### "More Like This" Path
+### “More Like This” 路径
 
 ```
-Same as regeneration, except:
-- regenerateAction is "more_like_B" (references the variant)
-- Agent uses $D iterate --image B.png --brief "more like this, keep the spacing"
-  instead of $D variants
+与 regeneration 相同，区别是：
+- regenerateAction 是 "more_like_B"（会引用某个变体）
+- Agent 使用 $D iterate --image B.png --brief "more like this, keep the spacing"
+  而不是 $D variants
 ```
 
-### Fallback Path: $D serve Fails
+### 回退路径：`$D serve` 失败
 
 ```
 1. Agent tries $D compare --serve, it fails (binary missing, port error, etc.)
@@ -355,97 +302,89 @@ Same as regeneration, except:
 5. Agent proceeds with text feedback (no structured JSON)
 ```
 
-## Files That Implement This
+## 对应实现文件
 
-| File | Role |
+| 文件 | 角色 |
 |------|------|
-| `design/src/serve.ts` | HTTP server, state machine, file writing, browser launch |
-| `design/src/compare.ts` | Board HTML generation, JS for ratings/picks/regen, POST logic, post-submit lifecycle |
-| `design/src/cli.ts` | CLI entry point, wires `serve` and `compare --serve` commands |
-| `design/src/commands.ts` | Command registry, defines `serve` and `compare` with their args |
-| `scripts/resolvers/design.ts` | `generateDesignShotgunLoop()` — template resolver that outputs the polling loop and reload instructions |
-| `design-shotgun/SKILL.md.tmpl` | Skill template that orchestrates the full flow: context gathering, variant generation, `{{DESIGN_SHOTGUN_LOOP}}`, feedback confirmation |
-| `design/test/serve.test.ts` | Unit tests for HTTP endpoints and state transitions |
-| `design/test/feedback-roundtrip.test.ts` | E2E test: browser click → JS fetch → HTTP POST → file on disk |
-| `browse/test/compare-board.test.ts` | DOM-level tests for the comparison board UI |
+| `design/src/serve.ts` | HTTP server、状态机、文件写入、浏览器启动 |
+| `design/src/compare.ts` | board HTML 生成、评分 / 选择 / regen 的 JS、POST 逻辑、提交后生命周期 |
+| `design/src/cli.ts` | CLI 入口，接入 `serve` 和 `compare --serve` 命令 |
+| `design/src/commands.ts` | 命令注册表，定义 `serve` 与 `compare` 及其参数 |
+| `scripts/resolvers/design.ts` | `generateDesignShotgunLoop()`，会输出轮询循环与 reload 指令的模板解析器 |
+| `design-shotgun/SKILL.md.tmpl` | 编排完整流程的 skill 模板，包括上下文收集、变体生成、`{{DESIGN_SHOTGUN_LOOP}}`、反馈确认 |
+| `design/test/serve.test.ts` | HTTP 端点与状态迁移的单元测试 |
+| `design/test/feedback-roundtrip.test.ts` | E2E 测试：浏览器点击 → JS fetch → HTTP POST → 磁盘文件 |
+| `browse/test/compare-board.test.ts` | comparison board UI 的 DOM 级测试 |
 
-## What Could Still Go Wrong
+## 还有哪些地方可能出问题
 
-### Known Risks (ordered by likelihood)
+### 已知风险（按可能性排序）
 
-1. **Agent doesn't follow sequential generate rule** — most LLMs want to parallelize. Without enforcement in the binary, this is a prompt-level instruction that can be ignored.
+1. **agent 不遵守串行生成规则**，大多数 LLM 都倾向并行化。如果二进制层面不强制，这个提示就有可能被忽略。
+2. **agent 丢了端口号**，上下文压缩后，stderr 中的端口输出消失，agent 无法 reload board。缓解方案是把端口写入文件。
+3. **过期 feedback 文件**，来自崩溃会话的 `feedback-pending.json` 会干扰下一次运行。缓解方案是启动时清理。
+4. **`fs.writeFileSync` 崩溃**，写 feedback 文件时没有 try/catch。如果磁盘已满，server 会静默死亡，用户只会看到无限 spinner。
+5. **进度轮询漂移**，`setInterval(fn, 2000)` 跑满 5 分钟时，理论上可能会漂移。尤其当标签页在后台时，Chrome 可能把定时器节流到每分钟一次。
 
-2. **Agent loses port number** — context compression drops the stderr output. Agent can't reload the board. Mitigation: write port to a file.
+### 已经做得不错的部分
 
-3. **Stale feedback files** — leftover `feedback-pending.json` from a crashed session confuses the next run. Mitigation: clean on startup.
+1. **双通道反馈**，前台模式走 stdout，后台模式走文件。两条通道始终同时存在，agent 可以择优使用。
+2. **自包含 HTML**，board 的 CSS、JS、图片全都内联或 base64，不依赖外部资源，离线也能工作。
+3. **同一标签页内完成 regeneration**，用户停留在一个 tab 里。board 通过 `/api/progress` 轮询 + `window.location.reload()` 自动刷新，不会越开越多标签页。
+4. **优雅降级**，POST 失败时给出可复制 JSON，progress 超时时给出清晰错误提示，没有静默失败。
+5. **提交后的生命周期收口**，用户提交后 board 自动转成只读，不会留下 zombie form，并且明确告诉用户下一步要回到 coding agent。
 
-4. **fs.writeFileSync crash** — no try/catch on the feedback file write. Silent server death if disk is full. User sees infinite spinner.
+## 测试覆盖
 
-5. **Progress polling drift** — `setInterval(fn, 2000)` over 5 minutes. In practice, JavaScript timers are accurate enough. But if the browser tab is backgrounded, Chrome may throttle intervals to once per minute.
+### 已覆盖内容
 
-### Things That Work Well
-
-1. **Dual-channel feedback** — stdout for foreground mode, files for background mode. Both always active. Agent can use whichever works.
-
-2. **Self-contained HTML** — board has all CSS, JS, and base64-encoded images inline. No external dependencies. Works offline.
-
-3. **Same-tab regeneration** — user stays in one tab. Board auto-refreshes via `/api/progress` polling + `window.location.reload()`. No tab explosion.
-
-4. **Graceful degradation** — POST failure shows copyable JSON. Progress timeout shows clear error message. No silent failures.
-
-5. **Post-submit lifecycle** — board becomes read-only after submit. No zombie forms. Clear "what to do next" message.
-
-## Test Coverage
-
-### What's Tested
-
-| Flow | Test | File |
+| 流程 | 测试 | 文件 |
 |------|------|------|
-| Submit → feedback.json on disk | browser click → file | `feedback-roundtrip.test.ts` |
-| Post-submit UI lockdown | inputs disabled, success shown | `feedback-roundtrip.test.ts` |
-| Regenerate → feedback-pending.json | chiclet + regen click → file | `feedback-roundtrip.test.ts` |
-| "More like this" → specific action | more_like_B in JSON | `feedback-roundtrip.test.ts` |
-| Spinner after regenerate | DOM shows loading text | `feedback-roundtrip.test.ts` |
-| Full regen → reload → submit | 2-round trip | `feedback-roundtrip.test.ts` |
-| Server starts on random port | port 0 binding | `serve.test.ts` |
-| HTML injection of server URL | __GSTACK_SERVER_URL check | `serve.test.ts` |
-| Invalid JSON rejection | 400 response | `serve.test.ts` |
-| HTML file validation | exit 1 if missing | `serve.test.ts` |
-| Timeout behavior | exit 1 after timeout | `serve.test.ts` |
-| Board DOM structure | radios, stars, chiclets | `compare-board.test.ts` |
+| Submit → feedback.json 落盘 | 浏览器点击 → 文件出现 | `feedback-roundtrip.test.ts` |
+| 提交后 UI 锁定 | 输入禁用、成功提示显示 | `feedback-roundtrip.test.ts` |
+| Regenerate → feedback-pending.json | 点击 chiclet + regen → 文件出现 | `feedback-roundtrip.test.ts` |
+| “More like this” → 特定 action | JSON 中写入 `more_like_B` | `feedback-roundtrip.test.ts` |
+| regen 后 spinner 显示 | DOM 展示 loading 文本 | `feedback-roundtrip.test.ts` |
+| 完整 regen → reload → submit | 两轮闭环 | `feedback-roundtrip.test.ts` |
+| server 启动随机端口 | 端口 0 绑定 | `serve.test.ts` |
+| server URL 注入 HTML | 检查 `__GSTACK_SERVER_URL` | `serve.test.ts` |
+| 非法 JSON 拒绝 | 400 响应 | `serve.test.ts` |
+| HTML 文件校验 | 文件缺失时 exit 1 | `serve.test.ts` |
+| 超时行为 | 超时后 exit 1 | `serve.test.ts` |
+| board DOM 结构 | radios、stars、chiclets | `compare-board.test.ts` |
 
-### What's NOT Tested
+### 尚未覆盖内容
 
-| Gap | Risk | Priority |
+| 缺口 | 风险 | 优先级 |
 |-----|------|----------|
-| Double-click submit race | Low — inputs disable on first response | P3 |
-| Progress polling timeout (150 iterations) | Medium — 5 min is long to wait in a test | P2 |
-| Server crash during regeneration | Medium — user sees infinite spinner | P2 |
-| Network timeout during POST | Low — localhost is fast | P3 |
-| Backgrounded Chrome tab throttling intervals | Medium — could extend 5-min timeout to 30+ min | P2 |
-| Large feedback payload | Low — board constructs fixed-shape JSON | P3 |
-| Concurrent sessions (two boards, one server) | Low — each $D serve gets its own port | P3 |
-| Stale feedback file from prior session | Medium — could confuse new polling loop | P2 |
+| 双击提交竞态 | 低，第一次响应后会立刻禁用输入 | P3 |
+| 进度轮询超时（150 次） | 中，5 分钟太长，不适合普通测试 | P2 |
+| regeneration 期间 server 崩溃 | 中，用户会看到无限 spinner | P2 |
+| POST 时网络超时 | 低，localhost 通常很快 | P3 |
+| 后台标签页导致定时器节流 | 中，可能把 5 分钟拖成 30+ 分钟 | P2 |
+| 巨大 feedback payload | 低，board 生成的是固定 shape JSON | P3 |
+| 并发会话（两个 board、一个 server） | 低，每次 `$D serve` 都会分配自己端口 | P3 |
+| 上一轮留下的过期 feedback 文件 | 中，可能干扰新一轮轮询 | P2 |
 
-## Potential Improvements
+## 潜在改进
 
-### Short-term (this branch)
+### 短期（本分支内）
 
-1. **Write port to file** — `serve.ts` writes `serve.port` to disk on startup. Agent reads it anytime. 5 lines.
-2. **Clean stale files on startup** — `serve.ts` deletes `feedback*.json` before starting. 3 lines.
-3. **Guard double-click** — check `state === 'done'` at top of `handleFeedback()`. 2 lines.
-4. **try/catch file write** — wrap `fs.writeFileSync` in try/catch, return 500 on failure. 5 lines.
+1. **把端口写进文件**，`serve.ts` 启动时把 `serve.port` 写到磁盘。agent 可随时读取。5 行左右。
+2. **启动时清理过期文件**，`serve.ts` 启动前删除 `feedback*.json`。3 行左右。
+3. **防双击提交**，在 `handleFeedback()` 顶部判断 `state === 'done'`。2 行左右。
+4. **给文件写入加 try/catch**，把 `fs.writeFileSync` 包起来，失败时返回 500。5 行左右。
 
-### Medium-term (follow-up)
+### 中期（后续跟进）
 
-5. **WebSocket instead of polling** — replace `setInterval` + `GET /api/progress` with a WebSocket connection. Board gets instant notification when new HTML is ready. Eliminates polling drift and backgrounded-tab throttling. ~50 lines in serve.ts + ~20 lines in compare.ts.
+5. **用 WebSocket 取代轮询**，把 `setInterval` + `GET /api/progress` 替换成 WebSocket。新 HTML 准备好时，board 能立即收到通知。这样可以消除轮询漂移和后台标签页节流。大概是 `serve.ts` 50 行 + `compare.ts` 20 行。
 
-6. **Port file for agent** — write `{"port": 54321, "pid": 12345, "html": "/path/board.html"}` to `$_DESIGN_DIR/serve.json`. Agent reads this instead of parsing stderr. Makes the system more robust to context loss.
+6. **给 agent 用的端口文件**，把 `{"port": 54321, "pid": 12345, "html": "/path/board.html"}` 写进 `$_DESIGN_DIR/serve.json`。agent 以后直接读文件，不再依赖 stderr。对抗上下文丢失更稳。
 
-7. **Feedback schema validation** — validate the POST body against a JSON schema before writing. Catch malformed feedback early instead of confusing the agent downstream.
+7. **反馈 schema 校验**，在写入前用 JSON schema 校验 POST body。这样 malformed feedback 会被更早挡住，不会把问题带到后续 agent 逻辑里。
 
-### Long-term (design direction)
+### 长期（设计方向）
 
-8. **Persistent design server** — instead of launching `$D serve` per session, run a long-lived design daemon (like the browse daemon). Multiple boards share one server. Eliminates cold start. But adds daemon lifecycle management complexity.
+8. **持久化设计 server**，不是每次会话都启动一次 `$D serve`，而是像 browse daemon 一样跑一个长期 design daemon。多个 board 共用一个 server。这样就没有 cold start，但 daemon 生命周期管理会更复杂。
 
-9. **Real-time collaboration** — two agents (or one agent + one human) working on the same board simultaneously. Server broadcasts state changes via WebSocket. Requires conflict resolution on feedback.
+9. **实时协作**，允许两个 agent，或者一个 agent + 一个真人，同时在同一块 board 上工作。server 通过 WebSocket 广播状态变化。届时就需要处理反馈冲突。
