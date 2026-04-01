@@ -812,6 +812,8 @@ STACK=""
 [ -f requirements.txt ] || [ -f pyproject.toml ] && STACK="${STACK}python "
 [ -f go.mod ] && STACK="${STACK}go "
 [ -f Cargo.toml ] && STACK="${STACK}rust "
+[ -f Anchor.toml ] && STACK="${STACK}solana "
+[ -f Cargo.toml ] && grep -qE 'anchor-lang|solana-program|solana-sdk' Cargo.toml 2>/dev/null && STACK="${STACK}solana "
 echo "STACK: ${STACK:-unknown}"
 DIFF_LINES=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || echo "0")
 echo "DIFF_LINES: $DIFF_LINES"
@@ -833,6 +835,7 @@ Based on the scope signals above, select which specialists to dispatch.
 5. **Data Migration** — if SCOPE_MIGRATIONS=true. Read `~/.claude/skills/gstack/review/specialists/data-migration.md`
 6. **API Contract** — if SCOPE_API=true. Read `~/.claude/skills/gstack/review/specialists/api-contract.md`
 7. **Design** — if SCOPE_FRONTEND=true. Use the existing design review checklist at `~/.claude/skills/gstack/review/design-checklist.md`
+8. **Solana** — if STACK contains "solana" (Anchor.toml detected or Cargo.toml references anchor-lang/solana-program/solana-sdk). Read `~/.claude/skills/gstack/review/specialists/solana.md`
 
 Note which specialists were selected and which were skipped. Print the selection:
 "Dispatching N specialists: [names]. Skipped: [names] (scope not detected)."

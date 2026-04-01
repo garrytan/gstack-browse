@@ -1,0 +1,1670 @@
+---
+name: solana
+preamble-tier: 3
+version: 1.0.0
+description: |
+  Solana development lifecycle — idea to production. Seven modes:
+  /solana ideas — product discovery (ecosystem gaps, market signals)
+  /solana build — guided dev (Anchor, Pinocchio, SDKs, wallets, tokens, DeFi, agents)
+  /solana audit — security audit (Sealevel vulns, 8 attack categories)
+  /solana deploy — mainnet deployment (pre-flight, upgrade authority)
+  /solana monitor — post-deploy health checks (tx rate, authority, state)
+  /solana debug — systematic error diagnosis (logs, simulation, CPI tracing)
+  /solana ecosystem — browse repos, skills, MCPs from the Solana ecosystem
+  Default: detect project state and route to the right mode.
+  Use when asked to build on Solana, Anchor program, Solana security,
+  deploy to mainnet, audit my program, or what to build on Solana.
+  Proactively suggest when Anchor.toml or solana-program detected. (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - Agent
+  - AskUserQuestion
+  - WebSearch
+---
+
+{{PREAMBLE}}
+
+{{BASE_BRANCH_DETECT}}
+
+# /solana — Solana Development Lifecycle
+
+Seven modes. Detect which one the user needs, or they can specify directly.
+
+---
+
+## Mode Router
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Solana Project Detection ==="
+[ -f Anchor.toml ] && echo "ANCHOR=true" || echo "ANCHOR=false"
+[ -f Cargo.toml ] && grep -qE 'anchor-lang|solana-program|pinocchio' Cargo.toml 2>/dev/null && echo "SOLANA_PROGRAM=true" || echo "SOLANA_PROGRAM=false"
+[ -f package.json ] && grep -qE 'solana|anchor' package.json 2>/dev/null && echo "SOLANA_JS=true" || echo "SOLANA_JS=false"
+[ -f SOLANA_IDEA.md ] && echo "IDEA_DOC=true" || echo "IDEA_DOC=false"
+[ -d programs ] && echo "PROGRAMS_DIR=true" && ls programs/ || echo "PROGRAMS_DIR=false"
+[ -d app ] || [ -d src ] && echo "FRONTEND=true" || echo "FRONTEND=false"
+[ -d .solana-new ] && echo "SOLANA_NEW=true" || echo "SOLANA_NEW=false"
+command -v solana-new >/dev/null 2>&1 && echo "SOLANA_NEW_CLI=true" || echo "SOLANA_NEW_CLI=false"
+ls *.toml *.json 2>/dev/null | head -10
+```
+
+**Routing rules:**
+
+1. User said `/solana ideas` or asked "what should I build" → **Ideas Mode**
+2. User said `/solana audit` or asked about security → **Audit Mode**
+3. User said `/solana deploy` or asked about mainnet → **Deploy Mode**
+4. User said `/solana monitor` or asked about health checks → **Monitor Mode**
+5. User said `/solana debug` or pasted an error/tx signature → **Debug Mode**
+6. User said `/solana ecosystem` or asked about repos/skills/MCPs → **Ecosystem Mode**
+7. User said `/solana build` or asked to build/code something → **Build Mode**
+8. No explicit mode:
+   - No Solana project exists → **Ideas Mode**
+   - Project exists but incomplete → **Build Mode**
+   - Project exists and user mentions security → **Audit Mode**
+   - Project deployed, user asks about health → **Monitor Mode**
+   - User pasted an error message or tx hash → **Debug Mode**
+
+---
+
+{{LEARNINGS_SEARCH}}
+
+# IDEAS MODE — What Should I Build on Solana?
+
+Run this mode when the user needs to find a project direction. You are a sharp product thinker who knows the Solana ecosystem deeply. Push back on bad ideas. Reward specificity. Kill vagueness.
+
+---
+
+## Ideas Phase 1: Who Are You?
+
+Ask ONE question at a time via `AskUserQuestion`. Never batch.
+
+**Q1 — Background:**
+> What's your technical background? Languages, frameworks, years of experience, any blockchain/crypto work?
+
+**Q2 — Motivation:**
+> Why Solana? (Speed? Ecosystem? Hackathon? Job? Curiosity?)
+
+**Q3 — Timeline:**
+> What's your ambition level?
+> A) Weekend hack — ship in 2 days
+> B) Hackathon — 1-2 weeks, want to win
+> C) Side project — few weeks, learn deeply
+> D) Startup — real product, want users
+
+**Q4 — Existing Ideas:**
+> Do you already have an idea? If yes, describe it. If no, say "no idea yet."
+
+If the user HAS an idea, run the **Kill Test** (evaluate silently, don't ask the user):
+1. Does this NEED a blockchain? What gets worse if you remove Solana?
+2. Does something similar already exist on Solana?
+3. Can this user actually build an MVP?
+
+If the idea fails, say so directly with the specific reason. Then show alternatives.
+
+---
+
+## Ideas Phase 2: Ecosystem Landscape
+
+Map the user's skills against real gaps.
+
+### Saturated — Don't Build Another One
+- DEX aggregators (Jupiter dominates)
+- Basic NFT marketplaces (Magic Eden, Tensor)
+- Generic wallets (Phantom, Solflare, Backpack)
+- Block explorers (Solscan, XRAY)
+- Token launchpads (Pump.fun and 50 clones)
+
+### Where the Gaps Are
+
+**DeFi Infrastructure:**
+- Structured products (vaults, yield strategies, options) — AMMs exist, structured products don't
+- Intent-based trading / solver networks — nascent on Solana
+- Real-world asset (RWA) tokenization — $30B market, early on Solana
+- DeFi risk dashboards — fragmented, no single source of truth
+- Perpetual futures with novel mechanisms (order book, vAMM, concentrated liquidity)
+- Cross-margin lending with risk isolation per pool
+
+**AI x Crypto:**
+- AI agents that transact on-chain (Solana Agent Kit exists, apps built ON it are early)
+- Agent-to-agent payments (x402 protocol)
+- AI portfolio management
+- Natural language DeFi interfaces
+- AI data labeling with crypto incentives
+- Autonomous trading agents with risk controls
+
+**Consumer & Social:**
+- Crypto-native social apps (not "add token to existing social")
+- Subscription platforms using Token-2022 transfer hooks
+- Gaming with real economic models
+- Creator monetization (programmable royalties, streaming payments)
+- Prediction markets for niche domains
+
+**Infrastructure & Dev Tools:**
+- Better testing tools for Solana programs
+- Monitoring and alerting for deployed programs
+- No-code Solana Action/Blink builders
+- Webhook infrastructure for on-chain events
+- Program upgrade governance tools
+- Formal verification tooling (QEDGen)
+
+**DePIN:**
+- Sensor networks, compute networks, energy grids
+- Location-verified services
+- IoT data marketplaces
+
+**Payments & Commerce:**
+- Stablecoin payment rails for merchants
+- Cross-border payroll with USDC
+- On-chain invoice and billing
+- Confidential transfers via Token-2022
+
+### Key Repos and SDKs
+- **Anchor** — Program framework (Rust). 95% of programs use this.
+- **Pinocchio** — Zero-dependency Solana program library. 88-95% CU savings over Anchor.
+- **@solana/web3.js / @solana/kit** — TypeScript SDK (kit is the newer version)
+- **Solana Agent Kit** — AI agents that transact on Solana (60+ protocol integrations)
+- **Wallet Adapter** — React wallet connection (Phantom, Solflare, Backpack, etc.)
+- **Metaplex** — NFT/token standard tools (Candy Machine, Bubblegum, Core)
+- **Jupiter SDK** — Swap aggregation (v6 API)
+- **Helius** — Enhanced RPC, webhooks, DAS API, 60+ MCP tools
+- **Surfpool / LiteSVM / Bankrun** — Testing frameworks (local validator alternatives)
+- **Solana Actions / Blinks** — Shareable transaction links
+- **Squads** — Multisig protocol for program upgrade governance
+
+---
+
+## Ideas Phase 3: Propose 3 Ideas
+
+For each, use this format:
+
+```
+### Idea N: [Name]
+**One-liner:** What it does
+**Why now:** Market signal or ecosystem gap
+**Why you:** Connection to user's skills
+**MVP scope:** 3-5 concrete features for v1
+**Tech stack:** Exact frameworks and SDKs
+**Difficulty:** Easy / Medium / Hard
+**Build on:** Existing repos or protocols to integrate
+**Kill risk:** #1 reason this could fail
+```
+
+Use `AskUserQuestion`:
+> Which idea excites you most? Pick one, reject all, or ask to dig deeper.
+
+---
+
+## Ideas Phase 4: Deep Dive
+
+For the chosen idea:
+
+1. **Competitive scan** — search the web for similar Solana projects. If competitors exist, identify the gap. If none, explain why (greenfield vs. no demand).
+
+2. **Technical feasibility** — can the user actually build this? If it requires Rust and they only know JS, say so. Adjust scope or suggest learning path.
+
+3. **MVP spec** — exactly what to build, what to cut, what "done" looks like, estimated effort.
+
+4. **First three steps** — what to do RIGHT NOW.
+
+Use `AskUserQuestion`:
+> Does this feel right? Any scope changes before we lock it in?
+
+---
+
+## Ideas Phase 5: Lock In
+
+Write `SOLANA_IDEA.md` in the project root:
+
+```markdown
+# [Idea Name]
+## Problem — [what problem this solves]
+## Solution — [what the user is building]
+## MVP Scope — [specific features for v1]
+## Tech Stack — [exact frameworks, SDKs, tools]
+## Architecture — [high-level: program accounts, frontend, integrations]
+## First Steps
+1. [step]
+2. [step]
+3. [step]
+```
+
+Tell the user: run `/solana build` next to start coding. Or `/plan-eng-review` first to lock architecture.
+
+---
+
+# BUILD MODE — From Scaffold to Working Code
+
+Run this mode when the user has a direction and needs to write code. You're pair-programming, not tutoring.
+
+---
+
+## Build Phase 0: Detect State
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Build Context ==="
+[ -f SOLANA_IDEA.md ] && echo "IDEA=true" && head -30 SOLANA_IDEA.md || echo "IDEA=false"
+[ -f Anchor.toml ] && echo "ANCHOR=true" || echo "ANCHOR=false"
+[ -f package.json ] && echo "NODE=true" || echo "NODE=false"
+[ -d programs ] && echo "PROGRAMS=true" && ls programs/ || echo "PROGRAMS=false"
+[ -d app ] || [ -d src ] && echo "FRONTEND=true" || echo "FRONTEND=false"
+[ -d tests ] || [ -d test ] && echo "TESTS=true" || echo "TESTS=false"
+grep -rl 'pinocchio' Cargo.toml programs/*/Cargo.toml 2>/dev/null && echo "PINOCCHIO=true" || echo "PINOCCHIO=false"
+```
+
+Route:
+- Nothing exists → Scaffold (Phase 1)
+- SOLANA_IDEA.md but no code → Scaffold, use idea doc for context
+- Anchor project exists but incomplete → Jump to Program Dev (Phase 3) or Frontend (Phase 4)
+- User wants to add a feature → `AskUserQuestion` for what, then jump to relevant phase
+- User wants a specific sub-domain → Route to Build Sub-Mode
+
+### Build Sub-Mode Router
+
+If the user's goal maps to a specialized domain, route to the matching sub-mode:
+
+1. User wants DEX, AMM, lending, vault, yield, perps → **DeFi Sub-Mode**
+2. User wants to create/launch a token, memecoin, bonding curve → **Token Launch Sub-Mode**
+3. User wants Solana Actions, Blinks, shareable tx links → **Blinks Sub-Mode**
+4. User wants indexer, webhooks, analytics, data pipeline → **Data Pipeline Sub-Mode**
+5. User wants mobile app (React Native, Kotlin) → **Mobile Sub-Mode**
+6. User wants AI agent that transacts on-chain → **Agent Sub-Mode**
+7. User wants compressed NFTs, NFT collection → **NFT Sub-Mode**
+8. General program + frontend → Continue with standard Build phases below
+
+---
+
+## Build Phase 1: Scaffold
+
+Use `AskUserQuestion`:
+> What type of Solana project?
+> A) **Full-stack dApp** — Anchor program + Next.js frontend + wallet
+> B) **Program only** — Anchor smart contract, no frontend
+> C) **Program only (Pinocchio)** — Zero-dep, max performance, no Anchor overhead
+> D) **Frontend only** — UI interacting with existing programs
+> E) **AI Agent** — Bot that transacts on Solana (Solana Agent Kit)
+> F) **Blink / Solana Action** — Shareable transaction link
+> G) **Mobile dApp** — React Native or Kotlin with wallet
+> H) **Something else**
+
+**Scaffold commands:**
+
+A) Full-stack: `npx create-solana-dapp@latest my-app` — gives Anchor + Next.js + wallet-adapter + Tailwind.
+
+B) Program (Anchor): `anchor init my-program` — Anchor workspace. Add `idl-build` feature to `programs/*/Cargo.toml`.
+
+C) Program (Pinocchio): Create a new Rust project manually:
+```bash
+cargo init --lib my-program
+```
+Add to Cargo.toml:
+```toml
+[dependencies]
+pinocchio = "0.7"
+pinocchio-token = "0.4"  # if working with SPL tokens
+```
+Pinocchio is 88-95% cheaper in compute units than Anchor. Best for performance-critical programs (DeFi, high-throughput). Trade-off: no IDL generation, manual account serialization, steeper learning curve.
+
+D) Frontend: `npx create-next-app@latest --typescript --tailwind --app` then `npm install @solana/web3.js @solana/wallet-adapter-react @solana/wallet-adapter-react-ui @solana/wallet-adapter-wallets`
+
+E) Agent: `npx create-solana-agent my-agent` — Agent Kit + LangChain + wallet.
+
+F) Blink: `npx create-solana-dapp@latest` then set up an Actions API route.
+
+G) Mobile: `npx react-native init MySolanaDapp --template react-native-template-typescript` then add `@solana/web3.js` and mobile wallet adapter.
+
+After scaffolding, verify:
+```bash
+anchor build 2>&1 | tail -5
+anchor test 2>&1 | tail -10
+```
+
+Fix failures before proceeding. Don't build on broken foundations.
+
+---
+
+## Build Phase 2: Solana Mental Model
+
+Skip this if user has blockchain experience. For junior devs, explain with their specific project:
+
+1. **Accounts, not contracts.** Programs are stateless. Data lives in separate accounts. Think of programs as pure functions and accounts as the database rows they read/write.
+2. **PDAs (Program Derived Addresses).** Deterministic addresses from seeds. Programs create and own them. Like a database index — seeds → address.
+3. **Instructions, not function calls.** Transactions contain instructions with: program ID, accounts, data. A transaction can have multiple instructions that execute atomically.
+4. **Rent.** Accounts need ~0.00089 SOL/KB to exist (rent exemption). Accounts below rent-exempt threshold get garbage collected.
+5. **Compute Units.** 200,000 CU default per instruction. Complex ops need more (max 1.4M per tx). Optimize CU for lower fees.
+6. **Transactions.** Max 1232 bytes. Can contain multiple instructions. All-or-nothing — if one fails, all revert.
+7. **Versioned Transactions.** V0 transactions support Address Lookup Tables (ALTs) for more accounts per tx.
+
+---
+
+## Build Phase 3: Program Development (Anchor)
+
+### 3.1 Account Structures
+Design accounts based on what data the program stores. Use `AskUserQuestion` to understand the user's data model.
+
+```rust
+#[account]
+pub struct MyAccount {
+    pub authority: Pubkey,  // 32 bytes
+    pub data: u64,          // 8 bytes
+    pub bump: u8,           // 1 byte
+}
+// Space: 8 (discriminator) + 32 + 8 + 1 = 49
+```
+
+Key decisions (ask user):
+- What accounts? Which are PDAs vs keypair?
+- PDA seeds? (Must include enough entropy — user pubkey, mint, etc.)
+- Who has authority over each?
+
+**Space calculation cheat sheet:**
+| Type | Size |
+|------|------|
+| bool | 1 |
+| u8/i8 | 1 |
+| u16/i16 | 2 |
+| u32/i32 | 4 |
+| u64/i64 | 8 |
+| u128/i128 | 16 |
+| Pubkey | 32 |
+| String | 4 + len |
+| Vec<T> | 4 + (len * T_size) |
+| Option<T> | 1 + T_size |
+| Enum | 1 + largest_variant |
+| Discriminator | 8 (Anchor auto) |
+
+### 3.2 Instructions
+For each operation, write an instruction handler:
+
+```rust
+#[program]
+pub mod my_program {
+    use super::*;
+
+    pub fn initialize(ctx: Context<Initialize>, data: u64) -> Result<()> {
+        let account = &mut ctx.accounts.my_account;
+        account.authority = ctx.accounts.authority.key();
+        account.data = data;
+        account.bump = ctx.bumps.my_account;
+        Ok(())
+    }
+}
+
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    #[account(init, payer = authority, space = 8 + 32 + 8 + 1,
+              seeds = [b"my-account", authority.key().as_ref()], bump)]
+    pub my_account: Account<'info, MyAccount>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+```
+
+Per instruction, verify:
+- [ ] Signer checks — who can call this?
+- [ ] Account validation — all accounts properly constrained?
+- [ ] Arithmetic — using `checked_*` for math?
+- [ ] State transitions — valid state for this operation?
+
+### 3.3 Common Anchor Patterns
+
+**Update instruction with authority check:**
+```rust
+#[derive(Accounts)]
+pub struct Update<'info> {
+    #[account(mut, has_one = authority,
+              seeds = [b"my-account", authority.key().as_ref()], bump = my_account.bump)]
+    pub my_account: Account<'info, MyAccount>,
+    pub authority: Signer<'info>,
+}
+```
+
+**Close instruction (return rent):**
+```rust
+#[derive(Accounts)]
+pub struct Close<'info> {
+    #[account(mut, close = authority, has_one = authority)]
+    pub my_account: Account<'info, MyAccount>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+}
+```
+
+**PDA with multiple seeds:**
+```rust
+#[account(init, payer = user, space = 8 + 64,
+          seeds = [b"vault", pool.key().as_ref(), user.key().as_ref()], bump)]
+pub vault: Account<'info, Vault>,
+```
+
+**Token transfer via CPI:**
+```rust
+use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+
+pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    let seeds = &[b"vault", ctx.accounts.pool.key().as_ref(), &[ctx.accounts.vault.bump]];
+    let signer = &[&seeds[..]];
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.vault_token.to_account_info(),
+                to: ctx.accounts.user_token.to_account_info(),
+                authority: ctx.accounts.vault.to_account_info(),
+            },
+            signer,
+        ),
+        amount,
+    )?;
+    Ok(())
+}
+```
+
+### 3.4 Build and Test Loop
+```bash
+anchor build 2>&1
+anchor test 2>&1
+```
+
+Common build errors:
+- "seeds constraint not satisfied" → PDA seeds mismatch
+- "space constraint not satisfied" → wrong space calculation
+- "type mismatch" → wrong account type in Accounts struct
+- "already in use" → account already initialized (needs `init_if_needed` or separate check)
+- "insufficient funds" → payer doesn't have enough SOL for rent
+
+### 3.5 Pinocchio Program Development
+
+For performance-critical programs, Pinocchio offers 88-95% CU savings:
+
+```rust
+use pinocchio::{
+    account_info::AccountInfo, entrypoint, program_error::ProgramError,
+    pubkey::Pubkey, ProgramResult,
+};
+
+entrypoint!(process_instruction);
+
+fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    match instruction_data[0] {
+        0 => initialize(program_id, accounts, &instruction_data[1..]),
+        1 => update(program_id, accounts, &instruction_data[1..]),
+        _ => Err(ProgramError::InvalidInstructionData),
+    }
+}
+```
+
+**When to use Pinocchio vs Anchor:**
+- **Anchor** — rapid development, auto-IDL, built-in security guards, most projects
+- **Pinocchio** — high-frequency DeFi, MEV, programs where every CU counts, experienced Rust devs
+
+{{TEST_BOOTSTRAP}}
+
+---
+
+## Build Phase 4: Frontend & Wallet Integration
+
+### 4.1 Wallet Connection
+```typescript
+// providers.tsx
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import { PhantomWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { clusterApiUrl } from '@solana/web3.js';
+
+const network = WalletAdapterNetwork.Devnet;
+const endpoint = clusterApiUrl(network);
+const wallets = [new PhantomWalletAdapter()];
+
+export function Providers({ children }) {
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <WalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>{children}</WalletModalProvider>
+      </WalletProvider>
+    </ConnectionProvider>
+  );
+}
+```
+
+Usage:
+```typescript
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+
+function MyComponent() {
+  const { publicKey, sendTransaction } = useWallet();
+  const { connection } = useConnection();
+  return <><WalletMultiButton />{publicKey && <p>{publicKey.toBase58()}</p>}</>;
+}
+```
+
+### 4.2 Calling Programs from Frontend
+
+**Anchor client:**
+```typescript
+import { Program, AnchorProvider } from '@coral-xyz/anchor';
+import { useAnchorWallet, useConnection } from '@solana/wallet-adapter-react';
+import idl from '../target/idl/my_program.json';
+
+function useProgram() {
+  const wallet = useAnchorWallet();
+  const { connection } = useConnection();
+  if (!wallet) return null;
+  const provider = new AnchorProvider(connection, wallet, {});
+  return new Program(idl, provider);
+}
+
+async function initialize(program, data) {
+  return program.methods.initialize(new BN(data))
+    .accounts({ authority: program.provider.publicKey })
+    .rpc();
+}
+```
+
+**Raw @solana/web3.js (no Anchor):**
+```typescript
+import { Transaction, SystemProgram, PublicKey } from '@solana/web3.js';
+
+async function sendSol(connection, wallet, to, amount) {
+  const tx = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: wallet.publicKey,
+      toPubkey: new PublicKey(to),
+      lamports: amount * 1e9,
+    })
+  );
+  const sig = await sendTransaction(tx, connection);
+  await connection.confirmTransaction(sig, 'confirmed');
+  return sig;
+}
+```
+
+**@solana/kit (newer SDK):**
+```typescript
+import { createSolanaRpc, pipe, createTransactionMessage,
+         setTransactionMessageFeePayer, appendTransactionMessageInstruction } from '@solana/kit';
+
+const rpc = createSolanaRpc('https://api.devnet.solana.com');
+```
+
+### 4.3 Token Operations (SPL)
+```typescript
+import { createMint, mintTo, transfer, getOrCreateAssociatedTokenAccount } from '@solana/spl-token';
+
+// Create token
+const mint = await createMint(connection, payer, mintAuthority, freezeAuthority, 9);
+
+// Token account for user
+const tokenAccount = await getOrCreateAssociatedTokenAccount(connection, payer, mint, owner);
+
+// Mint
+await mintTo(connection, payer, mint, tokenAccount.address, mintAuthority, 1000 * 1e9);
+
+// Transfer
+await transfer(connection, payer, fromAccount, toAccount, owner, 100 * 1e9);
+```
+
+### 4.4 Token-2022 Extensions
+
+Token-2022 adds programmable features to SPL tokens:
+
+```typescript
+import { createInitializeMintInstruction, createInitializeTransferFeeConfigInstruction,
+         TOKEN_2022_PROGRAM_ID, ExtensionType, getMintLen } from '@solana/spl-token';
+
+// Mint with transfer fee (e.g., 1% fee on every transfer)
+const extensions = [ExtensionType.TransferFeeConfig];
+const mintLen = getMintLen(extensions);
+const lamports = await connection.getMinimumBalanceForRentExemption(mintLen);
+
+const tx = new Transaction().add(
+  SystemProgram.createAccount({ fromPubkey: payer, newAccountPubkey: mint, space: mintLen, lamports, programId: TOKEN_2022_PROGRAM_ID }),
+  createInitializeTransferFeeConfigInstruction(mint, feeAuthority, withdrawAuthority, 100, BigInt(1000000), TOKEN_2022_PROGRAM_ID),
+  createInitializeMintInstruction(mint, 9, mintAuthority, freezeAuthority, TOKEN_2022_PROGRAM_ID),
+);
+```
+
+**Available Token-2022 extensions:**
+- **TransferFee** — automatic fee on every transfer (royalties, protocol fees)
+- **TransferHook** — execute custom program on every transfer (compliance, subscriptions)
+- **ConfidentialTransfer** — encrypted balances and transfer amounts (privacy)
+- **PermanentDelegate** — irrevocable authority to transfer/burn any holder's tokens
+- **NonTransferable** — soulbound tokens (achievements, credentials)
+- **InterestBearing** — display tokens with accrued interest
+- **DefaultAccountState** — new token accounts start frozen (KYC compliance)
+- **MintCloseAuthority** — allow closing mint accounts to reclaim rent
+- **GroupPointer / MemberPointer** — token grouping (collections)
+
+### 4.5 DeFi Integration (Jupiter)
+```typescript
+// Quote
+const quote = await fetch(
+  `https://quote-api.jup.ag/v6/quote?inputMint=${inputMint}&outputMint=${outputMint}&amount=${amount}`
+).then(r => r.json());
+
+// Swap tx
+const { swapTransaction } = await fetch('https://quote-api.jup.ag/v6/swap', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ quoteResponse: quote, userPublicKey: wallet.publicKey.toString() }),
+}).then(r => r.json());
+
+// Sign and send
+const tx = VersionedTransaction.deserialize(Buffer.from(swapTransaction, 'base64'));
+tx.sign([wallet]);
+await connection.sendTransaction(tx);
+```
+
+### 4.6 AI Agent (Solana Agent Kit)
+```typescript
+import { SolanaAgentKit, createSolanaTools } from 'solana-agent-kit';
+
+const agent = new SolanaAgentKit(privateKey, rpcUrl, { OPENAI_API_KEY: process.env.OPENAI_API_KEY });
+// 60+ tools: transfer SOL, swap tokens, deploy programs, mint NFTs, stake, lend, borrow
+// Integrates with Jupiter, Raydium, Orca, Marinade, Meteora, and 50+ protocols
+const tools = createSolanaTools(agent);
+```
+
+---
+
+## Build Phase 5: Testing
+
+### 5.1 Program Tests (Anchor)
+
+```typescript
+describe('my-program', () => {
+  const provider = anchor.AnchorProvider.env();
+  anchor.setProvider(provider);
+  const program = anchor.workspace.MyProgram;
+
+  it('initializes', async () => {
+    await program.methods.initialize(new anchor.BN(42))
+      .accounts({ authority: provider.wallet.publicKey }).rpc();
+    const [pda] = PublicKey.findProgramAddressSync(
+      [Buffer.from('my-account'), provider.wallet.publicKey.toBuffer()], program.programId);
+    const account = await program.account.myAccount.fetch(pda);
+    expect(account.data.toNumber()).toBe(42);
+  });
+
+  it('rejects unauthorized', async () => {
+    const bad = Keypair.generate();
+    await provider.connection.requestAirdrop(bad.publicKey, 1e9);
+    await expect(program.methods.restrictedAction()
+      .accounts({ authority: bad.publicKey }).signers([bad]).rpc()
+    ).rejects.toThrow();
+  });
+});
+```
+
+### 5.2 Fast Local Testing (Bankrun / LiteSVM)
+
+**Bankrun** — fast program testing without a local validator:
+```typescript
+import { start } from 'solana-bankrun';
+import { PublicKey } from '@solana/web3.js';
+
+const programId = new PublicKey('...');
+const context = await start([{ name: 'my_program', programId }], []);
+const client = context.banksClient;
+const payer = context.payer;
+// Much faster than anchor test — no validator startup
+```
+
+**LiteSVM** — Rust-native SVM for testing:
+```rust
+use litesvm::LiteSvm;
+
+let mut svm = LiteSvm::new();
+svm.add_program(program_id, &program_bytes);
+let result = svm.send_transaction(tx);
+```
+
+**Surfpool** — Solana's official testing environment with cheatcodes:
+- Warp time, set account balances, simulate oracle prices
+- Fork mainnet state for realistic testing
+- `surfpool init && surfpool test`
+
+### 5.3 Frontend Test Checklist
+```bash
+solana config set --url devnet && solana airdrop 2 && npm run dev
+```
+- [ ] Wallet connects and disconnects
+- [ ] Transaction succeeds on devnet
+- [ ] Error states show friendly messages
+- [ ] Loading states during confirmation
+- [ ] Network mismatch handled (wallet on mainnet, app on devnet)
+- [ ] Mobile wallet deep-link works (if applicable)
+
+### 5.4 Security Test Patterns
+
+Always test these BEFORE deploying:
+```typescript
+// Test: unauthorized access rejected
+it('rejects non-authority', async () => {
+  const attacker = Keypair.generate();
+  await expect(program.methods.adminFunction()
+    .accounts({ authority: attacker.publicKey })
+    .signers([attacker]).rpc()
+  ).rejects.toThrow(/ConstraintHasOne|Unauthorized/);
+});
+
+// Test: double-init rejected
+it('rejects reinitialization', async () => {
+  await program.methods.initialize(new BN(1)).accounts({...}).rpc();
+  await expect(program.methods.initialize(new BN(2)).accounts({...}).rpc()
+  ).rejects.toThrow();
+});
+
+// Test: overflow protection
+it('handles large amounts safely', async () => {
+  const maxU64 = new BN('18446744073709551615');
+  await expect(program.methods.deposit(maxU64).accounts({...}).rpc()
+  ).rejects.toThrow();
+});
+```
+
+---
+
+## Build Phase 6: Devnet Deploy
+
+```bash
+solana config set --url devnet
+solana airdrop 2
+anchor build
+anchor deploy --provider.cluster devnet
+solana program show <PROGRAM_ID>
+```
+
+Update program ID everywhere after first deploy:
+```bash
+setopt +o nomatch 2>/dev/null || true
+grep -r "YOUR_OLD_PROGRAM_ID" . --include="*.rs" --include="*.ts" --include="*.toml"
+```
+
+---
+
+## Build Phase 7: Compute Unit Optimization
+
+After the program works correctly, optimize CU usage:
+
+```bash
+# Measure CU per instruction
+solana confirm -v <TX_SIG> 2>&1 | grep "Compute units"
+```
+
+**Optimization techniques:**
+1. **Use `Box<Account<>>` for large accounts** — reduces stack usage
+2. **Minimize account re-borrowing** — one `let account = &mut ctx.accounts.foo;` at the top
+3. **Pre-compute PDA bumps** — store bump in account, don't re-derive
+4. **Batch operations** — combine multiple updates in one instruction
+5. **Use zero-copy (`#[account(zero_copy)]`)** — for accounts > 10KB
+6. **Consider Pinocchio** — for hot paths, 88-95% CU savings
+7. **Profile with `sol_log_compute_units()`** — find the expensive line
+
+**CU Budget reference:**
+| Operation | Approximate CU |
+|-----------|---------------|
+| SHA256 hash | 300 |
+| PDA derivation | 1,500 |
+| CPI call overhead | 1,000 |
+| Anchor discriminator check | 200 |
+| Account deserialization (small) | 500-1,000 |
+| Account deserialization (large) | 2,000-5,000 |
+| Token transfer CPI | 4,000 |
+| System transfer CPI | 2,000 |
+
+---
+
+## Build Phase 8: Next Steps
+
+```bash
+anchor build 2>&1 && anchor test 2>&1 && echo "BUILD CLEAN" || echo "BUILD BROKEN"
+```
+
+Tell the user:
+- `/review` — code review (Solana specialist auto-detects)
+- `/solana audit` — deep security audit
+- `/ship` — create a PR
+- `/solana deploy` — when ready for mainnet
+
+---
+
+# BUILD SUB-MODES
+
+## DeFi Sub-Mode
+
+For AMM, lending, vault, yield strategies, perps.
+
+### DeFi Architecture Decision
+
+Use `AskUserQuestion`:
+> What type of DeFi protocol?
+> A) **AMM / DEX** — token swaps with liquidity pools
+> B) **Lending / Borrowing** — deposit collateral, borrow against it
+> C) **Vault / Yield** — auto-compounding strategies
+> D) **Perpetual Futures** — leveraged trading
+> E) **Options / Structured Products** — derivatives
+> F) **Other**
+
+### DeFi Non-Negotiables
+1. **All math uses checked arithmetic** — `checked_add/sub/mul/div`, u128 intermediaries
+2. **Oracle prices have staleness checks** — `publish_time` within 60s
+3. **Slippage protection on every swap** — `minimum_amount_out` parameter
+4. **Emergency pause mechanism** — admin can halt the protocol
+5. **Independent security review before mainnet** — not optional for DeFi
+6. **Test with mainnet-forked state** — use Surfpool to fork real liquidity
+
+### DeFi Program Skeleton (AMM)
+
+```rust
+#[account]
+pub struct Pool {
+    pub authority: Pubkey,
+    pub token_a_mint: Pubkey,
+    pub token_b_mint: Pubkey,
+    pub token_a_vault: Pubkey,
+    pub token_b_vault: Pubkey,
+    pub lp_mint: Pubkey,
+    pub fee_numerator: u64,
+    pub fee_denominator: u64,
+    pub token_a_amount: u64,
+    pub token_b_amount: u64,
+    pub paused: bool,
+    pub bump: u8,
+}
+
+// Constant product: k = x * y (must hold after every swap)
+pub fn swap(ctx: Context<Swap>, amount_in: u64, minimum_amount_out: u64) -> Result<()> {
+    require!(!ctx.accounts.pool.paused, ErrorCode::PoolPaused);
+    let fee = amount_in.checked_mul(ctx.accounts.pool.fee_numerator).unwrap()
+        .checked_div(ctx.accounts.pool.fee_denominator).unwrap();
+    let amount_in_after_fee = amount_in.checked_sub(fee).unwrap();
+    // k = x * y → y_new = k / x_new → amount_out = y - y_new
+    let k = (ctx.accounts.pool.token_a_amount as u128)
+        .checked_mul(ctx.accounts.pool.token_b_amount as u128).unwrap();
+    let new_a = (ctx.accounts.pool.token_a_amount as u128)
+        .checked_add(amount_in_after_fee as u128).unwrap();
+    let new_b = k.checked_div(new_a).unwrap();
+    let amount_out = ctx.accounts.pool.token_b_amount
+        .checked_sub(new_b as u64).unwrap();
+    require!(amount_out >= minimum_amount_out, ErrorCode::SlippageExceeded);
+    // ... CPI token transfers ...
+    Ok(())
+}
+```
+
+### Oracle Integration (Pyth)
+
+```rust
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
+
+pub fn check_price(ctx: Context<CheckPrice>) -> Result<()> {
+    let price_update = &ctx.accounts.price_feed;
+    let price = price_update.get_price_no_older_than(
+        &Clock::get()?,
+        60,  // max staleness: 60 seconds
+        &feed_id,
+    )?;
+    let price_value = price.price; // i64, scaled by 10^price.exponent
+    let confidence = price.conf;   // confidence interval
+    // Reject if confidence > 1% of price (too uncertain)
+    require!(confidence < (price_value.unsigned_abs() / 100), ErrorCode::PriceTooUncertain);
+    Ok(())
+}
+```
+
+---
+
+## Token Launch Sub-Mode
+
+### Token Type Decision
+
+Use `AskUserQuestion`:
+> What kind of token?
+> A) **Standard SPL Token** — basic fungible token
+> B) **Token-2022 with extensions** — transfer fees, hooks, confidential transfers
+> C) **Memecoin via Pump.fun** — bonding curve launch
+> D) **NFT collection** — Metaplex Core or compressed NFTs
+
+### Token Launch Checklist
+1. Create mint with correct decimals (9 for most tokens, 6 for stablecoins)
+2. Set metadata (name, symbol, image URI via Metaplex Token Metadata)
+3. Decide: keep mint authority (can mint more) or revoke (fixed supply)
+4. Decide: keep freeze authority or revoke
+5. Create initial distribution (team, community, treasury)
+6. If Token-2022: configure extensions BEFORE first mint
+7. Test on devnet first — always
+
+### Pump.fun Integration
+```typescript
+// Pump.fun uses a bonding curve — tokens are minted as SOL is deposited
+// When market cap reaches ~$69K, liquidity migrates to Raydium
+// Use the Pump.fun API or SDK for programmatic launches
+
+// WARNING: Pump.fun launches are HIGH-RISK for users. Always disclose:
+// - Bonding curve mechanics (early buyers get cheaper tokens)
+// - Migration threshold and what happens after
+// - No guaranteed liquidity before migration
+```
+
+---
+
+## Blinks Sub-Mode (Solana Actions)
+
+Blinks turn any Solana transaction into a shareable link that unfurls in wallets, X/Twitter, and websites.
+
+### Actions API Pattern
+
+```typescript
+// app/api/actions/my-action/route.ts (Next.js App Router)
+import { ActionGetResponse, ActionPostRequest, ActionPostResponse,
+         createPostResponse, createActionHeaders } from '@solana/actions';
+
+const headers = createActionHeaders();
+
+export async function GET(req: Request) {
+  const response: ActionGetResponse = {
+    icon: 'https://example.com/icon.png',
+    title: 'My Solana Action',
+    description: 'Do something on Solana',
+    label: 'Execute',
+    links: {
+      actions: [
+        { label: 'Send 0.1 SOL', href: '/api/actions/my-action?amount=0.1' },
+        { label: 'Custom amount', href: '/api/actions/my-action?amount={amount}',
+          parameters: [{ name: 'amount', label: 'SOL amount', type: 'number' }] },
+      ],
+    },
+  };
+  return Response.json(response, { headers });
+}
+
+export async function POST(req: Request) {
+  const body: ActionPostRequest = await req.json();
+  const account = new PublicKey(body.account);
+  // Build transaction...
+  const response = await createPostResponse({ fields: { type: 'transaction', transaction } });
+  return Response.json(response, { headers });
+}
+
+export const OPTIONS = GET; // CORS preflight
+```
+
+**Non-negotiables:**
+- `actions.json` at domain root (/.well-known/actions.json or /actions.json)
+- CORS headers on every response (use `createActionHeaders()`)
+- Validate all user inputs server-side
+- Return proper error responses with `message` field
+
+---
+
+## Data Pipeline Sub-Mode
+
+### Ingestion Method Decision
+
+Use `AskUserQuestion`:
+> How do you want to ingest Solana data?
+> A) **Helius Webhooks** — push-based, real-time, easiest setup
+> B) **WebSocket (accountSubscribe/programSubscribe)** — streaming
+> C) **Geyser Plugin** — lowest latency, validator-level
+> D) **Polling (getSignaturesForAddress)** — simplest, highest latency
+
+### Helius Webhook Setup
+```typescript
+// Create webhook via Helius API
+const webhook = await fetch('https://api.helius.dev/v0/webhooks?api-key=YOUR_KEY', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    webhookURL: 'https://your-app.com/api/webhook',
+    transactionTypes: ['TRANSFER', 'SWAP'],
+    accountAddresses: ['PROGRAM_ID'],
+    webhookType: 'enhanced', // parsed transactions
+  }),
+});
+```
+
+**Non-negotiables for data pipelines:**
+- Idempotent writes (same tx processed twice = same result)
+- Slot-based ordering (not timestamp)
+- Backfill mechanism for missed data
+- Lag monitoring (alert if > 30 slots behind)
+
+---
+
+## Mobile Sub-Mode
+
+### React Native Setup
+
+```bash
+npx react-native init MySolanaDapp --template react-native-template-typescript
+npm install @solana/web3.js @solana-mobile/mobile-wallet-adapter-protocol
+npm install @solana-mobile/mobile-wallet-adapter-protocol-web3js
+```
+
+**Mobile Wallet Adapter** connects to Phantom, Solflare, etc. on mobile:
+```typescript
+import { transact } from '@solana-mobile/mobile-wallet-adapter-protocol-web3js';
+
+const result = await transact(async (wallet) => {
+  const auth = await wallet.authorize({ cluster: 'devnet', identity: { name: 'My App' } });
+  const publicKey = new PublicKey(auth.accounts[0].address);
+  // Build and sign transaction...
+  const signatures = await wallet.signAndSendTransactions({ transactions: [tx] });
+  return signatures;
+});
+```
+
+---
+
+## Agent Sub-Mode
+
+### Solana Agent Kit Patterns
+
+```typescript
+import { SolanaAgentKit } from 'solana-agent-kit';
+
+const agent = new SolanaAgentKit(privateKey, rpcUrl);
+
+// 60+ built-in tools covering:
+// Transfers: transfer SOL, SPL tokens
+// DeFi: Jupiter swaps, Orca pools, Raydium, Marinade staking
+// NFTs: mint, list, buy on Magic Eden
+// Programs: deploy, upgrade
+// Data: fetch balances, tx history, token metadata
+```
+
+**Agent Safety Non-Negotiables:**
+1. **Never store private keys in code** — use environment variables or secure vaults
+2. **Set transaction limits** — max SOL/token amount per transaction
+3. **Implement circuit breakers** — pause if loss exceeds threshold
+4. **Log every transaction** — full audit trail with tx signatures
+5. **Test on devnet extensively** — agents can drain wallets fast
+
+---
+
+## NFT Sub-Mode
+
+### Metaplex Core (Recommended for new projects)
+
+```typescript
+import { createNft } from '@metaplex-foundation/mpl-core';
+
+// Metaplex Core is the latest standard — simpler, cheaper than Token Metadata
+// No associated token accounts needed, built-in plugins for royalties/freeze/etc.
+```
+
+### Compressed NFTs (for large collections, 1000x cheaper)
+
+```typescript
+import { createTree, mintV1 } from '@metaplex-foundation/mpl-bubblegum';
+
+// Uses state compression — stores NFT data in a Merkle tree
+// ~$50 for 1M NFTs vs ~$50,000 with regular NFTs
+// Trade-off: needs indexer (Helius DAS API) for reading
+```
+
+---
+
+# AUDIT MODE — Solana Security Audit
+
+You are a security auditor. Find every exploitable vulnerability before an attacker does.
+
+Use `AskUserQuestion`:
+> Audit mode:
+> A) **Quick scan** — big-ticket items (5 min)
+> B) **Full audit** — every instruction, all categories (20+ min)
+
+---
+
+## Audit Phase 1: Recon
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Program Files ==="
+find . -path "*/programs/*/src/**/*.rs" -o -path "*/src/lib.rs" 2>/dev/null | head -30
+
+echo "=== Instruction Handlers ==="
+grep -rn "pub fn " programs/ --include="*.rs" 2>/dev/null | grep -v test | grep -v "mod " | head -30
+
+echo "=== Account Structs ==="
+grep -rn "#\[account\]" programs/ --include="*.rs" 2>/dev/null | head -20
+grep -rn "#\[derive(Accounts)\]" programs/ --include="*.rs" 2>/dev/null | head -20
+
+echo "=== Framework ==="
+[ -f Anchor.toml ] && echo "anchor" || echo "native"
+[ -f Cargo.toml ] && grep 'anchor-lang' Cargo.toml 2>/dev/null | head -1
+[ -f Cargo.toml ] && grep 'pinocchio' Cargo.toml 2>/dev/null | head -1
+
+echo "=== Dependencies ==="
+grep -E 'pyth|switchboard|chainlink' Cargo.toml programs/*/Cargo.toml 2>/dev/null | head -5
+echo "=== Token Program Usage ==="
+grep -rn 'token::|spl_token|anchor_spl' programs/ --include="*.rs" 2>/dev/null | head -10
+```
+
+Read every program source file before auditing.
+
+---
+
+## Audit Phase 2: Vulnerability Scan
+
+For EACH instruction handler, check ALL categories:
+
+### Category 1: Signer Verification (CRITICAL)
+- [ ] Every authority/admin/payer uses `Signer` type or checks `is_signer`
+- [ ] Admin functions (pause, withdraw, set_fee) properly gated
+- [ ] PDA signer seeds in `invoke_signed` match derivation
+- [ ] No authority accepted without checking against stored state (`has_one`)
+
+**Exploit:** Attacker calls admin function with own wallet. No `has_one = authority` check means anyone drains funds.
+
+### Category 2: PDA Seed Safety (CRITICAL)
+- [ ] Seeds include user-specific entropy (pubkey, mint, unique ID)
+- [ ] No two account types share identical seed derivation
+- [ ] Canonical bump stored and reused
+- [ ] Seeds don't use mutable identifiers
+
+**Exploit:** Static seeds without user pubkey — two users collide, second overwrites first.
+
+### Category 3: Account Validation (CRITICAL)
+- [ ] Every `AccountInfo` validated for owner (Anchor `Account<T>` auto-validates)
+- [ ] Token accounts validate mint AND authority
+- [ ] Related accounts use `has_one` constraints
+- [ ] System/token programs validated
+- [ ] No duplicate aliasing where it matters
+- [ ] Discriminator checked (native programs)
+- [ ] Token-2022 accounts validated for correct program (TOKEN_PROGRAM_ID vs TOKEN_2022_PROGRAM_ID)
+
+**Exploit:** Attacker passes token account with wrong mint. Instruction operates on wrong token.
+
+### Category 4: Arithmetic Safety (HIGH)
+- [ ] `checked_add/sub/mul/div` for all token math
+- [ ] No `as` casts without overflow check (use `try_into()`)
+- [ ] Multiply before divide (no precision loss)
+- [ ] u128 intermediaries for large multiplications
+- [ ] No division by zero possible
+
+**Exploit:** Release-mode Rust wraps on overflow. Crafted input causes mint-from-nothing.
+
+### Category 5: CPI Security (HIGH)
+- [ ] CPI target program ID validated against known constant
+- [ ] `invoke_signed` seeds match PDA (not from user input)
+- [ ] State re-validated after CPI call
+- [ ] PDA authority scoped per responsibility
+- [ ] No user-supplied program IDs in CPI
+
+**Exploit:** Attacker substitutes malicious program for token program. PDA signs for attacker.
+
+### Category 6: Reinitialization & State (HIGH)
+- [ ] Init-once enforced (`init` constraint or `is_initialized` flag)
+- [ ] Close + reopen doesn't reset permanent state
+- [ ] State machine transitions validated (no backwards)
+- [ ] Account closure zeros data AND drains lamports
+
+**Exploit:** Close escrow, reopen in same tx with reset state, withdraw twice.
+
+### Category 7: Rent & Lamport Drain (MEDIUM)
+- [ ] Close sends lamports to validated recipient
+- [ ] No operation leaves account below rent-exempt
+- [ ] Lamport accounting: increases == decreases
+
+### Category 8: DeFi-Specific (CRITICAL if applicable)
+Only if the program handles prices, swaps, lending, or liquidations:
+- [ ] Oracle staleness checked (publish_time within 60s)
+- [ ] Oracle confidence interval validated
+- [ ] Flash loan resistance (price not from same-tx balance)
+- [ ] Slippage protection (`minimum_amount_out`)
+- [ ] AMM invariant verified after swap
+- [ ] Liquidation threshold uses fresh prices
+- [ ] Fee calculation doesn't truncate to zero for small amounts
+
+### Category 9: Token-2022 Specific (HIGH if applicable)
+Only if the program interacts with Token-2022 tokens:
+- [ ] Transfer hook programs validated
+- [ ] Transfer fee accounted for in amount calculations
+- [ ] Confidential transfer state handled correctly
+- [ ] Permanent delegate authority understood and documented
+- [ ] Non-transferable tokens can't be force-transferred via CPI
+
+{{CONFIDENCE_CALIBRATION}}
+
+---
+
+## Audit Phase 3: Report
+
+Per finding:
+```
+### [SEVERITY] [Category] — [one-line summary]
+**File:** path:line | **Confidence:** N/10
+**Exploit:** Step-by-step attack scenario
+**Fix:**
+// Before (vulnerable)
+// After (fixed)
+```
+
+Summary table:
+```
+| # | Severity | Category | File:Line | Summary |
+```
+
+**Grade:** A-F (any CRITICAL = max C). Mainnet safe: yes/no with reasoning.
+
+If user wants fixes: apply each, verify it compiles, commit atomically.
+
+---
+
+# DEBUG MODE — Systematic Error Diagnosis
+
+You are a debugger. Get to root cause fast. Don't guess — trace.
+
+---
+
+## Debug Phase 1: Get the Error
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Recent Errors ==="
+# Check if user pasted a tx signature (base58, 87-88 chars)
+# Check if user pasted an error message
+# Check test output
+anchor test 2>&1 | tail -30
+```
+
+If the user pasted a transaction signature:
+```bash
+solana confirm -v <TX_SIGNATURE> 2>&1
+```
+
+If the user pasted an error, identify the type:
+1. **Anchor error code** (e.g., `Error Code: ConstraintHasOne`) → account constraint violation
+2. **Program error** (e.g., `Program failed: custom program error: 0x1`) → custom error in program
+3. **Transaction error** (e.g., `Transaction simulation failed`) → pre-flight failure
+4. **RPC error** (e.g., `429 Too Many Requests`) → infrastructure issue
+5. **Build error** (e.g., `cannot find type`) → Rust compilation issue
+
+---
+
+## Debug Phase 2: Simulate
+
+Always simulate before guessing:
+
+```bash
+# Simulate a transaction to get detailed logs
+solana confirm -v <TX_SIG> 2>&1
+# Or use the Anchor test with RUST_LOG
+RUST_LOG=solana_runtime::system_instruction_processor=trace anchor test 2>&1 | tail -50
+```
+
+**For Anchor error codes:**
+| Code | Meaning | Fix |
+|------|---------|-----|
+| 2001 | AccountDiscriminatorMismatch | Wrong account type passed |
+| 2003 | AccountNotInitialized | Account doesn't exist yet |
+| 2006 | ConstraintMut | Account not marked `#[account(mut)]` |
+| 2012 | ConstraintHasOne | `has_one` field doesn't match |
+| 2014 | ConstraintSeeds | PDA seeds don't match |
+| 2016 | ConstraintOwner | Wrong program owns the account |
+| 3000 | AccountNotEnoughKeys | Missing accounts in instruction |
+| 3004 | IdlAccountNotFound | IDL doesn't match deployed program |
+| 6000+ | Custom errors | Check your `#[error_code]` enum |
+
+**For custom program errors:**
+```bash
+setopt +o nomatch 2>/dev/null || true
+# Decode custom error from hex
+echo "Custom error 0x1770 = $((0x1770)) decimal"
+# Then check the error enum in your program
+grep -rn "#\[error_code\]" programs/ --include="*.rs" -A 20 2>/dev/null
+```
+
+---
+
+## Debug Phase 3: Trace CPI Chain
+
+If the error is in a CPI call:
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+# Find all CPI calls in the program
+grep -rn "invoke\|invoke_signed\|CpiContext" programs/ --include="*.rs" 2>/dev/null
+```
+
+Common CPI issues:
+1. **Wrong program ID** — passing a different program than expected
+2. **Missing signer** — PDA should sign but seeds are wrong
+3. **Account ordering** — CPI expects accounts in specific order
+4. **Stale state** — reading account after CPI modified it
+
+---
+
+## Debug Phase 4: Common Patterns
+
+**"Transaction too large"** (> 1232 bytes):
+- Use Versioned Transactions with Address Lookup Tables
+- Reduce number of accounts per instruction
+- Split into multiple transactions
+
+**"Blockhash not found"**:
+- Transaction expired (>60s since blockhash fetched)
+- Use `getLatestBlockhash` with `commitment: 'confirmed'`
+- Implement retry with fresh blockhash
+
+**"Insufficient funds for rent"**:
+- Calculate exact rent: `connection.getMinimumBalanceForRentExemption(space)`
+- Account needs minimum lamports to exist
+
+**"Account already in use"**:
+- Trying to init an account that already exists
+- Use `init_if_needed` (with caution) or check existence first
+
+**"Program failed to complete"** (out of CU):
+- Request more CU: `ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 })`
+- Profile with `sol_log_compute_units()` to find bottleneck
+
+---
+
+# DEPLOY MODE — Mainnet Deployment
+
+The user said deploy. Do it. Do NOT ask for confirmation at each step. Only stop for: missing prerequisites, test failures, or upgrade authority decision (irreversible).
+
+---
+
+## Deploy Phase 1: Pre-Flight
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Pre-Flight ==="
+solana --version 2>&1 || echo "ERROR: solana CLI missing"
+anchor --version 2>&1 || echo "WARNING: anchor CLI missing"
+solana config get
+solana balance 2>&1
+solana address 2>&1
+
+echo "=== Program ==="
+[ -f Anchor.toml ] && grep -A2 "\[programs" Anchor.toml
+[ -d target/deploy ] && ls target/deploy/*.so 2>/dev/null || echo "No built program"
+
+PROGRAM_ID=$(grep -r "declare_id" programs/ --include="*.rs" 2>/dev/null | head -1 | grep -oE '[A-HJ-NP-Za-km-z1-9]{32,44}')
+[ -n "$PROGRAM_ID" ] && solana program show "$PROGRAM_ID" 2>&1 || echo "No existing deployment"
+```
+
+Auto-verify (fix if possible, stop only if you can't):
+1. CLI installed
+2. `anchor build` succeeds
+3. `anchor test` passes
+4. Wallet has 2-5 SOL (program deploy cost)
+5. Program ID consistent across Anchor.toml + declare_id! + lib.rs
+6. No secrets in codebase: `grep -r "private" . --include="*.ts" --include="*.env" | grep -i key`
+
+---
+
+## Deploy Phase 2: Devnet First
+
+```bash
+solana config set --url devnet
+solana airdrop 2
+anchor deploy --provider.cluster devnet 2>&1
+anchor test --provider.cluster devnet 2>&1
+```
+
+If devnet fails, fix before proceeding. No exceptions.
+
+---
+
+## Deploy Phase 3: Upgrade Authority
+
+**This is the ONE decision that needs user input.** Use `AskUserQuestion`:
+
+> Upgrade authority controls who can modify your deployed program. Choose:
+> A) **Keep with your wallet** — you can upgrade later. Standard for early stage.
+> B) **Transfer to multisig (Squads)** — N-of-M signatures required. Safer for production.
+> C) **Renounce** — program becomes immutable FOREVER. Only for fully audited code.
+>
+> RECOMMENDATION: A. You can transfer to multisig later. Renouncing is irreversible.
+
+---
+
+## Deploy Phase 4: Mainnet Deploy
+
+```bash
+solana config set --url mainnet-beta
+solana balance 2>&1
+anchor build 2>&1
+anchor deploy --provider.cluster mainnet-beta 2>&1
+```
+
+Post-deploy:
+```bash
+setopt +o nomatch 2>/dev/null || true
+PROGRAM_ID=$(solana address -k target/deploy/*-keypair.json 2>/dev/null)
+echo "Program: $PROGRAM_ID"
+solana program show "$PROGRAM_ID" 2>&1
+echo "Explorer: https://explorer.solana.com/address/$PROGRAM_ID"
+```
+
+Update: Anchor.toml, .env, frontend config with mainnet RPC + program ID.
+
+**RPC for production:**
+- Do NOT use `api.mainnet-beta.solana.com` — rate limited, not for production
+- Use a dedicated RPC provider: Helius, QuickNode, Triton, or Chainstack
+- Set up failover to a second RPC provider
+
+---
+
+## Deploy Phase 5: Verify
+
+Run the simplest instruction against mainnet. Verify on explorer. Check upgrade authority matches expectation.
+
+**Program verification (optional but recommended):**
+```bash
+# Verify the deployed binary matches your source code
+# Use OtterSec's verification tool or Solana Verify
+solana-verify verify-from-repo --program-id <PROGRAM_ID> --url https://github.com/your-repo
+```
+
+Tell user: run `/solana monitor` for ongoing health checks.
+
+---
+
+# MONITOR MODE — Post-Deploy Health Checks
+
+---
+
+## Monitor Phase 1: Target
+
+```bash
+setopt +o nomatch 2>/dev/null || true
+echo "=== Program Detection ==="
+[ -f Anchor.toml ] && grep -A5 "\[programs" Anchor.toml
+PROGRAM_ID=$(grep -r "declare_id" programs/ --include="*.rs" 2>/dev/null | head -1 | grep -oE '[A-HJ-NP-Za-km-z1-9]{32,44}')
+echo "Program: $PROGRAM_ID"
+solana config get 2>&1 | grep "RPC URL"
+```
+
+If no program ID found, use `AskUserQuestion` for it.
+
+---
+
+## Monitor Phase 2: Health Checks
+
+### Check 1: Program Exists
+```bash
+solana account "$PROGRAM_ID" 2>&1
+```
+Not found → **CRITICAL: Program missing or closed.**
+
+### Check 2: Authority Unchanged
+```bash
+solana program show "$PROGRAM_ID" 2>&1 | grep -i authority
+```
+Changed unexpectedly → **CRITICAL: Authority modified.**
+
+### Check 3: Transaction Success Rate
+```bash
+solana transaction-history "$PROGRAM_ID" --limit 20 2>&1
+```
+Error rate > 20% → **HIGH: Elevated failures.**
+
+### Check 4: Account State
+Verify key PDAs exist and have expected data.
+
+### Check 5: Balance & Rent
+```bash
+solana balance "$PROGRAM_ID" 2>&1
+```
+Check that critical PDAs (vaults, pools, etc.) are above rent-exempt threshold.
+
+---
+
+## Monitor Phase 3: Report
+
+```
+=== Solana Program Health Report ===
+Program: [ID] | Network: [cluster] | Checked: [timestamp]
+
+Status: HEALTHY / DEGRADED / BROKEN
+
+| Check | Status | Details |
+|-------|--------|---------|
+| Exists | OK/FAIL | ... |
+| Authority | OK/FAIL | ... |
+| Tx success | OK/FAIL | X% rate |
+| State | OK/FAIL | N PDAs checked |
+| Balance | OK/FAIL | X SOL |
+
+Alerts: [list or none]
+Next: re-run /solana monitor after changes or weekly.
+```
+
+---
+
+# ECOSYSTEM MODE — Browse Repos, Skills, and MCPs
+
+Help the user discover the right tools from the Solana ecosystem.
+
+---
+
+## Ecosystem Catalog
+
+The Solana ecosystem has a rich catalog of developer resources. Use `AskUserQuestion`:
+
+> What are you looking for?
+> A) **Starter repos** — scaffolds and templates to clone
+> B) **Skills** — Claude Code / Codex skills for Solana development
+> C) **MCP servers** — Model Context Protocol servers for AI-assisted development
+> D) **All of the above** — show me everything relevant to my project
+
+### Quick Reference: Top Resources by Category
+
+**Scaffolds & Starters:**
+| Repo | Description | Command |
+|------|-------------|---------|
+| create-solana-dapp | Official full-stack scaffold | `npx create-solana-dapp@latest` |
+| dapp-scaffold | Next.js + wallet adapter | `git clone solana-labs/dapp-scaffold` |
+| anchor-by-example | Curated Anchor examples | `git clone coral-xyz/anchor-by-example` |
+| program-examples | Anchor, Native, Steel, Poseidon | `git clone solana-developers/program-examples` |
+| create-solana-agent | AI agent scaffold | `npx create-solana-agent` |
+
+**DeFi References:**
+| Repo | Description |
+|------|-------------|
+| whirlpools | Orca concentrated liquidity AMM |
+| raydium-cp-swap | Raydium constant product AMM |
+| marinade-liquid-staking | mSOL liquid staking |
+| jupiter-nextjs-example | Jupiter swap frontend |
+
+**AI Agent Repos (27+ available):**
+| Repo | Description |
+|------|-------------|
+| solana-agent-kit | 60+ protocol integrations, LangChain/Vercel AI |
+| solana-mcp | AI-to-blockchain MCP bridge |
+| solana-app-kit | 15-minute agent app builder |
+| Various wallet agents | Phantom, Privy, Crossmint, Turnkey integrations |
+
+**MCP Servers for AI-Assisted Development:**
+| MCP | Description |
+|-----|-------------|
+| Solana Developer MCP | Official Foundation MCP (docs, RPC, CPI) |
+| Helius MCP | 60+ tools for queries, webhooks, wallet analysis |
+| Jupiter MCP | Swap routing, limit orders, portfolio |
+| Phantom MCP | Wallet operations (sign, send, swap) |
+| Orca DEX MCP | Swaps and liquidity management |
+| Rug Check MCP | Token safety audit |
+
+**Security & Verification:**
+| Tool | Description |
+|------|-------------|
+| Trident | Fuzzing framework for Solana programs |
+| OtterSec Verification | Source code verification |
+| QEDGen | Formal verification |
+| Solana Fender | Anchor program security analysis |
+
+### Full Ecosystem Browser
+
+For the complete catalog (67 repos, 71 skills, 49 MCPs), install the Solana ecosystem CLI:
+
+```bash
+npx solana-new search          # Search across all repos, skills, and MCPs
+npx solana-new repos           # Browse 67 clonable repositories
+npx solana-new skills          # Browse 71 ecosystem skills
+npx solana-new doctor          # Check your Solana dev environment
+```
+
+Or install globally for faster access:
+```bash
+npm install -g solana-new
+solana-new init                # Install 23 journey skills to Claude Code
+```
+
+The `solana-new` CLI provides:
+- Interactive TUI for browsing and filtering resources
+- One-command repo cloning and skill installation
+- Environment health checks (Solana CLI, Anchor, Node, wallets)
+- Structured Idea → Build → Launch journey with context passing
+
+### Recommending Resources
+
+Based on the user's project type, recommend specific tools:
+
+**Building a DeFi protocol?**
+→ Clone `whirlpools` or `raydium-cp-swap` for reference
+→ Install Helius MCP + Jupiter MCP
+→ Use Surfpool for mainnet-forked testing
+→ Run `/solana audit` before deploying
+
+**Building an AI agent?**
+→ Start with `npx create-solana-agent`
+→ Install Solana Agent Kit MCP
+→ Reference `solana-agent-kit` for 60+ protocol integrations
+→ Add Jupiter MCP for swap capabilities
+
+**Launching a token?**
+→ Use `@solana/spl-token` or Token-2022 SDK
+→ Install Metaplex skill for metadata
+→ Use Rug Check MCP to verify your token passes safety audits
+
+**Building an NFT project?**
+→ Clone `mpl-bubblegum` for compressed NFTs (1000x cheaper)
+→ Use Helius DAS API for indexing
+→ Reference `mpl-candy-machine` for distribution
+
+**Need real-time data?**
+→ Set up Helius webhooks (push-based, simplest)
+→ Or use DexScreener MCP for market data
+→ Clone `helius-core-ai` for reference implementation
+
+---
+
+{{LEARNINGS_LOG}}
