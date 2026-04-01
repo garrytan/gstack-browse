@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.15.2.0] - 2026-04-01 — Multi-Model Debate
+
+You can now pit Claude against Codex in a structured debate on any codebase question. `/debate should we use Redis or Postgres` runs multiple rounds where each model cites file:line evidence, rebuts the other's arguments, and recommends a resolution. The debate stops when both sides converge, one concedes, or the round cap hits. You're always the final judge.
+
+### Added
+
+- **`/debate` skill.** Structured multi-model debate with convergence detection. Each round produces: position, evidence with file:line citations, rebuttal, concession, and recommended resolution. Default 3 rounds, hard cap 5.
+- **`--interactive` / `-i` flag.** Opt-in mid-debate checkpoints where you see each round's arguments and choose whether to continue, stop, or redirect. Without the flag, rounds run automatically.
+- **Codex fallback.** If Codex CLI isn't installed, the debate uses a Claude adversarial subagent instead. Same structured output contract, same convergence detection. Transcript labels the source so you know which model argued what.
+- **Debate transcripts.** Every debate saves a full transcript to `.context/debate-transcript-{timestamp}.md` with all rounds, convergence checks, synthesis, and your final decision.
+
+### Cost profile
+
+This skill is intentionally expensive. A 3-round debate costs roughly the same as a full `/codex review`. We tested lower reasoning effort and it produced shallower arguments that missed real issues. The cost lever is `--max-rounds`, not reasoning quality.
+
 ## [0.15.1.0] - 2026-04-01 — Design Without Shotgun
 
 You can now run `/design-html` without having to run `/design-shotgun` first. The skill detects what design context exists (CEO plans, design review artifacts, approved mockups) and asks how you want to proceed. Start from a plan, a description, or a provided PNG, not just an approved mockup.
