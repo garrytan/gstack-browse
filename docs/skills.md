@@ -1,44 +1,44 @@
 # Skill Deep Dives
 
-Detailed guides for every gstack skill — philosophy, workflow, and examples.
+Detailed guides for every gstack skill — philosophy, 工作流, and examples.
 
 | Skill | Your specialist | What they do |
 |-------|----------------|--------------|
-| [`/office-hours`](#office-hours) | **YC Office Hours** | Start here. Six forcing questions that reframe your product before you write code. Pushes back on your framing, challenges premises, generates implementation alternatives. Design doc feeds into every downstream skill. |
-| [`/plan-ceo-review`](#plan-ceo-review) | **CEO / Founder** | Rethink the problem. Find the 10-star product hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
-| [`/plan-eng-review`](#plan-eng-review) | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
-| [`/plan-design-review`](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
-| [`/design-consultation`](#design-consultation) | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic product mockups. Design at the heart of all other phases. |
-| [`/review`](#review) | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
-| [`/investigate`](#investigate) | **Debugger** | Systematic root-cause debugging. Iron Law: no fixes without investigation. Traces data flow, tests hypotheses, stops after 3 failed fixes. |
-| [`/design-review`](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
-| [`/design-shotgun`](#design-shotgun) | **Design Explorer** | Generate multiple AI design variants, open a comparison board in your browser, and iterate until you approve a direction. Taste memory biases toward your preferences. |
-| [`/design-html`](#design-html) | **Design Engineer** | Takes an approved mockup from `/design-shotgun` and generates production-quality Pretext-native HTML. Text reflows on resize, heights adjust to content. Smart API routing per design type. Framework detection for React/Svelte/Vue. |
-| [`/qa`](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
-| [`/qa-only`](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
-| [`/ship`](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
-| [`/land-and-deploy`](#land-and-deploy) | **Release Engineer** | Merge the PR, wait for CI and deploy, verify production health. One command from "approved" to "verified in production." |
-| [`/canary`](#canary) | **SRE** | Post-deploy monitoring loop. Watches for console errors, performance regressions, and page failures using the browse daemon. |
-| [`/benchmark`](#benchmark) | **Performance Engineer** | Baseline page load times, Core Web Vitals, and resource sizes. Compare before/after on every PR. Track trends over time. |
-| [`/cso`](#cso) | **Chief Security Officer** | OWASP Top 10 + STRIDE threat modeling security audit. Scans for injection, auth, crypto, and access control issues. |
-| [`/document-release`](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
-| [`/retro`](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
-| [`/browse`](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
-| [`/setup-browser-cookies`](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
-| [`/autoplan`](#autoplan) | **Review Pipeline** | One command, fully reviewed plan. Runs CEO → design → eng review automatically with encoded decision principles. Surfaces only taste decisions for your approval. |
-| [`/learn`](#learn) | **Memory** | Manage what gstack learned across sessions. Review, search, prune, and export project-specific patterns and preferences. |
+| [@@INLINE25@@](#office-hours) | **YC Office Hours** | Start here. Six forcing questions that reframe your 产品 before you write code. Pushes back on your framing, challenges premises, generates implementation alternatives. Design doc feeds into every downstream skill. |
+| [@@INLINE26@@](#plan-ceo-review) | **CEO / Founder** | Rethink the 问题. Find the 10-star 产品 hiding inside the request. Four modes: Expansion, Selective Expansion, Hold Scope, Reduction. |
+| [@@INLINE27@@](#plan-eng-review) | **Eng Manager** | Lock in architecture, data flow, diagrams, edge cases, and tests. Forces hidden assumptions into the open. |
+| [@@INLINE28@@](#plan-design-review) | **Senior Designer** | Interactive plan-mode design review. Rates each dimension 0-10, explains what a 10 looks like, fixes the plan. Works in plan mode. |
+| [@@INLINE29@@](#design-consultation) | **Design Partner** | Build a complete design system from scratch. Knows the landscape, proposes creative risks, generates realistic 产品 mockups. Design at the heart of all other phases. |
+| [@@INLINE30@@](#review) | **Staff Engineer** | Find the bugs that pass CI but blow up in production. Auto-fixes the obvious ones. Flags completeness gaps. |
+| [@@INLINE31@@](#investigate) | **Debugger** | Systematic root-cause 调试. Iron Law: no fixes without investigation. Traces data flow, tests hypotheses, stops after 3 failed fixes. |
+| [@@INLINE32@@](#design-review) | **Designer Who Codes** | Live-site visual audit + fix loop. 80-item audit, then fixes what it finds. Atomic commits, before/after screenshots. |
+| [@@INLINE33@@](#design-shotgun) | **Design Explorer** | Generate multiple AI design variants, open a comparison board in your browser, and iterate until you approve a direction. Taste memory biases toward your preferences. |
+| [@@INLINE34@@](#design-html) | **Design Engineer** | Takes an approved mockup from `/design-shotgun` and generates production-质量 Pretext-native HTML. Text reflows on resize, heights adjust to content. Smart API routing per design 类型. Framework detection for React/Svelte/Vue. |
+| [@@INLINE36@@](#qa) | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
+| [@@INLINE37@@](#qa) | **QA Reporter** | Same methodology as /qa but report only. Use when you want a pure bug report without code changes. |
+| [@@INLINE38@@](#ship) | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. One command. |
+| [@@INLINE39@@](#land-and-deploy) | **Release Engineer** | Merge the PR, wait for CI and deploy, verify production health. One command from "approved" to "verified in production." |
+| [@@INLINE40@@](#canary) | **SRE** | Post-deploy monitoring loop. Watches for console errors, 表现 regressions, and page failures using the browse daemon. |
+| [@@INLINE41@@](#benchmark) | **表现 Engineer** | Baseline page load times, Core Web Vitals, and resource sizes. Compare before/after on every PR. Track trends over time. |
+| [@@INLINE42@@](#cso) | **Chief Security Officer** | OWASP Top 10 + STRIDE threat modeling security audit. Scans for injection, auth, crypto, and access control issues. |
+| [@@INLINE43@@](#document-release) | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
+| [@@INLINE44@@](#retro) | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. |
+| [@@INLINE45@@](#browse) | **QA Engineer** | Give the agent eyes. Real Chromium browser, real 点击, real screenshots. ~100ms per command. |
+| [@@INLINE46@@](#setup-browser-cookies) | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
+| [@@INLINE47@@](#autoplan) | **Review Pipeline** | One command, fully reviewed plan. Runs CEO → design → eng review automatically with encoded decision principles. Surfaces only taste decisions for your approval. |
+| [@@INLINE48@@](#learn) | **Memory** | Manage what gstack learned across sessions. Review, 搜索, prune, and export project-specific patterns and preferences. |
 | | | |
 | **Multi-AI** | | |
-| [`/codex`](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
+| [@@INLINE49@@](#codex) | **Second Opinion** | Independent review from OpenAI Codex CLI. Three modes: code review (pass/fail gate), adversarial challenge, and open consultation with session continuity. Cross-model analysis when both `/review` and `/codex` have run. |
 | | | |
 | **Safety & Utility** | | |
-| [`/careful`](#safety--guardrails) | **Safety Guardrails** | Warns before destructive commands (rm -rf, DROP TABLE, force-push, git reset --hard). Override any warning. Common build cleanups whitelisted. |
-| [`/freeze`](#safety--guardrails) | **Edit Lock** | Restrict all file edits to a single directory. Blocks Edit and Write outside the boundary. Accident prevention for debugging. |
-| [`/guard`](#safety--guardrails) | **Full Safety** | Combines /careful + /freeze in one command. Maximum safety for prod work. |
-| [`/unfreeze`](#safety--guardrails) | **Unlock** | Remove the /freeze boundary, allowing edits everywhere again. |
-| [`/connect-chrome`](#connect-chrome) | **Chrome Controller** | Launch your real Chrome controlled by gstack with the Side Panel extension. Watch every action live. |
-| [`/setup-deploy`](#setup-deploy) | **Deploy Configurator** | One-time setup for `/land-and-deploy`. Detects your platform, production URL, and deploy commands. |
-| [`/gstack-upgrade`](#gstack-upgrade) | **Self-Updater** | Upgrade gstack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
+| [@@INLINE52@@](#safety--guardrails) | **Safety Guardrails** | Warns before destructive commands (rm -rf, DROP TABLE, force-push, git reset --hard). Override any warning. 常见 build cleanups whitelisted. |
+| [@@INLINE53@@](#safety--guardrails) | **Edit Lock** | Restrict all file edits to a single directory. Blocks Edit and Write outside the boundary. Accident prevention for 调试. |
+| [@@INLINE54@@](#safety--guardrails) | **Full Safety** | Combines /careful + /freeze in one command. Maximum safety for prod work. |
+| [@@INLINE55@@](#safety--guardrails) | **Unlock** | Remove the /freeze boundary, allowing edits everywhere again. |
+| [@@INLINE56@@](#connect-chrome) | **Chrome Controller** | Launch your real Chrome controlled by gstack with the Side Panel extension. Watch every action live. |
+| [@@INLINE57@@](#setup-deploy) | **Deploy Configurator** | One-time 配置方式 for `/land-and-deploy`. Detects your 平台, production URL, and deploy commands. |
+| [@@INLINE59@@](#gstack-upgrade) | **Self-Updater** | Upgrade gstack to the latest version. Detects global vs vendored install, syncs both, shows what changed. |
 
 ---
 
@@ -54,7 +54,7 @@ Here's what happened on a real project. The user said: "I want to build a daily 
 
 It came back with: *"I'm going to push back on the framing, because I think you've outgrown it. You said 'daily briefing app for multi-Google-Calendar management.' But what you actually described is a personal chief of staff AI."*
 
-Then it extracted five capabilities the user didn't realize they were describing:
+Then it extracted five 能力 the user didn't realize they were describing:
 
 1. **Watches your calendar** across all accounts and detects stale info, missing locations, permission gaps
 2. **Generates real prep work** — not logistics summaries, but *the intellectual work* of preparing for a board meeting, a podcast, a fundraiser
@@ -66,16 +66,16 @@ That reframe changed the entire project. They were about to build a calendar app
 
 ### Premise challenge
 
-After the reframe, it presents premises for you to validate. Not "does this sound good?" — actual falsifiable claims about the product:
+After the reframe, it presents premises for you to validate. Not "does this sound good?" — actual falsifiable claims about the 产品:
 
-1. The calendar is the anchor data source, but the value is in the intelligence layer on top
+1. The calendar is the anchor data 来源, but the value is in the intelligence layer on top
 2. The assistant doesn't get replaced — they get superpowered
 3. The narrowest wedge is a daily briefing that actually works
 4. CRM integration is a must-have, not a nice-to-have
 
 You agree, disagree, or adjust. Every premise you accept becomes load-bearing in the design doc.
 
-### Implementation alternatives
+### 实施方式 alternatives
 
 Then it generates 2-3 concrete implementation approaches with honest effort estimates:
 
@@ -87,9 +87,9 @@ Recommends A because you learn from real usage. CRM data comes naturally in week
 
 ### Two modes
 
-**Startup mode** — for founders and intrapreneurs building a business. You get six forcing questions distilled from how YC partners evaluate products: demand reality, status quo, desperate specificity, narrowest wedge, observation & surprise, and future-fit. These questions are uncomfortable on purpose. If you can't name a specific human who needs your product, that's the most important thing to learn before writing any code.
+**Startup mode** — for founders and intrapreneurs building a business. You get six forcing questions distilled from how YC partners evaluate products: demand reality, status quo, desperate 具体性, narrowest wedge, observation & surprise, and future-fit. These questions are uncomfortable on purpose. If you can't name a specific human who needs your 产品, that's the most important thing to learn before writing any code.
 
-**Builder mode** — for hackathons, side projects, open source, learning, and having fun. You get an enthusiastic collaborator who helps you find the coolest version of your idea. What would make someone say "whoa"? What's the fastest path to something you can share? The questions are generative, not interrogative.
+**Builder mode** — for hackathons, side projects, open 来源, learning, and having fun. You get an enthusiastic collaborator who helps you find the coolest version of your idea. What would make someone say "whoa"? What's the fastest path to something you can share? The questions are generative, not interrogative.
 
 ### The design doc
 
@@ -105,13 +105,13 @@ This is my **founder mode**.
 
 This is where I want the model to think with taste, ambition, user empathy, and a long time horizon. I do not want it taking the request literally. I want it asking a more important question first:
 
-**What is this product actually for?**
+**What is this 产品 actually for?**
 
 I think of this as **Brian Chesky mode**.
 
-The point is not to implement the obvious ticket. The point is to rethink the problem from the user's point of view and find the version that feels inevitable, delightful, and maybe even a little magical.
+The point is not to implement the obvious ticket. The point is to rethink the 问题 from the user's point of view and find the version that feels inevitable, delightful, and maybe even a little magical.
 
-### Example
+### 示例
 
 Say I am building a Craigslist-style listing app and I say:
 
@@ -119,7 +119,7 @@ Say I am building a Craigslist-style listing app and I say:
 
 A weak assistant will add a file picker and save an image.
 
-That is not the real product.
+That is not the real 产品.
 
 In `/plan-ceo-review`, I want the model to ask whether "photo upload" is even the feature. Maybe the real feature is helping someone create a listing that actually sells.
 
@@ -127,9 +127,9 @@ If that is the real job, the whole plan changes.
 
 Now the model should ask:
 
-* Can we identify the product from the photo?
+* Can we identify the 产品 from the photo?
 * Can we infer the SKU or model number?
-* Can we search the web and draft the title and description automatically?
+* Can we 搜索 the web and draft the title and description automatically?
 * Can we pull specs, category, and pricing comps?
 * Can we suggest which photo will convert best as the hero image?
 * Can we detect when the uploaded photo is ugly, dark, cluttered, or low-trust?
@@ -138,7 +138,7 @@ Now the model should ask:
 That is what `/plan-ceo-review` does for me.
 
 It does not just ask, "how do I add this feature?"
-It asks, **"what is the 10-star product hiding inside this request?"**
+It asks, **"what is the 10-star 产品 hiding inside this request?"**
 
 ### Four modes
 
@@ -155,7 +155,7 @@ Visions and decisions are persisted to `~/.gstack/projects/` so they survive bey
 
 This is my **eng manager mode**.
 
-Once the product direction is right, I want a different kind of intelligence entirely. I do not want more sprawling ideation. I do not want more "wouldn't it be cool if." I want the model to become my best technical lead.
+Once the 产品 direction is right, I want a different kind of intelligence entirely. I do not want more sprawling ideation. I do not want more "wouldn't it be cool if." I want the model to become my best technical lead.
 
 This mode should nail:
 
@@ -172,16 +172,16 @@ And one surprisingly big unlock for me: **diagrams**.
 
 LLMs get way more complete when you force them to draw the system. Sequence diagrams, state diagrams, component diagrams, data-flow diagrams, even test matrices. Diagrams force hidden assumptions into the open. They make hand-wavy planning much harder.
 
-So `/plan-eng-review` is where I want the model to build the technical spine that can carry the product vision.
+So `/plan-eng-review` is where I want the model to build the technical spine that can carry the 产品 vision.
 
-### Example
+### 示例
 
-Take the same listing app example.
+Take the same listing app 示例.
 
 Let's say `/plan-ceo-review` already did its job. We decided the real feature is not just photo upload. It is a smart listing flow that:
 
 * uploads photos
-* identifies the product
+* identifies the 产品
 * enriches the listing from the web
 * drafts a strong title and description
 * suggests the best hero image
@@ -191,10 +191,10 @@ Now `/plan-eng-review` takes over.
 Now I want the model to answer questions like:
 
 * What is the architecture for upload, classification, enrichment, and draft generation?
-* Which steps happen synchronously, and which go to background jobs?
-* Where are the boundaries between app server, object storage, vision model, search/enrichment APIs, and the listing database?
+* Which 步骤 happen synchronously, and which go to background jobs?
+* Where are the boundaries between app server, object storage, vision model, 搜索/enrichment APIs, and the listing database?
 * What happens if upload succeeds but enrichment fails?
-* What happens if product identification is low-confidence?
+* What happens if 产品 identification is low-confidence?
 * How do retries work?
 * How do we prevent duplicate jobs?
 * What gets persisted when, and what can be safely recomputed?
@@ -224,11 +224,11 @@ Every review (CEO, Eng, Design) logs its result. At the end of each review, you 
 +====================================================================+
 ```
 
-Eng Review is the only required gate (disable with `gstack-config set skip_eng_review true`). CEO and Design are informational — recommended for product and UI changes respectively.
+Eng Review is the only required gate (disable with `gstack-config set skip_eng_review true`). CEO and Design are informational — recommended for 产品 and UI changes respectively.
 
 ### Plan-to-QA flow
 
-When `/plan-eng-review` finishes the test review section, it writes a test plan artifact to `~/.gstack/projects/`. When you later run `/qa`, it picks up that test plan automatically — your engineering review feeds directly into QA testing with no manual copy-paste.
+When `/plan-eng-review` finishes the test review section, it writes a test plan artifact to `~/.gstack/projects/`. When you later run `/qa`, it picks up that test plan automatically — your engineering review feeds directly into QA 测试 with no manual 文案-paste.
 
 ---
 
@@ -244,7 +244,7 @@ It works like `/plan-ceo-review` and `/plan-eng-review` — interactive, one iss
 
 Seven passes over the plan: information architecture, interaction state coverage, user journey, AI slop risk, design system alignment, responsive/accessibility, and unresolved design decisions. For each pass, it finds gaps and either fixes them directly (obvious ones) or asks you to make a design choice (genuine tradeoffs).
 
-### Example
+### 示例
 
 ```
 You:   /plan-design-review
@@ -287,19 +287,19 @@ This is my **design partner mode**.
 
 `/plan-design-review` audits a site that already exists. `/design-consultation` is for when you have nothing yet — no design system, no font choices, no color palette. You are starting from zero and you want a senior designer to sit down with you and build the whole visual identity together.
 
-It is a conversation, not a form. The agent asks about your product, your users, and your audience. It thinks about what your product needs to communicate — trust, speed, craft, warmth, whatever fits — and works backward from that to concrete choices. Then it proposes a complete, coherent design system: aesthetic direction, typography (3+ fonts with specific roles), color palette with hex values, spacing scale, layout approach, and motion strategy. Every recommendation comes with a rationale. Every choice reinforces every other choice.
+It is a conversation, not a form. The agent asks about your 产品, your users, and your 受众. It thinks about what your 产品 needs to communicate — trust, speed, craft, warmth, whatever fits — and works backward from that to concrete choices. Then it proposes a complete, coherent design system: aesthetic direction, typography (3+ fonts with specific roles), color palette with hex values, spacing scale, layout approach, and motion strategy. Every recommendation comes with a rationale. Every choice reinforces every other choice.
 
-But coherence is table stakes. Every dev tool dashboard looks the same — clean sans-serif, muted grays, a blue accent. They are all coherent. They are all forgettable. The difference between a product that looks "nice" and one that people actually recognize is the **deliberate creative risks**: the unexpected serif for headings, the bold accent nobody else in your category uses, the tighter spacing that makes your data feel authoritative instead of airy.
+But coherence is table stakes. Every dev tool dashboard looks the same — clean sans-serif, muted grays, a blue accent. They are all coherent. They are all forgettable. The difference between a 产品 that looks "nice" and one that people actually recognize is the **deliberate creative risks**: the unexpected serif for headings, the bold accent nobody else in your category uses, the tighter spacing that makes your data feel authoritative instead of airy.
 
 That is what `/design-consultation` is really about. It does not just propose a safe system. It proposes safe choices AND risks — and tells you which is which. "Here are the choices that keep you literate in your category. And here is where I think you should break from convention, and why." You pick which risks to take. The agent checks that the whole system still coheres either way.
 
 If you want, the agent will research what's already out there in your space — take screenshots of real sites, analyze their fonts and colors and spacing — so you can see the landscape before you make choices. This is not about copying. It is about getting in the ballpark so you know what the conventions are, and then deciding which ones are worth breaking.
 
-After you agree on the system, it generates an interactive HTML preview page — not just swatches and font samples, but realistic product pages. If you are building a dashboard, you see a dashboard with a sidebar, data tables, and stat cards. If you are building a marketing site, you see a hero section with real copy and a CTA. Everything rendered in your design system, with your product name, in light and dark mode. You see what your product could feel like before a single line of production code is written.
+After you agree on the system, it generates an interactive HTML preview page — not just swatches and font samples, but realistic 产品 pages. If you are building a dashboard, you see a dashboard with a sidebar, data tables, and stat cards. If you are building a 营销 site, you see a hero section with real 文案 and a CTA. Everything rendered in your design system, with your 产品 name, in light and dark mode. You see what your 产品 could feel like before a single line of production code is written.
 
-Then it writes `DESIGN.md` to your repo root — your project's design source of truth — and updates `CLAUDE.md` so every future Claude Code session respects the system. From that point on, `/design-review` can audit against it, and any agent working on your frontend knows the rules.
+Then it writes `DESIGN.md` to your repo root — your project's design 来源 of truth — and updates `CLAUDE.md` so every future Claude Code session respects the system. From that point on, `/design-review` can audit against it, and any agent working on your frontend knows the rules.
 
-### Example
+### 示例
 
 ```
 You:   /design-consultation
@@ -372,11 +372,11 @@ This is my **designer who codes mode**.
 
 `/plan-design-review` reviews your plan before implementation. `/design-review` audits and fixes the live site after.
 
-It runs an 80-item visual audit on your live site, then enters a fix loop: for each design finding, it locates the source file, makes the minimal CSS/styling change, commits with `style(design): FINDING-NNN`, re-navigates to verify, and takes before/after screenshots. One commit per fix, fully bisectable.
+It runs an 80-item visual audit on your live site, then enters a fix loop: for each design finding, it locates the 来源 file, makes the minimal CSS/styling change, commits with `style(design): FINDING-NNN`, re-navigates to verify, and takes before/after screenshots. One commit per fix, fully bisectable.
 
-The self-regulation heuristic is tuned for design work — CSS-only changes get a free pass (they are inherently safe and reversible), but changes to component JSX/TSX files count against the risk budget. Hard cap at 30 fixes. If the risk score exceeds 20%, it stops and asks.
+The self-regulation heuristic is tuned for design work — CSS-only changes get a free pass (they are inherently safe and reversible), but changes to component JSX/TSX files count against the risk 预算. Hard cap at 30 fixes. If the risk score exceeds 20%, it stops and asks.
 
-### Example
+### 示例
 
 ```
 You:   /design-review https://myapp.com
@@ -431,7 +431,7 @@ That `approved.json` is what `/design-html` reads. The design pipeline chains: s
 
 The skill remembers your preferences across sessions. If you consistently prefer minimal designs over busy ones, it biases future generations. This isn't a setting you configure... it emerges from your approvals.
 
-### Example
+### 示例
 
 ```
 You:   /design-shotgun — hero section for a developer tools landing page
@@ -457,13 +457,13 @@ This is my **design-to-code mode**.
 
 Every AI code generation tool produces static CSS. Hardcoded heights. Text that overflows on resize. Breakpoints that snap instead of flowing. The output looks right at exactly one viewport size and breaks at every other.
 
-`/design-html` fixes this. It takes the approved mockup from `/design-shotgun` and generates HTML using [Pretext](https://github.com/chenglou/pretext) by Cheng Lou (ex-React core, Midjourney frontend). Pretext is a 15KB library that computes text layout without DOM measurement. Text reflows. Heights adjust to content. Cards size themselves. Chat bubbles shrinkwrap. All sub-millisecond, all dynamic.
+`/design-html` fixes this. It takes the approved mockup from `/design-shotgun` and generates HTML using [Pretext](https://github.com/chenglou/pretext) by Cheng Lou (ex-React core, Midjourney frontend). Pretext is a 15KB library that computes text layout without DOM 衡量. Text reflows. Heights adjust to content. Cards size themselves. Chat bubbles shrinkwrap. All sub-millisecond, all dynamic.
 
 ### Smart API routing
 
 Not every page needs the full Pretext engine. The skill reads the design and picks the right tools:
 
-- **Simple layouts** (landing, marketing): `prepare()` + `layout()` for resize-aware heights
+- **Simple layouts** (landing, 营销): `prepare()` + `layout()` for resize-aware heights
 - **Card grids** (dashboard, listing): `prepare()` + `layout()` for self-sizing cards
 - **Chat UIs**: `walkLineRanges()` for tight-fit bubbles with zero wasted pixels
 - **Editorial layouts**: `layoutNextLine()` for text flowing around obstacles
@@ -484,7 +484,7 @@ Not every page needs the full Pretext engine. The skill reads the design and pic
 
 If your project uses React, Svelte, or Vue (detected from `package.json`), the skill offers to generate a framework component instead of vanilla HTML. Framework output uses `npm install @chenglou/pretext` instead of inline vendoring.
 
-### Example
+### 示例
 
 ```
 You:   /design-html
@@ -531,7 +531,7 @@ This is a structural audit, not a style nitpick pass. I want the model to look f
 * broken invariants
 * bad retry logic
 * tests that pass while missing the real failure mode
-* forgotten enum handlers — add a new status or type constant, and `/review` traces it through every switch statement and allowlist in your codebase, not just the files you changed
+* forgotten enum handlers — add a new status or 类型 constant, and `/review` traces it through every switch statement and allowlist in your codebase, not just the files you changed
 
 ### Fix-First
 
@@ -541,7 +541,7 @@ Findings get action, not just listed. Obvious mechanical fixes (dead code, stale
 
 `/review` now flags shortcut implementations where the complete version costs less than 30 minutes of CC time. If you chose the 80% solution and the 100% solution is a lake, not an ocean, the review will call it out.
 
-### Example
+### 示例
 
 Suppose the smart listing flow is implemented and the tests are green.
 
@@ -553,7 +553,7 @@ Suppose the smart listing flow is implemented and the tests are green.
 * Do failed uploads leave orphaned files in storage forever?
 * Can the "exactly one hero image" rule break under concurrency?
 * If enrichment APIs partially fail, do I degrade gracefully or save garbage?
-* Did I accidentally create a prompt injection or trust-boundary problem by pulling web data into draft generation?
+* Did I accidentally create a prompt injection or trust-boundary 问题 by pulling web data into draft generation?
 
 That is the point of `/review`.
 
@@ -574,22 +574,22 @@ Instead of guessing and patching, it traces data flow, matches against known bug
 
 This is my **QA lead mode**.
 
-`/browse` gives the agent eyes. `/qa` gives it a testing methodology.
+`/browse` gives the agent eyes. `/qa` gives it a 测试 methodology.
 
-The most common use case: you're on a feature branch, you just finished coding, and you want to verify everything works. Just say `/qa` — it reads your git diff, identifies which pages and routes your changes affect, spins up the browser, and tests each one. No URL required. No manual test plan.
+The most 常见 use case: you're on a feature branch, you just finished coding, and you want to verify everything works. Just say `/qa` — it reads your git diff, identifies which pages and routes your changes affect, spins up the browser, and tests each one. No URL required. No manual test plan.
 
 Four modes:
 
 - **Diff-aware** (automatic on feature branches) — reads `git diff main`, identifies affected pages, tests them specifically
 - **Full** — systematic exploration of the entire app. 5-15 minutes. Documents 5-10 well-evidenced issues.
-- **Quick** (`--quick`) — 30-second smoke test. Homepage + top 5 nav targets.
+- **Quick** (`--quick`) — 30-second smoke test. 首页 + top 5 nav targets.
 - **Regression** (`--regression baseline.json`) — run full mode, then diff against a previous baseline.
 
 ### Automatic regression tests
 
 When `/qa` fixes a bug and verifies it, it automatically generates a regression test that catches the exact scenario that broke. Tests include full attribution tracing back to the QA report.
 
-### Example
+### 示例
 
 ```
 You:   /qa https://staging.myapp.com
@@ -606,7 +606,7 @@ Claude: [Explores 12 pages, fills 3 forms, tests 2 flows]
         [Full report with screenshots saved to .gstack/qa-reports/]
 ```
 
-**Testing authenticated pages:** Use `/setup-browser-cookies` first to import your real browser sessions, then `/qa` can test pages behind login.
+**测试 authenticated pages:** Use `/setup-browser-cookies` first to import your real browser sessions, then `/qa` can test pages behind login.
 
 ---
 
@@ -622,11 +622,11 @@ This is where the model should stop behaving like a brainstorm partner and start
 
 ### Test bootstrap
 
-If your project doesn't have a test framework, `/ship` sets one up — detects your runtime, researches the best framework, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), and creates TESTING.md. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
+If your project doesn't have a test framework, `/ship` sets one up — detects your runtime, researches the best framework, installs it, writes 3-5 real tests for your actual code, sets up CI/CD (GitHub Actions), and creates 测试.md. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
 
 ### Coverage audit
 
-Every `/ship` run builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with quality stars. Gaps get tests auto-generated. Your PR body shows the coverage: `Tests: 42 → 47 (+5 new)`.
+Every `/ship` run builds a code path map from your diff, searches for corresponding tests, and produces an ASCII coverage diagram with 质量 stars. Gaps get tests auto-generated. Your PR body shows the coverage: `Tests: 42 → 47 (+5 new)`.
 
 ### Review gate
 
@@ -646,11 +646,11 @@ It merges the PR, waits for CI, waits for the deploy to finish, then runs canary
 
 First run on a new project triggers a dry-run walk-through so you can verify the pipeline before it does anything irreversible. After that, it trusts the config and runs straight through.
 
-### Setup
+### 配置方式
 
-Run `/setup-deploy` first. It detects your platform (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, or custom), discovers your production URL and health check endpoints, and writes the config to CLAUDE.md. One-time, 60 seconds.
+Run `/setup-deploy` first. It detects your 平台 (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, or custom), discovers your production URL and health check endpoints, and writes the config to CLAUDE.md. One-time, 60 seconds.
 
-### Example
+### 示例
 
 ```
 You:   /land-and-deploy
@@ -670,7 +670,7 @@ Claude: Merging PR #42...
 
 This is my **post-deploy monitoring mode**.
 
-After deploy, `/canary` watches the live site for trouble. It loops through your key pages using the browse daemon, checking for console errors, performance regressions, page failures, and visual anomalies. Takes periodic screenshots and compares against pre-deploy baselines.
+After deploy, `/canary` watches the live site for trouble. It loops through your key pages using the browse daemon, checking for console errors, 表现 regressions, page failures, and visual anomalies. Takes periodic screenshots and compares against pre-deploy baselines.
 
 Use it right after `/land-and-deploy`, or schedule it to run periodically after a risky deploy.
 
@@ -692,9 +692,9 @@ Claude: Monitoring 8 pages every 2 minutes...
 
 ## `/benchmark`
 
-This is my **performance engineer mode**.
+This is my **表现 engineer mode**.
 
-`/benchmark` establishes performance baselines for your pages: load time, Core Web Vitals (LCP, CLS, INP), resource counts, and total transfer size. Run it before and after a PR to catch regressions.
+`/benchmark` establishes 表现 baselines for your pages: load time, Core Web Vitals (LCP, CLS, INP), resource counts, and total transfer size. Run it before and after a PR to catch regressions.
 
 It uses the browse daemon for real Chromium measurements, not synthetic estimates. Multiple runs averaged. Results persist so you can track trends across PRs.
 
@@ -716,7 +716,7 @@ Claude: Benchmarking 5 pages (3 runs each)...
 
 This is my **Chief Security Officer**.
 
-Run `/cso` on any codebase and it performs an OWASP Top 10 + STRIDE threat model audit. It scans for injection vulnerabilities, broken authentication, sensitive data exposure, XML external entities, broken access control, security misconfiguration, XSS, insecure deserialization, known-vulnerable components, and insufficient logging. Each finding includes severity, evidence, and a recommended fix.
+Run `/cso` on any codebase and it performs an OWASP Top 10 + STRIDE threat model audit. It scans for injection vulnerabilities, broken 认证, sensitive data exposure, XML external entities, broken access control, security misconfiguration, XSS, insecure deserialization, known-vulnerable components, and insufficient logging. Each finding includes severity, evidence, and a recommended fix.
 
 ```
 You:   /cso
@@ -762,11 +762,11 @@ This is my **engineering manager mode**.
 
 At the end of the week I want to know what actually happened. Not vibes — data. `/retro` analyzes commit history, work patterns, and shipping velocity and writes a candid retrospective.
 
-It is team-aware. It identifies who is running the command, gives you the deepest treatment on your own work, then breaks down every contributor with specific praise and growth opportunities. It computes metrics like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
+It is team-aware. It identifies who is running the command, gives you the deepest treatment on your own work, then breaks down every contributor with specific praise and growth opportunities. It computes 指标 like commits, LOC, test ratio, PR sizes, and fix ratio. It detects coding sessions from commit timestamps, finds hotspot files, tracks shipping streaks, and identifies the biggest ship of the week.
 
 It also tracks test health: total test files, tests added this period, regression test commits, and trend deltas. If test ratio drops below 20%, it flags it as a growth area.
 
-### Example
+### 示例
 
 ```
 You:   /retro
@@ -804,7 +804,7 @@ This is my **QA engineer mode**.
 
 It is a compiled binary that talks to a persistent Chromium daemon — built on [Playwright](https://playwright.dev/) by Microsoft. First call starts the browser (~3s). Every call after that: ~100-200ms. The browser stays running between commands, so cookies, tabs, and localStorage carry over.
 
-### Example
+### 示例
 
 ```
 You:   /browse staging.myapp.com — log in, test the signup flow, and check
@@ -863,7 +863,7 @@ The browser preserves all state (cookies, localStorage, tabs) across the handoff
 
 **Security note:** `/browse` runs a persistent Chromium session. Cookies, localStorage, and session state carry over between commands. Do not use it against sensitive production environments unless you intend to — it is a real browser with real state. The session auto-shuts down after 30 minutes of idle time.
 
-For the full command reference, see [BROWSER.md](../BROWSER.md).
+For the full command 参考, see [BROWSER.md](../BROWSER.md).
 
 ---
 
@@ -932,9 +932,9 @@ Claude: Plan complete. 9 decisions auto-resolved, 2 taste decisions approved.
 
 This is my **institutional memory mode**.
 
-gstack learns from every session. Patterns, pitfalls, preferences, architectural decisions... they accumulate in `~/.gstack/projects/$SLUG/learnings.jsonl`. Each learning has a confidence score, source attribution, and the files it references.
+gstack learns from every session. Patterns, pitfalls, preferences, architectural decisions... they accumulate in `~/.gstack/projects/$SLUG/learnings.jsonl`. Each learning has a confidence score, 来源 attribution, and the files it references.
 
-`/learn` lets you see what gstack has absorbed, search for specific patterns, prune stale entries (when referenced files no longer exist), and export learnings for team sharing. The real magic is in other skills... they automatically search learnings before making recommendations, and display "Prior learning applied" when a past insight is relevant.
+`/learn` lets you see what gstack has absorbed, 搜索 for specific patterns, prune stale entries (when referenced files no longer exist), and export learnings for team sharing. The real magic is in other skills... they automatically 搜索 learnings before making recommendations, and 展示 "Prior learning applied" when a past insight is relevant.
 
 ```
 You:   /learn
@@ -976,7 +976,7 @@ Claude: Launched Chrome with Side Panel extension.
 
 One-time deploy configuration. Run this before your first `/land-and-deploy`.
 
-It auto-detects your deploy platform (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, or custom), discovers your production URL, health check endpoints, and deploy status commands. Writes everything to CLAUDE.md so all future deploys are automatic.
+It auto-detects your deploy 平台 (Fly.io, Render, Vercel, Netlify, Heroku, GitHub Actions, or custom), discovers your production URL, health check endpoints, and deploy status commands. Writes everything to CLAUDE.md so all future deploys are automatic.
 
 ```
 You:   /setup-deploy
@@ -1045,13 +1045,13 @@ Say "be careful" or run `/careful` when you're working near production, running 
 - `kubectl delete` — production resource deletion
 - `docker rm -f` / `docker system prune` — container/image loss
 
-Common build artifact cleanups (`rm -rf node_modules`, `dist`, `.next`, `__pycache__`, `build`, `coverage`) are whitelisted — no false alarms on routine operations.
+常见 build artifact cleanups (`rm -rf node_modules`, `dist`, `.next`, `__pycache__`, `build`, `coverage`) are whitelisted — no false alarms on routine 操作.
 
 You can override any warning. The guardrails are accident prevention, not access control.
 
 ### `/freeze`
 
-Restrict all file edits to a single directory. When you're debugging a billing bug, you don't want Claude accidentally "fixing" unrelated code in `src/auth/`. `/freeze src/billing` blocks all Edit and Write operations outside that path.
+Restrict all file edits to a single directory. When you're 调试 a billing bug, you don't want Claude accidentally "fixing" unrelated code in `src/auth/`. `/freeze src/billing` blocks all Edit and Write 操作 outside that path.
 
 `/investigate` activates this automatically — it detects the module being debugged and freezes edits to that directory.
 
@@ -1070,7 +1070,7 @@ Note: this blocks Edit and Write tools only. Bash commands like `sed` can still 
 
 ### `/guard`
 
-Full safety mode — combines `/careful` + `/freeze` in one command. Destructive command warnings plus directory-scoped edits. Use when touching prod or debugging live systems.
+Full safety mode — combines `/careful` + `/freeze` in one command. Destructive command warnings plus directory-scoped edits. Use when touching prod or 调试 live systems.
 
 ### `/unfreeze`
 
@@ -1080,7 +1080,7 @@ Remove the `/freeze` boundary, allowing edits everywhere again. The hooks stay r
 
 ## `/gstack-upgrade`
 
-Keep gstack current with one command. It detects your install type (global at `~/.claude/skills/gstack` vs vendored in your project at `.claude/skills/gstack`), runs the upgrade, syncs both copies if you have dual installs, and shows you what changed.
+Keep gstack current with one command. It detects your install 类型 (global at `~/.claude/skills/gstack` vs vendored in your project at `.claude/skills/gstack`), runs the upgrade, syncs both copies if you have dual installs, and shows you what changed.
 
 ```
 You:   /gstack-upgrade
@@ -1106,13 +1106,13 @@ Set `auto_upgrade: true` in `~/.gstack/config.yaml` to skip the prompt entirely 
 
 [Greptile](https://greptile.com) is a YC company that reviews your PRs automatically. It catches real bugs — race conditions, security issues, things that pass CI and blow up in production. It has genuinely saved my ass more than once. I love these guys.
 
-### Setup
+### 配置方式
 
 Install Greptile on your GitHub repo at [greptile.com](https://greptile.com) — it takes about 30 seconds. Once it's reviewing your PRs, gstack picks up its comments automatically. No additional configuration.
 
 ### How it works
 
-The problem with any automated reviewer is triage. Greptile is good, but not every comment is a real issue. Some are false positives. Some flag things you already fixed three commits ago. Without a triage layer, the comments pile up and you start ignoring them — which defeats the purpose.
+The 问题 with any automated reviewer is triage. Greptile is good, but not every comment is a real issue. Some are false positives. Some flag things you already fixed three commits ago. Without a triage layer, the comments pile up and you start ignoring them — which defeats the purpose.
 
 gstack solves this. `/review` and `/ship` are now Greptile-aware. They read Greptile's comments, classify each one, and take action:
 
@@ -1120,13 +1120,13 @@ gstack solves this. `/review` and `/ship` are now Greptile-aware. They read Grep
 - **Already-fixed issues** get an auto-reply acknowledging the catch
 - **False positives** get pushed back — you confirm, and a reply goes out explaining why it's wrong
 
-The result is a two-layer review: Greptile catches things asynchronously on the PR, then `/review` and `/ship` triage those findings as part of the normal workflow. Nothing falls through the cracks.
+The result is a two-layer review: Greptile catches things asynchronously on the PR, then `/review` and `/ship` triage those findings as part of the normal 工作流. Nothing falls through the cracks.
 
 ### Learning from history
 
 Every false positive you confirm gets saved to `~/.gstack/greptile-history.md`. Future runs auto-skip known FP patterns for your codebase. And `/retro` tracks Greptile's batting average over time — so you can see whether the signal-to-noise ratio is improving.
 
-### Example
+### 示例
 
 ```
 You:   /ship
