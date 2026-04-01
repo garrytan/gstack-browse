@@ -1804,7 +1804,7 @@ describe('Path traversal prevention', () => {
       await handleWriteCommand('cookie-import', ['../../etc/shadow'], bm);
       expect(true).toBe(false);
     } catch (err: any) {
-      expect(err.message).toContain('Path traversal');
+      expect(err.message).toContain('Path must be within');
     }
   });
 

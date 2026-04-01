@@ -300,7 +300,17 @@ export async function handleReadCommand(
 
     case 'cookies': {
       const cookies = await page.context().cookies();
-      return JSON.stringify(cookies, null, 2);
+      // Redact values that look like secrets (same patterns as storage command)
+      const SENSITIVE_KEY = /(^|[_.-])(token|secret|key|password|credential|auth|jwt|session|csrf)($|[_.-])|api.?key/i;
+      const SENSITIVE_VALUE = /^(eyJ|sk-|sk_live_|sk_test_|pk_live_|pk_test_|rk_live_|sk-ant-|ghp_|gho_|github_pat_|xox[bpsa]-|AKIA[A-Z0-9]{16}|AIza|SG\.|Bearer\s|sbp_)/;
+      const redacted = cookies.map(c => {
+        const v = String(c.value ?? '');
+        if (SENSITIVE_KEY.test(c.name) || SENSITIVE_VALUE.test(v)) {
+          return { ...c, value: `[REDACTED — ${v.length} chars]` };
+        }
+        return c;
+      });
+      return JSON.stringify(redacted, null, 2);
     }
 
     case 'storage': {

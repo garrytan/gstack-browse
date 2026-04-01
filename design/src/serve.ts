@@ -182,6 +182,21 @@ export async function serve(options: ServeOptions): Promise<void> {
       );
     }
 
+    // Security: anchor reload paths to the initial HTML file's directory
+    const allowedDir = path.dirname(path.resolve(html));
+    let realReloadPath: string;
+    try {
+      realReloadPath = fs.realpathSync(path.resolve(newHtmlPath));
+    } catch {
+      realReloadPath = path.resolve(newHtmlPath);
+    }
+    if (!realReloadPath.startsWith(allowedDir + path.sep) && realReloadPath !== allowedDir) {
+      return Response.json(
+        { error: `Path must be within: ${allowedDir}` },
+        { status: 403 }
+      );
+    }
+
     // Swap the HTML content
     htmlContent = fs.readFileSync(newHtmlPath, "utf-8");
     state = "serving";

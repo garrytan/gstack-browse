@@ -164,6 +164,8 @@ function addChatEntry(entry) {
 
 function handleAgentEvent(entry) {
   if (entry.type === 'agent_start') {
+    // Set dot to processing (agent working)
+    if (serverUrl) document.getElementById('footer-dot').className = 'dot processing';
     // If we already showed thinking dots optimistically in sendMessage(),
     // don't duplicate. Just ensure fast polling is on.
     if (agentContainer && document.getElementById('agent-thinking')) {
@@ -196,6 +198,8 @@ function handleAgentEvent(entry) {
     if (thinking) thinking.remove();
     updateStopButton(false);
     stopFastPoll();
+    // Restore dot to connected (agent finished successfully)
+    if (serverUrl) document.getElementById('footer-dot').className = 'dot connected';
     // Add timestamp
     if (agentContainer) {
       const ts = document.createElement('span');
@@ -213,6 +217,8 @@ function handleAgentEvent(entry) {
     if (thinking) thinking.remove();
     updateStopButton(false);
     stopFastPoll();
+    // Set dot to error state
+    if (serverUrl) document.getElementById('footer-dot').className = 'dot error';
     if (!agentContainer) {
       agentContainer = document.createElement('div');
       agentContainer.className = 'agent-response';
@@ -222,6 +228,8 @@ function handleAgentEvent(entry) {
     err.className = 'agent-error';
     err.textContent = entry.error || 'Unknown error';
     agentContainer.appendChild(err);
+    // Force scroll to error so it's visible
+    err.scrollIntoView({ behavior: 'smooth', block: 'end' });
     agentContainer = null;
     return;
   }
@@ -1406,7 +1414,10 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'health') {
     if (msg.data) {
       const url = `http://127.0.0.1:${msg.data.port || 34567}`;
-      updateConnection(url, msg.data.token);
+      // Request token via targeted message instead of reading from broadcast
+      chrome.runtime.sendMessage({ type: 'getToken' }, (resp) => {
+        updateConnection(url, resp && resp.token);
+      });
       applyChatEnabled(!!msg.data.chatEnabled);
     } else {
       updateConnection(null);

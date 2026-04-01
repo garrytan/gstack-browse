@@ -8,6 +8,7 @@
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies, listSupportedBrowserNames } from './cookie-import-browser';
 import { validateNavigationUrl } from './url-validation';
+import { validateReadPath } from './read-commands';
 import * as fs from 'fs';
 import * as path from 'path';
 import { TEMP_DIR, isPathWithin } from './platform';
@@ -16,9 +17,30 @@ import { modifyStyle, undoModification, resetModifications, getModificationHisto
 // Security: Path validation for screenshot output
 const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()];
 
+// Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp → /private/tmp)
+const RESOLVED_SAFE_DIRECTORIES = SAFE_DIRECTORIES.map(d => {
+  try { return fs.realpathSync(d); } catch { return d; }
+});
+
+/** Walk up directory tree until we find a resolvable ancestor, then rejoin the tail. */
+function resolveWithAncestors(absPath: string): string {
+  try { return fs.realpathSync(absPath); } catch {}
+  const parts: string[] = [];
+  let current = absPath;
+  while (current !== path.dirname(current)) {
+    parts.unshift(path.basename(current));
+    current = path.dirname(current);
+    try {
+      return path.join(fs.realpathSync(current), ...parts);
+    } catch {}
+  }
+  return absPath;
+}
+
 function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
-  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
+  const realPath = resolveWithAncestors(resolved);
+  const isSafe = RESOLVED_SAFE_DIRECTORIES.some(dir => isPathWithin(realPath, dir));
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
   }
@@ -370,8 +392,9 @@ export async function handleWriteCommand(
       const [selector, ...filePaths] = args;
       if (!selector || filePaths.length === 0) throw new Error('Usage: browse upload <selector> <file1> [file2...]');
 
-      // Validate all files exist before upload
+      // Validate all files exist and are within safe directories
       for (const fp of filePaths) {
+        validateReadPath(fp);
         if (!fs.existsSync(fp)) throw new Error(`File not found: ${fp}`);
       }
 
@@ -407,17 +430,8 @@ export async function handleWriteCommand(
     case 'cookie-import': {
       const filePath = args[0];
       if (!filePath) throw new Error('Usage: browse cookie-import <json-file>');
-      // Path validation — prevent reading arbitrary files
-      if (path.isAbsolute(filePath)) {
-        const safeDirs = [TEMP_DIR, process.cwd()];
-        const resolved = path.resolve(filePath);
-        if (!safeDirs.some(dir => isPathWithin(resolved, dir))) {
-          throw new Error(`Path must be within: ${safeDirs.join(', ')}`);
-        }
-      }
-      if (path.normalize(filePath).includes('..')) {
-        throw new Error('Path traversal sequences (..) are not allowed');
-      }
+      // Path validation — resolve symlinks and enforce safe directory boundary
+      validateReadPath(filePath);
       if (!fs.existsSync(filePath)) throw new Error(`File not found: ${filePath}`);
       const raw = fs.readFileSync(filePath, 'utf-8');
       let cookies: any[];

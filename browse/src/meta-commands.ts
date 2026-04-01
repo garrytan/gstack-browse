@@ -17,9 +17,30 @@ import type { Frame } from 'playwright';
 // Security: Path validation to prevent path traversal attacks
 const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()];
 
+// Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp → /private/tmp)
+const RESOLVED_SAFE_DIRECTORIES = SAFE_DIRECTORIES.map(d => {
+  try { return fs.realpathSync(d); } catch { return d; }
+});
+
+/** Walk up directory tree until we find a resolvable ancestor, then rejoin the tail. */
+function resolveWithAncestors(absPath: string): string {
+  try { return fs.realpathSync(absPath); } catch {}
+  const parts: string[] = [];
+  let current = absPath;
+  while (current !== path.dirname(current)) {
+    parts.unshift(path.basename(current));
+    current = path.dirname(current);
+    try {
+      return path.join(fs.realpathSync(current), ...parts);
+    } catch {}
+  }
+  return absPath;
+}
+
 export function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
-  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
+  const realPath = resolveWithAncestors(resolved);
+  const isSafe = RESOLVED_SAFE_DIRECTORIES.some(dir => isPathWithin(realPath, dir));
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
   }
