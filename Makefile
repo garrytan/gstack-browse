@@ -48,11 +48,14 @@ BUN_VERSION ?= 1.3.10
 RUN_COMMAND ?= bun run skill:check
 TEST_COMMAND ?= bun test
 EXPLORE_SHELL ?= bash
+CLAUDE_COMMAND ?= claude
 AUTH_ENV_FILE ?= .env
 ENV_PASSTHROUGH_VARS ?= ANTHROPIC_API_KEY OPENAI_API_KEY GEMINI_API_KEY ANTHROPIC_AUTH_TOKEN ANTHROPIC_BASE_URL OPENAI_BASE_URL GEMINI_BASE_URL
-ENABLE_ACCOUNT_MOUNTS ?= 1
+ENABLE_ACCOUNT_MOUNTS ?= 0
+ENABLE_STATE_VOLUMES ?= 1
 CLAUDE_CONFIG_DIR ?= $(HOME)/.claude
 CODEX_CONFIG_DIR ?= $(HOME)/.codex
+STATE_VOLUME_PREFIX ?= $(CONTAINER_NAME)
 
 # Release version detection (prefers release/* or hotfix/* branch name, falls back to VERSION)
 RELEASE_VERSION := $(shell git rev-parse --abbrev-ref HEAD | sed -n -e 's/^release\///p' -e 's/^hotfix\///p')
@@ -68,13 +71,15 @@ help:
 	@echo "  1) Build:          make it_build"
 	@echo "  2) Run:            make it_run"
 	@echo "  3) Explore:        make it_explore"
-	@echo "  4) Health check:   make health_check"
-	@echo "  5) Push to GHCR:   make it_build_multi_arch_push_GHCR"
+	@echo "  4) Claude:         make it_claude"
+	@echo "  5) Health check:   make health_check"
+	@echo "  6) Push to GHCR:   make it_build_multi_arch_push_GHCR"
 	@echo ""
 	@echo "Auth runtime:"
 	@echo "  - Uses $(AUTH_ENV_FILE) when present"
 	@echo "  - Falls through caller/CI env vars when $(AUTH_ENV_FILE) is absent"
-	@echo "  - Mounts ~/.claude and ~/.codex by default for account-backed login reuse"
+	@echo "  - Uses named Docker volumes for ~/.claude, ~/.codex, ~/.config, ~/.cache, and ~/.local/share by default"
+	@echo "  - Set ENABLE_ACCOUNT_MOUNTS=1 to opt into host ~/.claude and ~/.codex mounts"
 	@echo ""
 	@echo "Available make commands:"
 	@echo ""
@@ -99,10 +104,29 @@ DOCKER_RUN_AUTH_MOUNTS += -v $(CODEX_CONFIG_DIR):/root/.codex
 endif
 endif
 
+DOCKER_RUN_STATE_MOUNTS :=
+ifeq ($(ENABLE_STATE_VOLUMES),1)
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-config:/root/.config
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-cache:/root/.cache
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-local-share:/root/.local/share
+ifeq ($(ENABLE_ACCOUNT_MOUNTS),0)
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-claude:/root/.claude
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-codex:/root/.codex
+else
+ifeq (,$(wildcard $(CLAUDE_CONFIG_DIR)))
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-claude:/root/.claude
+endif
+ifeq (,$(wildcard $(CODEX_CONFIG_DIR)))
+DOCKER_RUN_STATE_MOUNTS += -v $(STATE_VOLUME_PREFIX)-codex:/root/.codex
+endif
+endif
+endif
+
 DOCKER_RUN_BASE_ARGS := --rm \
 	$(ENV_FILE_FLAG) \
 	$(DOCKER_RUN_ENV_PASSTHROUGH) \
-	$(DOCKER_RUN_AUTH_MOUNTS)
+	$(DOCKER_RUN_AUTH_MOUNTS) \
+	$(DOCKER_RUN_STATE_MOUNTS)
 
 DOCKER_RUN_ARGS := $(DOCKER_RUN_BASE_ARGS) \
 	--name $(CONTAINER_NAME)
@@ -173,12 +197,20 @@ it_build_n_run_no_cache: it_build_no_cache
 
 # Run image with the current checkout bind-mounted for local development
 it_explore:
-	$(CONTAINER_RUNTIME) run $(DOCKER_RUN_BASE_ARGS) -it \
+	@$(CONTAINER_RUNTIME) run $(DOCKER_RUN_BASE_ARGS) -it \
 		-v $$(pwd):/workspace \
 		-w /workspace \
 		--name $(CONTAINER_NAME)-dev \
 		$(IMAGE_NAME):$(IMAGE_TAG) \
 		$(EXPLORE_SHELL)
+
+it_claude:
+	@$(CONTAINER_RUNTIME) run $(DOCKER_RUN_BASE_ARGS) -it \
+		-v $$(pwd):/workspace \
+		-w /workspace \
+		--name $(CONTAINER_NAME)-claude \
+		$(IMAGE_NAME):$(IMAGE_TAG) \
+		bash -lc '$(CLAUDE_COMMAND)'
 
 it_run_dev: it_explore
 
@@ -384,7 +416,7 @@ hotfix_and_push_GHCR: hotfix_finish
 
 .PHONY: release help it_stop it_clean it_gone \
 	it_build it_build_no_cache it_run it_run_dev it_run_ghcr \
-	it_explore \
+	it_explore it_claude \
 	it_build_n_run it_build_n_run_no_cache it_build_n_test_fresh \
 	it_deploy ghcr_login ensure_builder it_build_multi_arch_push_GHCR \
 	health_check health_check_json health_check_strict health_note_init health_note_record_hash \

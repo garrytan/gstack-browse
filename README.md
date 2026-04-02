@@ -284,6 +284,7 @@ The root `Makefile` now keeps the standard org release/GHCR flow, but retargets 
 - `make it_build` builds the runtime image from the root `Dockerfile`.
 - `make it_run` smoke-tests the image with `bun run skill:check`.
 - `make it_explore` opens an interactive `-it` shell with the current repo bind-mounted into `/workspace`.
+- `make it_claude` jumps straight into `claude` inside that same interactive container environment.
 - `make it_run_dev` is kept as an alias for `make it_explore`.
 - `make it_build_multi_arch_push_GHCR` publishes the runtime image to `ghcr.io/<org>/<repo>`.
 - `make minor_release`, `make patch_release`, `make major_release`, and `make hotfix` preserve the existing git-flow release entrypoints.
@@ -296,14 +297,27 @@ Version bumps in the Makefile now update both `VERSION` and `package.json`, whic
 
 The runtime image also installs `claude-code` with Bun, so interactive exploration containers have both `bun` and `claude` available out of the box.
 
+If you want to override the Claude entry command, pass `CLAUDE_COMMAND`, for example:
+
+- `make it_claude CLAUDE_COMMAND='claude --help'`
+
 Auth handling is runtime-only:
 
 - `.env` is the primary auth source for `make it_run`, `make it_run_dev`, and `make test_fresh`.
 - If `.env` is missing, selected env vars from the caller or cloud harness are forwarded into the container by name.
 - No auth values are passed as Docker build args or baked into image layers.
-- Local account login state from `~/.claude` and `~/.codex` is mounted into the container by default, so users signed into Claude Code or Codex can reuse those sessions instead of being forced onto API billing.
+- The default container path is isolated: it uses container-owned persisted volumes for Claude/Codex and other home-directory state, so it does not touch your personal `~/.claude` or `~/.codex`.
+- If you explicitly want to reuse host account login state, set `ENABLE_ACCOUNT_MOUNTS=1`.
 - If you need to run without mounted home-directory state, put the account-backed Anthropic session token in `.env` as `ANTHROPIC_AUTH_TOKEN`; treat it like any other secret and rotate it when the upstream login changes.
-- Set `ENABLE_ACCOUNT_MOUNTS=0` when a runner should not mount local account state.
+- Leave `ENABLE_ACCOUNT_MOUNTS=0` for the safer default that avoids polluting personal host state.
+
+Persistence across container restarts works in two layers:
+
+- The repo itself is bind-mounted into `/workspace`, so dotfiles inside the repo continue to live on the host checkout.
+- Named Docker volumes back `/root/.claude` and `/root/.codex` by default, so container auth/session state survives restarts without writing into your personal host directories.
+- If you opt in with `ENABLE_ACCOUNT_MOUNTS=1`, host `~/.claude` and `~/.codex` are mounted instead.
+- Additional container-side state in `/root/.config`, `/root/.cache`, and `/root/.local/share` is stored in named Docker volumes by default, so CLI/session state survives container teardown and recreation.
+- Set `ENABLE_STATE_VOLUMES=0` if you want fully ephemeral container-side state.
 
 The same rule applies to other services:
 

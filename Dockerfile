@@ -23,6 +23,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN mkdir -p /root/.claude /root/.codex /workspace
 
+RUN cat <<'EOF' >/usr/local/bin/gstack-container-init
+#!/usr/bin/env bash
+set -euo pipefail
+
+mkdir -p /root/.claude /root/.codex /root/.config /root/.cache /root/.local/share
+
+# Persist Claude's top-level config file inside the Claude volume.
+if [ ! -L /root/.claude.json ]; then
+    rm -f /root/.claude.json
+    ln -s /root/.claude/.claude.json /root/.claude.json
+fi
+
+# If Claude left only a backup, restore the newest backup as the primary config.
+if [ ! -s /root/.claude/.claude.json ]; then
+    latest_backup="$(ls -1t /root/.claude/backups/.claude.json.backup.* 2>/dev/null | head -n 1 || true)"
+    if [ -n "$latest_backup" ]; then
+        cp "$latest_backup" /root/.claude/.claude.json
+    fi
+fi
+
+exec "$@"
+EOF
+RUN chmod +x /usr/local/bin/gstack-container-init
+
 RUN curl -fsSL https://bun.sh/install | BUN_VERSION=${BUN_VERSION} bash
 RUN bun install -g @anthropic-ai/claude-code
 
@@ -45,4 +69,5 @@ RUN bun install --frozen-lockfile 2>/dev/null || bun install
 
 COPY --from=build /workspace /workspace
 
+ENTRYPOINT ["/usr/local/bin/gstack-container-init"]
 CMD ["bash"]
