@@ -1,0 +1,325 @@
+---
+name: inbox
+preamble-tier: 1
+version: 1.0.0
+description: |
+  Cross-session messaging for Claude Code. Send messages between concurrent
+  sessions, claim work items to prevent double-booking, check who's working
+  on what. File-based — no server needed. Sessions see new messages inline
+  via a lightweight PreToolUse hook.
+  Use when asked to "send a message", "check inbox", "claim this task",
+  "who's working on what", "notify when done", or "message other sessions".
+  Proactively suggest when multiple sessions are active in the same project
+  and coordination is needed. (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Glob
+  - Grep
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /inbox: Cross-Session Messaging
+
+Send and receive messages between concurrent Claude Code sessions. File-based,
+zero infrastructure, real-time-ish delivery via PreToolUse hook.
+
+---
+
+## Step 0: Ensure hook is installed
+
+```bash
+# Check if the inbox hook is installed in settings.json
+INSTALLER="$HOME/.claude/skills/gstack/inbox/bin/inbox-install"
+if [ -x "$INSTALLER" ]; then
+  "$INSTALLER" --check 2>/dev/null
+  HOOK_STATUS=$?
+else
+  HOOK_STATUS=1
+fi
+echo "HOOK_STATUS: $HOOK_STATUS"
+```
+
+If `HOOK_STATUS` is 1 (not installed), install it:
+
+```bash
+"$HOME/.claude/skills/gstack/inbox/bin/inbox-install"
+```
+
+Tell the user: "Installed inbox hook — other sessions will see your messages
+on their next tool call. Note: existing sessions need to be restarted to pick
+up the new hook from settings.json."
+
+---
+
+## Step 1: Ensure inbox exists
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+mkdir -p "$INBOX/messages" "$INBOX/claims"
+echo "INBOX: $INBOX"
+```
+
+---
+
+## Step 2: Parse the user's intent
+
+The user may want to:
+
+| Intent | Examples |
+|--------|----------|
+| **send** | "tell the other sessions...", "message: X is done", "notify that..." |
+| **read** | "check inbox", "any messages?", "what's new?" |
+| **claim** | "I'm working on X", "claim the auth task", "lock this" |
+| **release** | "done with X", "release the claim", "unclaim" |
+| **status** | "who's working on what?", "show active sessions", "status" |
+| **clear** | "clear inbox", "dismiss messages", "mark all read" |
+| **setup** | "set up inbox", "initialize" (already done in Step 1) |
+
+---
+
+## Command: send
+
+Write a message file to the inbox. Include sender identity and timestamp.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+TIMESTAMP=$(date +%s)
+DATE_HUMAN=$(date "+%Y-%m-%d %H:%M")
+BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+SESSION_ID="$$"
+
+# Identify this session by what it's working on
+SENDER="session-$SESSION_ID ($BRANCH)"
+```
+
+Create the message file:
+
+```bash
+cat > "$INBOX/messages/${TIMESTAMP}-${SESSION_ID}.md" << 'MSGEOF'
+<sender-name>
+<date>
+<message-body>
+MSGEOF
+```
+
+Replace `<sender-name>`, `<date>`, and `<message-body>` with actual values.
+The first line is the sender, second line is the date, third line onward is
+the message body.
+
+**Message format examples:**
+
+For a completion notification:
+```
+session-12345 (feat/beat-rewrites)
+2026-04-02 15:30
+Beat outline rewrites complete for Honey Falls Ch 1-6.
+Book-system is now unblocked for prose generation.
+Rewritten files: outlining-system/output/honey-falls/ch1-beat.md through ch6-beat.md
+```
+
+For a question:
+```
+session-12345 (main)
+2026-04-02 15:30
+Question: Should we use the v2 or v3 API for the payment integration?
+Need a decision before I can proceed with the checkout flow.
+```
+
+For a handoff:
+```
+session-12345 (feat/auth)
+2026-04-02 15:30
+HANDOFF: Auth middleware is done and tested.
+Next step: integrate with the /api/users endpoint.
+See: src/middleware/auth.ts (new), test/auth.test.ts (new)
+```
+
+After writing, tell the user: "Message sent. Other sessions will see it on
+their next tool call."
+
+---
+
+## Command: read
+
+Read all messages, newest first. Show full content.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+echo "=== Inbox: $INBOX ==="
+echo ""
+for msg in $(ls -t "$INBOX/messages"/*.md 2>/dev/null); do
+  echo "--- $(basename "$msg") ---"
+  cat "$msg"
+  echo ""
+done
+if [ -z "$(ls "$INBOX/messages"/*.md 2>/dev/null)" ]; then
+  echo "(empty — no messages)"
+fi
+```
+
+After reading, update the read marker:
+
+```bash
+touch "$INBOX/.last-read-$$" 2>/dev/null || true
+```
+
+Present messages in a clean format. If there are action items or questions,
+highlight them and ask the user how to proceed.
+
+---
+
+## Command: claim
+
+Claim a work item so other sessions know you're on it. Creates a lock file.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+SESSION_ID="$$"
+CLAIM_NAME="<task-slug>"
+
+# Check if already claimed
+if [ -f "$INBOX/claims/${CLAIM_NAME}.lock" ]; then
+  echo "ALREADY_CLAIMED"
+  cat "$INBOX/claims/${CLAIM_NAME}.lock"
+else
+  cat > "$INBOX/claims/${CLAIM_NAME}.lock" << EOF
+session-$SESSION_ID ($BRANCH)
+$(date "+%Y-%m-%d %H:%M")
+EOF
+  echo "CLAIMED: $CLAIM_NAME"
+fi
+```
+
+Replace `<task-slug>` with a kebab-case version of the task name
+(e.g., "beat-rewrite-honey-falls", "payment-integration", "auth-middleware").
+
+If already claimed by another session, tell the user who has it and when
+they claimed it. Ask if they want to override (force-claim).
+
+---
+
+## Command: release
+
+Release a claim when done with a work item.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+CLAIM_NAME="<task-slug>"
+rm -f "$INBOX/claims/${CLAIM_NAME}.lock"
+echo "Released: $CLAIM_NAME"
+```
+
+Optionally send a completion message at the same time (combine with send).
+
+---
+
+## Command: status
+
+Show all active sessions and their claims.
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+
+echo "=== Active Claims ==="
+for claim in "$INBOX/claims"/*.lock 2>/dev/null; do
+  [ -f "$claim" ] || continue
+  NAME=$(basename "$claim" .lock)
+  OWNER=$(head -1 "$claim")
+  WHEN=$(sed -n '2p' "$claim")
+  echo "  $NAME — $OWNER (since $WHEN)"
+done
+if [ -z "$(ls "$INBOX/claims"/*.lock 2>/dev/null)" ]; then
+  echo "  (no active claims)"
+fi
+
+echo ""
+echo "=== Active Sessions (last 2h) ==="
+find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | while read f; do
+  echo "  PID: $(basename "$f")"
+done
+SESSION_COUNT=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "  Total: $SESSION_COUNT active session(s)"
+
+echo ""
+echo "=== Pending Messages ==="
+MSG_COUNT=$(find "$INBOX/messages" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+echo "  $MSG_COUNT message(s) in inbox"
+```
+
+Present this as a clean dashboard.
+
+---
+
+## Command: clear
+
+Clear all read messages (keep unread ones).
+
+```bash
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+INBOX="$ROOT/.gstack/inbox"
+# Remove all messages (they've been seen via the hook)
+COUNT=$(find "$INBOX/messages" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
+find "$INBOX/messages" -name "*.md" -type f -exec rm {} + 2>/dev/null
+echo "Cleared $COUNT message(s)"
+```
+
+---
+
+## Proactive behavior
+
+When you notice coordination opportunities, suggest using inbox:
+
+1. **Multiple sessions detected:** If the preamble shows multiple active
+   sessions and the user is about to start work that could conflict, suggest
+   claiming it first.
+
+2. **Completing a task with dependents:** If the user finishes work that
+   other sessions might be waiting on, suggest sending a notification.
+
+3. **Before starting work:** Check claims to make sure no one else is on it.
+
+---
+
+## Message file format
+
+Messages are plain markdown files in `.gstack/inbox/messages/`:
+
+```
+.gstack/inbox/
+├── messages/
+│   ├── 1712084400-12345.md    # timestamp-sessionPID.md
+│   └── 1712084500-67890.md
+├── claims/
+│   ├── beat-rewrite-honey-falls.lock
+│   └── payment-integration.lock
+├── .last-read-12345           # per-session read marker
+├── .last-read-67890
+└── .seen-12345                # per-session hook check marker
+```
+
+**Message file format** (3+ lines):
+```
+Line 1: sender identity (session ID + branch)
+Line 2: human-readable date
+Line 3+: message body (free-form markdown)
+```
+
+**Claim file format** (2 lines):
+```
+Line 1: owner identity
+Line 2: claim timestamp
+```
+
+Keep `.gstack/inbox/` in `.gitignore` — these are ephemeral coordination
+files, not project state.

@@ -755,7 +755,17 @@ HOOKEOF
   fi
 fi
 
-# 9. First-time welcome + legacy cleanup
+# 9. Install inbox PreToolUse hook for cross-session messaging
+INBOX_INSTALLER="$SOURCE_GSTACK_DIR/inbox/bin/inbox-install"
+if [ -x "$INBOX_INSTALLER" ]; then
+  if "$INBOX_INSTALLER" --check >/dev/null 2>&1; then
+    : # Already installed
+  else
+    "$INBOX_INSTALLER" 2>/dev/null || true
+  fi
+fi
+
+# 10. First-time welcome + legacy cleanup
 if [ ! -f "$HOME/.gstack/.welcome-seen" ]; then
   echo "  Welcome! Run /gstack-upgrade anytime to stay current."
   touch "$HOME/.gstack/.welcome-seen"

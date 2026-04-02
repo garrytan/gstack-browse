@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# gstack inbox-install — add the inbox PreToolUse hook to Claude Code settings.
+# Safe to run multiple times (idempotent). No ./setup needed.
+#
+# Usage:
+#   gstack-inbox-install          # install the hook
+#   gstack-inbox-install --check  # check if installed (exit 0/1)
+#   gstack-inbox-install --remove # remove the hook
+
+set -e
+
+SETTINGS_FILE="$HOME/.claude/settings.json"
+HOOK_SCRIPT="$HOME/.claude/skills/gstack/inbox/bin/inbox-hook"
+HOOK_MARKER="inbox-hook"
+
+# ─── Parse flags ─────────────────────────────────────────
+MODE="install"
+case "${1:-}" in
+  --check)  MODE="check" ;;
+  --remove) MODE="remove" ;;
+esac
+
+# ─── Check mode ──────────────────────────────────────────
+if [ "$MODE" = "check" ]; then
+  if [ -f "$SETTINGS_FILE" ] && grep -q "$HOOK_MARKER" "$SETTINGS_FILE" 2>/dev/null; then
+    echo "Inbox hook: installed"
+    exit 0
+  else
+    echo "Inbox hook: not installed"
+    exit 1
+  fi
+fi
+
+# ─── Ensure settings file exists ─────────────────────────
+if [ ! -f "$SETTINGS_FILE" ]; then
+  echo '{}' > "$SETTINGS_FILE"
+fi
+
+# ─── Remove mode ─────────────────────────────────────────
+if [ "$MODE" = "remove" ]; then
+  if ! grep -q "$HOOK_MARKER" "$SETTINGS_FILE" 2>/dev/null; then
+    echo "Inbox hook not found in settings — nothing to remove."
+    exit 0
+  fi
+  # Use bun/node to safely edit JSON
+  if command -v bun >/dev/null 2>&1; then
+    bun -e "
+      const fs = require('fs');
+      const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
+      if (settings.hooks?.PreToolUse) {
+        settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(
+          h => !JSON.stringify(h).includes('$HOOK_MARKER')
+        );
+        if (settings.hooks.PreToolUse.length === 0) delete settings.hooks.PreToolUse;
+        if (Object.keys(settings.hooks || {}).length === 0) delete settings.hooks;
+      }
+      fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+    "
+    echo "Inbox hook removed from $SETTINGS_FILE"
+  else
+    echo "Error: bun required to safely edit settings.json" >&2
+    exit 1
+  fi
+  exit 0
+fi
+
+# ─── Install mode ────────────────────────────────────────
+if grep -q "$HOOK_MARKER" "$SETTINGS_FILE" 2>/dev/null; then
+  echo "Inbox hook already installed."
+  exit 0
+fi
+
+if ! [ -x "$HOOK_SCRIPT" ]; then
+  echo "Error: hook script not found at $HOOK_SCRIPT" >&2
+  echo "Make sure gstack is installed at ~/.claude/skills/gstack/" >&2
+  exit 1
+fi
+
+# Use bun to safely merge into existing settings.json
+if command -v bun >/dev/null 2>&1; then
+  bun -e "
+    const fs = require('fs');
+    const settings = JSON.parse(fs.readFileSync('$SETTINGS_FILE', 'utf-8'));
+
+    // Initialize hooks structure if needed
+    if (!settings.hooks) settings.hooks = {};
+    if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+
+    // Add inbox hook (fires on Bash calls — most common tool during work)
+    settings.hooks.PreToolUse.push({
+      matcher: 'Bash',
+      hooks: [{
+        type: 'command',
+        command: '$HOOK_SCRIPT',
+        statusMessage: 'Checking inbox...'
+      }]
+    });
+
+    fs.writeFileSync('$SETTINGS_FILE', JSON.stringify(settings, null, 2) + '\n');
+  "
+  echo "Inbox hook installed in $SETTINGS_FILE"
+  echo ""
+  echo "How it works:"
+  echo "  - Checks for new messages before each Bash tool call"
+  echo "  - If a message is waiting, you'll see it inline"
+  echo "  - Run /inbox to send messages, claim work, or see status"
+  echo ""
+  echo "To create an inbox in your project:"
+  echo "  mkdir -p .gstack/inbox/messages"
+  echo ""
+  echo "To remove: gstack-inbox-install --remove"
+else
+  echo "Error: bun required to safely edit settings.json" >&2
+  exit 1
+fi
