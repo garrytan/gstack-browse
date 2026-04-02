@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.0.0] - 2026-04-02 — Codebase Index
+
+Your AI assistant now skips the 50K+ token exploration phase. Run `/index` once in any project and it generates compact reference files (routes, models, pages, components, lib exports, config) that every future conversation reads instantly. Works with any framework — Laravel, Rails, Next.js, Django, Go, Rust, and more.
+
+### Added
+
+- **`/index` skill.** Auto-detects your framework and generates `.ai-codex/` reference files. One command, ~9K tokens instead of ~50K+ per conversation. Updates CLAUDE.md so every future session loads the index automatically.
+- **`gstack-reindex` standalone script.** Fast (~1s), zero-cost re-indexer for ongoing updates. No AI needed — pure static analysis. Three modes: normal, `--hook` (stages for git commit), `--check` (CI staleness detection).
+- **Auto-reindex on commit.** Global git pre-commit hook installed by both `/index` and `./setup`. Any project with `.ai-codex/` gets automatic reindex on every commit. Chains to `pre-commit.local` so existing per-repo hooks still work.
+
 ## [0.15.1.0] - 2026-04-01 — Design Without Shotgun
 
 You can now run `/design-html` without having to run `/design-shotgun` first. The skill detects what design context exists (CEO plans, design review artifacts, approved mockups) and asks how you want to proceed. Start from a plan, a description, or a provided PNG, not just an approved mockup.
