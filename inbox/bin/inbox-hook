@@ -3,13 +3,13 @@
 # Ultra-lightweight: single stat check per invocation. Only reads messages
 # when something actually changed.
 #
-# Uses a GLOBAL inbox at ~/.gstack/inbox/ so all CC sessions can communicate
-# regardless of which project they're in.
+# Global inbox at ~/.gstack/inbox/. Messages are structured YAML-frontmatter
+# markdown files with type, sender, target, and body.
 #
 # Exit codes: always 0 (never blocks tool execution)
 # Output: new messages to stdout (Claude sees them), nothing if no new messages
 
-set -e
+set +e  # Never exit on error — this hook must not block tool execution
 
 INBOX_DIR="$HOME/.gstack/inbox"
 [ -d "$INBOX_DIR/messages" ] || exit 0
@@ -19,35 +19,62 @@ SEEN_FILE="$INBOX_DIR/.seen-$$"
 LAST_MSG=$(find "$INBOX_DIR/messages" -type f -newer "$SEEN_FILE" -print -quit 2>/dev/null)
 
 if [ -z "$LAST_MSG" ] && [ -f "$SEEN_FILE" ]; then
-  # Nothing new since last check
   exit 0
 fi
 
 # Touch seen marker for next check
 touch "$SEEN_FILE" 2>/dev/null || true
 
+# Identify this session for targeting
+MY_PROJECT=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || basename "$(pwd)")
+MY_BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
+MY_SESSION="$$"
+
 # Read unread messages (files newer than last-read marker)
 READ_MARKER="$INBOX_DIR/.last-read-$$"
-NEW_MSGS=""
+OUTPUT=""
 MSG_COUNT=0
 
 for msg in "$INBOX_DIR/messages"/*.md; do
   [ -f "$msg" ] || continue
   if [ ! -f "$READ_MARKER" ] || [ "$msg" -nt "$READ_MARKER" ]; then
+    # Check targeting — skip if message targets a different session
+    TARGET=$(awk -F': ' '/^target:/{print $2; exit}' "$msg" 2>/dev/null)
+    if [ -n "$TARGET" ] && [ "$TARGET" != "all" ]; then
+      # Target can be a project name, session ID, or label
+      MATCH=0
+      [ -n "$MY_PROJECT" ] && echo "$TARGET" | grep -qi "$MY_PROJECT" 2>/dev/null && MATCH=1
+      [ "$MATCH" -eq 0 ] && echo "$TARGET" | grep -q "$MY_SESSION" 2>/dev/null && MATCH=1
+      [ "$MATCH" -eq 0 ] && continue
+    fi
+
     MSG_COUNT=$((MSG_COUNT + 1))
-    # Read first 3 lines of each message (header + content preview)
-    HEADER=$(head -1 "$msg" 2>/dev/null)
-    BODY=$(sed -n '3p' "$msg" 2>/dev/null)
-    NEW_MSGS="${NEW_MSGS}  - ${HEADER}: ${BODY}\n"
+    TYPE=$(awk -F': ' '/^type:/{print $2; exit}' "$msg" 2>/dev/null)
+    [ -z "$TYPE" ] && TYPE="info"
+    FROM=$(awk -F': ' '/^from:/{print $2; exit}' "$msg" 2>/dev/null)
+    [ -z "$FROM" ] && FROM="unknown"
+    # Body is everything after the second "---" (closing frontmatter)
+    BODY=$(awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$msg" 2>/dev/null | sed '/^$/d' | head -3)
+
+    case "$TYPE" in
+      unblock)  ICON="UNBLOCKED" ;;
+      handoff)  ICON="HANDOFF" ;;
+      question) ICON="QUESTION" ;;
+      *)        ICON="INFO" ;;
+    esac
+
+    OUTPUT="${OUTPUT}  [$ICON] from $FROM: $BODY\n"
   fi
 done
 
 if [ "$MSG_COUNT" -gt 0 ]; then
   echo ""
   echo "[gstack inbox] $MSG_COUNT new message(s):"
-  printf "$NEW_MSGS"
+  printf "$OUTPUT"
   echo ""
-  echo "Run /inbox to see full messages, reply, or claim work."
+  echo "IMPORTANT: Read the full message(s) with: cat ~/.gstack/inbox/messages/*.md"
+  echo "Then act on any UNBLOCK/HANDOFF/QUESTION messages appropriately."
+  echo "Run /inbox to reply, claim work, or see full dashboard."
   # Update read marker
   touch "$READ_MARKER" 2>/dev/null || true
 fi

@@ -85,9 +85,33 @@ The user may want to:
 
 ---
 
+## Message Types
+
+Every message has a `type:` that tells the receiving session what to do:
+
+| Type | When to use | What receiver should do |
+|------|-------------|------------------------|
+| `info` | General updates, FYIs | Read and acknowledge, no action needed |
+| `unblock` | Dependency completed | Check if this unblocks your current work, resume if so |
+| `handoff` | Passing work to another session | Pick up the described work, read the referenced files |
+| `question` | Need input from another session | Answer the question, send a reply |
+
+## Targeting
+
+Messages can target specific sessions by project name:
+
+- `target: all` — broadcast to every session (default)
+- `target: book-system` — only sessions in the book-system project see it
+- `target: hoopless_crm` — only sessions in that project see it
+
+The hook filters by matching the target against the current project name.
+If no target is specified, all sessions see the message.
+
+---
+
 ## Command: send
 
-Write a message file to the inbox. Include sender identity and timestamp.
+Write a structured message file to the inbox.
 
 ```bash
 INBOX="$HOME/.gstack/inbox"
@@ -95,56 +119,89 @@ TIMESTAMP=$(date +%s)
 DATE_HUMAN=$(date "+%Y-%m-%d %H:%M")
 BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 SESSION_ID="$$"
-
-# Identify this session by project + branch
 PROJECT=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || basename "$(pwd)")
-SENDER="session-$SESSION_ID ($PROJECT/$BRANCH)"
 ```
 
-Create the message file:
+**Determine the message type** from the user's intent:
+- Finishing work that others depend on → `type: unblock`
+- Passing work to another session → `type: handoff`
+- Asking a question → `type: question`
+- General update → `type: info`
+
+**Determine the target** from the user's request:
+- "tell book-system..." → `target: book-system`
+- "tell all sessions..." or no target specified → `target: all`
+- "tell the Laravel session..." → `target: hoopless_crm`
+
+Create the message file with YAML frontmatter:
 
 ```bash
 cat > "$INBOX/messages/${TIMESTAMP}-${SESSION_ID}.md" << 'MSGEOF'
-<sender-name>
-<date>
-<message-body>
+---
+type: <type>
+from: <project>/<branch> (session-<id>)
+target: <target>
+date: <date>
+---
+
+<message body>
+
+<action items or context for the receiving session>
 MSGEOF
 ```
 
-Replace `<sender-name>`, `<date>`, and `<message-body>` with actual values.
-The first line is the sender, second line is the date, third line onward is
-the message body.
+Replace all `<placeholders>` with actual values.
 
 **Message format examples:**
 
-For a completion notification:
-```
-session-12345 (feat/beat-rewrites)
-2026-04-02 15:30
+For an unblock notification:
+```markdown
+---
+type: unblock
+from: AI-VENTURE/feat-beat-rewrites (session-12345)
+target: all
+date: 2026-04-02 15:30
+---
+
 Beat outline rewrites complete for Honey Falls Ch 1-6.
-Book-system is now unblocked for prose generation.
-Rewritten files: outlining-system/output/honey-falls/ch1-beat.md through ch6-beat.md
+
+ACTION: Book-system is now unblocked for prose generation.
+Files changed: outlining-system/output/honey-falls/ch1-beat.md through ch6-beat.md
 ```
 
-For a question:
-```
-session-12345 (main)
-2026-04-02 15:30
-Question: Should we use the v2 or v3 API for the payment integration?
-Need a decision before I can proceed with the checkout flow.
+For a targeted question:
+```markdown
+---
+type: question
+from: hoopless_crm/main (session-67890)
+target: gstack
+date: 2026-04-02 15:30
+---
+
+Should we use the v2 or v3 API for payment integration?
+
+WAITING: Need a decision before proceeding with checkout flow.
+Reply via /inbox send.
 ```
 
 For a handoff:
-```
-session-12345 (feat/auth)
-2026-04-02 15:30
-HANDOFF: Auth middleware is done and tested.
-Next step: integrate with the /api/users endpoint.
+```markdown
+---
+type: handoff
+from: AI-VENTURE/feat-auth (session-11111)
+target: AI-VENTURE
+date: 2026-04-02 15:30
+---
+
+Auth middleware is done and tested.
+
+HANDOFF: Pick up integration with /api/users endpoint.
 See: src/middleware/auth.ts (new), test/auth.test.ts (new)
+Start with: the auth middleware exports requireAuth(roles) — wrap your route handlers with it.
 ```
 
 After writing, tell the user: "Message sent. Other sessions will see it on
-their next tool call."
+their next Bash tool call."
 
 ---
 
@@ -306,11 +363,17 @@ Messages are plain markdown files in `.gstack/inbox/messages/`:
 └── .seen-12345                # per-session hook check marker
 ```
 
-**Message file format** (3+ lines):
-```
-Line 1: sender identity (session ID + project/branch)
-Line 2: human-readable date
-Line 3+: message body (free-form markdown)
+**Message file format** (YAML frontmatter + body):
+```yaml
+---
+type: info|unblock|handoff|question
+from: project/branch (session-PID)
+target: all|project-name
+date: YYYY-MM-DD HH:MM
+---
+
+Message body (free-form markdown).
+ACTION/WAITING/HANDOFF lines tell the receiver what to do.
 ```
 
 **Claim file format** (2 lines):
