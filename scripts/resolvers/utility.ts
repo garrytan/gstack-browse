@@ -375,6 +375,7 @@ export function generateCoAuthorTrailer(ctx: TemplateContext): string {
     return 'Co-Authored-By: Factory Droid <droid@users.noreply.github.com>';
   }
   return 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>';
+}
 export function generateConfigFile(ctx: TemplateContext): string {
   return ctx.paths.configFile;
 }
