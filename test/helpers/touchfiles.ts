@@ -41,8 +41,8 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'skillmd-no-local-binary':  ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'skillmd-outside-git':      ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
 
-  'contributor-mode':           ['SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
   'session-awareness':        ['SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
+  'operational-learning':     ['scripts/resolvers/preamble.ts', 'bin/gstack-learnings-log'],
 
   // QA (+ test-server dependency)
   'qa-quick':       ['qa/**', 'browse/src/**', 'browse/test/test-server.ts'],
@@ -58,6 +58,15 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'review-enum-completeness': ['review/**', 'test/fixtures/review-eval-enum*.rb'],
   'review-base-branch':       ['review/**'],
   'review-design-lite':       ['review/**', 'test/fixtures/review-eval-design-slop.*'],
+
+  // Review Army (specialist dispatch)
+  'review-army-migration-safety': ['review/**', 'scripts/resolvers/review-army.ts', 'bin/gstack-diff-scope'],
+  'review-army-perf-n-plus-one':  ['review/**', 'scripts/resolvers/review-army.ts', 'bin/gstack-diff-scope'],
+  'review-army-delivery-audit':   ['review/**', 'scripts/resolvers/review.ts', 'scripts/resolvers/review-army.ts'],
+  'review-army-quality-score':    ['review/**', 'scripts/resolvers/review-army.ts'],
+  'review-army-json-findings':    ['review/**', 'scripts/resolvers/review-army.ts'],
+  'review-army-red-team':         ['review/**', 'scripts/resolvers/review-army.ts'],
+  'review-army-consensus':        ['review/**', 'scripts/resolvers/review-army.ts'],
 
   // Office Hours
   'office-hours-spec-review':  ['office-hours/**', 'scripts/gen-skill-docs.ts'],
@@ -98,6 +107,11 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Learnings
   'learnings-show': ['learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts'],
 
+  // Session Intelligence (timeline, context recovery, checkpoint)
+  'timeline-event-flow':         ['bin/gstack-timeline-log', 'bin/gstack-timeline-read'],
+  'context-recovery-artifacts':  ['scripts/resolvers/preamble.ts', 'bin/gstack-timeline-log', 'bin/gstack-slug', 'learn/**'],
+  'checkpoint-save-resume':      ['checkpoint/**', 'bin/gstack-slug'],
+
   // Document-release
   'document-release': ['document-release/**'],
 
@@ -122,6 +136,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Plan completion audit + verification
   'ship-plan-completion': ['ship/**', 'scripts/gen-skill-docs.ts'],
   'ship-plan-verification': ['ship/**', 'qa-only/**', 'scripts/gen-skill-docs.ts'],
+  'ship-idempotency':       ['ship/**', 'scripts/resolvers/utility.ts'],
   'review-plan-completion': ['review/**', 'scripts/gen-skill-docs.ts'],
 
   // Design
@@ -183,8 +198,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'skillmd-setup-discovery': 'gate',
   'skillmd-no-local-binary': 'gate',
   'skillmd-outside-git': 'gate',
-  'contributor-mode': 'gate',
   'session-awareness': 'gate',
+  'operational-learning': 'gate',
 
   // QA — gate for functional, periodic for quality/benchmarks
   'qa-quick': 'gate',
@@ -204,6 +219,15 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'review-plan-completion': 'gate',
   'review-dashboard-via': 'gate',
 
+  // Review Army — gate for core functionality, periodic for multi-specialist
+  'review-army-migration-safety': 'gate',   // Specialist activation guardrail
+  'review-army-perf-n-plus-one': 'gate',    // Specialist activation guardrail
+  'review-army-delivery-audit': 'gate',     // Delivery integrity guardrail
+  'review-army-quality-score': 'gate',      // Score computation
+  'review-army-json-findings': 'gate',      // JSON schema compliance
+  'review-army-red-team': 'periodic',       // Multi-agent coordination
+  'review-army-consensus': 'periodic',      // Multi-specialist agreement
+
   // Office Hours
   'office-hours-spec-review': 'gate',
 
@@ -222,6 +246,11 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'codex-offered-design-review': 'gate',
   'codex-offered-eng-review': 'gate',
 
+  // Session Intelligence — gate for data flow, periodic for agent integration
+  'timeline-event-flow': 'gate',            // Binary data flow (no LLM needed)
+  'context-recovery-artifacts': 'gate',     // Preamble reads seeded artifacts
+  'checkpoint-save-resume': 'gate',         // Checkpoint round-trip
+
   // Ship — gate (end-to-end ship path)
   'ship-base-branch': 'gate',
   'ship-local-workflow': 'gate',
@@ -229,6 +258,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'ship-triage': 'gate',
   'ship-plan-completion': 'gate',
   'ship-plan-verification': 'gate',
+  'ship-idempotency': 'periodic',
 
   // Retro — gate for cheap branch detection, periodic for full Opus retro
   'retro': 'periodic',

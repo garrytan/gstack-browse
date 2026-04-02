@@ -32,7 +32,6 @@ mkdir -p ~/.gstack/sessions
 touch ~/.gstack/sessions/"$PPID"
 _SESSIONS=$(find ~/.gstack/sessions -mmin -120 -type f 2>/dev/null | wc -l | tr -d ' ')
 find ~/.gstack/sessions -mmin +120 -type f -exec rm {} + 2>/dev/null || true
-_CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || true)
 _PROACTIVE=$(~/.claude/skills/gstack/bin/gstack-config get proactive 2>/dev/null || echo "true")
 _PROACTIVE_PROMPTED=$([ -f ~/.gstack/.proactive-prompted ] && echo "yes" || echo "no")
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
@@ -53,8 +52,8 @@ _SESSION_ID="$$-$(date +%s)"
 echo "TELEMETRY: ${_TEL:-off}"
 echo "TEL_PROMPTED: $_TEL_PROMPTED"
 mkdir -p ~/.gstack/analytics
-if [ "${_TEL:-off}" != "off" ]; then
-  echo '{"skill":"ship","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+if [ "$_TEL" != "off" ]; then
+echo '{"skill":"ship","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -72,9 +71,14 @@ _LEARN_FILE="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/learnings.j
 if [ -f "$_LEARN_FILE" ]; then
   _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: $_LEARN_COUNT entries loaded"
+  if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
+    ~/.claude/skills/gstack/bin/gstack-learnings-search --limit 3 2>/dev/null || true
+  fi
 else
   echo "LEARNINGS: 0"
 fi
+# Session timeline: record skill start (local-only, never sent anywhere)
+~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"ship","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
 # Check if CLAUDE.md has routing rules
 _HAS_ROUTING="no"
 if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
@@ -198,6 +202,8 @@ Key routing rules:
 - Design system, brand → invoke design-consultation
 - Visual audit, design polish → invoke design-review
 - Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health
 ```
 
 Then commit the change: `git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"`
@@ -253,6 +259,51 @@ Avoid filler, throat-clearing, generic optimism, founder cosplay, and unsupporte
 
 **Final test:** does this sound like a real cross-functional builder who wants to help someone make something people want, ship it, and make it actually work?
 
+## Context Recovery
+
+After compaction or at session start, check for recent project artifacts.
+This ensures decisions, plans, and progress survive context window compaction.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+_PROJ="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}"
+if [ -d "$_PROJ" ]; then
+  echo "--- RECENT ARTIFACTS ---"
+  # Last 3 artifacts across ceo-plans/ and checkpoints/
+  find "$_PROJ/ceo-plans" "$_PROJ/checkpoints" -type f -name "*.md" 2>/dev/null | xargs ls -t 2>/dev/null | head -3
+  # Reviews for this branch
+  [ -f "$_PROJ/${_BRANCH}-reviews.jsonl" ] && echo "REVIEWS: $(wc -l < "$_PROJ/${_BRANCH}-reviews.jsonl" | tr -d ' ') entries"
+  # Timeline summary (last 5 events)
+  [ -f "$_PROJ/timeline.jsonl" ] && tail -5 "$_PROJ/timeline.jsonl"
+  # Cross-session injection
+  if [ -f "$_PROJ/timeline.jsonl" ]; then
+    _LAST=$(grep "\"branch\":\"${_BRANCH}\"" "$_PROJ/timeline.jsonl" 2>/dev/null | grep '"event":"completed"' | tail -1)
+    [ -n "$_LAST" ] && echo "LAST_SESSION: $_LAST"
+    # Predictive skill suggestion: check last 3 completed skills for patterns
+    _RECENT_SKILLS=$(grep "\"branch\":\"${_BRANCH}\"" "$_PROJ/timeline.jsonl" 2>/dev/null | grep '"event":"completed"' | tail -3 | grep -o '"skill":"[^"]*"' | sed 's/"skill":"//;s/"//' | tr '\n' ',')
+    [ -n "$_RECENT_SKILLS" ] && echo "RECENT_PATTERN: $_RECENT_SKILLS"
+  fi
+  _LATEST_CP=$(find "$_PROJ/checkpoints" -name "*.md" -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+  [ -n "$_LATEST_CP" ] && echo "LATEST_CHECKPOINT: $_LATEST_CP"
+  echo "--- END ARTIFACTS ---"
+fi
+```
+
+If artifacts are listed, read the most recent one to recover context.
+
+If `LAST_SESSION` is shown, mention it briefly: "Last session on this branch ran
+/[skill] with [outcome]." If `LATEST_CHECKPOINT` exists, read it for full context
+on where work left off.
+
+If `RECENT_PATTERN` is shown, look at the skill sequence. If a pattern repeats
+(e.g., review,ship,review), suggest: "Based on your recent pattern, you probably
+want /[next skill]."
+
+**Welcome back message:** If any of LAST_SESSION, LATEST_CHECKPOINT, or RECENT ARTIFACTS
+are shown, synthesize a one-paragraph welcome briefing before proceeding:
+"Welcome back to {branch}. Last session: /{skill} ({outcome}). [Checkpoint summary if
+available]. [Health score if available]." Keep it to 2-3 sentences.
+
 ## AskUserQuestion Format
 
 **ALWAYS follow this structure for every AskUserQuestion call:**
@@ -298,24 +349,6 @@ Before building anything unfamiliar, **search first.** See `~/.claude/skills/gst
 jq -n --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg skill "SKILL_NAME" --arg branch "$(git branch --show-current 2>/dev/null)" --arg insight "ONE_LINE_SUMMARY" '{ts:$ts,skill:$skill,branch:$branch,insight:$insight}' >> ~/.gstack/analytics/eureka.jsonl 2>/dev/null || true
 ```
 
-## Contributor Mode
-
-If `_CONTRIB` is `true`: you are in **contributor mode**. At the end of each major workflow step, rate your gstack experience 0-10. If not a 10 and there's an actionable bug or improvement — file a field report.
-
-**File only:** gstack tooling bugs where the input was reasonable but gstack failed. **Skip:** user app bugs, network errors, auth failures on user's site.
-
-**To file:** write `~/.gstack/contributor-logs/{slug}.md`:
-```
-# {Title}
-**What I tried:** {action} | **What happened:** {result} | **Rating:** {0-10}
-## Repro
-1. {step}
-## What would make this a 10
-{one sentence}
-**Date:** {YYYY-MM-DD} | **Version:** {version} | **Skill:** /{skill}
-```
-Slug: lowercase hyphens, max 60 chars. Skip if exists. Max 3/session. File inline, don't stop.
-
 ## Completion Status Protocol
 
 When completing a skill workflow, report status using one of:
@@ -341,6 +374,24 @@ ATTEMPTED: [what you tried]
 RECOMMENDATION: [what the user should do next]
 ```
 
+## Operational Self-Improvement
+
+Before completing, reflect on this session:
+- Did any commands fail unexpectedly?
+- Did you take a wrong approach and have to backtrack?
+- Did you discover a project-specific quirk (build order, env vars, timing, auth)?
+- Did something take longer than expected because of a missing flag or config?
+
+If yes, log an operational learning for future sessions:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+```
+
+Replace SKILL_NAME with the current skill name. Only log genuine operational discoveries.
+Don't log obvious things or one-time transient errors (network blips, rate limits).
+A good test: would knowing this save 5+ minutes in a future session? If yes, log it.
+
 ## Telemetry (run last)
 
 After the skill workflow completes (success, error, or abort), log the telemetry event.
@@ -359,22 +410,39 @@ Run this bash:
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
-# Local + remote telemetry (both gated by _TEL setting)
+# Session timeline: record skill completion (local-only, never sent anywhere)
+~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"SKILL_NAME","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
+# Local analytics (gated on telemetry setting)
 if [ "$_TEL" != "off" ]; then
-  echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
-  if [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
-    ~/.claude/skills/gstack/bin/gstack-telemetry-log \
-      --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
-      --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
-  fi
+echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+fi
+# Remote telemetry (opt-in, requires binary)
+if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
+  ~/.claude/skills/gstack/bin/gstack-telemetry-log \
+    --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \
+    --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 fi
 ```
 
 Replace `SKILL_NAME` with the actual skill name from frontmatter, `OUTCOME` with
 success/error/abort, and `USED_BROWSE` with true/false based on whether `$B` was used.
-If you cannot determine the outcome, use "unknown". Both local JSONL and remote
-telemetry only run if telemetry is not off. The remote binary additionally requires
-the binary to exist.
+If you cannot determine the outcome, use "unknown". The local JSONL always logs. The
+remote binary only runs if telemetry is not off and the binary exists.
+
+## Plan Mode Safe Operations
+
+When in plan mode, these operations are always allowed because they produce
+artifacts that inform the plan, not code changes:
+
+- `$B` commands (browse: screenshots, page inspection, navigation, snapshots)
+- `$D` commands (design: generate mockups, variants, comparison boards, iterate)
+- `codex exec` / `codex review` (outside voice, plan review, adversarial challenge)
+- Writing to `~/.gstack/` (config, analytics, review logs, design artifacts, learnings)
+- Writing to the plan file (already allowed by plan mode)
+- `open` commands for viewing generated artifacts (comparison boards, HTML previews)
+
+These are read-only in spirit — they inspect the live site, generate visual artifacts,
+or get independent opinions. They do NOT modify project source files.
 
 ## Plan Status Footer
 
@@ -526,7 +594,7 @@ Display:
 - **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \`gstack-config set skip_eng_review true\` (the "don't bother me" setting).
 - **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
 - **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
-- **Adversarial Review (automatic):** Auto-scales by diff size. Small diffs (<50 lines) skip adversarial. Medium diffs (50–199) get cross-model adversarial. Large diffs (200+) get all 4 passes: Claude structured, Codex structured, Claude adversarial subagent, Codex adversarial. No configuration needed.
+- **Adversarial Review (automatic):** Always-on for every review. Every diff gets both Claude adversarial subagent and Codex adversarial challenge. Large diffs (200+ lines) additionally get Codex structured review with P1 gate. No configuration needed.
 - **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete in /plan-ceo-review and /plan-eng-review. Falls back to Claude subagent if Codex is unavailable. Never gates shipping.
 
 **Verdict logic:**
@@ -1424,6 +1492,41 @@ matches a past learning, display:
 This makes the compounding visible. The user should see that gstack is getting
 smarter on their codebase over time.
 
+## Step 3.48: Scope Drift Detection
+
+Before reviewing code quality, check: **did they build what was requested — nothing more, nothing less?**
+
+1. Read `TODOS.md` (if it exists). Read PR description (`gh pr view --json body --jq .body 2>/dev/null || true`).
+   Read commit messages (`git log origin/<base>..HEAD --oneline`).
+   **If no PR exists:** rely on commit messages and TODOS.md for stated intent — this is the common case since /review runs before /ship creates the PR.
+2. Identify the **stated intent** — what was this branch supposed to accomplish?
+3. Run `git diff origin/<base>...HEAD --stat` and compare the files changed against the stated intent.
+
+4. Evaluate with skepticism (incorporating plan completion results if available from an earlier step or adjacent section):
+
+   **SCOPE CREEP detection:**
+   - Files changed that are unrelated to the stated intent
+   - New features or refactors not mentioned in the plan
+   - "While I was in there..." changes that expand blast radius
+
+   **MISSING REQUIREMENTS detection:**
+   - Requirements from TODOS.md/PR description not addressed in the diff
+   - Test coverage gaps for stated requirements
+   - Partial implementations (started but not finished)
+
+5. Output (before the main review begins):
+   \`\`\`
+   Scope Check: [CLEAN / DRIFT DETECTED / REQUIREMENTS MISSING]
+   Intent: <1-line summary of what was requested>
+   Delivered: <1-line summary of what the diff actually does>
+   [If drift: list each out-of-scope change]
+   [If missing: list each unaddressed requirement]
+   \`\`\`
+
+6. This is **INFORMATIONAL** — does not block the review. Proceed to the next step.
+
+---
+
 ---
 
 ## Step 3.5: Pre-Landing Review
@@ -1591,9 +1694,9 @@ For each classified comment:
 
 ---
 
-## Step 3.8: Adversarial review (auto-scaled)
+## Step 3.8: Adversarial review (always-on)
 
-Adversarial review thoroughness scales automatically based on diff size. No configuration needed.
+Every diff gets adversarial review from both Claude and Codex. LOC is not a proxy for risk — a 5-line auth change can be critical.
 
 **Detect diff size and tool availability:**
 
@@ -1602,30 +1705,34 @@ DIFF_INS=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ insertion'
 DIFF_DEL=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
 DIFF_TOTAL=$((DIFF_INS + DIFF_DEL))
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
-# Respect old opt-out
+# Legacy opt-out — only gates Codex passes, Claude always runs
 OLD_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || true)
 echo "DIFF_SIZE: $DIFF_TOTAL"
 echo "OLD_CFG: ${OLD_CFG:-not_set}"
 ```
 
-If `OLD_CFG` is `disabled`: skip this step silently. Continue to the next step.
+If `OLD_CFG` is `disabled`: skip Codex passes only. Claude adversarial subagent still runs (it's free and fast). Jump to the "Claude adversarial subagent" section.
 
-**User override:** If the user explicitly requested a specific tier (e.g., "run all passes", "paranoid review", "full adversarial", "do all 4 passes", "thorough review"), honor that request regardless of diff size. Jump to the matching tier section.
-
-**Auto-select tier based on diff size:**
-- **Small (< 50 lines changed):** Skip adversarial review entirely. Print: "Small diff ($DIFF_TOTAL lines) — adversarial review skipped." Continue to the next step.
-- **Medium (50–199 lines changed):** Run Codex adversarial challenge (or Claude adversarial subagent if Codex unavailable). Jump to the "Medium tier" section.
-- **Large (200+ lines changed):** Run all remaining passes — Codex structured review + Claude adversarial subagent + Codex adversarial. Jump to the "Large tier" section.
+**User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the Codex structured review regardless of diff size.
 
 ---
 
-### Medium tier (50–199 lines)
+### Claude adversarial subagent (always runs)
 
-Claude's structured review already ran. Now add a **cross-model adversarial challenge**.
+Dispatch via the Agent tool. The subagent has fresh context — no checklist bias from the structured review. This genuine independence catches things the primary reviewer is blind to.
 
-**If Codex is available:** run the Codex adversarial challenge. **If Codex is NOT available:** fall back to the Claude adversarial subagent instead.
+Subagent prompt:
+"Read the diff for this branch with `git diff origin/<base>`. Think like an attacker and a chaos engineer. Your job is to find ways this code will fail in production. Look for: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. Be adversarial. Be thorough. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment)."
 
-**Codex adversarial:**
+Present findings under an `ADVERSARIAL REVIEW (Claude subagent):` header. **FIXABLE findings** flow into the same Fix-First pipeline as the structured review. **INVESTIGATE findings** are presented as informational.
+
+If the subagent fails or times out: "Claude adversarial subagent unavailable. Continuing."
+
+---
+
+### Codex adversarial challenge (always runs when available)
+
+If Codex is available AND `OLD_CFG` is NOT `disabled`:
 
 ```bash
 TMPERR_ADV=$(mktemp /tmp/codex-adv-XXXXXXXX)
@@ -1645,34 +1752,16 @@ Present the full output verbatim. This is informational — it never blocks ship
 - **Timeout:** "Codex timed out after 5 minutes."
 - **Empty response:** "Codex returned no response. Stderr: <paste relevant error>."
 
-On any Codex error, fall back to the Claude adversarial subagent automatically.
+**Cleanup:** Run `rm -f "$TMPERR_ADV"` after processing.
 
-**Claude adversarial subagent** (fallback when Codex unavailable or errored):
-
-Dispatch via the Agent tool. The subagent has fresh context — no checklist bias from the structured review. This genuine independence catches things the primary reviewer is blind to.
-
-Subagent prompt:
-"Read the diff for this branch with `git diff origin/<base>`. Think like an attacker and a chaos engineer. Your job is to find ways this code will fail in production. Look for: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. Be adversarial. Be thorough. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment)."
-
-Present findings under an `ADVERSARIAL REVIEW (Claude subagent):` header. **FIXABLE findings** flow into the same Fix-First pipeline as the structured review. **INVESTIGATE findings** are presented as informational.
-
-If the subagent fails or times out: "Claude adversarial subagent unavailable. Continuing without adversarial review."
-
-**Persist the review result:**
-```bash
-~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"medium","commit":"'"$(git rev-parse --short HEAD)"'"}'
-```
-Substitute STATUS: "clean" if no findings, "issues_found" if findings exist. SOURCE: "codex" if Codex ran, "claude" if subagent ran. If both failed, do NOT persist.
-
-**Cleanup:** Run `rm -f "$TMPERR_ADV"` after processing (if Codex was used).
+If Codex is NOT available: "Codex CLI not found — running Claude adversarial only. Install Codex for cross-model coverage: `npm install -g @openai/codex`"
 
 ---
 
-### Large tier (200+ lines)
+### Codex structured review (large diffs only, 200+ lines)
 
-Claude's structured review already ran. Now run **all three remaining passes** for maximum coverage:
+If `DIFF_TOTAL >= 200` AND Codex is available AND `OLD_CFG` is NOT `disabled`:
 
-**1. Codex structured review (if available):**
 ```bash
 TMPERR=$(mktemp /tmp/codex-review-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
@@ -1693,34 +1782,34 @@ B) Continue — review will still complete
 
 If A: address the findings. After fixing, re-run tests (Step 3) since code has changed. Re-run `codex review` to verify.
 
-Read stderr for errors (same error handling as medium tier).
+Read stderr for errors (same error handling as Codex adversarial above).
 
 After stderr: `rm -f "$TMPERR"`
 
-**2. Claude adversarial subagent:** Dispatch a subagent with the adversarial prompt (same prompt as medium tier). This always runs regardless of Codex availability.
-
-**3. Codex adversarial challenge (if available):** Run `codex exec` with the adversarial prompt (same as medium tier).
-
-If Codex is not available for steps 1 and 3, note to the user: "Codex CLI not found — large-diff review ran Claude structured + Claude adversarial (2 of 4 passes). Install Codex for full 4-pass coverage: `npm install -g @openai/codex`"
-
-**Persist the review result AFTER all passes complete** (not after each sub-step):
-```bash
-~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"large","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
-```
-Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
+If `DIFF_TOTAL < 200`: skip this section silently. The Claude + Codex adversarial passes provide sufficient coverage for smaller diffs.
 
 ---
 
-### Cross-model synthesis (medium and large tiers)
+### Persist the review result
+
+After all passes complete, persist:
+```bash
+~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"always","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
+```
+Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
+
+---
+
+### Cross-model synthesis
 
 After all passes complete, synthesize findings across all sources:
 
 ```
-ADVERSARIAL REVIEW SYNTHESIS (auto: TIER, N lines):
+ADVERSARIAL REVIEW SYNTHESIS (always-on, N lines):
 ════════════════════════════════════════════════════════════
   High confidence (found by multiple sources): [findings agreed on by >1 pass]
   Unique to Claude structured review: [from earlier step]
-  Unique to Claude adversarial: [from subagent, if ran]
+  Unique to Claude adversarial: [from subagent]
   Unique to Codex: [from codex adversarial or code review, if ran]
   Models used: Claude structured ✓  Claude adversarial ✓/✗  Codex ✓/✗
 ════════════════════════════════════════════════════════════
@@ -1740,7 +1829,8 @@ this session, log it for future sessions:
 ```
 
 **Types:** `pattern` (reusable approach), `pitfall` (what NOT to do), `preference`
-(user stated), `architecture` (structural decision), `tool` (library/framework insight).
+(user stated), `architecture` (structural decision), `tool` (library/framework insight),
+`operational` (project environment/CLI/workflow knowledge).
 
 **Sources:** `observed` (you found this in the code), `user-stated` (user told you),
 `inferred` (AI deduction), `cross-model` (both Claude and Codex agree).
@@ -1755,6 +1845,17 @@ staleness detection: if those files are later deleted, the learning can be flagg
 already knows. A good test: would this insight save time in a future session? If yes, log it.
 
 ## Step 4: Version bump (auto-decide)
+
+**Idempotency check:** Before bumping, compare VERSION against the base branch.
+
+```bash
+BASE_VERSION=$(git show origin/<base>:VERSION 2>/dev/null || echo "0.0.0.0")
+CURRENT_VERSION=$(cat VERSION 2>/dev/null || echo "0.0.0.0")
+echo "BASE: $BASE_VERSION  HEAD: $CURRENT_VERSION"
+if [ "$CURRENT_VERSION" != "$BASE_VERSION" ]; then echo "ALREADY_BUMPED"; fi
+```
+
+If output shows `ALREADY_BUMPED`, VERSION was already bumped on this branch (prior `/ship` run). Skip the rest of Step 4 and use the current VERSION. Otherwise proceed with the bump.
 
 1. Read the current `VERSION` file (4-digit format: `MAJOR.MINOR.PATCH.MICRO`)
 
@@ -1935,7 +2036,17 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 ## Step 7: Push
 
-Push to the remote with upstream tracking:
+**Idempotency check:** Check if the branch is already pushed and up to date.
+
+```bash
+git fetch origin <branch-name> 2>/dev/null
+LOCAL=$(git rev-parse HEAD)
+REMOTE=$(git rev-parse origin/<branch-name> 2>/dev/null || echo "none")
+echo "LOCAL: $LOCAL  REMOTE: $REMOTE"
+[ "$LOCAL" = "$REMOTE" ] && echo "ALREADY_PUSHED" || echo "PUSH_NEEDED"
+```
+
+If `ALREADY_PUSHED`, skip the push. Otherwise push with upstream tracking:
 
 ```bash
 git push -u origin <branch-name>
@@ -1945,7 +2056,21 @@ git push -u origin <branch-name>
 
 ## Step 8: Create PR/MR
 
-Create a pull request (GitHub) or merge request (GitLab) using the platform detected in Step 0.
+**Idempotency check:** Check if a PR/MR already exists for this branch.
+
+**If GitHub:**
+```bash
+gh pr view --json url,number,state -q 'if .state == "OPEN" then "PR #\(.number): \(.url)" else "NO_PR" end' 2>/dev/null || echo "NO_PR"
+```
+
+**If GitLab:**
+```bash
+glab mr view -F json 2>/dev/null | jq -r 'if .state == "opened" then "MR_EXISTS" else "NO_MR" end' 2>/dev/null || echo "NO_MR"
+```
+
+If an **open** PR/MR already exists: **update** the PR body with the latest test results, coverage, and review findings using `gh pr edit --body "..."` (GitHub) or `glab mr update -d "..."` (GitLab). Print the existing URL and continue to Step 8.5.
+
+If no PR/MR exists: create a pull request (GitHub) or merge request (GitLab) using the platform detected in Step 0.
 
 The PR/MR body should contain these sections:
 
@@ -1976,6 +2101,10 @@ you missed it.>
 <If Greptile comments were found: bullet list with [FIXED] / [FALSE POSITIVE] / [ALREADY FIXED] tag + one-line summary per comment>
 <If no Greptile comments found: "No Greptile comments.">
 <If no PR existed during Step 3.75: omit this section entirely>
+
+## Scope Drift
+<If scope drift ran: "Scope Check: CLEAN" or list of drift/creep findings>
+<If no scope drift: omit this section>
 
 ## Plan Completion
 <If plan file found: completion checklist summary from Step 3.45>
