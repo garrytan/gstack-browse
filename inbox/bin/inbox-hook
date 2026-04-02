@@ -3,57 +3,53 @@
 # Ultra-lightweight: single stat check per invocation. Only reads messages
 # when something actually changed.
 #
+# Uses a GLOBAL inbox at ~/.gstack/inbox/ so all CC sessions can communicate
+# regardless of which project they're in.
+#
 # Exit codes: always 0 (never blocks tool execution)
 # Output: new messages to stdout (Claude sees them), nothing if no new messages
 
 set -e
 
-# Find project-level inbox first, fall back to global
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$HOME")"
-PROJECT_INBOX="$ROOT/.gstack/inbox"
-GLOBAL_INBOX="$HOME/.gstack/inbox"
+INBOX_DIR="$HOME/.gstack/inbox"
+[ -d "$INBOX_DIR/messages" ] || exit 0
 
-# Check project inbox first, then global
-for INBOX_DIR in "$PROJECT_INBOX" "$GLOBAL_INBOX"; do
-  [ -d "$INBOX_DIR/messages" ] || continue
+# Fast path: check if anything changed since we last looked
+SEEN_FILE="$INBOX_DIR/.seen-$$"
+LAST_MSG=$(find "$INBOX_DIR/messages" -type f -newer "$SEEN_FILE" -print -quit 2>/dev/null)
 
-  # Fast path: check if anything changed since we last looked
-  SEEN_FILE="$INBOX_DIR/.seen-$$"
-  LAST_MSG=$(find "$INBOX_DIR/messages" -type f -newer "$SEEN_FILE" -print -quit 2>/dev/null)
+if [ -z "$LAST_MSG" ] && [ -f "$SEEN_FILE" ]; then
+  # Nothing new since last check
+  exit 0
+fi
 
-  if [ -z "$LAST_MSG" ] && [ -f "$SEEN_FILE" ]; then
-    # Nothing new since last check
-    continue
-  fi
+# Touch seen marker for next check
+touch "$SEEN_FILE" 2>/dev/null || true
 
-  # Touch seen marker for next check
-  touch "$SEEN_FILE" 2>/dev/null || true
+# Read unread messages (files newer than last-read marker)
+READ_MARKER="$INBOX_DIR/.last-read-$$"
+NEW_MSGS=""
+MSG_COUNT=0
 
-  # Read unread messages (files newer than last-read marker)
-  READ_MARKER="$INBOX_DIR/.last-read-$$"
-  NEW_MSGS=""
-  MSG_COUNT=0
-
-  for msg in "$INBOX_DIR/messages"/*.md; do
-    [ -f "$msg" ] || continue
-    if [ ! -f "$READ_MARKER" ] || [ "$msg" -nt "$READ_MARKER" ]; then
-      MSG_COUNT=$((MSG_COUNT + 1))
-      # Read first 3 lines of each message (header + content preview)
-      HEADER=$(head -1 "$msg" 2>/dev/null)
-      BODY=$(sed -n '3p' "$msg" 2>/dev/null)
-      NEW_MSGS="${NEW_MSGS}  - ${HEADER}: ${BODY}\n"
-    fi
-  done
-
-  if [ "$MSG_COUNT" -gt 0 ]; then
-    echo ""
-    echo "[gstack inbox] $MSG_COUNT new message(s):"
-    printf "$NEW_MSGS"
-    echo ""
-    echo "Run /inbox to see full messages, reply, or claim work."
-    # Update read marker
-    touch "$READ_MARKER" 2>/dev/null || true
+for msg in "$INBOX_DIR/messages"/*.md; do
+  [ -f "$msg" ] || continue
+  if [ ! -f "$READ_MARKER" ] || [ "$msg" -nt "$READ_MARKER" ]; then
+    MSG_COUNT=$((MSG_COUNT + 1))
+    # Read first 3 lines of each message (header + content preview)
+    HEADER=$(head -1 "$msg" 2>/dev/null)
+    BODY=$(sed -n '3p' "$msg" 2>/dev/null)
+    NEW_MSGS="${NEW_MSGS}  - ${HEADER}: ${BODY}\n"
   fi
 done
+
+if [ "$MSG_COUNT" -gt 0 ]; then
+  echo ""
+  echo "[gstack inbox] $MSG_COUNT new message(s):"
+  printf "$NEW_MSGS"
+  echo ""
+  echo "Run /inbox to see full messages, reply, or claim work."
+  # Update read marker
+  touch "$READ_MARKER" 2>/dev/null || true
+fi
 
 exit 0

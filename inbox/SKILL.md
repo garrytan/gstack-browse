@@ -386,9 +386,12 @@ up the new hook from settings.json."
 
 ## Step 1: Ensure inbox exists
 
+The inbox is **global** at `~/.gstack/inbox/` — all CC sessions communicate
+through the same inbox regardless of which project they're in. Messages
+include project context so recipients know where they came from.
+
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 mkdir -p "$INBOX/messages" "$INBOX/claims"
 echo "INBOX: $INBOX"
 ```
@@ -416,15 +419,15 @@ The user may want to:
 Write a message file to the inbox. Include sender identity and timestamp.
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 TIMESTAMP=$(date +%s)
 DATE_HUMAN=$(date "+%Y-%m-%d %H:%M")
 BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 SESSION_ID="$$"
 
-# Identify this session by what it's working on
-SENDER="session-$SESSION_ID ($BRANCH)"
+# Identify this session by project + branch
+PROJECT=$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || basename "$(pwd)")
+SENDER="session-$SESSION_ID ($PROJECT/$BRANCH)"
 ```
 
 Create the message file:
@@ -479,8 +482,7 @@ their next tool call."
 Read all messages, newest first. Show full content.
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 echo "=== Inbox: $INBOX ==="
 echo ""
 for msg in $(ls -t "$INBOX/messages"/*.md 2>/dev/null); do
@@ -509,8 +511,7 @@ highlight them and ask the user how to proceed.
 Claim a work item so other sessions know you're on it. Creates a lock file.
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 SESSION_ID="$$"
 CLAIM_NAME="<task-slug>"
@@ -541,8 +542,7 @@ they claimed it. Ask if they want to override (force-claim).
 Release a claim when done with a work item.
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 CLAIM_NAME="<task-slug>"
 rm -f "$INBOX/claims/${CLAIM_NAME}.lock"
 echo "Released: $CLAIM_NAME"
@@ -557,8 +557,7 @@ Optionally send a completion message at the same time (combine with send).
 Show all active sessions and their claims.
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 
 echo "=== Active Claims ==="
 for claim in "$INBOX/claims"/*.lock 2>/dev/null; do
@@ -595,8 +594,7 @@ Present this as a clean dashboard.
 Clear all read messages (keep unread ones).
 
 ```bash
-ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-INBOX="$ROOT/.gstack/inbox"
+INBOX="$HOME/.gstack/inbox"
 # Remove all messages (they've been seen via the hook)
 COUNT=$(find "$INBOX/messages" -name "*.md" -type f 2>/dev/null | wc -l | tr -d ' ')
 find "$INBOX/messages" -name "*.md" -type f -exec rm {} + 2>/dev/null
@@ -625,7 +623,7 @@ When you notice coordination opportunities, suggest using inbox:
 Messages are plain markdown files in `.gstack/inbox/messages/`:
 
 ```
-.gstack/inbox/
+~/.gstack/inbox/
 ├── messages/
 │   ├── 1712084400-12345.md    # timestamp-sessionPID.md
 │   └── 1712084500-67890.md
@@ -639,7 +637,7 @@ Messages are plain markdown files in `.gstack/inbox/messages/`:
 
 **Message file format** (3+ lines):
 ```
-Line 1: sender identity (session ID + branch)
+Line 1: sender identity (session ID + project/branch)
 Line 2: human-readable date
 Line 3+: message body (free-form markdown)
 ```
@@ -650,5 +648,6 @@ Line 1: owner identity
 Line 2: claim timestamp
 ```
 
-Keep `.gstack/inbox/` in `.gitignore` — these are ephemeral coordination
-files, not project state.
+The inbox is global (`~/.gstack/inbox/`) — not per-project. All sessions
+share one inbox. Messages include project context in the sender line so
+you know where they came from.
