@@ -64,6 +64,12 @@ The portable part is the pair:
 - `scripts/stack-health.ts`
 - `stack-health.config.json`
 
+For runtime hardening, pair the harness with the repo's one-switch no-egress setting:
+
+- `gstack-config set network_egress off`
+
+That disables hosted telemetry sync, remote update checks, and community dashboard network calls while keeping local-only analytics and local checks available.
+
 To apply this in another repo:
 1. copy the script and config,
 2. replace the command checks with that repo's existing fast integrity commands,
