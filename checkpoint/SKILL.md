@@ -41,6 +41,11 @@ echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <(~/.claude/skills/gstack/bin/gstack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
+# Auto-migrate legacy ~/.gstack/projects/ data to project-local .gstack/ (once per project)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" || true
+if [ -n "${PROJECT_DATA_DIR:-}" ] && [ -d "$HOME/.gstack/projects/${SLUG:-}" ] && [ ! -f "${PROJECT_DATA_DIR}/.migrated" ]; then
+  ~/.claude/skills/gstack/bin/gstack-migrate-local 2>/dev/null && touch "${PROJECT_DATA_DIR}/.migrated" 2>/dev/null || true
+fi
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
@@ -490,7 +495,7 @@ use it as the checkpoint title. Otherwise, infer a title from the current work.
 ### Step 1: Gather state
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 ```
 
 Collect the current working state:
@@ -547,7 +552,7 @@ checkpoint file.
 ### Step 4: Write checkpoint file
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 CHECKPOINT_DIR="$HOME/.gstack/projects/$SLUG/checkpoints"
 mkdir -p "$CHECKPOINT_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -614,7 +619,7 @@ Duration: {duration or "unknown"}
 ### Step 1: Find checkpoints
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 CHECKPOINT_DIR="$HOME/.gstack/projects/$SLUG/checkpoints"
 if [ -d "$CHECKPOINT_DIR" ]; then
   find "$CHECKPOINT_DIR" -maxdepth 1 -name "*.md" -type f 2>/dev/null | xargs ls -1t 2>/dev/null | head -20
@@ -676,7 +681,7 @@ If A, summarize the first remaining work item and suggest starting there.
 ### Step 1: Gather checkpoints
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 CHECKPOINT_DIR="$HOME/.gstack/projects/$SLUG/checkpoints"
 if [ -d "$CHECKPOINT_DIR" ]; then
   echo "CHECKPOINT_DIR=$CHECKPOINT_DIR"

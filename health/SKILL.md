@@ -40,6 +40,11 @@ echo "SKILL_PREFIX: $_SKILL_PREFIX"
 source <(~/.claude/skills/gstack/bin/gstack-repo-mode 2>/dev/null) || true
 REPO_MODE=${REPO_MODE:-unknown}
 echo "REPO_MODE: $REPO_MODE"
+# Auto-migrate legacy ~/.gstack/projects/ data to project-local .gstack/ (once per project)
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" || true
+if [ -n "${PROJECT_DATA_DIR:-}" ] && [ -d "$HOME/.gstack/projects/${SLUG:-}" ] && [ ! -f "${PROJECT_DATA_DIR}/.migrated" ]; then
+  ~/.claude/skills/gstack/bin/gstack-migrate-local 2>/dev/null && touch "${PROJECT_DATA_DIR}/.migrated" 2>/dev/null || true
+fi
 _LAKE_SEEN=$([ -f ~/.gstack/.completeness-intro-seen ] && echo "yes" || echo "no")
 echo "LAKE_INTRO: $_LAKE_SEEN"
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || true)
@@ -637,7 +642,7 @@ DETAILS: Lint (3 warnings)
 ## Step 5: Persist to Health History
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 ```
 
 Append one JSONL line to `~/.gstack/projects/$SLUG/health-history.jsonl`:
@@ -663,7 +668,7 @@ Read the last 10 entries from `~/.gstack/projects/$SLUG/health-history.jsonl` (i
 file exists and has prior entries).
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$PROJECT_DATA_DIR"
 tail -10 ~/.gstack/projects/$SLUG/health-history.jsonl 2>/dev/null || echo "NO_HISTORY"
 ```
 
