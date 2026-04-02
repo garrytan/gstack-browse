@@ -275,6 +275,11 @@ The harness currently checks:
 - founder funneling, authority conversion, and identity-expansion copy
 - mania-adjacent productivity hype, coercive urgency, and dependency-building language
 
+For the repo security gate specifically:
+
+- `bun run security:check` runs the focused audit-compliance suite plus the stack-health audit gate.
+- `make security_check` runs the same policy locally before you push.
+
 The full rule profile and fixture-backed manipulation-policy tests are documented in [docs/stack-health-harness.md](docs/stack-health-harness.md).
 
 ## Containers & GHCR
