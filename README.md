@@ -262,6 +262,10 @@ gstack now includes a reusable stack-health harness for catching both hard integ
 - `bun run stack:health --json` emits machine-readable output.
 - `bun run stack:health --strict-warnings` fails on warnings as well as errors.
 - `bun run stack:health --root /path/to/other-pack` audits another skill, tool, or agent pack.
+- `make health_check` runs the same profile through the repo-standard Makefile.
+- `make health_check_strict` turns warnings into a failing build gate.
+- `make health_note_init` creates a cleanup note with a commit-hash placeholder.
+- `make health_note_record_hash` fills that placeholder from `git rev-parse HEAD` or `HASH=...`.
 
 The harness currently checks:
 
@@ -272,6 +276,22 @@ The harness currently checks:
 - mania-adjacent productivity hype, coercive urgency, and dependency-building language
 
 The full rule profile and fixture-backed manipulation-policy tests are documented in [docs/stack-health-harness.md](docs/stack-health-harness.md).
+
+## Containers & GHCR
+
+The root `Makefile` now keeps the standard org release/GHCR flow, but retargets it to gstack's Bun and Playwright runtime.
+
+- `make it_build` builds the runtime image from the root `Dockerfile`.
+- `make it_run` smoke-tests the image with `bun run skill:check`.
+- `make it_run_dev` opens an interactive shell with the current repo bind-mounted into `/workspace`.
+- `make it_build_multi_arch_push_GHCR` publishes the runtime image to `ghcr.io/<org>/<repo>`.
+- `make minor_release`, `make patch_release`, `make major_release`, and `make hotfix` preserve the existing git-flow release entrypoints.
+
+The Docker build accepts an overridable base image, so the team can swap in its standard container without rewriting the file:
+
+- `make it_build BASE_IMAGE=ghcr.io/your-org/your-ai-base:latest`
+
+Version bumps in the Makefile now update both `VERSION` and `package.json`, which keeps container tags and Bun package metadata aligned.
 
 ## Privacy & Telemetry
 

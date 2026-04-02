@@ -1,0 +1,10 @@
+.git
+.gstack
+node_modules
+browse/dist
+design/dist
+coverage
+dist
+tmp
+*.log
+.DS_Store
