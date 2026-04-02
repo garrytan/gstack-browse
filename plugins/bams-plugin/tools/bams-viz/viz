@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# viz — bams-viz 빌드/실행 헬퍼
+# Usage: ./viz [dev|build|start|stop|clean]
+set -euo pipefail
+
+VIZ_DIR="$(cd "$(dirname "$0")" && pwd)"
+CMD="${1:-dev}"
+
+case "$CMD" in
+  dev)
+    cd "$VIZ_DIR" && npm install --silent 2>/dev/null
+    echo "╔══════════════════════════════════════╗"
+    echo "║  bams-viz — http://localhost:3333     ║"
+    echo "║  Ctrl+C to stop                      ║"
+    echo "╚══════════════════════════════════════╝"
+    cd "$VIZ_DIR" && npx next dev --port 3333
+    ;;
+  build)
+    cd "$VIZ_DIR" && npm install --silent 2>/dev/null && npx next build
+    ;;
+  start)
+    cd "$VIZ_DIR" && npm install --silent 2>/dev/null && npx next build && npx next start --port 3333
+    ;;
+  stop)
+    pkill -f "next.*3333" 2>/dev/null && echo "bams-viz stopped" || echo "bams-viz is not running"
+    ;;
+  clean)
+    cd "$VIZ_DIR" && rm -rf .next node_modules
+    echo "Cleaned"
+    ;;
+  *)
+    echo "Usage: viz [dev|build|start|stop|clean]"
+    echo "  dev    — Install + dev server (default)"
+    echo "  build  — Production build only"
+    echo "  start  — Production build + start"
+    echo "  stop   — Stop running server"
+    echo "  clean  — Remove .next/ and node_modules/"
+    exit 1
+    ;;
+esac

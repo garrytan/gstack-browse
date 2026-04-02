@@ -58,10 +58,45 @@ AGENT_TYPE="${AGENT_TYPE##*:}"
 MODEL=$(printf '%s' "$TOOL_INPUT" | jq -r '.model // ""' 2>/dev/null)
 DESCRIPTION=$(printf '%s' "$TOOL_INPUT" | jq -r '.description // ""' 2>/dev/null)
 PROMPT_SUMMARY=$(printf '%s' "$TOOL_INPUT" | jq -r '(.prompt // "")[:300] | split("\n")[0]' 2>/dev/null)
+INPUT_SUMMARY=$(printf '%s' "$TOOL_INPUT" | jq -r '(.prompt // "")[:1000]' 2>/dev/null)
 BACKGROUND=$(printf '%s' "$TOOL_INPUT" | jq -r '.run_in_background // false' 2>/dev/null)
 
 # Generate call_id (~2ms with md5)
 CALL_ID=$(printf '%s:%s:%s' "$AGENT_TYPE" "$TS" "$$" | md5 2>/dev/null | head -c 12 || printf '%s:%s:%s' "$AGENT_TYPE" "$TS" "$$" | md5sum 2>/dev/null | head -c 12)
+
+# Generate trace_id: pipeline_slug + run start, or standalone-{timestamp}
+if [ -n "$PIPELINE_SLUG" ]; then
+  TRACE_ID="${PIPELINE_SLUG}-$(date -u +%Y%m%dT%H%M%SZ)"
+else
+  TRACE_ID="standalone-$(date -u +%Y%m%dT%H%M%SZ)"
+fi
+
+# Department mapping from agent_type
+dept_map() {
+  case "$1" in
+    product-strategy|business-analysis|ux-research|project-governance) echo "planning" ;;
+    frontend-engineering|backend-engineering|platform-devops|data-integration) echo "engineering" ;;
+    product-analytics|experimentation|performance-evaluation|business-kpi) echo "evaluation" ;;
+    qa-strategy|automation-qa|defect-triage|release-quality-gate) echo "qa" ;;
+    pipeline-orchestrator|cross-department-coordinator|executive-reporter|resource-optimizer) echo "management" ;;
+    general-purpose|Explore|Plan) echo "general" ;;
+    *) echo "general" ;;
+  esac
+}
+DEPARTMENT=$(dept_map "$AGENT_TYPE")
+
+# Get current step_number from pipeline events (last step_start)
+STEP_NUMBER="null"
+if [ -n "$PIPELINE_EVENTS" ] && [ -f "$PIPELINE_EVENTS" ]; then
+  STEP_NUMBER=$(grep '"step_start"' "$PIPELINE_EVENTS" 2>/dev/null | tail -1 | jq -r '.step_number // empty' 2>/dev/null || echo "null")
+  [ -z "$STEP_NUMBER" ] && STEP_NUMBER="null"
+fi
+
+# Get parent_span_id from callstack (currently active agent)
+PARENT_SPAN_ID=""
+if [ -f "$CALLSTACK_FILE" ] && [ -s "$CALLSTACK_FILE" ]; then
+  PARENT_SPAN_ID=$(tail -1 "$CALLSTACK_FILE" 2>/dev/null | cut -d'|' -f1)
+fi
 
 if printf '%s' "$HOOK_PHASE" | grep -qi "pre"; then
   # Push call_id to stack
@@ -70,14 +105,22 @@ if printf '%s' "$HOOK_PHASE" | grep -qi "pre"; then
   EVENT_JSON=$(jq -cn \
     --arg type "agent_start" \
     --arg call_id "$CALL_ID" \
+    --arg trace_id "$TRACE_ID" \
     --arg agent_type "$AGENT_TYPE" \
+    --arg department "$DEPARTMENT" \
     --arg model "$MODEL" \
     --arg description "$DESCRIPTION" \
     --arg prompt_summary "$PROMPT_SUMMARY" \
+    --arg input "$INPUT_SUMMARY" \
     --argjson background "${BACKGROUND:-false}" \
+    --argjson step_number "${STEP_NUMBER:-null}" \
+    --arg parent_span_id "$PARENT_SPAN_ID" \
     --arg ts "$TS" \
     --arg pipeline_slug "$PIPELINE_SLUG" \
-    '{type:$type, call_id:$call_id, agent_type:$agent_type, model:$model, description:$description, prompt_summary:$prompt_summary, background:$background, ts:$ts} + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
+    '{type:$type, call_id:$call_id, trace_id:$trace_id, agent_type:$agent_type, department:$department, model:$model, description:$description, prompt_summary:$prompt_summary, input:$input, background:$background, ts:$ts}
+     + (if $step_number != null then {step_number:$step_number} else {} end)
+     + (if $parent_span_id != "" then {parent_span_id:$parent_span_id} else {} end)
+     + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
 else
   # Pop call_id from stack
   MATCHED_CALL_ID="$CALL_ID"
@@ -100,6 +143,18 @@ else
       elif type == "array" then (map(select(.type == "text") | .text) | first // "")[:300]
       else ""
       end' 2>/dev/null)
+  OUTPUT_SUMMARY=$(printf '%s' "$INPUT" | jq -r '
+    .tool_result.content
+    | if type == "string" then .[:1000]
+      elif type == "array" then (map(select(.type == "text") | .text) | first // "")[:1000]
+      else ""
+      end' 2>/dev/null)
+  # Derive status from is_error
+  if [ "$IS_ERROR" = "true" ]; then
+    STATUS="error"
+  else
+    STATUS="success"
+  fi
 
   # Compute duration_ms
   DURATION_MS="null"
@@ -121,12 +176,15 @@ else
     --arg call_id "$MATCHED_CALL_ID" \
     --arg agent_type "$AGENT_TYPE" \
     --argjson is_error "${IS_ERROR:-false}" \
+    --arg status "$STATUS" \
     --argjson duration_ms "${DURATION_MS:-null}" \
     --arg result_summary "$RESULT_SUMMARY" \
+    --arg output "$OUTPUT_SUMMARY" \
+    --argjson token_usage "null" \
     --arg ts "$TS" \
     --arg pipeline_slug "$PIPELINE_SLUG" \
     --arg error_message "$ERROR_MSG" \
-    '{type:$type, call_id:$call_id, agent_type:$agent_type, is_error:$is_error, duration_ms:$duration_ms, result_summary:$result_summary, ts:$ts} + (if $error_message != "" then {error_message:$error_message} else {} end) + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
+    '{type:$type, call_id:$call_id, agent_type:$agent_type, is_error:$is_error, status:$status, duration_ms:$duration_ms, result_summary:$result_summary, output:$output, token_usage:$token_usage, ts:$ts} + (if $error_message != "" then {error_message:$error_message} else {} end) + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
 fi
 
 # Atomic append to agents file (always)

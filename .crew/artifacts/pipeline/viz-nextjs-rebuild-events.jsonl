@@ -1,0 +1,18 @@
+{"type":"pipeline_start","pipeline_slug":"viz-nextjs-rebuild","pipeline_type":"dev","command":"/bams:dev","arguments":"bams-viz Next.js rebuild + Langfuse-style tracing + metaverse dashboard","ts":"2026-04-02T12:45:48Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":1,"step_name":"PRD 작성","phase":"Phase 1: 기획","ts":"2026-04-02T12:46:30Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":1,"status":"done","duration_ms":140000,"ts":"2026-04-02T12:49:27Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":2,"step_name":"기술 설계 (3개 병렬)","phase":"Phase 1: 기획","ts":"2026-04-02T12:49:39Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":2,"status":"done","duration_ms":265000,"ts":"2026-04-02T13:02:50Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":3,"step_name":"태스크 분해","phase":"Phase 1: 기획","ts":"2026-04-02T13:03:00Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":3,"status":"done","duration_ms":5000,"ts":"2026-04-02T13:03:24Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":4,"step_name":"아티팩트 저장","phase":"Phase 1: 기획","ts":"2026-04-02T13:03:25Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":4,"status":"done","duration_ms":10000,"ts":"2026-04-02T13:04:39Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":5,"step_name":"멀티에이전트 구현","phase":"Phase 2: 구현","ts":"2026-04-02T13:08:08Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":5,"status":"done","duration_ms":600000,"ts":"2026-04-02T13:26:04Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":7,"step_name":"3관점 리뷰","phase":"Phase 3: 리뷰","ts":"2026-04-02T13:26:41Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":7,"status":"done","duration_ms":170000,"ts":"2026-04-02T13:30:02Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":8,"step_name":"Quality Gate","phase":"Phase 3.5: QG","ts":"2026-04-02T13:32:32Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":8,"status":"done","duration_ms":5000,"ts":"2026-04-02T13:32:32Z"}
+{"type":"step_start","pipeline_slug":"viz-nextjs-rebuild","step_number":9,"step_name":"마무리","phase":"Phase 4: 마무리","ts":"2026-04-02T13:33:52Z"}
+{"type":"step_end","pipeline_slug":"viz-nextjs-rebuild","step_number":9,"status":"done","duration_ms":5000,"ts":"2026-04-02T13:34:32Z"}
+{"type":"pipeline_end","pipeline_slug":"viz-nextjs-rebuild","status":"completed","total_steps":10,"completed_steps":10,"failed_steps":0,"skipped_steps":0,"ts":"2026-04-02T13:34:32Z"}

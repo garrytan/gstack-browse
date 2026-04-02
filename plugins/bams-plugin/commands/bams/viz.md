@@ -1,6 +1,6 @@
 ---
 description: 파이프라인 실행 시각화 — DAG, 간트 차트, 조직도, 실시간 대시보드
-argument-hint: <slug|org|live>
+argument-hint: <slug|org|start|stop>
 ---
 
 # Bams Viz
@@ -14,7 +14,8 @@ argument-hint: <slug|org|live>
 $ARGUMENTS를 분석하여 모드를 결정합니다:
 
 - **`org`** → 조직도 모드
-- **`live`** → 실시간 대시보드 모드
+- **`start`** 또는 **`live`** → 대시보드 빌드 + 실행 모드
+- **`stop`** → 대시보드 서버 종료 모드
 - **그 외 (slug 또는 비어있음)** → 정적 시각화 모드
 
 ---
@@ -154,41 +155,56 @@ flowchart TB
 
 ---
 
-## 모드 3: 실시간 대시보드 (`/bams:viz live`)
+## 모드 3: 대시보드 빌드 + 실행 (`/bams:viz start` 또는 `/bams:viz live`)
 
-### Step 1: Node.js 확인
+bams-viz Next.js 대시보드를 빌드하고 실행합니다.
 
-Bash로 `node --version` 실행. 18 미만이면:
-"Node.js 18 이상이 필요합니다." 후 종료.
-
-### Step 2: 의존성 확인
-
-Bash로 `ls tools/bams-viz/node_modules/.package-lock.json 2>/dev/null` 확인.
-없으면:
-```bash
-cd tools/bams-viz && npm install 2>&1
-```
-
-### Step 3: 서버 시작
+### Step 1: bams-viz 디렉토리 찾기
 
 ```bash
-node tools/bams-viz/server.js &
+_VIZ_DIR=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/tools/bams-viz/package.json" 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
 ```
+
+찾지 못하면 현재 프로젝트 내에서 검색:
+```bash
+_VIZ_DIR=$(find . -path "*/bams-plugin/tools/bams-viz/package.json" -not -path "*/node_modules/*" 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+```
+
+그래도 없으면: "bams-viz를 찾을 수 없습니다." 후 종료.
+
+### Step 2: 의존성 설치
+
+```bash
+cd "$_VIZ_DIR" && npm install 2>&1
+```
+
+### Step 3: 빌드 + 실행
+
+```bash
+cd "$_VIZ_DIR" && npx next build 2>&1 && npx next start --port 3333 &
+```
+
+빌드 실패 시 에러를 표시하고 종료합니다.
 
 ### Step 4: URL 안내
 
 ```
-bams-viz 실시간 대시보드
+bams-viz 대시보드
 ══════════════════════════════════════
 URL: http://localhost:3333
-감시: .crew/artifacts/pipeline/
+감시: .crew/artifacts/pipeline/ + .crew/artifacts/agents/
 
-3개 뷰:
-  DAG      — 에이전트 호출 관계 + 상태
-  Timeline — 수평 간트 차트 (병렬 구간 강조)
-  Logs     — 이벤트 실시간 스트림 + 필터
+8개 뷰:
+  DAG        — 에이전트 호출 관계 플로우차트
+  Gantt      — 시간축 간트 차트
+  Org        — 조직도
+  Agents     — 에이전트 호출 목록/통계
+  Timeline   — 고수준 이벤트 타임라인
+  Logs       — NDJSON 로그 뷰어
+  Traces     — Langfuse 스타일 트레이싱
+  Metaverse  — 2D 에이전트 맵
 
-종료: Ctrl+C 또는 /bams:viz stop
+종료: /bams:viz stop
 ```
 
 ---
@@ -196,5 +212,5 @@ URL: http://localhost:3333
 ## 모드 4: 서버 종료 (`/bams:viz stop`)
 
 ```bash
-pkill -f "bams-viz/server.js" 2>/dev/null || echo "서버가 실행 중이 아닙니다."
+pkill -f "next.*3333" 2>/dev/null && echo "bams-viz 종료됨" || echo "서버가 실행 중이 아닙니다."
 ```

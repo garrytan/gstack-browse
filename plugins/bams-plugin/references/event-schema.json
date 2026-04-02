@@ -70,15 +70,21 @@
     },
     "agent_start": {
       "type": "object",
-      "required": ["type", "call_id", "pipeline_slug", "agent_type", "ts"],
+      "required": ["type", "call_id", "agent_type", "ts"],
       "properties": {
         "type": { "const": "agent_start" },
         "call_id": { "type": "string" },
+        "trace_id": { "type": "string", "description": "Pipeline slug + run start time, or standalone-{timestamp}" },
         "pipeline_slug": { "type": "string" },
         "agent_type": { "type": "string" },
+        "department": { "type": "string", "enum": ["planning", "engineering", "evaluation", "qa", "management", "general"] },
         "model": { "type": "string" },
-        "step_number": { "type": "integer" },
-        "prompt_summary": { "type": "string", "maxLength": 200 },
+        "step_number": { "type": ["integer", "null"] },
+        "description": { "type": "string" },
+        "prompt_summary": { "type": "string", "maxLength": 300 },
+        "input": { "type": "string", "maxLength": 1000, "description": "Longer prompt summary (up to 1000 chars)" },
+        "background": { "type": "boolean", "default": false },
+        "parent_span_id": { "type": "string", "description": "call_id of the parent agent in nested calls" },
         "parallel_group": { "type": ["string", "null"] },
         "ts": { "type": "string", "format": "date-time" }
       },
@@ -86,14 +92,19 @@
     },
     "agent_end": {
       "type": "object",
-      "required": ["type", "call_id", "pipeline_slug", "agent_type", "ts"],
+      "required": ["type", "call_id", "agent_type", "ts"],
       "properties": {
         "type": { "const": "agent_end" },
         "call_id": { "type": "string" },
         "pipeline_slug": { "type": "string" },
         "agent_type": { "type": "string" },
         "is_error": { "type": "boolean", "default": false },
+        "status": { "type": "string", "enum": ["success", "error"], "description": "Derived from is_error" },
         "duration_ms": { "type": "integer" },
+        "result_summary": { "type": "string", "maxLength": 300 },
+        "output": { "type": "string", "maxLength": 1000, "description": "Longer result summary (up to 1000 chars)" },
+        "token_usage": { "type": ["object", "null"], "description": "Token usage info if available, null otherwise" },
+        "error_message": { "type": "string" },
         "ts": { "type": "string", "format": "date-time" }
       },
       "additionalProperties": false
