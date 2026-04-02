@@ -261,37 +261,71 @@ Print: `QUALITY: ✅ clean` or `QUALITY: ⚠️ <issues found>`
 
 ## Block 4: Linear Sync
 
-Check if Linear issues mentioned in the session are in the right status.
+Check if Linear issues mentioned in the session are in the right status. Uses MCP Linear tools (not CLI).
 
-### Step 4.1: Check Linear CLI
+### Step 4.1: Extract issue references
 
-```bash
-which linear 2>/dev/null || npx linear --version 2>/dev/null
+Collect `SEN-\d+` references from three sources:
+1. Commit messages from this session: `git log --oneline`
+2. Current branch: `git branch --show-current`
+3. Conversation context: scan for `SEN-XXX` mentions in the session history
+
+Deduplicate into a unique list. If none found, skip to Step 4.3 (forgotten issues alert).
+
+### Step 4.2: Check status via MCP (ask before acting)
+
+For each `SEN-XXX` found, call:
+
+```
+mcp__linear__get_issue(id: "SEN-XXX")
 ```
 
-If Linear CLI is not available, skip this entire block silently. Print `LINEAR: — skipped (CLI not available)`.
+Record: identifier, title, current state (state.name and state.type).
+If the tool fails for an issue: log the error and continue with the next ones.
 
-### Step 4.2: Extract issue references
+**Suggest state transitions:**
 
-Find SEN-XXX patterns in:
-1. Commit messages from this session
-2. Branch name
-3. PROGRESS.md entries added in Block 2
+| Current state | Session activity | Action |
+|---|---|---|
+| Todo / Backlog / Triage | Commits referencing the issue | Ask: "Move SEN-XXX to In Progress?" |
+| In Progress | Branch merged or PR merged | Ask: "Move SEN-XXX to Done?" |
+| In Progress | Commits but no merge | Report: "SEN-XXX: In Progress (activity this session)" |
+| Todo / Backlog | Mentioned in conversation, no commits | Report: "SEN-XXX mentioned, status: Todo" |
+| Done / Canceled | Any | Do nothing |
 
-```bash
-git log --since="today 00:00" --format="%s %b" | grep -oE 'SEN-[0-9]+' | sort -u
-git branch --show-current | grep -oE 'SEN-[0-9]+'
+To move, call:
+
+```
+mcp__linear__save_issue(id: "SEN-XXX", state: "In Progress")
 ```
 
-### Step 4.3: Check status (ask before acting)
+**Always ask before moving.** Never move automatically.
 
-For each issue found, check current status. If there's a mismatch:
-- Issue has commits but status is "Todo" → ask: "Move SEN-XXX to In Progress?"
-- Issue has merged PR but status is not "Done" → ask: "Move SEN-XXX to Done?"
+### Step 4.3: Forgotten issues alert
 
-Only change status if user confirms.
+After processing session issues, check for in-progress issues with no session activity:
 
-Print: `LINEAR: ✅ <N issues checked>` or `LINEAR: ⚠️ <mismatches found>` or `LINEAR: — skipped`
+```
+mcp__linear__list_issues(team: "SEN", state: "started")
+```
+
+Filter: issues returned that did NOT appear in session commits/conversation.
+If any found, report as informational alert (⚠️ in traffic light, not ❌ — does not block session end):
+
+```
+  Issues In Progress without activity this session:
+     SEN-704: Implement embedding cache
+     SEN-712: Review pipeline v2.3
+```
+
+If no forgotten issues: show nothing.
+
+### Fallback
+
+If MCP Linear is not available (tool not loaded, auth error):
+silent skip. Do not attempt CLI as fallback.
+
+Print: `LINEAR: ✅ <N issues checked>` or `LINEAR: ⚠️ <issues found>` or `LINEAR: — skipped (MCP not available)`
 
 ---
 
