@@ -27,6 +27,14 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 
 `.crew/config.md`와 `.crew/board.md`를 읽습니다.
 
+### Viz 이벤트: pipeline_start
+
+사전 조건 확인 후, Bash로 다음을 실행합니다:
+
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh pipeline_start "{slug}" "debug" "/bams:debug" "{arguments}"
+```
+
 ## Phase 1: 버그 분류 및 재현 (defect-triage)
 
 ### 1a. 버그 정보 파싱
@@ -44,6 +52,11 @@ Options:
 - **에러 메시지 있음** - "스택 트레이스나 에러 로그를 붙여넣기"
 - **재현 방법 있음** - "재현 단계를 설명"
 - **증상만 있음** - "현재 정보로 조사 시작"
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 1 "버그 분류 및 재현" "Phase 1: 진단"
+```
 
 ### 1b. defect-triage 에이전트
 
@@ -84,6 +97,11 @@ defect-triage 반환 후, 결과를 사용자에게 표시:
 수정 대상: [N]개 파일
 ```
 
+Phase 1 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 1 "done" {duration_ms}
+```
+
 ## Phase 1.5: Git 체크포인트
 
 **AskUserQuestion**으로 체크포인트 방식을 선택받습니다:
@@ -96,6 +114,11 @@ Options:
 - **스킵** - "체크포인트 없이 바로 진행"
 
 ## Phase 2: 수정 (frontend/backend-engineering)
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 2 "버그 수정" "Phase 2: 수정"
+```
 
 defect-triage 결과의 수정 대상 파일에 따라 적절한 에이전트를 선택합니다:
 - UI/컴포넌트 관련 파일 -> frontend-engineering
@@ -121,14 +144,26 @@ git 저장소인 경우, `git diff --stat` 표시.
 
 **AskUserQuestion**: 적용 / 되돌리기 / 부분 되돌리기
 
-## Phase 3: 회귀 테스트 (automation-qa)
+Phase 2 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 2 "done" {duration_ms}
+```
 
-### 3a. 기존 테스트 실행
+## Phase 3: 회귀 테스트 (automation-qa) — 병렬 실행
 
-프로젝트에 테스트 러너가 있으면 실행. 실패 시 사용자에게 수정/조사/스킵 선택.
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 3 "회귀 테스트" "Phase 3: 테스트"
+```
 
-### 3b. 회귀 테스트 생성
+### 3a + 3b: 기존 테스트 실행 ∥ 회귀 테스트 생성 (동시)
 
+**기존 테스트 실행과 회귀 테스트 생성은 독립적이므로 동시에 실행합니다:**
+
+**3a — 기존 테스트 실행:**
+프로젝트에 테스트 러너가 있으면 Bash로 실행. 실패 시 사용자에게 수정/조사/스킵 선택.
+
+**3b — 회귀 테스트 생성:**
 서브에이전트 실행 (Task tool, subagent_type: **"bams-plugin:automation-qa"**, model: **"sonnet"**):
 
 > **회귀 테스트 모드**로 버그 수정에 대한 회귀 테스트를 작성합니다.
@@ -142,7 +177,17 @@ git 저장소인 경우, `git diff --stat` 표시.
 
 생성된 테스트를 실행하여 통과 여부 확인 (최대 2회 재시도).
 
+Phase 3 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 3 "{status}" {duration_ms}
+```
+
 ## Phase 4: 마무리
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 4 "마무리" "Phase 4: 마무리"
+```
 
 ### 4a. 아티팩트 저장
 
@@ -156,6 +201,29 @@ git 저장소인 경우, `git diff --stat` 표시.
 
 버그 증상, 근본 원인, 영향 분석, 수정 내용, 테스트 결과, 리포트 경로, 태스크 ID 제시.
 
+Step 4 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 4 "done" {duration_ms}
+```
+
 ## Phase 5: CLAUDE.md 상태 업데이트
 
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 5 "CLAUDE.md 상태 업데이트" "Phase 5: 상태 업데이트"
+```
+
 `CLAUDE.md`의 `## Bams 현재 상태` 섹션을 업데이트합니다.
+
+업데이트 완료 후, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 5 "done" {duration_ms}
+```
+
+### Viz 이벤트: pipeline_end
+
+파이프라인 종료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh pipeline_end "{slug}" "{status}" {total} {completed} {failed} {skipped}
+```
+(`{status}`는 `completed` / `paused` / `failed` 중 하나, `{total}`은 5)

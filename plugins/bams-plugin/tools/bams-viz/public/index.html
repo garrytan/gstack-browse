@@ -1,0 +1,1684 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bams-viz — Agent Execution Dashboard</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   CSS Variables — Light / Dark theme
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f3f5;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+  --border: #dee2e6;
+  --border-light: #e9ecef;
+  --shadow: rgba(0,0,0,0.08);
+  --shadow-lg: rgba(0,0,0,0.12);
+
+  /* Department colors */
+  --dept-planning: #3b82f6;
+  --dept-engineering: #22c55e;
+  --dept-evaluation: #f97316;
+  --dept-qa: #a855f7;
+
+  /* Status colors */
+  --status-done: #22c55e;
+  --status-fail: #ef4444;
+  --status-skipped: #9ca3af;
+  --status-running: #3b82f6;
+  --status-pending: #e5e7eb;
+
+  /* Misc */
+  --accent: #3b82f6;
+  --error-bg: rgba(239,68,68,0.08);
+  --tab-active-bg: var(--bg-primary);
+  --tab-inactive-bg: var(--bg-tertiary);
+  --scrollbar-thumb: #ced4da;
+  --code-bg: #f1f3f5;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #1a1b1e;
+  --bg-secondary: #25262b;
+  --bg-tertiary: #2c2e33;
+  --bg-card: #25262b;
+  --bg-hover: #2c2e33;
+  --text-primary: #e1e1e3;
+  --text-secondary: #909296;
+  --text-muted: #5c5f66;
+  --border: #373a40;
+  --border-light: #2c2e33;
+  --shadow: rgba(0,0,0,0.3);
+  --shadow-lg: rgba(0,0,0,0.4);
+  --error-bg: rgba(239,68,68,0.15);
+  --scrollbar-thumb: #4a4d53;
+  --code-bg: #2c2e33;
+  --status-pending: #373a40;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Reset & Base
+   ═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 14px; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Header
+   ═══════════════════════════════════════════════════════════════ */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.logo span { color: var(--accent); }
+
+.pipeline-select {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  min-width: 200px;
+  cursor: pointer;
+  outline: none;
+}
+.pipeline-select:focus { border-color: var(--accent); }
+
+.header-spacer { flex: 1; }
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--status-skipped);
+  transition: background 0.3s;
+}
+.status-dot.connected { background: var(--status-done); }
+.status-dot.connecting { background: #eab308; animation: pulse 1.5s infinite; }
+.status-dot.disconnected { background: var(--status-fail); }
+
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+.theme-toggle:hover { background: var(--bg-hover); }
+
+/* ═══════════════════════════════════════════════════════════════
+   Tabs
+   ═══════════════════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  padding: 0 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Main Content
+   ═══════════════════════════════════════════════════════════════ */
+.main {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.tab-panel {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+.tab-panel.active { display: block; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Footer
+   ═══════════════════════════════════════════════════════════════ */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 8px 20px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.footer-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-item strong { color: var(--text-primary); font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════════
+   DAG View
+   ═══════════════════════════════════════════════════════════════ */
+.dag-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dag-phase {
+  position: relative;
+  padding: 16px 0;
+}
+
+.dag-phase + .dag-phase { border-top: 1px dashed var(--border); }
+
+.phase-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  padding-left: 4px;
+}
+
+.dag-step {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 3px var(--shadow);
+  transition: box-shadow 0.2s;
+  position: relative;
+}
+
+.dag-step:hover { box-shadow: 0 2px 8px var(--shadow-lg); }
+
+.dag-step.running {
+  border-left: 3px solid var(--status-running);
+  animation: stepPulse 2s infinite;
+}
+.dag-step.done { border-left: 3px solid var(--status-done); }
+.dag-step.fail { border-left: 3px solid var(--status-fail); }
+.dag-step.skipped { border-left: 3px solid var(--status-skipped); opacity: 0.6; }
+.dag-step.pending { border-left: 3px solid var(--status-pending); opacity: 0.5; }
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.step-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.step-status-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.step-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.agent-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  transition: transform 0.15s;
+}
+.agent-chip:hover { transform: translateY(-1px); }
+
+.agent-chip .dept-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-chip .chip-model {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.agent-chip .chip-duration {
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+}
+
+.agent-chip.error {
+  border-color: var(--status-fail);
+  background: var(--error-bg);
+}
+
+.agent-chip.running {
+  border-color: var(--status-running);
+  animation: chipPulse 1.5s infinite;
+}
+
+/* Arrow connector between steps */
+.dag-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* Empty state */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  gap: 8px;
+}
+.empty-state .empty-icon { font-size: 2rem; opacity: 0.4; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Timeline View
+   ═══════════════════════════════════════════════════════════════ */
+.timeline-container {
+  position: relative;
+  min-height: 200px;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.timeline-axis {
+  position: relative;
+  height: 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.timeline-tick {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  padding-bottom: 6px;
+  border-left: 1px solid var(--border-light);
+  padding-left: 4px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+
+.timeline-lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.timeline-lane {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  position: relative;
+}
+
+.lane-label {
+  width: 160px;
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 10px;
+}
+
+.lane-track {
+  flex: 1;
+  position: relative;
+  height: 100%;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lane-bar {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 3px;
+  min-width: 4px;
+  cursor: default;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 0.65rem;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lane-bar:hover { opacity: 0.85; }
+
+.lane-bar.running {
+  animation: barPulse 1.5s infinite;
+}
+
+.timeline-phase-section {
+  margin-bottom: 16px;
+}
+
+.timeline-phase-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.timeline-tooltip {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  box-shadow: 0 4px 12px var(--shadow-lg);
+  pointer-events: none;
+  z-index: 100;
+  display: none;
+  max-width: 280px;
+}
+
+.timeline-tooltip .tt-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.timeline-tooltip .tt-label { color: var(--text-muted); }
+.timeline-tooltip .tt-value { color: var(--text-primary); font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════════════
+   Logs View
+   ═══════════════════════════════════════════════════════════════ */
+.logs-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.filter-check input { cursor: pointer; }
+
+.jump-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: none;
+  transition: background 0.2s;
+}
+.jump-btn:hover { background: var(--accent); color: #fff; }
+.jump-btn.visible { display: inline-block; }
+
+.logs-table-wrapper {
+  overflow-y: auto;
+  max-height: calc(100vh - 240px);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+}
+
+.logs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.logs-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.logs-table th {
+  background: var(--bg-tertiary);
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+}
+
+.logs-table td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: top;
+}
+
+.logs-table tr:hover { background: var(--bg-hover); }
+
+.logs-table tr.error-row {
+  background: var(--error-bg);
+}
+.logs-table tr.error-row:hover { background: rgba(239,68,68,0.15); }
+
+.log-type-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.log-type-badge.pipeline_start,
+.log-type-badge.pipeline_end { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.log-type-badge.step_start,
+.log-type-badge.step_end { background: rgba(34,197,94,0.15); color: #22c55e; }
+.log-type-badge.agent_start,
+.log-type-badge.agent_end { background: rgba(168,85,247,0.15); color: #a855f7; }
+.log-type-badge.error { background: rgba(239,68,68,0.15); color: #ef4444; }
+
+.log-summary {
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Agents View
+   ═══════════════════════════════════════════════════════════════ */
+.agent-stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.stat-card .stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-card .stat-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+
+.agent-perf-table-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.agent-perf-table td { font-variant-numeric: tabular-nums; }
+
+.perf-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.perf-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+
+.agent-collab {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.collab-edge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg-card);
+  font-size: 0.75rem;
+}
+
+.collab-edge .collab-arrow {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.collab-edge .collab-count {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.dept-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Animations
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 1px 3px var(--shadow); }
+  50% { box-shadow: 0 1px 3px var(--shadow), 0 0 0 3px rgba(59,130,246,0.15); }
+}
+
+@keyframes chipPulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+}
+
+@keyframes barPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 800px) {
+  .header { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+  .pipeline-select { min-width: 140px; }
+  .tab-panel { padding: 12px; }
+  .lane-label { width: 100px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ Header ═══════════════ -->
+<header class="header">
+  <div class="logo"><span>[</span>bams-viz<span>]</span></div>
+  <div id="pipelineSelector" style="display:flex;align-items:center;gap:8px;">
+    <label style="font-size:0.8rem; color:var(--text-secondary);">Pipeline:</label>
+    <select id="pipelineSelect" class="pipeline-select">
+      <option value="">-- No pipelines --</option>
+    </select>
+  </div>
+  <div id="agentDateSelector" style="display:none;align-items:center;gap:8px;">
+    <label style="font-size:0.8rem; color:var(--text-secondary);">Date:</label>
+    <select id="agentDateSelect" class="pipeline-select">
+      <option value="all">All dates</option>
+    </select>
+  </div>
+  <div class="header-spacer"></div>
+  <div class="connection-status">
+    <div id="statusDot" class="status-dot"></div>
+    <span id="statusLabel">Disconnected</span>
+  </div>
+  <button id="themeToggle" class="theme-toggle" aria-label="Toggle dark mode">Light</button>
+</header>
+
+<!-- ═══════════════ Tabs ═══════════════ -->
+<nav class="tab-bar">
+  <button class="tab-btn" data-tab="agents" data-mode="agents">Agents</button>
+  <button class="tab-btn active" data-tab="dag" data-mode="pipeline">DAG</button>
+  <button class="tab-btn" data-tab="timeline" data-mode="pipeline">Timeline</button>
+  <button class="tab-btn" data-tab="logs" data-mode="pipeline">Logs</button>
+</nav>
+
+<!-- ═══════════════ Main ═══════════════ -->
+<main class="main">
+  <!-- Agents Panel -->
+  <div id="agentsPanel" class="tab-panel">
+    <div id="agentsContent">
+      <!-- Stats Cards -->
+      <div id="agentStatsCards" class="agent-stats-cards"></div>
+      <!-- Agent Performance Table -->
+      <h3 style="font-size:0.85rem;font-weight:700;margin:16px 0 8px;color:var(--text-primary)">Agent Performance</h3>
+      <div class="agent-perf-table-wrapper">
+        <table class="logs-table agent-perf-table">
+          <thead><tr>
+            <th>Agent</th><th>Dept</th><th>Calls</th><th>Errors</th><th>Error%</th>
+            <th>Avg</th><th>Min</th><th>Max</th><th>Models</th>
+          </tr></thead>
+          <tbody id="agentPerfBody"></tbody>
+        </table>
+      </div>
+      <!-- Recent Agent Calls -->
+      <h3 style="font-size:0.85rem;font-weight:700;margin:16px 0 8px;color:var(--text-primary)">Recent Calls</h3>
+      <div class="logs-table-wrapper" style="max-height:400px;">
+        <table class="logs-table">
+          <thead><tr>
+            <th style="width:80px">Time</th><th>Agent</th><th>Model</th>
+            <th style="width:70px">Duration</th><th style="width:60px">Status</th>
+            <th>Description</th><th>Result</th>
+          </tr></thead>
+          <tbody id="agentCallsBody"></tbody>
+        </table>
+      </div>
+      <!-- Collaboration -->
+      <h3 style="font-size:0.85rem;font-weight:700;margin:16px 0 8px;color:var(--text-primary)">Agent Collaboration</h3>
+      <div id="agentCollabContent" class="agent-collab"></div>
+    </div>
+  </div>
+
+  <!-- DAG Panel -->
+  <div id="dagPanel" class="tab-panel active">
+    <div id="dagContent" class="dag-container">
+      <div class="empty-state">
+        <div class="empty-icon">&#9671;</div>
+        <div>Select a pipeline to view the DAG</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline Panel -->
+  <div id="timelinePanel" class="tab-panel">
+    <div id="timelineContent" class="timeline-container">
+      <div class="empty-state">
+        <div class="empty-icon">&#9866;</div>
+        <div>Select a pipeline to view the timeline</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logs Panel -->
+  <div id="logsPanel" class="tab-panel">
+    <div class="logs-toolbar">
+      <div id="logFilters" class="filter-group"></div>
+      <button id="jumpBtn" class="jump-btn">Jump to latest</button>
+    </div>
+    <div id="logsTableWrapper" class="logs-table-wrapper">
+      <table class="logs-table">
+        <thead>
+          <tr>
+            <th style="width:90px">Time</th>
+            <th style="width:110px">Type</th>
+            <th style="width:160px">Agent / Step</th>
+            <th style="width:80px">Status</th>
+            <th>Summary</th>
+          </tr>
+        </thead>
+        <tbody id="logsBody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- ═══════════════ Footer ═══════════════ -->
+<footer class="footer">
+  <div class="footer-item">Steps: <strong id="footerSteps">-/-</strong></div>
+  <div class="footer-item">Duration: <strong id="footerDuration">--</strong></div>
+  <div class="footer-item">Last event: <strong id="footerLastEvent">--</strong></div>
+  <div class="footer-item">Status: <strong id="footerStatus">--</strong></div>
+</footer>
+
+<!-- ═══════════════ Tooltip ═══════════════ -->
+<div id="tooltip" class="timeline-tooltip"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   Constants & Config
+   ═══════════════════════════════════════════════════════════════ */
+const DEPT_MAP = {
+  'product-strategy': 'planning',
+  'business-analysis': 'planning',
+  'ux-research': 'planning',
+  'project-governance': 'planning',
+  'frontend-engineering': 'engineering',
+  'backend-engineering': 'engineering',
+  'platform-devops': 'engineering',
+  'data-integration': 'engineering',
+  'product-analytics': 'evaluation',
+  'experimentation': 'evaluation',
+  'performance-evaluation': 'evaluation',
+  'business-kpi': 'evaluation',
+  'qa-strategy': 'qa',
+  'automation-qa': 'qa',
+  'defect-triage': 'qa',
+  'release-quality-gate': 'qa',
+};
+
+const DEPT_COLORS = {
+  planning: '#3b82f6',
+  engineering: '#22c55e',
+  evaluation: '#f97316',
+  qa: '#a855f7',
+};
+
+const STATUS_COLORS = {
+  done: '#22c55e',
+  success: '#22c55e',
+  fail: '#ef4444',
+  failed: '#ef4444',
+  skipped: '#9ca3af',
+  running: '#3b82f6',
+  pending: '#e5e7eb',
+};
+
+const EVENT_TYPES = [
+  'pipeline_start', 'pipeline_end',
+  'step_start', 'step_end',
+  'agent_start', 'agent_end',
+  'error',
+];
+
+/* ═══════════════════════════════════════════════════════════════
+   State
+   ═══════════════════════════════════════════════════════════════ */
+let allEvents = [];
+let currentSlug = '';
+let pipeline = null;       // structured pipeline from /api/events/:slug
+let agentData = null;      // agent-centric data from /api/agents
+let currentMode = 'agents'; // 'agents' or 'pipeline'
+let sse = null;
+let sseRetryTimer = null;
+let lastEventTime = null;
+let lastEventTicker = null;
+let logsAutoScroll = true;
+let activeFilters = new Set(EVENT_TYPES);
+
+/* ═══════════════════════════════════════════════════════════════
+   DOM Refs
+   ═══════════════════════════════════════════════════════════════ */
+const $select = document.getElementById('pipelineSelect');
+const $agentDateSelect = document.getElementById('agentDateSelect');
+const $pipelineSelector = document.getElementById('pipelineSelector');
+const $agentDateSelector = document.getElementById('agentDateSelector');
+const $agentStatsCards = document.getElementById('agentStatsCards');
+const $agentPerfBody = document.getElementById('agentPerfBody');
+const $agentCallsBody = document.getElementById('agentCallsBody');
+const $agentCollabContent = document.getElementById('agentCollabContent');
+const $statusDot = document.getElementById('statusDot');
+const $statusLabel = document.getElementById('statusLabel');
+const $themeToggle = document.getElementById('themeToggle');
+const $dagContent = document.getElementById('dagContent');
+const $timelineContent = document.getElementById('timelineContent');
+const $logsBody = document.getElementById('logsBody');
+const $logsWrapper = document.getElementById('logsTableWrapper');
+const $logFilters = document.getElementById('logFilters');
+const $jumpBtn = document.getElementById('jumpBtn');
+const $tooltip = document.getElementById('tooltip');
+const $footerSteps = document.getElementById('footerSteps');
+const $footerDuration = document.getElementById('footerDuration');
+const $footerLastEvent = document.getElementById('footerLastEvent');
+const $footerStatus = document.getElementById('footerStatus');
+
+/* ═══════════════════════════════════════════════════════════════
+   Theme
+   ═══════════════════════════════════════════════════════════════ */
+function initTheme() {
+  const saved = localStorage.getItem('bams-viz-theme');
+  if (saved) {
+    applyTheme(saved);
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    applyTheme('dark');
+  } else {
+    applyTheme('light');
+  }
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  $themeToggle.textContent = theme === 'dark' ? 'Dark' : 'Light';
+  localStorage.setItem('bams-viz-theme', theme);
+}
+
+$themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Tabs
+   ═══════════════════════════════════════════════════════════════ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab + 'Panel').classList.add('active');
+
+    // Switch mode: agents vs pipeline
+    const mode = btn.dataset.mode || 'pipeline';
+    if (mode !== currentMode) {
+      currentMode = mode;
+      if (mode === 'agents') {
+        $pipelineSelector.style.display = 'none';
+        $agentDateSelector.style.display = 'flex';
+        loadAgentData();
+      } else {
+        $pipelineSelector.style.display = 'flex';
+        $agentDateSelector.style.display = 'none';
+      }
+    }
+  });
+});
+
+$agentDateSelect.addEventListener('change', () => {
+  loadAgentData();
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   SSE Connection
+   ═══════════════════════════════════════════════════════════════ */
+function connectSSE() {
+  if (sse) { sse.close(); }
+  setConnectionStatus('connecting');
+
+  sse = new EventSource('/sse');
+
+  sse.addEventListener('init', (e) => {
+    try {
+      const events = JSON.parse(e.data);
+      allEvents = events;
+      setConnectionStatus('connected');
+      refreshPipelineList();
+      if (currentSlug) loadPipeline(currentSlug);
+    } catch (err) {
+      console.error('SSE init parse error:', err);
+    }
+  });
+
+  sse.addEventListener('pipeline_event', (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      allEvents.push(event);
+      lastEventTime = Date.now();
+      handleLiveEvent(event);
+    } catch (err) {
+      console.error('SSE event parse error:', err);
+    }
+  });
+
+  sse.addEventListener('agent_event', (e) => {
+    try {
+      const event = JSON.parse(e.data);
+      lastEventTime = Date.now();
+      if (currentMode === 'agents') {
+        loadAgentData(); // Refresh agent view
+      }
+    } catch (err) {
+      console.error('SSE agent event parse error:', err);
+    }
+  });
+
+  sse.addEventListener('heartbeat', () => {
+    /* keep-alive acknowledged */
+  });
+
+  sse.onerror = () => {
+    setConnectionStatus('disconnected');
+    sse.close();
+    sse = null;
+    // Auto reconnect in 3s
+    clearTimeout(sseRetryTimer);
+    sseRetryTimer = setTimeout(connectSSE, 3000);
+  };
+}
+
+function setConnectionStatus(state) {
+  $statusDot.className = 'status-dot ' + state;
+  const labels = { connected: 'Live', connecting: 'Connecting...', disconnected: 'Disconnected' };
+  $statusLabel.textContent = labels[state] || state;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Pipeline List
+   ═══════════════════════════════════════════════════════════════ */
+async function refreshPipelineList() {
+  try {
+    const res = await fetch('/api/pipelines');
+    const list = await res.json();
+    $select.innerHTML = '';
+    if (list.length === 0) {
+      $select.innerHTML = '<option value="">-- No pipelines --</option>';
+      return;
+    }
+    list.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = p.slug;
+      const time = p.startedAt ? formatTime(p.startedAt) : '';
+      opt.textContent = `${p.slug} (${p.type || '?'}) ${p.status} ${time}`;
+      $select.appendChild(opt);
+    });
+    // Auto-select first or current
+    if (currentSlug && list.find(p => p.slug === currentSlug)) {
+      $select.value = currentSlug;
+    } else {
+      currentSlug = list[0].slug;
+      $select.value = currentSlug;
+      loadPipeline(currentSlug);
+    }
+  } catch (err) {
+    console.error('Failed to load pipelines:', err);
+  }
+}
+
+$select.addEventListener('change', () => {
+  currentSlug = $select.value;
+  if (currentSlug) loadPipeline(currentSlug);
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Load Pipeline Data
+   ═══════════════════════════════════════════════════════════════ */
+async function loadPipeline(slug) {
+  try {
+    const res = await fetch(`/api/events/${slug}`);
+    pipeline = await res.json();
+    renderAll();
+  } catch (err) {
+    console.error('Failed to load pipeline:', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Live Event Handler
+   ═══════════════════════════════════════════════════════════════ */
+function handleLiveEvent(event) {
+  const slug = event.pipeline_slug || event.slug;
+  // Refresh list on new pipeline
+  if (event.type === 'pipeline_start') {
+    refreshPipelineList();
+  }
+  // Update current pipeline
+  if (slug === currentSlug) {
+    loadPipeline(currentSlug);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Render All Views
+   ═══════════════════════════════════════════════════════════════ */
+function renderAll() {
+  if (!pipeline) return;
+  renderDAG();
+  renderTimeline();
+  renderLogs();
+  renderFooter();
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DAG View Render
+   ═══════════════════════════════════════════════════════════════ */
+function renderDAG() {
+  if (!pipeline || !pipeline.steps || pipeline.steps.length === 0) {
+    $dagContent.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9671;</div><div>No steps in this pipeline</div></div>';
+    return;
+  }
+
+  // Group steps by phase
+  const phases = new Map();
+  for (const step of pipeline.steps) {
+    const phase = step.phase || 'unknown';
+    if (!phases.has(phase)) phases.set(phase, []);
+    phases.get(phase).push(step);
+  }
+
+  let html = '';
+  let stepIndex = 0;
+
+  for (const [phase, steps] of phases) {
+    html += `<div class="dag-phase">`;
+    html += `<div class="phase-label">${escHtml(phase)}</div>`;
+
+    for (const step of steps) {
+      if (stepIndex > 0) {
+        html += `<div class="dag-arrow">&#9660;</div>`;
+      }
+
+      const statusClass = normalizeStatus(step.status);
+      const statusColor = STATUS_COLORS[statusClass] || STATUS_COLORS.pending;
+      const phaseColor = getPhaseColor(phase);
+
+      html += `<div class="dag-step ${statusClass}">`;
+      html += `<div class="step-header">`;
+      html += `<div class="step-number" style="background:${phaseColor}">${step.number}</div>`;
+      html += `<div class="step-name">${escHtml(step.name || 'Step ' + step.number)}</div>`;
+      html += `<span class="step-status-badge" style="background:${statusColor}20;color:${statusColor}">${statusClass}</span>`;
+      html += `</div>`; // step-header
+
+      html += `<div class="step-meta">`;
+      if (step.durationMs) {
+        html += `<span>Duration: ${formatDuration(step.durationMs)}</span>`;
+      } else if (step.startedAt && statusClass === 'running') {
+        html += `<span>Running for ${formatDuration(Date.now() - new Date(step.startedAt).getTime())}</span>`;
+      }
+      const agentCount = step.agentCallIds ? step.agentCallIds.length : 0;
+      if (agentCount > 0) {
+        html += `<span>${agentCount} agent${agentCount > 1 ? 's' : ''}</span>`;
+      }
+      html += `</div>`; // step-meta
+
+      // Agent chips
+      if (step.agentCallIds && step.agentCallIds.length > 0 && pipeline.agents) {
+        html += `<div class="agent-chips">`;
+        for (const callId of step.agentCallIds) {
+          const agent = pipeline.agents.find(a => a.callId === callId);
+          if (!agent) continue;
+          const dept = DEPT_MAP[agent.agentType] || 'unknown';
+          const deptColor = DEPT_COLORS[dept] || '#6b7280';
+          const agentStatus = agent.isError ? 'error' : (agent.endedAt ? '' : 'running');
+
+          html += `<span class="agent-chip ${agentStatus}">`;
+          html += `<span class="dept-dot" style="background:${deptColor}"></span>`;
+          html += `${escHtml(agent.agentType)}`;
+          if (agent.model) {
+            html += ` <span class="chip-model">${escHtml(agent.model)}</span>`;
+          }
+          if (agent.durationMs) {
+            html += ` <span class="chip-duration">${formatDuration(agent.durationMs)}</span>`;
+          }
+          html += `</span>`;
+        }
+        html += `</div>`; // agent-chips
+      }
+
+      html += `</div>`; // dag-step
+      stepIndex++;
+    }
+
+    html += `</div>`; // dag-phase
+  }
+
+  $dagContent.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Timeline View Render
+   ═══════════════════════════════════════════════════════════════ */
+function renderTimeline() {
+  if (!pipeline || !pipeline.agents || pipeline.agents.length === 0) {
+    $timelineContent.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9866;</div><div>No agent data for timeline</div></div>';
+    return;
+  }
+
+  const agents = pipeline.agents;
+  const now = Date.now();
+
+  // Compute time range
+  let minTime = Infinity, maxTime = -Infinity;
+  for (const a of agents) {
+    const start = new Date(a.startedAt).getTime();
+    const end = a.endedAt ? new Date(a.endedAt).getTime() : now;
+    if (start < minTime) minTime = start;
+    if (end > maxTime) maxTime = end;
+  }
+
+  const totalDuration = maxTime - minTime || 1;
+
+  // Build axis ticks
+  const tickCount = 8;
+  let axisHtml = '<div class="timeline-axis" style="margin-left:160px; position:relative; margin-right:0;">';
+  for (let i = 0; i <= tickCount; i++) {
+    const pct = (i / tickCount) * 100;
+    const ms = (i / tickCount) * totalDuration;
+    axisHtml += `<div class="timeline-tick" style="left:${pct}%">${formatDuration(ms)}</div>`;
+  }
+  axisHtml += '</div>';
+
+  // Group by phase, then steps
+  const phaseMap = new Map();
+  for (const step of (pipeline.steps || [])) {
+    const phase = step.phase || 'unknown';
+    if (!phaseMap.has(phase)) phaseMap.set(phase, []);
+    phaseMap.get(phase).push(step);
+  }
+
+  let lanesHtml = '';
+
+  for (const [phase, steps] of phaseMap) {
+    lanesHtml += `<div class="timeline-phase-section">`;
+    lanesHtml += `<div class="timeline-phase-label">${escHtml(phase)}</div>`;
+    lanesHtml += `<div class="timeline-lanes">`;
+
+    for (const step of steps) {
+      const stepAgents = agents.filter(a => a.stepNumber === step.number);
+      if (stepAgents.length === 0) continue;
+
+      for (const agent of stepAgents) {
+        const start = new Date(agent.startedAt).getTime();
+        const end = agent.endedAt ? new Date(agent.endedAt).getTime() : now;
+        const left = ((start - minTime) / totalDuration) * 100;
+        const width = Math.max(((end - start) / totalDuration) * 100, 0.5);
+        const dept = DEPT_MAP[agent.agentType] || 'unknown';
+        const color = DEPT_COLORS[dept] || '#6b7280';
+        const isRunning = !agent.endedAt ? 'running' : '';
+        const barLabel = agent.durationMs ? formatDuration(agent.durationMs) : '';
+
+        lanesHtml += `<div class="timeline-lane">`;
+        lanesHtml += `<div class="lane-label" title="${escHtml(agent.agentType)}">${escHtml(agent.agentType)}</div>`;
+        lanesHtml += `<div class="lane-track">`;
+        lanesHtml += `<div class="lane-bar ${isRunning}" style="left:${left}%;width:${width}%;background:${color};"`;
+        lanesHtml += ` data-agent="${escHtml(agent.agentType)}"`;
+        lanesHtml += ` data-model="${escHtml(agent.model || '')}"`;
+        lanesHtml += ` data-duration="${agent.durationMs || ''}"`;
+        lanesHtml += ` data-prompt="${escHtml(agent.promptSummary || '')}"`;
+        lanesHtml += ` onmouseenter="showTooltip(event, this)" onmouseleave="hideTooltip()"`;
+        lanesHtml += `>${barLabel}</div>`;
+        lanesHtml += `</div>`; // lane-track
+        lanesHtml += `</div>`; // timeline-lane
+      }
+    }
+
+    lanesHtml += `</div>`; // timeline-lanes
+    lanesHtml += `</div>`; // timeline-phase-section
+  }
+
+  $timelineContent.innerHTML = axisHtml + lanesHtml;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Timeline Tooltip
+   ═══════════════════════════════════════════════════════════════ */
+window.showTooltip = function(e, el) {
+  const agent = el.dataset.agent;
+  const model = el.dataset.model;
+  const duration = el.dataset.duration;
+  const prompt = el.dataset.prompt;
+  const dept = DEPT_MAP[agent] || 'unknown';
+
+  let html = '';
+  html += `<div class="tt-row"><span class="tt-label">Agent:</span><span class="tt-value">${escHtml(agent)}</span></div>`;
+  html += `<div class="tt-row"><span class="tt-label">Dept:</span><span class="tt-value">${escHtml(dept)}</span></div>`;
+  if (model) html += `<div class="tt-row"><span class="tt-label">Model:</span><span class="tt-value">${escHtml(model)}</span></div>`;
+  if (duration) html += `<div class="tt-row"><span class="tt-label">Duration:</span><span class="tt-value">${formatDuration(parseInt(duration))}</span></div>`;
+  if (prompt) html += `<div class="tt-row"><span class="tt-label">Prompt:</span><span class="tt-value">${escHtml(prompt)}</span></div>`;
+
+  $tooltip.innerHTML = html;
+  $tooltip.style.display = 'block';
+  $tooltip.style.left = (e.clientX + 12) + 'px';
+  $tooltip.style.top = (e.clientY + 12) + 'px';
+};
+
+window.hideTooltip = function() {
+  $tooltip.style.display = 'none';
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   Logs View Render
+   ═══════════════════════════════════════════════════════════════ */
+function initLogFilters() {
+  $logFilters.innerHTML = '';
+  EVENT_TYPES.forEach(type => {
+    const label = document.createElement('label');
+    label.className = 'filter-check';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = true;
+    cb.dataset.type = type;
+    cb.addEventListener('change', () => {
+      if (cb.checked) activeFilters.add(type);
+      else activeFilters.delete(type);
+      renderLogs();
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(type));
+    $logFilters.appendChild(label);
+  });
+}
+
+function renderLogs() {
+  if (!pipeline) return;
+
+  // Build event list from raw allEvents filtered for current slug
+  const slugEvents = allEvents.filter(ev => {
+    const slug = ev.pipeline_slug || ev.slug || '';
+    return slug === currentSlug && activeFilters.has(ev.type);
+  });
+
+  const pipelineStart = pipeline.startedAt ? new Date(pipeline.startedAt).getTime() : null;
+
+  let html = '';
+  for (const ev of slugEvents) {
+    const isError = ev.type === 'error';
+    const rowClass = isError ? 'error-row' : '';
+
+    const relTime = pipelineStart ? formatDuration(new Date(ev.ts).getTime() - pipelineStart) : formatTime(ev.ts);
+
+    const agentOrStep = ev.agent_type || ev.step_name || (ev.step_number != null ? 'Step ' + ev.step_number : '') || '';
+
+    let status = '';
+    if (ev.status) status = ev.status;
+    else if (ev.is_error) status = 'fail';
+    else if (ev.type.endsWith('_start')) status = 'start';
+    else if (ev.type.endsWith('_end')) status = 'end';
+
+    let summary = '';
+    if (ev.type === 'pipeline_start') summary = ev.command || ev.pipeline_type || '';
+    else if (ev.type === 'pipeline_end') summary = `${ev.completed_steps || '?'}/${ev.total_steps || '?'} steps, ${ev.status}`;
+    else if (ev.type === 'step_start') summary = ev.step_name || '';
+    else if (ev.type === 'step_end') summary = ev.duration_ms ? formatDuration(ev.duration_ms) : '';
+    else if (ev.type === 'agent_start') summary = ev.prompt_summary || ev.model || '';
+    else if (ev.type === 'agent_end') summary = ev.duration_ms ? formatDuration(ev.duration_ms) : '';
+    else if (ev.type === 'error') summary = ev.message || '';
+
+    html += `<tr class="${rowClass}">`;
+    html += `<td>${escHtml(relTime)}</td>`;
+    html += `<td><span class="log-type-badge ${ev.type}">${escHtml(ev.type)}</span></td>`;
+    html += `<td>${escHtml(agentOrStep)}</td>`;
+    html += `<td>${escHtml(status)}</td>`;
+    html += `<td class="log-summary" title="${escHtml(summary)}">${escHtml(summary)}</td>`;
+    html += `</tr>`;
+  }
+
+  $logsBody.innerHTML = html;
+
+  if (logsAutoScroll) {
+    $logsWrapper.scrollTop = $logsWrapper.scrollHeight;
+  }
+}
+
+// Auto-scroll detection
+$logsWrapper.addEventListener('scroll', () => {
+  const atBottom = $logsWrapper.scrollTop + $logsWrapper.clientHeight >= $logsWrapper.scrollHeight - 30;
+  logsAutoScroll = atBottom;
+  $jumpBtn.classList.toggle('visible', !atBottom);
+});
+
+$jumpBtn.addEventListener('click', () => {
+  logsAutoScroll = true;
+  $logsWrapper.scrollTop = $logsWrapper.scrollHeight;
+  $jumpBtn.classList.remove('visible');
+});
+
+/* ═══════════════════════════════════════════════════════════════
+   Footer Render
+   ═══════════════════════════════════════════════════════════════ */
+function renderFooter() {
+  if (!pipeline) return;
+
+  const total = pipeline.steps ? pipeline.steps.length : 0;
+  const done = pipeline.steps ? pipeline.steps.filter(s => s.status === 'done' || s.status === 'success').length : 0;
+  $footerSteps.textContent = `${done}/${total} done`;
+
+  if (pipeline.durationMs) {
+    $footerDuration.textContent = formatDuration(pipeline.durationMs);
+  } else if (pipeline.startedAt) {
+    $footerDuration.textContent = formatDuration(Date.now() - new Date(pipeline.startedAt).getTime());
+  } else {
+    $footerDuration.textContent = '--';
+  }
+
+  $footerStatus.textContent = pipeline.status || '--';
+  $footerStatus.style.color = STATUS_COLORS[normalizeStatus(pipeline.status)] || 'inherit';
+}
+
+// Tick last event timer
+function startLastEventTicker() {
+  clearInterval(lastEventTicker);
+  lastEventTicker = setInterval(() => {
+    if (lastEventTime) {
+      const ago = Math.round((Date.now() - lastEventTime) / 1000);
+      $footerLastEvent.textContent = ago < 2 ? 'just now' : ago + 's ago';
+    }
+    // Also refresh duration if running
+    if (pipeline && pipeline.status === 'running') {
+      renderFooter();
+    }
+  }, 1000);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════════════════════════ */
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatDuration(ms) {
+  if (ms == null || isNaN(ms)) return '--';
+  ms = Math.abs(ms);
+  if (ms < 1000) return ms + 'ms';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return sec + 's';
+  const min = Math.floor(sec / 60);
+  const remSec = sec % 60;
+  if (min < 60) return min + 'm ' + remSec + 's';
+  const hr = Math.floor(min / 60);
+  const remMin = min % 60;
+  return hr + 'h ' + remMin + 'm';
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function normalizeStatus(status) {
+  if (!status) return 'pending';
+  const s = String(status).toLowerCase();
+  if (s === 'success' || s === 'done' || s === 'completed') return 'done';
+  if (s === 'fail' || s === 'failed' || s === 'error') return 'fail';
+  if (s === 'skipped' || s === 'skip') return 'skipped';
+  if (s === 'running' || s === 'in_progress') return 'running';
+  return 'pending';
+}
+
+function getPhaseColor(phase) {
+  if (!phase) return '#6b7280';
+  const p = phase.toLowerCase();
+  if (p.includes('plan') || p.includes('기획')) return DEPT_COLORS.planning;
+  if (p.includes('eng') || p.includes('dev') || p.includes('개발') || p.includes('implement')) return DEPT_COLORS.engineering;
+  if (p.includes('eval') || p.includes('평가') || p.includes('review')) return DEPT_COLORS.evaluation;
+  if (p.includes('qa') || p.includes('test') || p.includes('검증')) return DEPT_COLORS.qa;
+  return '#6b7280';
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Agent Data Loading & Rendering
+   ═══════════════════════════════════════════════════════════════ */
+async function loadAgentDates() {
+  try {
+    const res = await fetch('/api/agents/dates');
+    const dates = await res.json();
+    $agentDateSelect.innerHTML = '<option value="all">All dates</option>';
+    for (const d of dates) {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d;
+      $agentDateSelect.appendChild(opt);
+    }
+  } catch (err) {
+    console.error('Failed to load agent dates:', err);
+  }
+}
+
+async function loadAgentData() {
+  try {
+    const date = $agentDateSelect.value || 'all';
+    const res = await fetch(`/api/agents?date=${date}`);
+    agentData = await res.json();
+    renderAgents();
+  } catch (err) {
+    console.error('Failed to load agent data:', err);
+  }
+}
+
+function renderAgents() {
+  if (!agentData) return;
+  renderAgentStats();
+  renderAgentPerf();
+  renderAgentCalls();
+  renderAgentCollab();
+}
+
+function renderAgentStats() {
+  const d = agentData;
+  const errorRate = d.totalCalls > 0 ? Math.round((d.totalErrors / d.totalCalls) * 100) : 0;
+  const uniqueAgents = new Set(d.calls.map(c => c.agentType)).size;
+
+  $agentStatsCards.innerHTML = `
+    <div class="stat-card"><div class="stat-value">${d.totalCalls}</div><div class="stat-label">Total Calls</div></div>
+    <div class="stat-card"><div class="stat-value">${uniqueAgents}</div><div class="stat-label">Agent Types</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:${errorRate > 10 ? 'var(--status-fail)' : 'var(--status-done)'}">${errorRate}%</div><div class="stat-label">Error Rate</div></div>
+    <div class="stat-card"><div class="stat-value">${d.runningCount}</div><div class="stat-label">Running</div></div>
+    <div class="stat-card"><div class="stat-value">${d.collaborations.length}</div><div class="stat-label">Collab Edges</div></div>
+  `;
+}
+
+function renderAgentPerf() {
+  if (!agentData.stats || agentData.stats.length === 0) {
+    $agentPerfBody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:20px">No agent data yet</td></tr>';
+    return;
+  }
+
+  const maxAvg = Math.max(...agentData.stats.map(s => s.avgDurationMs));
+
+  let html = '';
+  for (const s of agentData.stats) {
+    const deptColor = DEPT_COLORS[s.dept] || '#6b7280';
+    const barWidth = maxAvg > 0 ? (s.avgDurationMs / maxAvg) * 100 : 0;
+    const errorColor = s.errorRate > 20 ? 'var(--status-fail)' : s.errorRate > 5 ? '#eab308' : 'var(--text-secondary)';
+    const models = Object.entries(s.models).map(([m, c]) => `${m}(${c})`).join(' ');
+
+    html += `<tr>`;
+    html += `<td><strong>${escHtml(s.agentType)}</strong></td>`;
+    html += `<td><span class="dept-badge" style="background:${deptColor}">${escHtml(s.dept)}</span></td>`;
+    html += `<td>${s.callCount}</td>`;
+    html += `<td style="color:${s.errorCount > 0 ? 'var(--status-fail)' : 'inherit'}">${s.errorCount}</td>`;
+    html += `<td style="color:${errorColor};font-weight:600">${s.errorRate}%</td>`;
+    html += `<td>${formatDuration(s.avgDurationMs)}<div class="perf-bar"><div class="perf-bar-fill" style="width:${barWidth}%;background:${deptColor}"></div></div></td>`;
+    html += `<td>${formatDuration(s.minDurationMs)}</td>`;
+    html += `<td>${formatDuration(s.maxDurationMs)}</td>`;
+    html += `<td style="font-size:0.7rem;color:var(--text-muted)">${escHtml(models)}</td>`;
+    html += `</tr>`;
+  }
+  $agentPerfBody.innerHTML = html;
+}
+
+function renderAgentCalls() {
+  if (!agentData.calls || agentData.calls.length === 0) {
+    $agentCallsBody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:20px">No agent calls recorded</td></tr>';
+    return;
+  }
+
+  let html = '';
+  const calls = agentData.calls.slice(0, 100); // Latest 100
+  for (const c of calls) {
+    const dept = DEPT_MAP[c.agentType] || 'unknown';
+    const deptColor = DEPT_COLORS[dept] || '#6b7280';
+    const statusClass = c.isError ? 'error' : (c.endedAt ? 'done' : 'running');
+    const statusLabel = c.isError ? 'FAIL' : (c.endedAt ? 'OK' : 'RUN');
+    const statusColor = c.isError ? 'var(--status-fail)' : (c.endedAt ? 'var(--status-done)' : 'var(--status-running)');
+    const rowClass = c.isError ? 'error-row' : '';
+
+    html += `<tr class="${rowClass}">`;
+    html += `<td>${formatTime(c.startedAt)}</td>`;
+    html += `<td><span class="dept-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${deptColor};margin-right:4px;vertical-align:middle"></span>${escHtml(c.agentType)}</td>`;
+    html += `<td>${escHtml(c.model || '-')}</td>`;
+    html += `<td>${c.durationMs != null ? formatDuration(c.durationMs) : (c.endedAt ? '--' : '...')}</td>`;
+    html += `<td><span style="color:${statusColor};font-weight:600;font-size:0.7rem">${statusLabel}</span></td>`;
+    html += `<td class="log-summary" title="${escHtml(c.description || c.promptSummary || '')}">${escHtml(c.description || c.promptSummary || '-')}</td>`;
+    html += `<td class="log-summary" title="${escHtml(c.resultSummary || c.errorMessage || '')}">${escHtml((c.resultSummary || c.errorMessage || '-').slice(0, 80))}</td>`;
+    html += `</tr>`;
+  }
+  $agentCallsBody.innerHTML = html;
+}
+
+function renderAgentCollab() {
+  if (!agentData.collaborations || agentData.collaborations.length === 0) {
+    $agentCollabContent.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;padding:12px">No collaboration patterns detected yet</div>';
+    return;
+  }
+
+  let html = '';
+  for (const edge of agentData.collaborations) {
+    const fromDept = DEPT_MAP[edge.from] || 'unknown';
+    const toDept = DEPT_MAP[edge.to] || 'unknown';
+    const fromColor = DEPT_COLORS[fromDept] || '#6b7280';
+    const toColor = DEPT_COLORS[toDept] || '#6b7280';
+
+    html += `<div class="collab-edge">`;
+    html += `<span style="color:${fromColor};font-weight:600">${escHtml(edge.from)}</span>`;
+    html += `<span class="collab-arrow">&rarr;</span>`;
+    html += `<span style="color:${toColor};font-weight:600">${escHtml(edge.to)}</span>`;
+    html += `<span class="collab-count">${edge.count}x</span>`;
+    html += `</div>`;
+  }
+  $agentCollabContent.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Init
+   ═══════════════════════════════════════════════════════════════ */
+initTheme();
+initLogFilters();
+connectSSE();
+refreshPipelineList();
+loadAgentDates();
+loadAgentData();   // Load agents view on start
+startLastEventTicker();
+
+// Default to Agents tab
+document.querySelector('[data-tab="agents"]').click();
+</script>
+</body>
+</html>

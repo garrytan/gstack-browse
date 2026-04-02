@@ -1,0 +1,21 @@
+{
+  "name": "bams-viz",
+  "version": "0.1.0",
+  "description": "Bams Agent Execution Visualizer — real-time pipeline dashboard",
+  "type": "module",
+  "main": "server.js",
+  "bin": {
+    "bams-viz": "./server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

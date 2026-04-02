@@ -83,10 +83,13 @@ Bash `mkdir -p`로 다음 디렉토리를 생성합니다:
 .crew/artifacts/pipeline/
 ```
 
-## Step 6: 코드베이스 분석 (product-strategy)
+## Step 6-7: 코드베이스 분석 + 배포 환경 점검 (병렬 실행)
 
-**코드가 존재하는 경우에만 실행.** 소스 파일이 없으면 스킵.
+**코드가 존재하는 경우에만 실행.** 소스 파일이 없으면 Step 6 스킵.
 
+**두 에이전트를 동시에 실행합니다:**
+
+**Step 6 — product-strategy 에이전트 (opus):**
 서브에이전트 실행 (Task tool, subagent_type: **"bams-plugin:product-strategy"**, model: **"opus"**):
 
 > **프로젝트 초기 분석 모드**로 이 프로젝트의 전체 구조를 분석합니다.
@@ -100,10 +103,7 @@ Bash `mkdir -p`로 다음 디렉토리를 생성합니다:
 >
 > 반환: 아키텍처 요약, 모듈 맵, 컨벤션 목록, 권장사항
 
-결과를 `.crew/artifacts/review/init-review.md`에 저장합니다.
-
-## Step 7: 배포 환경 점검 (platform-devops)
-
+**Step 7 — platform-devops 에이전트 (sonnet):**
 서브에이전트 실행 (Task tool, subagent_type: **"bams-plugin:platform-devops"**, model: **"sonnet"**):
 
 > **배포 환경 점검 모드**로 현재 프로젝트의 인프라/배포 상태를 확인합니다.
@@ -115,6 +115,9 @@ Bash `mkdir -p`로 다음 디렉토리를 생성합니다:
 > 4. 빌드 스크립트 확인 (Makefile, package.json scripts)
 >
 > 반환: 배포 준비 상태 요약, 누락 항목, 권장사항
+
+**두 결과를 모두 수집한 후** 다음 단계로 진행합니다.
+결과를 `.crew/artifacts/review/init-review.md`에 저장합니다.
 
 ## Step 8: config.md 생성
 

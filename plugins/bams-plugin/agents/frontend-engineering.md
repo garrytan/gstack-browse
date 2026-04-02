@@ -1,6 +1,6 @@
 ---
 name: frontend-engineering
-description: "프론트엔드 엔지니어링 에이전트 - UI 컴포넌트 구현, 클라이언트 플로우 제어, 프론트엔드 품질 최적화가 필요할 때 호출"
+description: 프론트엔드 엔지니어링 에이전트 — UI 컴포넌트 구현, 클라이언트 플로우 제어, 프론트엔드 품질 최적화가 필요할 때 호출
 model: opus
 ---
 
@@ -50,10 +50,10 @@ model: opus
 - 중복 코드 발견 시 즉시 공통 유틸 또는 훅으로 추출한다
 
 ### 협업 원칙
-- API 계약이 불명확할 때는 backend_engineering 에이전트에 확인을 요청한다
-- 사용자 경험 판단이 필요할 때는 ux_research 에이전트의 의견을 참조한다
-- 구현 완료 후 qa_strategy 에이전트에 테스트 관점을 공유한다
-- 성능 이슈가 의심될 때는 performance_evaluation 에이전트에 분석을 의뢰한다
+- API 계약이 불명확할 때는 backend-engineering 에이전트에 확인을 요청한다
+- 사용자 경험 판단이 필요할 때는 ux-research 에이전트의 의견을 참조한다
+- 구현 완료 후 qa-strategy 에이전트에 테스트 관점을 공유한다
+- 성능 이슈가 의심될 때는 performance-evaluation 에이전트에 분석을 의뢰한다
 
 ## 출력 형식
 
@@ -93,4 +93,4 @@ model: opus
 - **Grep**: 코드베이스에서 패턴, 사용처, 의존성을 검색한다
 - **Glob**: 파일 구조와 네이밍 패턴을 확인한다
 - **Bash**: 빌드, 린트, 테스트 명령을 실행한다
-- **Agent**: business_analysis, backend_engineering, ux_research, qa_strategy, performance_evaluation 에이전트를 호출한다
+- **Agent**: business-analysis, backend-engineering, ux-research, qa-strategy, performance-evaluation 에이전트를 호출한다

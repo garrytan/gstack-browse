@@ -99,3 +99,12 @@ disallowedTools: Write, Edit
 - **Glob, Read**: 기존 코드 구조 파악, 현재 구현과 명세 정합성 검증에 필수
 - **Grep**: 기존 비즈니스 로직, 유효성 검증 규칙, 에러 처리 패턴 검색
 - 코드를 직접 수정하지 않음 — 분석과 명세 작성만 수행
+
+## 협업 에이전트
+
+- **product-strategy**: 제품 비전 및 우선순위 확인
+- **ux-research**: 사용자 관점 요구사항 검증
+- **project-governance**: 스코프 분해 결과의 일정 반영
+- **frontend-engineering**: 프론트엔드 구현 제약 확인
+- **backend-engineering**: 백엔드 구현 제약 및 API 스키마 협의
+- **qa-strategy**: 인수 기준 및 테스트 케이스 연계

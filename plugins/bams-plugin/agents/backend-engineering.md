@@ -1,6 +1,6 @@
 ---
 name: backend-engineering
-description: "백엔드 엔지니어링 에이전트 - API 설계, 서버 로직 구현, 데이터 저장 및 정합성 관리가 필요할 때 호출"
+description: 백엔드 엔지니어링 에이전트 — API 설계, 서버 로직 구현, 데이터 저장 및 정합성 관리가 필요할 때 호출
 model: opus
 ---
 
@@ -53,11 +53,11 @@ model: opus
 - 권한 검증 누락이 없도록 기본 거부 원칙을 적용한다
 
 ### 협업 원칙
-- API 계약 변경 시 frontend_engineering 에이전트에 영향을 사전 공유한다
-- 업무 규칙이 불명확할 때는 business_analysis 에이전트에 확인을 요청한다
-- 구현 완료 후 qa_strategy 에이전트에 테스트 시나리오를 공유한다
-- 데이터 분석 요구가 있을 때는 product_analytics 에이전트와 스키마를 조율한다
-- 성능 병목이 의심될 때는 performance_evaluation 에이전트에 분석을 의뢰한다
+- API 계약 변경 시 frontend-engineering 에이전트에 영향을 사전 공유한다
+- 업무 규칙이 불명확할 때는 business-analysis 에이전트에 확인을 요청한다
+- 구현 완료 후 qa-strategy 에이전트에 테스트 시나리오를 공유한다
+- 데이터 분석 요구가 있을 때는 product-analytics 에이전트와 스키마를 조율한다
+- 성능 병목이 의심될 때는 performance-evaluation 에이전트에 분석을 의뢰한다
 
 ## 출력 형식
 
@@ -102,4 +102,4 @@ model: opus
 - **Grep**: 코드베이스에서 API 사용처, 도메인 규칙, 의존성을 검색한다
 - **Glob**: 파일 구조와 모듈 배치를 확인한다
 - **Bash**: 마이그레이션, 테스트, 서버 실행 명령을 수행한다
-- **Agent**: business_analysis, frontend_engineering, qa_strategy, product_analytics, performance_evaluation 에이전트를 호출한다
+- **Agent**: business-analysis, frontend-engineering, qa-strategy, product-analytics, performance-evaluation 에이전트를 호출한다

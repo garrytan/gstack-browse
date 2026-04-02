@@ -5,6 +5,7 @@
     "name": "Development Company Agent Operating Model",
     "description": "개발 회사를 부서-에이전트-스킬 단위로 분리한 표준 운영절차 모델",
     "design_principles": [
+      "총괄팀이 파이프라인 생명주기를 조율하고 부서 간 협업을 통합한다",
       "각 부서는 독립된 책임 영역을 가진다",
       "각 Agent는 단일 책임 원칙에 따라 정의된다",
       "각 Skill은 명확한 입력, 처리, 산출물, 완료 기준을 가진다",
@@ -57,6 +58,315 @@
     }
   },
   "departments": [
+    {
+      "department_id": "executive",
+      "department_name": "총괄팀",
+      "mission": "파이프라인 생명주기를 총괄 조율하고, 부서 간 협업을 통합하며, 리소스를 최적화하고, 경영진에게 상태를 보고한다",
+      "agents": [
+        {
+          "agent_id": "pipeline_orchestrator_agent",
+          "agent_name": "Pipeline Orchestrator Agent",
+          "responsibility": "파이프라인 생명주기 총괄 — 단계 전환 판단, 게이트 통과 결정, 롤백 명령",
+          "inputs": [
+            "파이프라인 유형 (feature/hotfix/dev)",
+            "slug",
+            "긴급도",
+            "기존 파이프라인 상태"
+          ],
+          "outputs": ["pipeline_plan", "gate_decision", "rollback_order"],
+          "skills": [
+            {
+              "skill_id": "orchestrate_pipeline",
+              "skill_name": "Pipeline Orchestration",
+              "purpose": "파이프라인의 전체 단계를 설계하고 실행 순서를 조율한다",
+              "inputs": ["pipeline_type", "slug", "config.md", "기존 아티팩트"],
+              "process": [
+                "파이프라인 유형에 따라 실행 계획을 수립한다",
+                "기존 진행 상태를 확인하여 재개 지점을 결정한다",
+                "병렬화 가능 구간을 resource_optimizer_agent에 조회한다",
+                "각 Phase 전환 시 게이트 조건을 검증한다"
+              ],
+              "artifacts": ["pipeline_plan", "gate_decision_log", "tracking_file"],
+              "agent_calls": [
+                {
+                  "callee_agent": "resource_optimizer_agent",
+                  "call_purpose": "모델 선택 및 병렬화 전략 조회",
+                  "expected_output": "resource_plan"
+                },
+                {
+                  "callee_agent": "cross_department_coordinator_agent",
+                  "call_purpose": "부서 간 의존성 확인",
+                  "expected_output": "dependency_status"
+                },
+                {
+                  "callee_agent": "project_governance_agent",
+                  "call_purpose": "일정 영향도 확인",
+                  "expected_output": "delivery_feasibility_note"
+                }
+              ],
+              "completion_criteria": [
+                "모든 Phase의 게이트 조건이 정의되어 있다",
+                "병렬화 전략이 확정되어 있다",
+                "롤백 포인트가 기록되어 있다"
+              ]
+            },
+            {
+              "skill_id": "decide_gate",
+              "skill_name": "Phase Gate Decision",
+              "purpose": "Phase 전환 시 Go/No-Go/Conditional-Go 판단을 내린다",
+              "inputs": ["Phase 산출물", "테스트 결과", "리뷰 결과", "보안 감사"],
+              "process": [
+                "필수 산출물 생성 여부를 확인한다",
+                "Critical 이슈가 0건인지 검증한다",
+                "다음 Phase 선행 조건 충족 여부를 확인한다",
+                "결정을 gate_decision_log에 기록한다"
+              ],
+              "artifacts": ["gate_decision", "gate_decision_log"],
+              "agent_calls": [
+                {
+                  "callee_agent": "release_quality_gate_agent",
+                  "call_purpose": "출시 게이트 판단 위임 (Phase 4 이후)",
+                  "expected_output": "release_decision"
+                },
+                {
+                  "callee_agent": "executive_reporter_agent",
+                  "call_purpose": "게이트 결과를 상태 대시보드에 반영",
+                  "expected_output": "dashboard_updated"
+                }
+              ],
+              "completion_criteria": [
+                "Go/No-Go/Conditional-Go 결정이 근거와 함께 기록되어 있다",
+                "No-Go 시 블로커 목록과 해소 계획이 있다"
+              ]
+            },
+            {
+              "skill_id": "execute_rollback",
+              "skill_name": "Rollback Execution",
+              "purpose": "파이프라인 실패 시 안전한 롤백을 실행한다",
+              "inputs": ["실패 유형", "영향 범위", "롤백 포인트"],
+              "process": [
+                "실패 유형을 분류한다 (recoverable vs. unrecoverable)",
+                "롤백 범위를 결정한다 (현재 Phase vs. 이전 Phase)",
+                "보존할 아티팩트를 식별한다",
+                "롤백을 실행하고 재시작 지점을 기록한다"
+              ],
+              "artifacts": ["rollback_log", "restart_plan"],
+              "agent_calls": [
+                {
+                  "callee_agent": "cross_department_coordinator_agent",
+                  "call_purpose": "롤백 영향을 받는 에이전트에 알림",
+                  "expected_output": "rollback_notification_ack"
+                }
+              ],
+              "completion_criteria": [
+                "롤백이 안전하게 완료되었다",
+                "재시작 지점이 명시되어 있다",
+                "보존 아티팩트가 확인되었다"
+              ]
+            }
+          ]
+        },
+        {
+          "agent_id": "cross_department_coordinator_agent",
+          "agent_name": "Cross-Department Coordinator Agent",
+          "responsibility": "부서 간 의존성 관리, 갈등 해결, 핸드오프 조율",
+          "inputs": [
+            "jojikdo.json agent_calls",
+            "파이프라인 이벤트",
+            "에이전트 산출물 상태"
+          ],
+          "outputs": ["dependency_status", "conflict_resolution", "handoff_checklist"],
+          "skills": [
+            {
+              "skill_id": "manage_dependencies",
+              "skill_name": "Cross-Department Dependency Management",
+              "purpose": "에이전트 간 입력-출력 의존성을 추적하고 병목을 사전에 식별한다",
+              "inputs": ["jojikdo.json", "파이프라인 이벤트", "산출물 상태"],
+              "process": [
+                "agent_calls 관계에서 의존성 그래프를 구성한다",
+                "각 의존성의 상태를 실시간 추적한다",
+                "크리티컬 패스 상의 병목을 식별한다",
+                "블로커 발생 시 우회 경로를 제시한다"
+              ],
+              "artifacts": ["dependency_graph", "dependency_status_report"],
+              "agent_calls": [
+                {
+                  "callee_agent": "project_governance_agent",
+                  "call_purpose": "일정 영향 분석",
+                  "expected_output": "schedule_impact_assessment"
+                },
+                {
+                  "callee_agent": "resource_optimizer_agent",
+                  "call_purpose": "리소스 경합 해소",
+                  "expected_output": "resource_reallocation_plan"
+                }
+              ],
+              "completion_criteria": [
+                "모든 크리티컬 패스 의존성이 추적되고 있다",
+                "블로커가 있으면 해소 계획이 있다"
+              ]
+            },
+            {
+              "skill_id": "resolve_conflicts",
+              "skill_name": "Inter-Department Conflict Resolution",
+              "purpose": "부서 간 우선순위 충돌이나 해석 차이를 구조적으로 중재한다",
+              "inputs": ["충돌 내용", "각 부서 입장", "객관적 데이터"],
+              "process": [
+                "각 부서의 입장과 제약 조건을 수집한다",
+                "객관적 데이터로 판단 근거를 제시한다",
+                "합의점을 도출하거나 pipeline_orchestrator에게 에스컬레이션한다",
+                "결과를 decision_log에 기록한다"
+              ],
+              "artifacts": ["conflict_resolution_note", "decision_log"],
+              "agent_calls": [
+                {
+                  "callee_agent": "product_strategy_agent",
+                  "call_purpose": "전략적 우선순위 기준 확인",
+                  "expected_output": "priority_guidance"
+                },
+                {
+                  "callee_agent": "pipeline_orchestrator_agent",
+                  "call_purpose": "해결 불가 시 에스컬레이션",
+                  "expected_output": "escalation_decision"
+                }
+              ],
+              "completion_criteria": [
+                "충돌이 해소되었거나 에스컬레이션되었다",
+                "결정 근거가 decision_log에 기록되어 있다"
+              ]
+            }
+          ]
+        },
+        {
+          "agent_id": "executive_reporter_agent",
+          "agent_name": "Executive Reporter Agent",
+          "responsibility": "파이프라인 상태 집계, 대시보드 생성, 주간/스프린트 보고",
+          "inputs": [
+            "파이프라인 이벤트 로그",
+            "board.md",
+            "tracking 파일",
+            "리뷰/테스트 결과"
+          ],
+          "outputs": ["pipeline_dashboard", "weekly_summary", "sprint_report"],
+          "skills": [
+            {
+              "skill_id": "generate_dashboard",
+              "skill_name": "Pipeline Dashboard Generation",
+              "purpose": "파이프라인 상태를 실시간 대시보드로 집계한다",
+              "inputs": ["파이프라인 이벤트", "board.md", "아티팩트 상태"],
+              "process": [
+                "이벤트 파일에서 Phase별 진행률을 파싱한다",
+                "에이전트별 활동 상태를 집계한다",
+                "블로커와 리스크를 수집한다",
+                "신호등 체계로 요약한다"
+              ],
+              "artifacts": ["pipeline_dashboard", "status_summary"],
+              "agent_calls": [
+                {
+                  "callee_agent": "project_governance_agent",
+                  "call_purpose": "일정/마일스톤 데이터 조회",
+                  "expected_output": "milestone_status"
+                },
+                {
+                  "callee_agent": "product_analytics_agent",
+                  "call_purpose": "KPI 데이터 조회",
+                  "expected_output": "kpi_snapshot"
+                }
+              ],
+              "completion_criteria": [
+                "모든 활성 파이프라인의 상태가 집계되어 있다",
+                "블로커가 하이라이트되어 있다"
+              ]
+            },
+            {
+              "skill_id": "compile_weekly_summary",
+              "skill_name": "Weekly Summary Compilation",
+              "purpose": "주간 활동을 성과, 진행, 블로커, 계획으로 구조화하여 보고한다",
+              "inputs": ["git log", "board.md", "파이프라인 이력", "리뷰 결과"],
+              "process": [
+                "주간 완료 태스크를 집계한다",
+                "진행 중 태스크와 블로커를 정리한다",
+                "다음 주 계획을 수립한다",
+                "수치 요약을 작성한다"
+              ],
+              "artifacts": ["weekly_summary", "trend_analysis"],
+              "agent_calls": [
+                {
+                  "callee_agent": "business_kpi_agent",
+                  "call_purpose": "사업 성과 지표 조회",
+                  "expected_output": "business_metrics_snapshot"
+                },
+                {
+                  "callee_agent": "performance_evaluation_agent",
+                  "call_purpose": "성능 수치 조회",
+                  "expected_output": "performance_metrics"
+                }
+              ],
+              "completion_criteria": [
+                "핵심 성과가 수치와 함께 정리되어 있다",
+                "다음 주 액션 아이템이 담당자와 함께 명시되어 있다"
+              ]
+            }
+          ]
+        },
+        {
+          "agent_id": "resource_optimizer_agent",
+          "agent_name": "Resource Optimizer Agent",
+          "responsibility": "모델 선택, 병렬화 전략, 비용/속도 밸런싱",
+          "inputs": [
+            "태스크 복잡도",
+            "의존성 그래프",
+            "이전 실행 이력",
+            "비용 제약"
+          ],
+          "outputs": ["resource_plan", "parallelization_strategy", "cost_analysis"],
+          "skills": [
+            {
+              "skill_id": "optimize_model_selection",
+              "skill_name": "Model Selection Optimization",
+              "purpose": "각 에이전트의 태스크 특성에 맞는 최적 모델을 추천한다",
+              "inputs": ["에이전트 목록", "태스크 복잡도", "이전 품질 이력"],
+              "process": [
+                "태스크 복잡도를 3단계(high/medium/low)로 분류한다",
+                "이전 실행에서 품질 이슈가 있었는지 확인한다",
+                "복잡도와 품질 요구에 따라 모델을 매핑한다",
+                "비용 예측을 작성한다"
+              ],
+              "artifacts": ["model_assignment_table", "cost_forecast"],
+              "agent_calls": [],
+              "completion_criteria": [
+                "모든 에이전트에 모델이 배정되어 있다",
+                "비용 예측이 산출되어 있다"
+              ]
+            },
+            {
+              "skill_id": "design_parallelization",
+              "skill_name": "Parallelization Strategy Design",
+              "purpose": "의존성 그래프를 분석하여 동시 실행 가능한 에이전트 그룹을 식별한다",
+              "inputs": ["jojikdo.json agent_calls", "파이프라인 단계"],
+              "process": [
+                "의존성이 없는 에이전트를 병렬 그룹으로 묶는다",
+                "같은 Phase 내 독립 스킬을 식별한다",
+                "병렬 그룹 크기 제한을 적용한다",
+                "예상 소요 시간 단축률을 계산한다"
+              ],
+              "artifacts": ["parallelization_strategy", "parallel_group_map"],
+              "agent_calls": [
+                {
+                  "callee_agent": "cross_department_coordinator_agent",
+                  "call_purpose": "의존성 그래프 최신 상태 확인",
+                  "expected_output": "dependency_graph"
+                }
+              ],
+              "completion_criteria": [
+                "병렬 그룹이 의존성 위반 없이 구성되어 있다",
+                "예상 시간 단축률이 산출되어 있다"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "department_id": "planning",
       "department_name": "기획부서",
@@ -1849,6 +2159,18 @@
   ],
   "governance": {
     "decision_rights": [
+      {
+        "decision": "파이프라인 Phase 전환 Go/No-Go 판단",
+        "owner_agent": "pipeline_orchestrator_agent"
+      },
+      {
+        "decision": "부서 간 갈등 중재 및 에스컬레이션",
+        "owner_agent": "cross_department_coordinator_agent"
+      },
+      {
+        "decision": "모델 선택 및 리소스 배분",
+        "owner_agent": "resource_optimizer_agent"
+      },
       {
         "decision": "제품 우선순위 결정",
         "owner_agent": "product_strategy_agent"

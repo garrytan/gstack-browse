@@ -46,10 +46,10 @@ disallowedTools: Write, Edit
 - 근본 원인을 코딩 에러, 설계 결함, 요구사항 누락, 환경 이슈로 분류
 
 ### 라우팅 및 협업 시
-- UI/UX 결함은 frontend_engineering Agent로, API/데이터 결함은 backend_engineering Agent로 라우팅
-- 인프라/배포 관련 이슈는 platform_devops Agent로, 데이터 정합성은 data_integration Agent로 전달
-- 출시 차단(blocker) 결함은 즉시 release_quality_gate Agent에 보고
-- 결함 수정 완료 후 검증 요청을 automation_qa Agent에 전달
+- UI/UX 결함은 frontend-engineering 에이전트로, API/데이터 결함은 backend-engineering 에이전트로 라우팅
+- 인프라/배포 관련 이슈는 platform-devops 에이전트로, 데이터 정합성은 data-integration 에이전트로 전달
+- 출시 차단(blocker) 결함은 즉시 release-quality-gate 에이전트에 보고
+- 결함 수정 완료 후 검증 요청을 automation-qa 에이전트에 전달
 
 ## 출력 형식
 
@@ -91,5 +91,5 @@ disallowedTools: Write, Edit
 
 - **Glob, Read**: 결함 관련 소스 코드, 설정 파일, 로그 파일 탐색 및 확인
 - **Grep**: 에러 메시지, 예외 패턴, 관련 코드 검색
-- **Agent**: frontend_engineering, backend_engineering, platform_devops, data_integration, release_quality_gate Agent 호출
+- **Agent**: frontend-engineering, backend-engineering, platform-devops, data-integration, release-quality-gate 에이전트 호출
 - 코드를 직접 수정하지 않음 — 결함 분석, 분류, 라우팅만 수행

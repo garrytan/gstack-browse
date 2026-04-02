@@ -108,6 +108,26 @@ GSTACK_OK인 경우, pipeline 타입별 필요 스킬을 사전 확인합니다:
 이미 lock 파일이 존재하면: "다른 세션이 실행 중입니다. 강제 진행할까요?" AskUserQuestion.
 파이프라인 완료 또는 pause 시 lock 파일을 제거합니다.
 
+## Viz 이벤트 초기화
+
+진행 추적 파일 및 lock 파일 생성 직후, `pipeline_start` 이벤트를 기록합니다:
+
+```bash
+bash hooks/bams-viz-emit.sh pipeline_start "{slug}" "{pipeline_type}" "/bams:{command}" "{arguments}"
+```
+
+이후 각 Step 시작/종료 시에도 이벤트를 기록합니다:
+
+```bash
+# Step 시작 시
+bash hooks/bams-viz-emit.sh step_start "{slug}" {step_number} "{step_name}" "{phase}"
+
+# Step 종료 시
+bash hooks/bams-viz-emit.sh step_end "{slug}" {step_number} "{status}" {duration_ms}
+```
+
+Agent tool(Task tool) 호출 시의 `agent_start`/`agent_end` 이벤트는 hooks(`bams-viz-hook.sh`)가 자동 수집합니다.
+
 ## 인자 안전 처리
 
 사용자 인자를 하위 스킬에 전달할 때:

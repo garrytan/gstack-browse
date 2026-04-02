@@ -32,11 +32,11 @@ disallowedTools: Write, Edit
 - 지표 정의가 모호한 경우 먼저 정의를 확정한 후 분석한다
 
 ### 협업 규칙
-- product_strategy 에이전트와 제품 방향성을 확인한 뒤 분석 프레임을 설정한다
-- business_kpi 에이전트에게 사업 지표 연계 분석 결과를 전달한다
-- ux_research 에이전트의 정성 데이터와 정량 분석을 교차 검증한다
-- business_analysis 에이전트와 요구사항 대비 실제 성과를 비교한다
-- release_quality_gate 에이전트에게 릴리즈 전후 지표 변화를 보고한다
+- product-strategy 에이전트와 제품 방향성을 확인한 뒤 분석 프레임을 설정한다
+- business-kpi 에이전트에게 사업 지표 연계 분석 결과를 전달한다
+- ux-research 에이전트의 정성 데이터와 정량 분석을 교차 검증한다
+- business-analysis 에이전트와 요구사항 대비 실제 성과를 비교한다
+- release-quality-gate 에이전트에게 릴리즈 전후 지표 변화를 보고한다
 
 ### 금지 사항
 - 코드를 직접 작성하거나 수정하지 않는다

@@ -28,35 +28,96 @@ _RETRO_SKILL=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/skills/retro/
 
 진행 추적 파일: `templates/weekly-tracking.md` 기반으로 생성.
 
+### Viz 이벤트: pipeline_start
+
+진행 추적 파일 및 lock 파일 생성 직후, Bash로 다음을 실행합니다:
+
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh pipeline_start "{slug}" "weekly" "/bams:weekly" "{arguments}"
+```
+
 ## Step 1: 스프린트 현황 확인
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 1 "스프린트 현황 확인" "Phase 1: 현황"
+```
 
 활성 스프린트 없으면 `skipped` → Step 3으로.
 
 board.md에서 태스크 현황 파악 + 이번 주 파이프라인 기록과 태스크 매핑.
 `/bams:sprint status` 실행.
 
+Step 1 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 1 "{status}" {duration_ms}
+```
+
 ## Step 2: 스프린트 종료
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 2 "스프린트 종료" "Phase 2: 종료"
+```
 
 AskUserQuestion — "현재 스프린트를 종료할까요?"
 - **종료 (Recommended)** — `/bams:sprint close` 실행
 - **계속 진행**
 
-## Step 3: 엔지니어링 회고 (bams retro 스킬)
+Step 2 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 2 "{status}" {duration_ms}
+```
+
+## Step 3-4: 회고 + 다음 스프린트 (병렬 준비)
+
+### Step 3: 엔지니어링 회고 (bams retro 스킬)
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 3 "엔지니어링 회고" "Phase 3: 회고 + 계획"
+```
 
 **스킬 미설치 시**: `skipped`.
 
-AskUserQuestion — "회고를 진행할까요?"
-- **진행 (Recommended)** — `_RETRO_SKILL` 실행. 이전 weekly 회고 결과 있으면 트렌드 비교 전달.
+AskUserQuestion — "회고와 다음 스프린트 계획을 어떻게 진행할까요?"
+- **둘 다 (Recommended)** — 회고 + 스프린트 계획 순차 실행
+- **회고만** — `_RETRO_SKILL` 실행
+- **스프린트만** — `/bams:sprint plan` 실행
 - **건너뛰기**
 
-## Step 4: 다음 스프린트 계획
+**회고 진행 시**: `_RETRO_SKILL` 실행. 이전 weekly 회고 결과 있으면 트렌드 비교 전달.
+**최적화**: 회고 실행 중 백그라운드로 백로그 태스크 분석을 시작하여 Step 4의 스프린트 플래닝을 가속합니다.
+
+Step 3 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 3 "{status}" {duration_ms}
+```
+
+### Step 4: 다음 스프린트 계획
+
+Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_start "{slug}" 4 "다음 스프린트 계획" "Phase 3: 회고 + 계획"
+```
 
 백로그 비어있으면 `/bams:plan` 제안.
-있으면 AskUserQuestion — "다음 스프린트를 계획할까요?"
-- **계획 (Recommended)** — `/bams:sprint plan` 실행
-- **나중에**
+있으면 `/bams:sprint plan` 실행.
+
+Step 4 완료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh step_end "{slug}" 4 "{status}" {duration_ms}
+```
 
 ## 마무리
+
+### Viz 이벤트: pipeline_end
+
+파이프라인 종료 시, Bash로 다음을 실행합니다:
+```bash
+bash /Users/bamjung/Documents/ezar/claude/my_claude/plugins/bams-plugin/hooks/bams-viz-emit.sh pipeline_end "{slug}" "{status}" {total} {completed} {failed} {skipped}
+```
+(`{status}`는 `completed` / `paused` / `failed` 중 하나, `{total}`은 4)
 
 **`references/completion-protocol.md` 참조.** 표준 프로토콜을 따릅니다.
 

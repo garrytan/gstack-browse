@@ -46,6 +46,16 @@
 - Execution Log 하단에 산출물 경로 정리
 - `.crew/artifacts/pipeline/[slug].lock` 파일 제거
 
+## Step 4.5: Viz 이벤트 마무리
+
+lock 파일 제거 직전에 `pipeline_end` 이벤트를 기록합니다:
+
+```bash
+bash hooks/bams-viz-emit.sh pipeline_end "{slug}" "{status}" {total_steps} {completed_steps} {failed_steps} {skipped_steps}
+```
+
+`{slug}-events.jsonl` 파일은 삭제하지 않습니다 (tracking 파일과 동일 생명주기).
+
 ## Step 5: 완료 요약 출력
 
 통일된 형식:
@@ -55,6 +65,8 @@
   [각 Step 상태 — ✓/⊘/✗]
 
 기록: .crew/artifacts/pipeline/[파일명]
+이벤트: .crew/artifacts/pipeline/[slug]-events.jsonl
 
 다음: [추천 명령어]
+시각화: /bams:viz [slug]
 ```

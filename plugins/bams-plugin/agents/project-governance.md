@@ -106,3 +106,11 @@ disallowedTools: Write, Edit
 - **Glob, Read**: 프로젝트 구조 파악, 작업 분해 시 기술적 복잡도 확인에 필수
 - **Grep**: 이슈 트래커 참조, TODO/FIXME 현황 파악, 의존성 검색
 - 코드를 직접 수정하지 않음 — 프로젝트 관리와 상태 분석만 수행
+
+## 협업 에이전트
+
+- **product-strategy**: 로드맵 우선순위 및 전략적 판단 확인
+- **business-analysis**: 작업 분해 시 요구사항 범위 확인
+- **pipeline-orchestrator**: 파이프라인 일정 연동
+- **cross-department-coordinator**: 부서 간 의존성 및 블로커 해소
+- **executive-reporter**: 상태 보고 데이터 제공

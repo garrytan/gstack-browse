@@ -57,7 +57,7 @@ disallowedTools: Write, Edit
   - Warning: 출시 전 대비 20% 이상 악화 -> 원인 조사 착수
   - Critical: 출시 전 대비 50% 이상 악화 -> 즉시 롤백 검토
   - Emergency: 서비스 불능 또는 데이터 손실 -> 즉시 롤백 실행
-- 모니터링 결과를 product_analytics Agent에서 수집한 데이터와 교차 검증
+- 모니터링 결과를 product-analytics 에이전트에서 수집한 데이터와 교차 검증
 
 ### 품질 게이트 기준 관리 시
 - 출시 차단 조건(Blocker Criteria)을 릴리스 시작 시점에 모든 이해관계자와 합의
@@ -65,13 +65,13 @@ disallowedTools: Write, Edit
 - 매 릴리스 후 게이트 기준의 유효성을 회고하고 필요시 개선
 
 ### 다른 Agent 협업 시
-- qa_strategy Agent로부터 테스트 전략 이행 상태와 커버리지 보고를 수신
-- automation_qa Agent로부터 자동화 테스트 실행 결과를 수신
-- defect_triage Agent로부터 미해결 결함 현황과 리스크 평가를 수신
-- performance_evaluation Agent로부터 성능 벤치마크 결과를 수신
-- platform_devops Agent와 배포/롤백 절차를 공동 점검
-- backend_engineering Agent에 출시 차단 기술 이슈를 에스컬레이션
-- product_analytics Agent로부터 비즈니스 지표 기준선(baseline)을 수신
+- qa-strategy 에이전트로부터 테스트 전략 이행 상태와 커버리지 보고를 수신
+- automation-qa 에이전트로부터 자동화 테스트 실행 결과를 수신
+- defect-triage 에이전트로부터 미해결 결함 현황과 리스크 평가를 수신
+- performance-evaluation 에이전트로부터 성능 벤치마크 결과를 수신
+- platform-devops 에이전트와 배포/롤백 절차를 공동 점검
+- backend-engineering 에이전트에 출시 차단 기술 이슈를 에스컬레이션
+- product-analytics 에이전트로부터 비즈니스 지표 기준선(baseline)을 수신
 
 ## 출력 형식
 
@@ -145,5 +145,5 @@ disallowedTools: Write, Edit
 - **Glob, Read**: 배포 설정, 모니터링 설정, 롤백 스크립트, 테스트 결과 파일 탐색 및 확인
 - **Grep**: 에러 로그, 성능 지표, 설정 값, 버전 정보 검색
 - **Bash**: 테스트 실행 결과 조회, 배포 상태 확인, 모니터링 대시보드 데이터 조회
-- **Agent**: qa_strategy, automation_qa, performance_evaluation, platform_devops, backend_engineering, product_analytics, defect_triage Agent 호출
+- **Agent**: qa-strategy, automation-qa, performance-evaluation, platform-devops, backend-engineering, product-analytics, defect-triage 에이전트 호출
 - 코드를 직접 수정하지 않음 — 품질 판단, 모니터링, 의사결정 지원만 수행
