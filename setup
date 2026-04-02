@@ -712,7 +712,50 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
   create_agents_sidecar "$SOURCE_GSTACK_DIR"
 fi
 
-# 8. First-time welcome + legacy cleanup
+# 8. Install global git pre-commit hook for auto-reindex
+# If a project has .ai-codex/, gstack-reindex runs on every commit automatically.
+HOOK_DIR="$HOME/.config/git/hooks"
+HOOK_FILE="$HOOK_DIR/pre-commit"
+REINDEX_BIN="$SOURCE_GSTACK_DIR/index/bin/reindex"
+if [ -x "$REINDEX_BIN" ]; then
+  if [ -f "$HOOK_FILE" ] && grep -q "reindex" "$HOOK_FILE" 2>/dev/null; then
+    : # Already installed
+  else
+    mkdir -p "$HOOK_DIR"
+    # If an existing global hook exists, preserve it
+    if [ -f "$HOOK_FILE" ] && ! grep -q "reindex" "$HOOK_FILE" 2>/dev/null; then
+      mv "$HOOK_FILE" "$HOOK_FILE.backup"
+      echo "  backed up existing global pre-commit hook to pre-commit.backup"
+    fi
+    cat > "$HOOK_FILE" << 'HOOKEOF'
+#!/bin/sh
+# Global pre-commit hook (installed by gstack setup)
+# Auto-reindex .ai-codex/ if it exists, then chain to local hooks.
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+
+if [ -d "$ROOT/.ai-codex" ]; then
+  REINDEX="$HOME/.claude/skills/gstack/index/bin/reindex"
+  [ -x "$REINDEX" ] && "$REINDEX" --hook --quiet
+fi
+
+# Chain to local pre-commit hook (so per-repo hooks still work)
+LOCAL_HOOK="$ROOT/.git/hooks/pre-commit.local"
+[ -x "$LOCAL_HOOK" ] && exec "$LOCAL_HOOK" "$@"
+
+exit 0
+HOOKEOF
+    chmod +x "$HOOK_FILE"
+    # Set global hooks path if not already set
+    _current_hooks_path="$(git config --global core.hooksPath 2>/dev/null || true)"
+    if [ -z "$_current_hooks_path" ]; then
+      git config --global core.hooksPath "$HOOK_DIR"
+    fi
+    echo "  auto-reindex: global git hook installed (keeps .ai-codex/ fresh on commit)"
+  fi
+fi
+
+# 9. First-time welcome + legacy cleanup
 if [ ! -f "$HOME/.gstack/.welcome-seen" ]; then
   echo "  Welcome! Run /gstack-upgrade anytime to stay current."
   touch "$HOME/.gstack/.welcome-seen"
