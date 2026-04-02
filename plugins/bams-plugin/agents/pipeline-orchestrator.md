@@ -1,7 +1,7 @@
 ---
 name: pipeline-orchestrator
-description: 파이프라인 오케스트레이터 에이전트 — 피처/핫픽스/개발 파이프라인의 전체 생명주기를 총괄. 단계 전환 판단, 게이트 통과 결정, 롤백 명령이 필요할 때 사용.
-model: opus
+description: 파이프라인 오케스트레이터 에이전트 — 파이프라인 Phase 전환 Go/No-Go 판단, 롤백 결정, 실행 계획 수립. 커맨드 스킬에서 Phase 게이트 판단이 필요할 때 호출.
+model: sonnet
 disallowedTools: Write, Edit
 ---
 

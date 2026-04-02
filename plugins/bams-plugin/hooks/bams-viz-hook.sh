@@ -45,117 +45,89 @@ TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 HOOK_PHASE="${CLAUDE_HOOK_EVENT:-post}"
 CALLSTACK_FILE="/tmp/bams-viz-callstack"
 
-# Parse agent info with python3 (available on macOS, ~20ms)
-EVENT_JSON=$(python3 -c '
-import sys, json, hashlib, os, time
+# Parse agent info with jq (~5ms vs python3 ~25ms)
+TOOL_INPUT=$(printf '%s' "$INPUT" | jq -r '.tool_input // .' 2>/dev/null)
+# If tool_input is a string (JSON-encoded), parse it again
+if printf '%s' "$TOOL_INPUT" | jq -e 'type == "string"' >/dev/null 2>&1; then
+  TOOL_INPUT=$(printf '%s' "$TOOL_INPUT" | jq -r '.' | jq '.' 2>/dev/null || echo '{}')
+fi
 
-try:
-    data = json.loads(sys.stdin.read())
-except:
-    sys.exit(0)
+AGENT_TYPE=$(printf '%s' "$TOOL_INPUT" | jq -r '.subagent_type // .agent // "general-purpose"' 2>/dev/null)
+# Strip namespace prefix (e.g., "bams-plugin:frontend-engineering" -> "frontend-engineering")
+AGENT_TYPE="${AGENT_TYPE##*:}"
+MODEL=$(printf '%s' "$TOOL_INPUT" | jq -r '.model // ""' 2>/dev/null)
+DESCRIPTION=$(printf '%s' "$TOOL_INPUT" | jq -r '.description // ""' 2>/dev/null)
+PROMPT_SUMMARY=$(printf '%s' "$TOOL_INPUT" | jq -r '(.prompt // "")[:300] | split("\n")[0]' 2>/dev/null)
+BACKGROUND=$(printf '%s' "$TOOL_INPUT" | jq -r '.run_in_background // false' 2>/dev/null)
 
-hook = os.environ.get("CLAUDE_HOOK_EVENT", "post")
-ts = sys.argv[1]
-pipeline_slug = sys.argv[2]
-callstack_file = sys.argv[3]
+# Generate call_id (~2ms with md5)
+CALL_ID=$(printf '%s:%s:%s' "$AGENT_TYPE" "$TS" "$$" | md5 2>/dev/null | head -c 12 || printf '%s:%s:%s' "$AGENT_TYPE" "$TS" "$$" | md5sum 2>/dev/null | head -c 12)
 
-tool_input = data.get("tool_input", data)
-if isinstance(tool_input, str):
-    try:
-        tool_input = json.loads(tool_input)
-    except:
-        tool_input = {}
+if printf '%s' "$HOOK_PHASE" | grep -qi "pre"; then
+  # Push call_id to stack
+  printf '%s|%s|%s\n' "$CALL_ID" "$AGENT_TYPE" "$TS" >> "$CALLSTACK_FILE" 2>/dev/null || true
 
-agent_type = tool_input.get("subagent_type", tool_input.get("agent", "general-purpose"))
-if ":" in str(agent_type):
-    agent_type = agent_type.split(":")[-1]
-model = tool_input.get("model", "")
-description = tool_input.get("description", "")
-prompt_raw = tool_input.get("prompt", "")
-prompt_summary = prompt_raw.split("\n")[0][:300] if prompt_raw else ""
-background = tool_input.get("run_in_background", False)
+  EVENT_JSON=$(jq -cn \
+    --arg type "agent_start" \
+    --arg call_id "$CALL_ID" \
+    --arg agent_type "$AGENT_TYPE" \
+    --arg model "$MODEL" \
+    --arg description "$DESCRIPTION" \
+    --arg prompt_summary "$PROMPT_SUMMARY" \
+    --argjson background "${BACKGROUND:-false}" \
+    --arg ts "$TS" \
+    --arg pipeline_slug "$PIPELINE_SLUG" \
+    '{type:$type, call_id:$call_id, agent_type:$agent_type, model:$model, description:$description, prompt_summary:$prompt_summary, background:$background, ts:$ts} + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
+else
+  # Pop call_id from stack
+  MATCHED_CALL_ID="$CALL_ID"
+  MATCHED_START_TS=""
+  if [ -f "$CALLSTACK_FILE" ] && [ -s "$CALLSTACK_FILE" ]; then
+    LAST_LINE=$(tail -1 "$CALLSTACK_FILE" 2>/dev/null)
+    if [ -n "$LAST_LINE" ]; then
+      MATCHED_CALL_ID=$(printf '%s' "$LAST_LINE" | cut -d'|' -f1)
+      MATCHED_START_TS=$(printf '%s' "$LAST_LINE" | cut -d'|' -f3)
+      # Remove last line
+      sed -i '' '$d' "$CALLSTACK_FILE" 2>/dev/null || sed -i '$d' "$CALLSTACK_FILE" 2>/dev/null || true
+    fi
+  fi
 
-call_id = hashlib.md5(f"{agent_type}:{ts}:{id(data)}:{time.time_ns()}".encode()).hexdigest()[:12]
+  # Parse result info
+  IS_ERROR=$(printf '%s' "$INPUT" | jq -r '.tool_result.is_error // false' 2>/dev/null)
+  RESULT_SUMMARY=$(printf '%s' "$INPUT" | jq -r '
+    .tool_result.content
+    | if type == "string" then .[:300]
+      elif type == "array" then (map(select(.type == "text") | .text) | first // "")[:300]
+      else ""
+      end' 2>/dev/null)
 
-if "pre" in hook.lower():
-    # Push call_id to stack
-    try:
-        with open(callstack_file, "a") as f:
-            f.write(f"{call_id}|{agent_type}|{ts}\n")
-    except:
-        pass
-    event = {
-        "type": "agent_start",
-        "call_id": call_id,
-        "agent_type": agent_type,
-        "model": model,
-        "description": description,
-        "prompt_summary": prompt_summary,
-        "background": background,
-        "ts": ts,
-    }
-    if pipeline_slug:
-        event["pipeline_slug"] = pipeline_slug
-else:
-    # Pop call_id from stack
-    matched_call_id = call_id
-    matched_start_ts = ""
-    try:
-        with open(callstack_file, "r") as f:
-            lines = [l.strip() for l in f.readlines() if l.strip()]
-        if lines:
-            parts = lines[-1].split("|")
-            matched_call_id = parts[0]
-            matched_start_ts = parts[2] if len(parts) > 2 else ""
-            with open(callstack_file, "w") as f:
-                f.write("\n".join(lines[:-1]) + "\n" if len(lines) > 1 else "")
-    except:
-        pass
+  # Compute duration_ms
+  DURATION_MS="null"
+  if [ -n "$MATCHED_START_TS" ]; then
+    START_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$MATCHED_START_TS" "+%s" 2>/dev/null || date -d "$MATCHED_START_TS" "+%s" 2>/dev/null)
+    END_EPOCH=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$TS" "+%s" 2>/dev/null || date -d "$TS" "+%s" 2>/dev/null)
+    if [ -n "${START_EPOCH:-}" ] && [ -n "${END_EPOCH:-}" ]; then
+      DURATION_MS=$(( (END_EPOCH - START_EPOCH) * 1000 ))
+    fi
+  fi
 
-    is_error = False
-    error_message = ""
-    result_summary = ""
-    tool_result = data.get("tool_result", {})
-    if isinstance(tool_result, dict):
-        is_error = tool_result.get("is_error", False)
-        content = tool_result.get("content", "")
-        if isinstance(content, str):
-            result_summary = content[:300]
-        elif isinstance(content, list):
-            for item in content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    result_summary = item.get("text", "")[:300]
-                    break
-        if is_error:
-            error_message = result_summary[:500]
+  ERROR_MSG=""
+  if [ "$IS_ERROR" = "true" ]; then
+    ERROR_MSG="$RESULT_SUMMARY"
+  fi
 
-    # Compute duration if we have start timestamp
-    duration_ms = None
-    if matched_start_ts:
-        try:
-            from datetime import datetime
-            start = datetime.fromisoformat(matched_start_ts.replace("Z", "+00:00"))
-            end = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            duration_ms = int((end - start).total_seconds() * 1000)
-        except:
-            pass
-
-    event = {
-        "type": "agent_end",
-        "call_id": matched_call_id,
-        "agent_type": agent_type,
-        "is_error": is_error,
-        "duration_ms": duration_ms,
-        "result_summary": result_summary,
-        "ts": ts,
-    }
-    if is_error and error_message:
-        event["error_message"] = error_message
-    if pipeline_slug:
-        event["pipeline_slug"] = pipeline_slug
-
-print(json.dumps(event, ensure_ascii=False))
-' "$TS" "$PIPELINE_SLUG" "$CALLSTACK_FILE" <<< "$INPUT" 2>/dev/null)
+  EVENT_JSON=$(jq -cn \
+    --arg type "agent_end" \
+    --arg call_id "$MATCHED_CALL_ID" \
+    --arg agent_type "$AGENT_TYPE" \
+    --argjson is_error "${IS_ERROR:-false}" \
+    --argjson duration_ms "${DURATION_MS:-null}" \
+    --arg result_summary "$RESULT_SUMMARY" \
+    --arg ts "$TS" \
+    --arg pipeline_slug "$PIPELINE_SLUG" \
+    --arg error_message "$ERROR_MSG" \
+    '{type:$type, call_id:$call_id, agent_type:$agent_type, is_error:$is_error, duration_ms:$duration_ms, result_summary:$result_summary, ts:$ts} + (if $error_message != "" then {error_message:$error_message} else {} end) + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
+fi
 
 # Atomic append to agents file (always)
 if [ -n "${EVENT_JSON:-}" ]; then

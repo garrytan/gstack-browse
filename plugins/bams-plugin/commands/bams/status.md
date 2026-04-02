@@ -29,11 +29,32 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 
 배치 A와 B는 **독립적이므로 동시에** 실행 가능합니다.
 
-## 상태 분석 (project-governance)
+## 상태 분석 (executive-reporter + project-governance 병렬)
+
+**2개 서브에이전트를 동시에 실행합니다:**
+
+### A. executive-reporter 에이전트 (sonnet):
+
+서브에이전트 실행 (Task tool, subagent_type: **"bams-plugin:executive-reporter"**, model: **"sonnet"**):
+
+> **상태 집계 모드**로 프로젝트 현황을 대시보드로 요약합니다.
+>
+> **board.md**: [board.md 내용 삽입]
+> **config.md**: [config.md 내용 삽입]
+> **활성 스프린트**: [스프린트 파일 내용 삽입 — 있으면]
+> **파이프라인 이벤트**: [최신 pipeline events — 있으면]
+>
+> 집계:
+> 1. 태스크 보드 수치 요약 (Backlog/In Progress/In Review/Done)
+> 2. 스프린트 진행률 및 번다운 분석
+> 3. 최근 파이프라인 실행 현황
+> 4. 에이전트 활동 요약
+
+### B. project-governance 에이전트 (sonnet):
 
 서브에이전트 실행 (Task tool, subagent_type: **"bams-plugin:project-governance"**, model: **"sonnet"**):
 
-> **상태 분석 모드**로 프로젝트 현황을 분석합니다.
+> **상태 분석 모드**로 프로젝트 리스크와 다음 액션을 분석합니다.
 >
 > **board.md**: [board.md 내용 삽입]
 > **config.md**: [config.md 내용 삽입]
@@ -44,6 +65,8 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 > 2. 스프린트 건강도 (목표 대비 진행률)
 > 3. 위험 요소 (지연, 의존성 문제)
 > 4. 다음 추천 액션
+
+두 에이전트 결과를 종합하여 대시보드에 표시합니다.
 
 ## 대시보드 표시
 
