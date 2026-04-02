@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Bams Viz Event",
+  "description": "NDJSON event emitted during bams pipeline execution",
+  "oneOf": [
+    { "$ref": "#/definitions/pipeline_start" },
+    { "$ref": "#/definitions/pipeline_end" },
+    { "$ref": "#/definitions/step_start" },
+    { "$ref": "#/definitions/step_end" },
+    { "$ref": "#/definitions/agent_start" },
+    { "$ref": "#/definitions/agent_end" },
+    { "$ref": "#/definitions/error" }
+  ],
+  "definitions": {
+    "pipeline_start": {
+      "type": "object",
+      "required": ["type", "pipeline_slug", "pipeline_type", "ts"],
+      "properties": {
+        "type": { "const": "pipeline_start" },
+        "pipeline_slug": { "type": "string" },
+        "pipeline_type": { "type": "string", "enum": ["feature", "hotfix", "dev", "debug", "review", "deep-review", "deploy", "weekly", "performance", "security", "project-init"] },
+        "command": { "type": "string" },
+        "arguments": { "type": "string", "default": "" },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "pipeline_end": {
+      "type": "object",
+      "required": ["type", "pipeline_slug", "status", "ts"],
+      "properties": {
+        "type": { "const": "pipeline_end" },
+        "pipeline_slug": { "type": "string" },
+        "status": { "type": "string", "enum": ["completed", "failed", "paused", "rolled_back"] },
+        "total_steps": { "type": "integer" },
+        "completed_steps": { "type": "integer" },
+        "failed_steps": { "type": "integer" },
+        "skipped_steps": { "type": "integer" },
+        "duration_ms": { "type": "integer" },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "step_start": {
+      "type": "object",
+      "required": ["type", "pipeline_slug", "step_number", "step_name", "phase", "ts"],
+      "properties": {
+        "type": { "const": "step_start" },
+        "pipeline_slug": { "type": "string" },
+        "step_number": { "type": "integer" },
+        "step_name": { "type": "string" },
+        "phase": { "type": "string" },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "step_end": {
+      "type": "object",
+      "required": ["type", "pipeline_slug", "step_number", "status", "ts"],
+      "properties": {
+        "type": { "const": "step_end" },
+        "pipeline_slug": { "type": "string" },
+        "step_number": { "type": "integer" },
+        "status": { "type": "string", "enum": ["done", "fail", "skipped"] },
+        "duration_ms": { "type": "integer" },
+        "artifacts": { "type": "array", "items": { "type": "string" } },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "agent_start": {
+      "type": "object",
+      "required": ["type", "call_id", "pipeline_slug", "agent_type", "ts"],
+      "properties": {
+        "type": { "const": "agent_start" },
+        "call_id": { "type": "string" },
+        "pipeline_slug": { "type": "string" },
+        "agent_type": { "type": "string" },
+        "model": { "type": "string" },
+        "step_number": { "type": "integer" },
+        "prompt_summary": { "type": "string", "maxLength": 200 },
+        "parallel_group": { "type": ["string", "null"] },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "agent_end": {
+      "type": "object",
+      "required": ["type", "call_id", "pipeline_slug", "agent_type", "ts"],
+      "properties": {
+        "type": { "const": "agent_end" },
+        "call_id": { "type": "string" },
+        "pipeline_slug": { "type": "string" },
+        "agent_type": { "type": "string" },
+        "is_error": { "type": "boolean", "default": false },
+        "duration_ms": { "type": "integer" },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "error": {
+      "type": "object",
+      "required": ["type", "pipeline_slug", "message", "ts"],
+      "properties": {
+        "type": { "const": "error" },
+        "pipeline_slug": { "type": "string" },
+        "call_id": { "type": ["string", "null"] },
+        "step_number": { "type": "integer" },
+        "message": { "type": "string" },
+        "error_code": { "type": "string" },
+        "ts": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -12,20 +12,22 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 - 출력: "프로젝트가 초기화되지 않았습니다. `/bams:init`을 실행하여 설정하세요."
 - 여기서 중단.
 
-## 상태 수집
+## 상태 수집 (2개 배치 병렬)
 
-다음 파일을 읽습니다 (존재하지 않는 것은 스킵):
+**배치 A** — 다음 4개 파일을 **동시에** 읽습니다 (존재하지 않는 것은 스킵):
 1. `.crew/config.md` - 프로젝트 컨텍스트
 2. `.crew/board.md` - 현재 태스크 보드
 3. `.crew/history.md` - 완료된 작업
 4. `.crew/gotchas.md` - 주의사항
 
-Glob으로 확인:
+**배치 B** — 다음 5개 Glob을 **동시에** 실행합니다:
 5. `.crew/sprints/sprint-*.md` - 가장 최근 스프린트 파일 찾기. 활성 스프린트는 `completed: null`.
 6. `.crew/artifacts/prd/*.md` - PRD 파일 수 집계
 7. `.crew/artifacts/design/*.md` - 설계 파일 수 집계
 8. `.crew/artifacts/review/*.md` - 리뷰 파일 수 집계
 9. `.crew/artifacts/test/*.md` - 테스트 파일 수 집계
+
+배치 A와 B는 **독립적이므로 동시에** 실행 가능합니다.
 
 ## 상태 분석 (project-governance)
 

@@ -42,13 +42,13 @@ disallowedTools: Write, Edit
 - 정성적 판단을 배제하고 변경 이력, 결함 이력, 코드 복잡도 등 정량 데이터 활용
 - 리스크 = 발생 가능성 x 영향도 공식으로 우선순위를 산출
 - 고위험 구간에 대해서는 탐색적 테스트와 자동화 테스트를 병행 권고
-- 리스크 평가 결과를 release-quality-gate Agent에 전달하여 출시 판단에 반영
+- 리스크 평가 결과를 release-quality-gate 에이전트에 전달하여 출시 판단에 반영
 
 ### 다른 Agent 협업 시
-- business_analysis Agent로부터 요구사항과 인수 조건을 수집
-- frontend_engineering, backend_engineering Agent에 기술적 테스트 제약 사항을 확인
-- defect_triage Agent에 과거 결함 패턴을 조회하여 리스크 평가에 활용
-- project_governance Agent와 일정 및 자원 제약을 공유
+- business-analysis 에이전트로부터 요구사항과 인수 조건을 수집
+- frontend-engineering, backend-engineering 에이전트에 기술적 테스트 제약 사항을 확인
+- defect-triage 에이전트에 과거 결함 패턴을 조회하여 리스크 평가에 활용
+- project-governance 에이전트와 일정 및 자원 제약을 공유
 
 ## 출력 형식
 
@@ -95,5 +95,5 @@ disallowedTools: Write, Edit
 
 - **Glob, Read**: 코드베이스 구조, 기존 테스트 파일, 설정 파일 파악
 - **Grep**: 테스트 패턴, 커버리지 설정, 의존성 검색
-- **Agent**: business_analysis, project_governance, frontend_engineering, backend_engineering, platform_devops, defect_triage Agent 호출
+- **Agent**: business-analysis, project-governance, frontend-engineering, backend-engineering, platform-devops, defect-triage 에이전트 호출
 - 코드를 직접 수정하지 않음 — 테스트 전략 수립과 리스크 분석만 수행

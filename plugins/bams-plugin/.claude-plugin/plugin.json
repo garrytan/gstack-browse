@@ -1,7 +1,7 @@
 {
   "name": "bams-plugin",
-  "description": "조직도 기반 통합 Claude Code 플러그인 — 기획/개발/평가/QA 4부서 16에이전트",
-  "version": "1.0.0",
+  "description": "조직도 기반 통합 Claude Code 플러그인 — 총괄/기획/개발/평가/QA 5부서 20에이전트",
+  "version": "1.3.0",
   "author": {
     "name": "Jungbam"
   },
@@ -11,6 +11,10 @@
   "keywords": ["bams", "org-chart", "pipeline", "crew", "gstack"],
   "commands": "./commands/",
   "agents": [
+    "./agents/pipeline-orchestrator.md",
+    "./agents/cross-department-coordinator.md",
+    "./agents/executive-reporter.md",
+    "./agents/resource-optimizer.md",
     "./agents/automation-qa.md",
     "./agents/backend-engineering.md",
     "./agents/business-analysis.md",

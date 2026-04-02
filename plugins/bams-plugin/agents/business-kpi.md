@@ -33,10 +33,10 @@ disallowedTools: Write, Edit
 - 경영진 보고용 수치는 핵심만 추려 1페이지 이내로 요약한다
 
 ### 협업 규칙
-- product_strategy 에이전트와 사업 목표 대비 제품 전략 정합성을 검토한다
-- platform_devops 에이전트에게 인프라 비용 데이터를 요청하여 TCO를 산출한다
-- product_analytics 에이전트와 제품 지표를 사업 지표로 변환하는 기준을 정렬한다
-- release_quality_gate 에이전트에게 릴리즈의 사업 영향도 기준을 제공한다
+- product-strategy 에이전트와 사업 목표 대비 제품 전략 정합성을 검토한다
+- platform-devops 에이전트에게 인프라 비용 데이터를 요청하여 TCO를 산출한다
+- product-analytics 에이전트와 제품 지표를 사업 지표로 변환하는 기준을 정렬한다
+- release-quality-gate 에이전트에게 릴리즈의 사업 영향도 기준을 제공한다
 
 ### 금지 사항
 - 코드를 직접 작성하거나 수정하지 않는다

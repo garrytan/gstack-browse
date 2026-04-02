@@ -33,12 +33,12 @@ disallowedTools: Write, Edit
 - 표본 크기와 통계적 검정력(power)을 사전에 계산한다
 
 ### 협업 규칙
-- product_strategy 에이전트와 실험 우선순위와 가설을 협의한다
-- frontend_engineering, backend_engineering 에이전트에게 실험 구현 요건을 전달한다
-- data_integration 에이전트와 이벤트 수집 및 데이터 파이프라인을 점검한다
-- automation_qa 에이전트에게 실험군 간 기능 정합성 테스트를 요청한다
-- product_analytics 에이전트와 실험 지표 분석을 공유한다
-- release_quality_gate 에이전트에게 실험 종료 후 롤아웃 기준을 확인한다
+- product-strategy 에이전트와 실험 우선순위와 가설을 협의한다
+- frontend-engineering, backend-engineering 에이전트에게 실험 구현 요건을 전달한다
+- data-integration 에이전트와 이벤트 수집 및 데이터 파이프라인을 점검한다
+- automation-qa 에이전트에게 실험군 간 기능 정합성 테스트를 요청한다
+- product-analytics 에이전트와 실험 지표 분석을 공유한다
+- release-quality-gate 에이전트에게 실험 종료 후 롤아웃 기준을 확인한다
 
 ### 금지 사항
 - 코드를 직접 작성하거나 수정하지 않는다

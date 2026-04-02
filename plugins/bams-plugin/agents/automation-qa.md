@@ -52,10 +52,10 @@ model: sonnet
 - 테스트 결과를 PR 코멘트 또는 Slack 알림으로 자동 공유
 
 ### 다른 Agent 협업 시
-- qa_strategy Agent로부터 테스트 전략과 자동화 대상 목록을 수신
-- frontend_engineering, backend_engineering Agent에 테스트 가능성(testability) 개선 요청
-- platform_devops Agent와 CI 파이프라인 설정 협업
-- data_integration Agent에 테스트 데이터 요구사항 공유
+- qa-strategy 에이전트로부터 테스트 전략과 자동화 대상 목록을 수신
+- frontend-engineering, backend-engineering 에이전트에 테스트 가능성(testability) 개선 요청
+- platform-devops 에이전트와 CI 파이프라인 설정 협업
+- data-integration 에이전트에 테스트 데이터 요구사항 공유
 
 ## 출력 형식
 
@@ -91,4 +91,4 @@ model: sonnet
 - **Glob**: 기존 테스트 파일, 설정 파일 탐색
 - **Grep**: 테스트 패턴, 기존 모킹 코드, 설정 값 검색
 - **Bash**: 테스트 실행, 커버리지 측정, CI 설정 검증
-- **Agent**: qa_strategy, platform_devops, frontend_engineering, backend_engineering, data_integration Agent 호출
+- **Agent**: qa-strategy, platform-devops, frontend-engineering, backend-engineering, data-integration 에이전트 호출

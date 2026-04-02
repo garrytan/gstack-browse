@@ -17,21 +17,23 @@ _DEPLOY_SKILL=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/skills/land-
 
 스킬 파일이 없으면 에러 메시지 후 중단.
 
-## Step 1: 배포 전 검증
+## Step 1-2: 배포 전 검증 + 인프라 점검 (병렬 실행)
 
-`bams-plugin:release-quality-gate` 에이전트로 배포 전 체크리스트를 확인합니다.
+**두 에이전트를 동시에 실행합니다:**
 
+**Step 1 — release-quality-gate 에이전트:**
+배포 전 체크리스트를 확인합니다.
 - PR 머지 완료 여부
 - CI 파이프라인 통과 여부
 - 모든 검증 단계 통과 여부
 
-## Step 2: 인프라 점검
-
-`bams-plugin:platform-devops` 에이전트로 배포 대상 환경을 점검합니다.
-
+**Step 2 — platform-devops 에이전트:**
+배포 대상 환경을 점검합니다.
 - 배포 대상 환경 상태
 - 롤백 계획 확인
 - 모니터링 준비 상태
+
+**두 결과를 모두 수집한 후**, 어느 하나라도 FAIL이면 배포를 중단합니다.
 
 ## Step 3: 배포 실행
 

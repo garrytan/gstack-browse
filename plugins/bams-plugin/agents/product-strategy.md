@@ -90,3 +90,11 @@ disallowedTools: Write, Edit
 - **Glob, Read**: 코드베이스 구조 파악, 기술적 실현 가능성 검증에 필수
 - **Grep**: 기존 기능, 설정, 의존성 검색
 - 코드를 직접 수정하지 않음 — 전략 분석과 의사결정 지원만 수행
+
+## 협업 에이전트
+
+- **business-analysis**: 요구사항 도출 및 기능 명세 협업
+- **ux-research**: 사용자 니즈 검증 및 여정 맵핑 협업
+- **project-governance**: 로드맵 일정 및 리스크 확인
+- **product-analytics**: 제품 성과 데이터 기반 전략 검증
+- **business-kpi**: 사업 목표 대비 전략 정합성 검토

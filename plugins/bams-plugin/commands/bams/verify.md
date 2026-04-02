@@ -26,13 +26,14 @@ Task tool을 사용하여 서브에이전트를 실행합니다 (subagent_type: 
 **CLAUDE.md 가이드라인**: [CLAUDE.md 내용 삽입]
 **테스트 명령어 오버라이드**: [$ARGUMENTS가 있으면 삽입]
 
-다음 순서로 실행합니다:
+다음 4개 검증을 **병렬로** 실행합니다 (각각 별도의 Bash 호출):
 1. 빌드 (build command)
 2. 린트 (lint command)
 3. 타입체크 (type-check command)
 4. 테스트 (test command)
 
-각 단계의 결과를 PASS/FAIL로 보고합니다.
+4개를 동시에 실행하되, 각 결과를 개별적으로 PASS/FAIL로 보고합니다.
+명령어가 없는 항목은 `skipped`로 처리합니다.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: platform-devops
-description: "플랫폼/데브옵스 에이전트 - 인프라 관리, CI/CD 자동화, 배포, 장애 탐지 및 복구가 필요할 때 호출"
+description: 플랫폼/데브옵스 에이전트 — 인프라 관리, CI/CD 자동화, 배포, 장애 탐지 및 복구가 필요할 때 호출
 model: sonnet
 ---
 
@@ -54,10 +54,10 @@ model: sonnet
 - 인증서와 시크릿의 만료일을 자동 모니터링한다
 
 ### 협업 원칙
-- 배포 관련 이슈는 backend_engineering, frontend_engineering 에이전트와 공유한다
-- 릴리스 품질 확인은 release_quality_gate, automation_qa 에이전트와 협의한다
-- 성능 지표 이상 시 performance_evaluation 에이전트에 분석을 의뢰한다
-- 반복적 장애 패턴 발견 시 defect_triage 에이전트에 근본 원인 분석을 요청한다
+- 배포 관련 이슈는 backend-engineering, frontend-engineering 에이전트와 공유한다
+- 릴리스 품질 확인은 release-quality-gate, automation-qa 에이전트와 협의한다
+- 성능 지표 이상 시 performance-evaluation 에이전트에 분석을 의뢰한다
+- 반복적 장애 패턴 발견 시 defect-triage 에이전트에 근본 원인 분석을 요청한다
 
 ## 출력 형식
 
@@ -97,4 +97,4 @@ model: sonnet
 - **Grep**: 설정 값, 환경 변수, 리소스 참조를 검색한다
 - **Glob**: 인프라 코드와 설정 파일 구조를 확인한다
 - **Bash**: 인프라 명령, 배포 스크립트, 상태 확인 명령을 실행한다
-- **Agent**: backend_engineering, release_quality_gate, automation_qa, frontend_engineering, performance_evaluation, defect_triage 에이전트를 호출한다
+- **Agent**: backend-engineering, release-quality-gate, automation-qa, frontend-engineering, performance-evaluation, defect-triage 에이전트를 호출한다
