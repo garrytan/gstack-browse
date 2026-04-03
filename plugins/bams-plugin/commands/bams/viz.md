@@ -161,16 +161,17 @@ bams-viz Next.js 대시보드를 빌드하고 실행합니다.
 
 ### Step 1: bams-viz 디렉토리 찾기
 
+소스 디렉토리를 우선 검색합니다 (캐시에는 구버전이 남아있을 수 있으므로).
+핵심 검증: `src/app/` 디렉토리가 반드시 존재해야 합니다 (Next.js App Router 필수).
+
 ```bash
-_VIZ_DIR=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/tools/bams-viz/package.json" 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
+# 1순위: 현재 프로젝트 내 소스 (src/app 존재 검증)
+_VIZ_DIR=$(find . -path "*/bams-plugin/tools/bams-viz/src/app/page.tsx" -not -path "*/node_modules/*" 2>/dev/null | head -1 | sed 's|/src/app/page.tsx||')
+# 2순위: 플러그인 캐시 (src/app 존재 검증)
+[ -z "$_VIZ_DIR" ] && _VIZ_DIR=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/tools/bams-viz/src/app/page.tsx" 2>/dev/null | head -1 | sed 's|/src/app/page.tsx||')
 ```
 
-찾지 못하면 현재 프로젝트 내에서 검색:
-```bash
-_VIZ_DIR=$(find . -path "*/bams-plugin/tools/bams-viz/package.json" -not -path "*/node_modules/*" 2>/dev/null | head -1 | xargs dirname 2>/dev/null)
-```
-
-그래도 없으면: "bams-viz를 찾을 수 없습니다." 후 종료.
+그래도 없으면: "bams-viz v2 (Next.js)를 찾을 수 없습니다. `src/app/` 디렉토리가 포함된 버전이 필요합니다." 후 종료.
 
 ### Step 2: 의존성 설치
 
