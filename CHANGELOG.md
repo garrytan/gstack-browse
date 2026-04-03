@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.15.3.0] - 2026-04-03 — Scoped Learnings via Named Groups
+
+Learnings are no longer all-or-nothing. You can now organize projects into named groups, and gstack shares knowledge within each group. A contractor working for three clients creates three groups. A solo dev puts personal projects in "Personal" and work repos in "Work". Each group gets its own knowledge boundary.
+
+### Added
+
+- **Learnings groups.** `gstack-group create Work`, `gstack-group assign Work`, done. Every project belongs to exactly one group. When gstack searches for learnings, it finds knowledge from all projects in your group, not just the current repo. Default group is "Personal".
+- **Prompt-on-first-use.** First time you access learnings in a new repo, gstack asks which group it belongs to. Shows smart suggestions based on your git org (repos with matching owners are recommended first).
+- **`/learn group` subcommand.** Manage groups without leaving the skill session. List groups, assign projects, create new groups, check which group you're in.
+- **Provenance tags.** When learnings come from a different repo in your group, you see exactly where: `[from: other-repo]`. No more mystery knowledge.
+- **Group-aware export.** `/learn export` now includes the group name and source attribution per learning.
+- **Smart migration.** Existing users get automatic migration that honors their previous preference: if you had cross-project learnings enabled, all repos go to "Personal" (sharing preserved). If disabled or unset, each repo gets its own group (isolation preserved).
+
+### Changed
+
+- **Dedup by insight text, not just key.** Two repos can now independently discover the same pattern key with different insights, and both are preserved. Only exact duplicate insights are collapsed (highest confidence wins).
+- **Search uses env vars for user input.** `--query` values now pass through `Bun.env` instead of shell interpolation, closing a latent injection vector.
+- **Single bun process for search.** Merged 4 bun invocations into 2 on the hot path (~100ms faster per search).
+
 ## [0.15.2.1] - 2026-04-02 — Setup Runs Migrations
 
 `git pull && ./setup` now applies version migrations automatically. Previously, migrations only ran during `/gstack-upgrade`, so users who updated via git pull never got state fixes (like the skill directory restructure from v0.15.1.0). Now `./setup` tracks the last version it ran at and applies any pending migrations on every run.
