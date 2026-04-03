@@ -790,6 +790,62 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Priority:** P3
 **Depends on:** --host factory
 
+## New Skills Pipeline
+
+### /env-sync — Environment variable audit
+**What:** Scan code for all env vars actually used (`process.env.X`, `env('X')`, `os.getenv('X')`, `Config::get()`, etc.), diff against `.env.example`, flag missing/stale vars. Framework-agnostic.
+**Why:** Every team has env vars in code that aren't in .env.example. Catches deploy failures before they happen.
+**Effort:** S (human: ~2 hours / CC: ~30 min)
+**Priority:** P1
+
+### /test-gen — Unit test generator
+**What:** Analyze uncovered code paths, generate tests matching the project's existing test style. Reads test conventions from existing tests.
+**Why:** /qa handles integration tests. This fills the unit test gap. "12 functions with no tests — want me to write them?"
+**Effort:** M (human: ~1 week / CC: ~2 hours)
+**Priority:** P2
+
+### /onboard — New developer onboarding guide
+**What:** Generate a "first day" guide for a new developer. Architecture overview, key decisions, where to start, common gotchas. Reads git history, CLAUDE.md, docs, `/index` output, and code.
+**Why:** Hand someone this doc + gstack and they're productive in hours instead of days. Leverages `/index`.
+**Effort:** M (human: ~3 days / CC: ~1 hour)
+**Priority:** P2
+
+### /deps — Dependency audit
+**What:** Audit dependencies for outdated packages, known CVEs, unused deps, and license issues. Framework-agnostic (`npm audit`, `composer audit`, `bundle audit`, `pip-audit`, etc.).
+**Why:** Like `/cso` but focused on supply chain. "37 deps outdated, 2 critical CVEs, 5 unused packages."
+**Effort:** M (human: ~3 days / CC: ~1 hour)
+**Priority:** P2
+
+### /migrate — Natural language migrations
+**What:** Generate database migrations from natural language. Reads current schema (from `/index` or ORM), generates correct migration syntax for the detected framework.
+**Why:** "Add a status enum to orders with values pending, paid, shipped" → correct Laravel/Rails/Prisma migration.
+**Effort:** M (human: ~3 days / CC: ~1 hour)
+**Priority:** P3
+
+### /watch — Reactive file monitoring daemon
+**What:** Background daemon that monitors file changes and auto-triggers relevant skills. Route file changed? Re-index. Test file changed? Run test. Migration added? Validate schema.
+**Why:** Makes gstack reactive instead of invoked. Sessions stay current without manual re-runs.
+**Effort:** L (human: ~1 week / CC: ~3 hours)
+**Priority:** P3
+
+### /pair — Structured pair programming
+**What:** Two CC sessions on the same task — one writes code, one reviews in real-time via `/inbox`. Formal protocol with roles, handoffs, and conflict detection.
+**Why:** Formalizes multi-session workflows. One builds, one reviews, conflicts caught instantly. Leverages `/inbox`.
+**Effort:** L (human: ~1 week / CC: ~3 hours)
+**Priority:** P2
+
+### /cost — Token/dollar spend tracking
+**What:** Track spend across sessions, projects, and skills. "This week: $47 across 12 sessions. /qa costs 3x more than /review."
+**Why:** Visibility into where AI budget goes. Optimize which skills to use when.
+**Effort:** M (human: ~3 days / CC: ~1 hour)
+**Priority:** P3
+
+### /context — Context window inspector
+**What:** Show what's in the context window. Token breakdown by source (system prompt, conversation, tool results, skills). Suggest what to trim.
+**Why:** Context management is the #1 silent productivity killer. "You're at 80% — last 3 tool results are 40K tokens."
+**Effort:** M (human: ~3 days / CC: ~2 hours)
+**Priority:** P3
+
 ## Completed
 
 ### CI eval pipeline (v0.9.9.0)
