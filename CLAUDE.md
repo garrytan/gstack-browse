@@ -249,8 +249,8 @@ not what was already on main.
 - At `/ship` time (Step 5), not during development or mid-branch.
 - The entry covers ALL commits on this branch vs the base branch.
 - Never fold new work into an existing CHANGELOG entry from a prior version that
-  already landed on main. If main has v0.10.0.0 and your branch adds features,
-  bump to v0.10.1.0 with a new entry — don't edit the v0.10.0.0 entry.
+  already landed on main. If main has v0.10.0 and your branch adds features,
+  bump to v0.10.1 with a new entry — don't edit the v0.10.0 entry.
 
 **Key questions before writing:**
 1. What branch am I on? What did THIS branch change?
@@ -260,8 +260,8 @@ not what was already on main.
 
 **Merging main does NOT mean adopting main's version.** When you merge origin/main into
 a feature branch, main may bring new CHANGELOG entries and a higher VERSION. Your branch
-still needs its OWN version bump on top. If main is at v0.13.8.0 and your branch adds
-features, bump to v0.13.9.0 with a new entry. Never jam your changes into an entry that
+still needs its OWN version bump on top. If main is at v0.13.8 and your branch adds
+features, bump to v0.13.9 with a new entry. Never jam your changes into an entry that
 already landed on main. Your entry goes on top because your branch lands next.
 
 **After merging main, always check:**

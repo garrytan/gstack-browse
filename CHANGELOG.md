@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.18.0.0] - 2026-04-03 — Project Hygiene Suite
+## [0.18.0] - 2026-04-03 — Project Hygiene Suite
 
 Three new skills that catch problems before they ship. Run `/env-sync` to find env vars in code that aren't in `.env.example`. Run `/deps` to audit for CVEs, outdated packages, unused deps, and license issues. Run `/test-gen` to generate unit tests that match your project's existing style.
 
@@ -10,7 +10,7 @@ Three new skills that catch problems before they ship. Run `/env-sync` to find e
 - **`/deps` skill.** Four-check dependency audit: vulnerabilities (CVEs via native audit tools), outdated packages (major/minor/patch breakdown), unused dependencies (grep-based detection), and license flags (copyleft/unknown). Works with npm, composer, bundler, pip, go, cargo, and mix.
 - **`/test-gen` skill.** Reads 2-3 existing tests to learn your project's framework, naming, assertions, mocking, and file organization — then generates tests that match. Finds untested code, prioritizes by risk (auth/payments > utils), verifies tests pass, and reports bugs found during generation.
 
-## [0.17.0.0] - 2026-04-02 — Cross-Session Inbox
+## [0.17.0] - 2026-04-02 — Cross-Session Inbox
 
 Your Claude Code sessions can now talk to each other. Run `/inbox` to send messages between concurrent sessions — completion notifications, work handoffs, questions, or general updates. A lightweight PreToolUse hook surfaces new messages inline so you never miss one.
 
@@ -23,7 +23,7 @@ Your Claude Code sessions can now talk to each other. Run `/inbox` to send messa
 - **Retroactive install.** Run `gstack-inbox-install` from any terminal — no `./setup` needed. Adds the hook to `~/.claude/settings.json` directly.
 - **14 automated tests.** Hook detection, type labels, targeting filters, broadcast, malformed message safety, guaranteed exit 0.
 
-## [0.16.0.0] - 2026-04-02 — Codebase Index
+## [0.16.0] - 2026-04-02 — Codebase Index
 
 Your AI assistant now skips the 50K+ token exploration phase. Run `/index` once in any project and it generates compact reference files (routes, models, pages, components, lib exports, config) that every future conversation reads instantly. Works with any framework — Laravel, Rails, Next.js, Django, Go, Rust, and more.
 
@@ -33,7 +33,7 @@ Your AI assistant now skips the 50K+ token exploration phase. Run `/index` once 
 - **`gstack-reindex` standalone script.** Fast (~1s), zero-cost re-indexer for ongoing updates. No AI needed — pure static analysis. Three modes: normal, `--hook` (stages for git commit), `--check` (CI staleness detection).
 - **Auto-reindex on commit.** Global git pre-commit hook installed by both `/index` and `./setup`. Any project with `.ai-codex/` gets automatic reindex on every commit. Chains to `pre-commit.local` so existing per-repo hooks still work.
 
-## [0.15.1.0] - 2026-04-01 — Design Without Shotgun
+## [0.15.1] - 2026-04-01 — Design Without Shotgun
 
 You can now run `/design-html` without having to run `/design-shotgun` first. The skill detects what design context exists (CEO plans, design review artifacts, approved mockups) and asks how you want to proceed. Start from a plan, a description, or a provided PNG, not just an approved mockup.
 
@@ -42,7 +42,7 @@ You can now run `/design-html` without having to run `/design-shotgun` first. Th
 - **`/design-html` works from any starting point.** Three routing modes: (A) approved mockup from /design-shotgun, (B) CEO plan and/or design variants without formal approval, (C) clean slate with just a description. Each mode asks the right questions and proceeds accordingly.
 - **AskUserQuestion for missing context.** Instead of blocking with "no approved design found," the skill now offers choices: run the planning skills first, provide a PNG, or just describe what you want and design live.
 
-## [0.15.0.0] - 2026-04-01 — Session Intelligence
+## [0.15.0] - 2026-04-01 — Session Intelligence
 
 Your AI sessions now remember what happened. Plans, reviews, checkpoints, and health scores survive context compaction and compound across sessions. Every skill writes a timeline event, and the preamble reads recent artifacts on startup so the agent knows where you left off.
 
@@ -58,7 +58,7 @@ Your AI sessions now remember what happened. Plans, reviews, checkpoints, and he
 - **Timeline binaries.** `bin/gstack-timeline-log` and `bin/gstack-timeline-read` for append-only JSONL timeline storage.
 - **Routing rules.** /checkpoint and /health added to the skill routing injection.
 
-## [0.14.6.0] - 2026-03-31 — Recursive Self-Improvement
+## [0.14.6] - 2026-03-31 — Recursive Self-Improvement
 
 gstack now learns from its own mistakes. Every skill session captures operational failures (CLI errors, wrong approaches, project quirks) and surfaces them in future sessions. No setup needed, just works.
 
@@ -76,7 +76,7 @@ gstack now learns from its own mistakes. Every skill session captures operationa
 
 - **learnings-show E2E test slug mismatch.** The test seeded learnings at a hardcoded path but gstack-slug computed a different path at runtime. Now computes the slug dynamically.
 
-## [0.14.5.0] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
+## [0.14.5] - 2026-03-31 — Ship Idempotency + Skill Prefix Fix
 
 Re-running `/ship` after a failed push or PR creation no longer double-bumps your version or duplicates your CHANGELOG. And if you use `--prefix` mode, your skill names actually work now.
 
@@ -99,7 +99,7 @@ Re-running `/ship` after a failed push or PR creation no longer double-bumps you
 - 1 E2E test for ship idempotency (periodic tier)
 - Updated `setupMockInstall` to write SKILL.md with proper frontmatter
 
-## [0.14.4.0] - 2026-03-31 — Review Army: Parallel Specialist Reviewers
+## [0.14.4] - 2026-03-31 — Review Army: Parallel Specialist Reviewers
 
 Every `/review` now dispatches specialist subagents in parallel. Instead of one agent applying one giant checklist, you get focused reviewers for testing gaps, maintainability, security, performance, data migrations, API contracts, and adversarial red-teaming. Each specialist reads the diff independently with fresh context, outputs structured JSON findings, and the main agent merges, deduplicates, and boosts confidence when multiple specialists flag the same issue. Small diffs (<50 lines) skip specialists entirely for speed. Large diffs (200+ lines) activate the Red Team for adversarial analysis on top.
 
@@ -119,7 +119,7 @@ Every `/review` now dispatches specialist subagents in parallel. Instead of one 
 - **Review checklist refactored.** Categories now covered by specialists (test gaps, dead code, magic numbers, performance, crypto) removed from the main checklist. Main agent focuses on CRITICAL pass only.
 - **Delivery Integrity enhanced.** The existing plan completion audit now investigates WHY items are missing (not just that they're missing) and logs plan-file discrepancies as learnings. Commit-message inference is informational only, never persisted.
 
-## [0.14.3.0] - 2026-03-31 — Always-On Adversarial Review + Scope Drift + Plan Mode Design Tools
+## [0.14.3] - 2026-03-31 — Always-On Adversarial Review + Scope Drift + Plan Mode Design Tools
 
 Every code review now runs adversarial analysis from both Claude and Codex, regardless of diff size. A 5-line auth change gets the same cross-model scrutiny as a 500-line feature. The old "skip adversarial for small diffs" heuristic is gone... diff size was never a good proxy for risk.
 
@@ -135,7 +135,7 @@ Every code review now runs adversarial analysis from both Claude and Codex, rega
 - **Cross-model tension format.** Outside voice disagreements now include `RECOMMENDATION` and `Completeness` scores, matching the standard AskUserQuestion format used everywhere else in gstack.
 - **Scope drift is now a shared resolver.** Extracted from `/review` into `generateScopeDrift()` so both `/review` and `/ship` use the same logic. DRY.
 
-## [0.14.2.0] - 2026-03-30 — Sidebar CSS Inspector + Per-Tab Agents
+## [0.14.2] - 2026-03-30 — Sidebar CSS Inspector + Per-Tab Agents
 
 The sidebar is now a visual design tool. Pick any element on the page and see the full CSS rule cascade, box model, and computed styles right in the Side Panel. Edit styles live and see changes instantly. Each browser tab gets its own independent agent, so you can work on multiple pages simultaneously without cross-talk. Cleanup is LLM-powered... the agent snapshots the page, understands it semantically, and removes the junk while keeping the site's identity.
 
@@ -165,7 +165,7 @@ The sidebar is now a visual design tool. Pick any element on the page and see th
 - **Input placeholder** is "Ask about this page..." (more inviting than the old placeholder).
 - **System prompt** includes prompt injection defense and allowed-commands whitelist from the security audit.
 
-## [0.14.1.0] - 2026-03-30 — Comparison Board is the Chooser
+## [0.14.1] - 2026-03-30 — Comparison Board is the Chooser
 
 The design comparison board now always opens automatically when reviewing variants. No more inline image + "which do you prefer?" — the board has rating controls, comments, remix/regenerate buttons, and structured feedback output. That's the experience. All 3 design skills (/plan-design-review, /design-shotgun, /design-consultation) get this fix.
 
@@ -179,7 +179,7 @@ The design comparison board now always opens automatically when reviewing varian
 
 - **Board URL corrected.** The recovery URL now points to `http://127.0.0.1:<PORT>/` (where the server actually serves) instead of `/design-board.html` (which would 404).
 
-## [0.14.0.0] - 2026-03-30 — Design to Code
+## [0.14.0] - 2026-03-30 — Design to Code
 
 You can now go from an approved design mockup to production-quality HTML with one command. `/design-html` takes the winning design from `/design-shotgun` and generates Pretext-native HTML where text actually reflows on resize, heights adjust to content, and layouts are dynamic. No more hardcoded CSS heights or broken text overflow.
 
@@ -193,7 +193,7 @@ You can now go from an approved design mockup to production-quality HTML with on
 
 - **`/plan-design-review` next steps expanded.** Previously only chained to other review skills. Now also offers `/design-shotgun` (explore variants) and `/design-html` (generate HTML from approved mockups).
 
-## [0.13.10.0] - 2026-03-29 — Office Hours Gets a Reading List
+## [0.13.10] - 2026-03-29 — Office Hours Gets a Reading List
 
 Repeat /office-hours users now get fresh, curated resources every session instead of the same YC closing. 34 hand-picked videos and essays from Garry Tan, Lightcone Podcast, YC Startup School, and Paul Graham, contextually matched to what came up during the session. The system remembers what it already showed you, so you never see the same recommendation twice.
 
@@ -208,7 +208,7 @@ Repeat /office-hours users now get fresh, curated resources every session instea
 
 - **Build script chmod safety net.** `bun build --compile` output now gets `chmod +x` explicitly, preventing "permission denied" errors when binaries lose execute permission during workspace cloning or file transfer.
 
-## [0.13.9.0] - 2026-03-29 — Composable Skills
+## [0.13.9] - 2026-03-29 — Composable Skills
 
 Skills can now load other skills inline. Write `{{INVOKE_SKILL:office-hours}}` in a template and the generator emits the right "read file, skip preamble, follow instructions" prose automatically. Handles host-aware paths and customizable skip lists.
 
@@ -231,7 +231,7 @@ Skills can now load other skills inline. Write `{{INVOKE_SKILL:office-hours}}` i
 
 - **Config grep anchored to line start.** Commented header lines no longer shadow real config values.
 
-## [0.13.8.0] - 2026-03-29 — Security Audit Round 2
+## [0.13.8] - 2026-03-29 — Security Audit Round 2
 
 Browse output is now wrapped in trust boundary markers so agents can tell page content from tool output. Markers are escape-proof. The Chrome extension validates message senders. CDP binds to localhost only. Bun installs use checksum verification.
 
@@ -250,7 +250,7 @@ Browse output is now wrapped in trust boundary markers so agents can tell page c
 
 - **Factory Droid support.** Removed `--host factory`, `.factory/` generated skills, Factory CI checks, and all Factory-specific code paths.
 
-## [0.13.7.0] - 2026-03-29 — Community Wave
+## [0.13.7] - 2026-03-29 — Community Wave
 
 Six community fixes with 16 new tests. Telemetry off now means off everywhere. Skills are findable by name. And changing your prefix setting actually works now.
 
@@ -271,7 +271,7 @@ Six community fixes with 16 new tests. Telemetry off now means off everywhere. S
 - **`bin/gstack-relink`** re-creates skill symlinks when you change `skill_prefix` via `gstack-config set`. No more manual `./setup` re-run needed.
 - **`bin/gstack-open-url`** cross-platform URL opener (macOS: `open`, Linux: `xdg-open`, Windows: `start`).
 
-## [0.13.6.0] - 2026-03-29 — GStack Learns
+## [0.13.6] - 2026-03-29 — GStack Learns
 
 Every session now makes the next one smarter. gstack remembers patterns, pitfalls, and preferences across sessions and uses them to improve every review, plan, debug, and ship. The more you use it, the better it gets on your codebase.
 
@@ -286,13 +286,13 @@ Every session now makes the next one smarter. gstack remembers patterns, pitfall
 - **Learnings count in preamble.** Every skill now shows "LEARNINGS: N entries loaded" during startup.
 - **5-release roadmap design doc.** `docs/designs/SELF_LEARNING_V0.md` maps the path from R1 (GStack Learns) through R4 (/autoship, one-command full feature) to R5 (Studio).
 
-## [0.13.5.1] - 2026-03-29 — Gitignore .factory
+## [0.13.5-1] - 2026-03-29 — Gitignore .factory
 
 ### Changed
 
 - **Stop tracking `.factory/` directory.** Generated Factory Droid skill files are now gitignored, same as `.claude/skills/` and `.agents/`. Removes 29 generated SKILL.md files from the repo. The `setup` script and `bun run build` regenerate these on demand.
 
-## [0.13.5.0] - 2026-03-29 — Factory Droid Compatibility
+## [0.13.5] - 2026-03-29 — Factory Droid Compatibility
 
 gstack now works with Factory Droid. Type `/qa` in Droid and get the same 29 skills you use in Claude Code. This makes gstack the first skill library that works across Claude Code, Codex, and Factory Droid.
 
@@ -311,7 +311,7 @@ gstack now works with Factory Droid. Type `/qa` in Droid and get the same 29 ski
 - **Build script uses `--host all`.** Replaces chained `gen:skill-docs` calls with a single `--host all` invocation.
 - **Tool name translation for Factory.** Claude Code tool names ("use the Bash tool") are translated to generic phrasing ("run this command") in Factory output, matching Factory's tool naming conventions.
 
-## [0.13.4.0] - 2026-03-29 — Sidebar Defense
+## [0.13.4] - 2026-03-29 — Sidebar Defense
 
 The Chrome sidebar now defends against prompt injection attacks. Three layers: XML-framed prompts with trust boundaries, a command allowlist that restricts bash to browse commands only, and Opus as the default model (harder to manipulate).
 
@@ -326,7 +326,7 @@ The Chrome sidebar now defends against prompt injection attacks. Three layers: X
 - **Opus default for sidebar.** The sidebar now uses Opus (the most injection-resistant model) by default, instead of whatever model Claude Code happens to be running.
 - **ML prompt injection defense design doc.** Full design doc at `docs/designs/ML_PROMPT_INJECTION_KILLER.md` covering the follow-up ML classifier (DeBERTa, BrowseSafe-bench, Bun-native 5ms vision). P0 TODO for the next PR.
 
-## [0.13.3.0] - 2026-03-28 — Lock It Down
+## [0.13.3] - 2026-03-28 — Lock It Down
 
 Six fixes from community PRs and bug reports. The big one: your dependency tree is now pinned. Every `bun install` resolves the exact same versions, every time. No more floating ranges pulling fresh packages from npm on every setup.
 
@@ -343,7 +343,7 @@ Six fixes from community PRs and bug reports. The big one: your dependency tree 
 
 - **Community PR guardrails in CLAUDE.md.** ETHOS.md, promotional material, and Garry's voice are explicitly protected from modification without user approval.
 
-## [0.13.2.0] - 2026-03-28 — User Sovereignty
+## [0.13.2] - 2026-03-28 — User Sovereignty
 
 AI models now recommend instead of override. When Claude and Codex agree on a scope change, they present it to you instead of just doing it. Your direction is the default, not the models' consensus.
 
@@ -361,7 +361,7 @@ AI models now recommend instead of override. When Claude and Codex agree on a sc
 - **/autoplan now has two gates, not one.** Premises (Phase 1) and User Challenges (both models disagree with your direction). Important Rules updated from "premises are the one gate" to "two gates."
 - **Decision Audit Trail now tracks classification.** Each auto-decision is logged as mechanical, taste, or user-challenge.
 
-## [0.13.1.0] - 2026-03-28 — Defense in Depth
+## [0.13.1] - 2026-03-28 — Defense in Depth
 
 The browse server runs on localhost and requires a token for access, so these issues only matter if a malicious process is already running on your machine (e.g., a compromised npm postinstall script). This release hardens the attack surface so that even in that scenario, the damage is contained.
 
@@ -380,7 +380,7 @@ The browse server runs on localhost and requires a token for access, so these is
 
 - 20 regression tests covering all hardening changes.
 
-## [0.13.0.0] - 2026-03-27 — Your Agent Can Design Now
+## [0.13.0] - 2026-03-27 — Your Agent Can Design Now
 
 gstack can generate real UI mockups. Not ASCII art, not text descriptions of hex codes, real visual designs you can look at, compare, pick from, and iterate on. Run `/office-hours` on a UI idea and you'll get 3 visual concepts in Chrome with a comparison board where you pick your favorite, rate the others, and tell the agent what to change.
 
@@ -412,7 +412,7 @@ gstack can generate real UI mockups. Not ASCII art, not text descriptions of hex
 - Full design doc: `docs/designs/DESIGN_TOOLS_V1.md`
 - Template resolvers: `{{DESIGN_SETUP}}` (binary discovery), `{{DESIGN_SHOTGUN_LOOP}}` (shared comparison board loop for /design-shotgun, /plan-design-review, /design-consultation)
 
-## [0.12.12.0] - 2026-03-27 — Security Audit Compliance
+## [0.12.12] - 2026-03-27 — Security Audit Compliance
 
 Fixes 20 Socket alerts and 3 Snyk findings from the skills.sh security audit. Your skills are now cleaner, your telemetry is transparent, and 2,000 lines of dead code are gone.
 
@@ -432,7 +432,7 @@ Fixes 20 Socket alerts and 3 Snyk findings from the skills.sh security audit. Yo
 
 - New `test:audit` script runs 6 regression tests that enforce all audit fixes stay in place.
 
-## [0.12.11.0] - 2026-03-27 — Skill Prefix is Now Your Choice
+## [0.12.11] - 2026-03-27 — Skill Prefix is Now Your Choice
 
 You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/review`) or namespaced (`/gstack-qa`, `/gstack-ship`). Setup asks on first run, remembers your preference, and switching is one command.
 
@@ -452,7 +452,7 @@ You can now choose how gstack skills appear: short names (`/qa`, `/ship`, `/revi
 
 - 8 new structural tests for the prefix config system (223 total in gen-skill-docs).
 
-## [0.12.10.0] - 2026-03-27 — Codex Filesystem Boundary
+## [0.12.10] - 2026-03-27 — Codex Filesystem Boundary
 
 Codex was wandering into `~/.claude/skills/` and following gstack's own instructions instead of reviewing your code. Now every codex prompt includes a boundary instruction that keeps it focused on the repository. Covers all 11 callsites across /codex, /autoplan, /review, /ship, /plan-eng-review, /plan-ceo-review, and /office-hours.
 
@@ -462,7 +462,7 @@ Codex was wandering into `~/.claude/skills/` and following gstack's own instruct
 - **Rabbit-hole detection.** If Codex output contains signs it got distracted by skill files (`gstack-config`, `gstack-update-check`, `SKILL.md`, `skills/gstack`), the /codex skill now warns and suggests a retry.
 - **5 regression tests.** New test suite validates boundary text appears in all 7 codex-calling skills, the Filesystem Boundary section exists, the rabbit-hole detection rule exists, and autoplan uses cross-host-compatible path patterns.
 
-## [0.12.9.0] - 2026-03-27 — Community PRs: Faster Install, Skill Namespacing, Uninstall
+## [0.12.9] - 2026-03-27 — Community PRs: Faster Install, Skill Namespacing, Uninstall
 
 Six community PRs landed in one batch. Install is faster, skills no longer collide with other tools, and you can cleanly uninstall gstack when needed.
 
@@ -482,7 +482,7 @@ Six community PRs landed in one batch. Install is faster, skills no longer colli
 - **Windows port race condition.** `findPort()` now uses `net.createServer()` instead of `Bun.serve()` for port probing, fixing an EADDRINUSE race on Windows where the polyfill's `stop()` is fire-and-forget. (#490)
 - **package.json version sync.** VERSION file and package.json now agree (was stuck at 0.12.5.0).
 
-## [0.12.8.1] - 2026-03-27 — zsh Glob Compatibility
+## [0.12.8-1] - 2026-03-27 — zsh Glob Compatibility
 
 Skill scripts now work correctly in zsh. Previously, bash code blocks in skill templates used raw glob patterns like `.github/workflows/*.yaml` and `ls ~/.gstack/projects/$SLUG/*-design-*.md` that would throw "no matches found" errors in zsh when no files matched. Fixed 38 instances across 13 templates and 2 resolvers using two approaches: `find`-based alternatives for complex patterns, and `setopt +o nomatch` guards for simple `ls` commands.
 
@@ -492,7 +492,7 @@ Skill scripts now work correctly in zsh. Previously, bash code blocks in skill t
 - **`~/.gstack/` and `~/.claude/` globs guarded with `setopt`.** Design doc lookups, eval result listings, test plan discovery, and retro history checks across 10 skills now prepend `setopt +o nomatch 2>/dev/null || true` (no-op in bash, disables NOMATCH in zsh).
 - **Test framework detection globs guarded.** `ls jest.config.* vitest.config.*` in the testing resolver now has a setopt guard.
 
-## [0.12.8.0] - 2026-03-27 — Codex No Longer Reviews the Wrong Project
+## [0.12.8] - 2026-03-27 — Codex No Longer Reviews the Wrong Project
 
 When you run gstack in Conductor with multiple workspaces open, Codex could silently review the wrong project. The `codex exec -C` flag resolved the repo root inline via `$(git rev-parse --show-toplevel)`, which evaluates in whatever cwd the background shell inherits. In multi-workspace environments, that cwd might be a different project entirely.
 
@@ -510,7 +510,7 @@ When you run gstack in Conductor with multiple workspaces open, Codex could sile
 
 - **Regression test** that scans all `.tmpl`, resolver `.ts`, and generated `SKILL.md` files for codex commands using inline `$(git rev-parse --show-toplevel)`. Prevents reintroduction.
 
-## [0.12.7.0] - 2026-03-27 — Community PRs + Security Hardening
+## [0.12.7] - 2026-03-27 — Community PRs + Security Hardening
 
 Seven community contributions merged, reviewed, and tested. Plus security hardening for telemetry and review logging, and E2E test stability fixes.
 
@@ -534,7 +534,7 @@ Seven community contributions merged, reviewed, and tested. Plus security harden
 
 - New CLAUDE.md rule: never copy full SKILL.md files into E2E test fixtures. Extract the relevant section only.
 
-## [0.12.6.0] - 2026-03-27 — Sidebar Knows What Page You're On
+## [0.12.6] - 2026-03-27 — Sidebar Knows What Page You're On
 
 The Chrome sidebar agent used to navigate to the wrong page when you asked it to do something. If you'd manually browsed to a site, the sidebar would ignore that and go to whatever Playwright last saw (often Hacker News from the demo). Now it works.
 
@@ -549,7 +549,7 @@ The Chrome sidebar agent used to navigate to the wrong page when you asked it to
 - **Pre-flight cleanup for `/connect-chrome`.** Kills stale browse servers and cleans Chromium profile locks before connecting. Prevents "already connected" false positives after crashes.
 - **Sidebar agent test suite (36 tests).** Four layers: unit tests for URL sanitization, integration tests for server HTTP endpoints, mock-Claude round-trip tests, and E2E tests with real Claude. All free except layer 4.
 
-## [0.12.5.1] - 2026-03-27 — Eng Review Now Tells You What to Parallelize
+## [0.12.5-1] - 2026-03-27 — Eng Review Now Tells You What to Parallelize
 
 `/plan-eng-review` automatically analyzes your plan for parallel execution opportunities. When your plan has independent workstreams, the review outputs a dependency table, parallel lanes, and execution order so you know exactly which tasks to split into separate git worktrees.
 
@@ -557,7 +557,7 @@ The Chrome sidebar agent used to navigate to the wrong page when you asked it to
 
 - **Worktree parallelization strategy** in `/plan-eng-review` required outputs. Extracts a structured table of plan steps with module-level dependencies, computes parallel lanes, and flags merge conflict risks. Skips automatically for single-module or single-track plans.
 
-## [0.12.5.0] - 2026-03-26 — Fix Codex Hangs: 30-Minute Waits Are Gone
+## [0.12.5] - 2026-03-26 — Fix Codex Hangs: 30-Minute Waits Are Gone
 
 Three bugs in `/codex` caused 30+ minute hangs with zero output during plan reviews and adversarial checks. All three are fixed.
 
@@ -568,7 +568,7 @@ Three bugs in `/codex` caused 30+ minute hangs with zero output during plan revi
 - **Sane reasoning effort defaults.** Replaced hardcoded `xhigh` (23x more tokens, known 50+ min hangs per OpenAI issues #8545, #8402, #6931) with per-mode defaults: `high` for review and challenge, `medium` for consult. Users can override with `--xhigh` flag when they want maximum reasoning.
 - **`--xhigh` override works in all modes.** The override reminder was missing from challenge and consult mode instructions. Found by adversarial review.
 
-## [0.12.4.0] - 2026-03-26 — Full Commit Coverage in /ship
+## [0.12.4] - 2026-03-26 — Full Commit Coverage in /ship
 
 When you ship a branch with 12 commits spanning performance work, dead code removal, and test infra, the PR should mention all three. It wasn't. The CHANGELOG and PR summary biased toward whatever happened most recently, silently dropping earlier work.
 
@@ -577,7 +577,7 @@ When you ship a branch with 12 commits spanning performance work, dead code remo
 - **/ship Step 5 (CHANGELOG):** Now forces explicit commit enumeration before writing. You list every commit, group by theme, write the entry, then cross-check that every commit maps to a bullet. No more recency bias.
 - **/ship Step 8 (PR body):** Changed from "bullet points from CHANGELOG" to explicit commit-by-commit coverage. Groups commits into logical sections. Excludes the VERSION/CHANGELOG metadata commit (bookkeeping, not a change). Every substantive commit must appear somewhere.
 
-## [0.12.3.0] - 2026-03-26 — Voice Directive: Every Skill Sounds Like a Builder
+## [0.12.3] - 2026-03-26 — Voice Directive: Every Skill Sounds Like a Builder
 
 Every gstack skill now has a voice. Not a personality, not a persona, but a consistent set of instructions that make Claude sound like someone who shipped code today and cares whether the thing works for real users. Direct, concrete, sharp. Names the file, the function, the command. Connects technical work to what the user actually experiences.
 
@@ -591,7 +591,7 @@ Two tiers: lightweight skills get a trimmed version (tone + writing rules). Full
 - **User outcome connection.** "This matters because your user will see a 3-second spinner." Make the user's user real.
 - **LLM eval test.** Judge scores directness, concreteness, anti-corporate tone, AI vocabulary avoidance, and user outcome connection. All dimensions must score 4/5+.
 
-## [0.12.2.0] - 2026-03-26 — Deploy with Confidence: First-Run Dry Run
+## [0.12.2] - 2026-03-26 — Deploy with Confidence: First-Run Dry Run
 
 The first time you run `/land-and-deploy` on a project, it does a dry run. It detects your deploy infrastructure, tests that every command works, and shows you exactly what will happen... before it touches anything. You confirm, and from then on it just works.
 
@@ -611,7 +611,7 @@ If your deploy config changes later (new platform, different workflow, updated U
 - **Full copy rewrite.** Every user-facing message rewritten to narrate what's happening, explain why, and be specific. First run = teacher mode. Subsequent runs = efficient mode.
 - **Voice & Tone section.** New guidelines for how the skill communicates: be a senior release engineer sitting next to the developer, not a robot.
 
-## [0.12.1.0] - 2026-03-26 — Smarter Browsing: Network Idle, State Persistence, Iframes
+## [0.12.1] - 2026-03-26 — Smarter Browsing: Network Idle, State Persistence, Iframes
 
 Every click, fill, and select now waits for the page to settle before returning. No more stale snapshots because an XHR was still in-flight. Chain accepts pipe-delimited format for faster multi-step flows. You can save and restore browser sessions (cookies + open tabs). And iframe content is now reachable.
 
@@ -637,7 +637,7 @@ Every click, fill, and select now waits for the page to settle before returning.
 - **elementHandle leak in frame command.** Now properly disposed after getting contentFrame.
 - **Upload command frame-aware.** `upload` uses the frame-aware target for file input locators.
 
-## [0.12.0.0] - 2026-03-26 — Headed Mode + Sidebar Agent
+## [0.12.0] - 2026-03-26 — Headed Mode + Sidebar Agent
 
 You can now watch Claude work in a real Chrome window and direct it from a sidebar chat.
 
@@ -657,7 +657,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **Agent timeout raised to 5 minutes.** Multi-page tasks (navigating directories, filling forms across pages) need more than the previous 2-minute limit.
 
-## [0.11.21.0] - 2026-03-26
+## [0.11.21] - 2026-03-26
 
 ### Fixed
 
@@ -668,7 +668,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 - **`/codex review` now tracks staleness.** Added the `commit` field to codex review log entries so the dashboard can detect when a codex review is outdated.
 - **`/autoplan` no longer hardcodes "clean" status.** Review log entries from autoplan used to always record `status:"clean"` even when issues were found. Now uses proper placeholder tokens that Claude substitutes with real values.
 
-## [0.11.20.0] - 2026-03-26
+## [0.11.20] - 2026-03-26
 
 ### Added
 
@@ -681,7 +681,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **Deduplicated gen-skill-docs resolvers.** The template generator had duplicate inline resolver functions that shadowed the modular versions, causing generated SKILL.md files to miss recent resolver updates.
 
-## [0.11.19.0] - 2026-03-24
+## [0.11.19] - 2026-03-24
 
 ### Fixed
 
@@ -692,19 +692,19 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **900-char early warning test.** A new test fails if any Codex skill description exceeds 900 chars, catching description bloat before it breaks builds.
 
-## [0.11.18.2] - 2026-03-24
+## [0.11.18-2] - 2026-03-24
 
 ### Fixed
 
 - **Windows browse daemon fixed.** The browse server wouldn't start on Windows because Bun requires `stdio` as an array (`['ignore', 'ignore', 'ignore']`), not a string (`'ignore'`). Fixes #448, #454, #458.
 
-## [0.11.18.1] - 2026-03-24
+## [0.11.18-1] - 2026-03-24
 
 ### Changed
 
 - **One decision per question — everywhere.** Every skill now presents decisions one at a time, each with its own focused question, recommendation, and options. No more wall-of-text questions that bundle unrelated choices together. This was already enforced in the three plan-review skills; now it's a universal rule across all 23+ skills.
 
-## [0.11.18.0] - 2026-03-24 — Ship With Teeth
+## [0.11.18] - 2026-03-24 — Ship With Teeth
 
 `/ship` and `/review` now actually enforce the quality gates they've been talking about. Coverage audit becomes a real gate (not just a diagram), plan completion gets verified against the diff, and verification steps from your plan run automatically.
 
@@ -719,7 +719,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 - **Ship metrics logging.** Coverage %, plan completion ratio, and verification results are logged to review JSONL for /retro to track trends.
 - **Plan completion in /retro.** Weekly retros now show plan completion rates across shipped branches.
 
-## [0.11.17.0] - 2026-03-24 — Cleaner Skill Descriptions + Proactive Opt-Out
+## [0.11.17] - 2026-03-24 — Cleaner Skill Descriptions + Proactive Opt-Out
 
 ### Changed
 
@@ -730,14 +730,14 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - **Telemetry source tagging no longer crashes.** Fixed duration guards and source field validation in the telemetry logger so it handles edge cases cleanly instead of erroring.
 
-## [0.11.16.1] - 2026-03-24 — Installation ID Privacy Fix
+## [0.11.16-1] - 2026-03-24 — Installation ID Privacy Fix
 
 ### Fixed
 
 - **Installation IDs are now random UUIDs instead of hostname hashes.** The old `SHA-256(hostname+username)` approach meant anyone who knew your machine identity could compute your installation ID. Now uses a random UUID stored in `~/.gstack/installation-id` — not derivable from any public input, rotatable by deleting the file.
 - **RLS verification script handles edge cases.** `verify-rls.sh` now correctly treats INSERT success as expected (kept for old client compat), handles 409 conflicts and 204 no-ops.
 
-## [0.11.16.0] - 2026-03-24 — Smarter CI + Telemetry Security
+## [0.11.16] - 2026-03-24 — Smarter CI + Telemetry Security
 
 ### Changed
 
@@ -763,7 +763,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 - Extended `test/telemetry.test.ts` with field name verification
 - Untracked `browse/dist/` binaries from git (arm64-only, rebuilt by `./setup`)
 
-## [0.11.15.0] - 2026-03-24 — E2E Test Coverage for Plan Reviews & Codex
+## [0.11.15] - 2026-03-24 — E2E Test Coverage for Plan Reviews & Codex
 
 ### Added
 
@@ -776,7 +776,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 - Updated touchfile mappings and selection count assertions
 - Added `touchfiles` to the documented global touchfile list in CLAUDE.md
 
-## [0.11.14.0] - 2026-03-24 — Windows Browse Fix
+## [0.11.14] - 2026-03-24 — Windows Browse Fix
 
 ### Fixed
 
@@ -789,7 +789,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 
 - New tests for `isServerHealthy()` and startup error logging in `browse/test/config.test.ts`
 
-## [0.11.13.0] - 2026-03-24 — Worktree Isolation + Infrastructure Elegance
+## [0.11.13] - 2026-03-24 — Worktree Isolation + Infrastructure Elegance
 
 ### Added
 
@@ -808,7 +808,7 @@ You can now watch Claude work in a real Chrome window and direct it from a sideb
 - 12 new unit tests for WorktreeManager covering lifecycle, harvest, dedup, and error handling.
 - `GLOBAL_TOUCHFILES` updated so worktree infrastructure changes trigger all E2E tests.
 
-## [0.11.12.0] - 2026-03-24 — Triple-Voice Autoplan
+## [0.11.12] - 2026-03-24 — Triple-Voice Autoplan
 
 Every `/autoplan` phase now gets two independent second opinions — one from Codex (OpenAI's frontier model) and one from a fresh Claude subagent. Three AI reviewers looking at your plan from different angles, each phase building on the last.
 
@@ -822,7 +822,7 @@ Every `/autoplan` phase now gets two independent second opinions — one from Co
 - **Phase-transition summaries.** Brief status at each phase boundary so you can track progress without waiting for the full pipeline.
 - **Degradation matrix.** When Codex or the Claude subagent fails, autoplan gracefully degrades with clear labels (`[codex-only]`, `[subagent-only]`, `[single-reviewer mode]`).
 
-## [0.11.11.0] - 2026-03-23 — Community Wave 3
+## [0.11.11] - 2026-03-23 — Community Wave 3
 
 10 community PRs merged — bug fixes, platform support, and workflow improvements.
 
@@ -848,7 +848,7 @@ Every `/autoplan` phase now gets two independent second opinions — one from Co
 
 Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanli1917-cloud for contributions in this wave.
 
-## [0.11.10.0] - 2026-03-23 — CI Evals on Ubicloud
+## [0.11.10] - 2026-03-23 — CI Evals on Ubicloud
 
 ### Added
 
@@ -866,7 +866,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - Ubicloud runners at ~$0.006/run (10x cheaper than GitHub standard runners)
 - `workflow_dispatch` trigger for manual re-runs
 
-## [0.11.9.0] - 2026-03-23 — Codex Skill Loading Fix
+## [0.11.9] - 2026-03-23 — Codex Skill Loading Fix
 
 ### Fixed
 
@@ -884,7 +884,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - `gstack-update-check` includes a one-time migration that deletes oversized Codex SKILL.md files
 - P1 TODO added: Codex→Claude reverse buddy check skill
 
-## [0.11.8.0] - 2026-03-23 — zsh Compatibility Fix
+## [0.11.8] - 2026-03-23 — zsh Compatibility Fix
 
 ### Fixed
 
@@ -894,7 +894,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 - **Regression test for zsh glob safety.** New test verifies all generated SKILL.md files use `find` instead of bare shell globs for `.pending-*` pattern matching.
 
-## [0.11.7.0] - 2026-03-23 — /review → /ship Handoff Fix
+## [0.11.7] - 2026-03-23 — /review → /ship Handoff Fix
 
 ### Fixed
 
@@ -906,7 +906,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - Based on PR #338 by @malikrohail. DRY improvement per eng review: updated the shared `REVIEW_DASHBOARD` resolver instead of creating a duplicate ship-only resolver.
 - 4 new validation tests covering review-log persistence, dashboard propagation, and abort text.
 
-## [0.11.6.0] - 2026-03-23 — Infrastructure-First Security Audit
+## [0.11.6] - 2026-03-23 — Infrastructure-First Security Audit
 
 ### Added
 
@@ -922,7 +922,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Stack detection before scanning.** v1 ran Ruby/Java/PHP/C# patterns on every project without checking the stack. v2 detects your framework first and prioritizes relevant checks.
 - **Proper tool usage.** v1 used raw `grep` in Bash; v2 uses Claude Code's native `Grep` tool for reliable results without truncation.
 
-## [0.11.5.2] - 2026-03-22 — Outside Voice
+## [0.11.5-2] - 2026-03-22 — Outside Voice
 
 ### Added
 
@@ -934,14 +934,14 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 - **`/plan-eng-review` Codex integration upgraded.** The old hardcoded Step 0.5 is replaced with a richer resolver that adds Claude subagent fallback, review log persistence, dashboard visibility, and higher reasoning effort (`xhigh`).
 
-## [0.11.5.1] - 2026-03-23 — Inline Office Hours
+## [0.11.5-1] - 2026-03-23 — Inline Office Hours
 
 ### Changed
 
 - **No more "open another window" for /office-hours.** When `/plan-ceo-review` or `/plan-eng-review` offer to run `/office-hours` first, it now runs inline in the same conversation. The review picks up right where it left off after the design doc is ready. Same for mid-session detection when you're still figuring out what to build.
 - **Handoff note infrastructure removed.** The handoff notes that bridged the old "go to another window" flow are no longer written. Existing notes from prior sessions are still read for backward compatibility.
 
-## [0.11.5.0] - 2026-03-23 — Bash Compatibility Fix
+## [0.11.5] - 2026-03-23 — Bash Compatibility Fix
 
 ### Fixed
 
@@ -949,7 +949,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **All SKILL.md templates updated.** Every template that instructed agents to run `source <(gstack-slug)` now uses `eval "$(gstack-slug)"` for cross-shell compatibility. Regenerated all SKILL.md files from templates.
 - **Regression tests added.** New tests verify `eval "$(gstack-slug)"` works under bash strict mode, and guard against `source <(.*gstack-slug` patterns reappearing in templates or bin scripts.
 
-## [0.11.4.0] - 2026-03-22 — Codex in Office Hours
+## [0.11.4] - 2026-03-22 — Codex in Office Hours
 
 ### Added
 
@@ -957,7 +957,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Cross-Model Perspective in design docs.** When you use the second opinion, the design doc automatically includes a `## Cross-Model Perspective` section capturing what Codex said — so the independent view is preserved for downstream reviews.
 - **New founder signal: defended premise with reasoning.** When Codex challenges one of your premises and you keep it with articulated reasoning (not just dismissal), that's tracked as a positive signal of conviction.
 
-## [0.11.3.0] - 2026-03-23 — Design Outside Voices
+## [0.11.3] - 2026-03-23 — Design Outside Voices
 
 ### Added
 
@@ -967,7 +967,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Outside voices in /office-hours brainstorming.** After wireframe sketches, you can now get Codex + Claude subagent design perspectives on your approaches before committing to a direction.
 - **AI slop blacklist extracted as shared constant.** The 10 anti-patterns (purple gradients, 3-column icon grids, centered everything, etc.) are now defined once and shared across all design skills. Easier to maintain, impossible to drift.
 
-## [0.11.2.0] - 2026-03-22 — Codex Just Works
+## [0.11.2] - 2026-03-22 — Codex Just Works
 
 ### Fixed
 
@@ -987,13 +987,13 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **`GSTACK_DIR` renamed to `SOURCE_GSTACK_DIR` / `INSTALL_GSTACK_DIR`** throughout the setup script for clarity about which path points to the source repo vs the install location.
 - **CI validates Codex generation succeeds** instead of checking committed file freshness (since `.agents/` is no longer committed).
 
-## [0.11.1.1] - 2026-03-22 — Plan Files Always Show Review Status
+## [0.11.1-1] - 2026-03-22 — Plan Files Always Show Review Status
 
 ### Added
 
 - **Every plan file now shows review status.** When you exit plan mode, the plan file automatically gets a `GSTACK REVIEW REPORT` section — even if you haven't run any formal reviews yet. Previously, this section only appeared after running `/plan-eng-review`, `/plan-ceo-review`, `/plan-design-review`, or `/codex review`. Now you always know where you stand: which reviews have run, which haven't, and what to do next.
 
-## [0.11.1.0] - 2026-03-22 — Global Retro: Cross-Project AI Coding Retrospective
+## [0.11.1] - 2026-03-22 — Global Retro: Cross-Project AI Coding Retrospective
 
 ### Added
 
@@ -1007,7 +1007,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Claude Code session counts are now accurate.** Previously counted all JSONL files in a project directory; now only counts files modified within the time window.
 - **Week windows (`1w`, `2w`) are now midnight-aligned** like day windows, so `/retro global 1w` and `/retro global 7d` produce consistent results.
 
-## [0.11.0.0] - 2026-03-22 — /cso: Zero-Noise Security Audits
+## [0.11.0] - 2026-03-22 — /cso: Zero-Noise Security Audits
 
 ### Added
 
@@ -1030,7 +1030,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Community PR triage process documented** in CONTRIBUTING.md.
 - **Storage redaction test coverage.** Four new tests for key-based and value-based detection.
 
-## [0.10.2.0] - 2026-03-22 — Autoplan Depth Fix
+## [0.10.2] - 2026-03-22 — Autoplan Depth Fix
 
 ### Fixed
 
@@ -1039,7 +1039,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Pre-gate verification catches skipped outputs.** Before presenting the final approval gate, autoplan now checks a concrete checklist of required outputs. Missing items get produced before the gate opens (max 2 retries, then warns).
 - **Test review can never be skipped.** The Eng review's test diagram section — the highest-value output — is explicitly marked NEVER SKIP OR COMPRESS with instructions to read actual diffs, map every codepath to coverage, and write the test plan artifact.
 
-## [0.10.1.0] - 2026-03-22 — Test Coverage Catalog
+## [0.10.1] - 2026-03-22 — Test Coverage Catalog
 
 ### Added
 
@@ -1055,13 +1055,13 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **gstack no longer crashes in repos without an `origin` remote.** The `gstack-repo-mode` helper now gracefully handles missing remotes, bare repos, and empty git output — defaulting to `unknown` mode instead of crashing the preamble.
 - **`REPO_MODE` defaults correctly when the helper emits nothing.** Previously an empty response from `gstack-repo-mode` left `REPO_MODE` unset, causing downstream template errors.
 
-## [0.10.0.0] - 2026-03-22 — Autoplan
+## [0.10.0] - 2026-03-22 — Autoplan
 
 ### Added
 
 - **`/autoplan` — one command, fully reviewed plan.** Hand it a rough plan and it runs the full CEO → design → eng review pipeline automatically. Reads the actual review skill files from disk (same depth, same rigor as running each review manually) and makes intermediate decisions using 6 encoded principles: completeness, boil lakes, pragmatic, DRY, explicit over clever, bias toward action. Taste decisions (close approaches, borderline scope, codex disagreements) surface at a final approval gate. You approve, override, interrogate, or revise. Saves a restore point so you can re-run from scratch. Writes review logs compatible with `/ship`'s dashboard.
 
-## [0.9.8.0] - 2026-03-21 — Deploy Pipeline + E2E Performance
+## [0.9.8] - 2026-03-21 — Deploy Pipeline + E2E Performance
 
 ### Added
 
@@ -1084,14 +1084,14 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **`ship-local-workflow` no longer wastes 6 of 15 turns.** Ship workflow steps are inlined in the test prompt instead of having the agent read the 700+ line SKILL.md at runtime.
 - **`design-consultation-core` no longer fails on synonym sections.** "Colors" matches "Color", "Type System" matches "Typography" — fuzzy synonym-based matching with all 7 sections still required.
 
-## [0.9.7.0] - 2026-03-21 — Plan File Review Report
+## [0.9.7] - 2026-03-21 — Plan File Review Report
 
 ### Added
 
 - **Every plan file now shows which reviews have run.** After any review skill finishes (`/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/codex review`), a markdown table is appended to the plan file itself — showing each review's trigger command, purpose, run count, status, and findings summary. Anyone reading the plan can see review status at a glance without checking conversation history.
 - **Review logs now capture richer data.** CEO reviews log scope proposal counts (proposed/accepted/deferred), eng reviews log total issues found, design reviews log before→after scores, and codex reviews log how many findings were fixed. The plan file report uses these fields directly — no more guessing from partial metadata.
 
-## [0.9.6.0] - 2026-03-21 — Auto-Scaled Adversarial Review
+## [0.9.6] - 2026-03-21 — Auto-Scaled Adversarial Review
 
 ### Changed
 
@@ -1099,7 +1099,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Claude now has an adversarial mode.** A fresh Claude subagent with no checklist bias reviews your code like an attacker — finding edge cases, race conditions, security holes, and silent data corruption that the structured review might miss. Findings are classified as FIXABLE (auto-fixed) or INVESTIGATE (your call).
 - **Review dashboard shows "Adversarial" instead of "Codex Review."** The dashboard row reflects the new multi-model reality — it tracks whichever adversarial passes actually ran, not just Codex.
 
-## [0.9.5.0] - 2026-03-21 — Builder Ethos
+## [0.9.5] - 2026-03-21 — Builder Ethos
 
 ### Added
 
@@ -1112,13 +1112,13 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **`/design-consultation` three-layer synthesis.** Competitive research now uses the structured Layer 1/2/3 framework to find where your product should deliberately break from category norms.
 - **CEO review saves context when handing off to `/office-hours`.** When `/plan-ceo-review` suggests running `/office-hours` first, it now saves a handoff note with your system audit findings and any discussion so far. When you come back and re-invoke `/plan-ceo-review`, it picks up that context automatically — no more starting from scratch.
 
-## [0.9.4.1] - 2026-03-20
+## [0.9.4-1] - 2026-03-20
 
 ### Changed
 
 - **`/retro` no longer nags about PR size.** The retro still reports PR size distribution (Small/Medium/Large/XL) as neutral data, but no longer flags XL PRs as problems or recommends splitting them. AI reviews don't fatigue — the unit of work is the feature, not the diff.
 
-## [0.9.4.0] - 2026-03-20 — Codex Reviews On By Default
+## [0.9.4] - 2026-03-20 — Codex Reviews On By Default
 
 ### Changed
 
@@ -1131,7 +1131,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 
 - **Codex-for-Codex recursion prevented.** When gstack runs inside Codex CLI (`.agents/skills/`), the Codex review step is completely stripped — no accidental infinite loops.
 
-## [0.9.3.0] - 2026-03-20 — Windows Support
+## [0.9.3] - 2026-03-20 — Windows Support
 
 ### Fixed
 
@@ -1143,7 +1143,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Bun API polyfill for Node.js.** When the browse server runs under Node.js on Windows, a compatibility layer provides `Bun.serve()`, `Bun.spawn()`, `Bun.spawnSync()`, and `Bun.sleep()` equivalents. Fully tested.
 - **Node server build script.** `browse/scripts/build-node-server.sh` transpiles the server for Node.js, stubs `bun:sqlite`, and injects the polyfill — all automated during `bun run build`.
 
-## [0.9.2.0] - 2026-03-20 — Gemini CLI E2E Tests
+## [0.9.2] - 2026-03-20 — Gemini CLI E2E Tests
 
 ### Added
 
@@ -1151,7 +1151,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Gemini JSONL parser with 10 unit tests.** `parseGeminiJSONL` handles all Gemini event types (init, message, tool_use, tool_result, result) with defensive parsing for malformed input. The parser is a pure function, independently testable without spawning the CLI.
 - **`bun run test:gemini`** and **`bun run test:gemini:all`** scripts for running Gemini E2E tests independently. Gemini tests are also included in `test:evals` and `test:e2e` aggregate scripts.
 
-## [0.9.1.0] - 2026-03-20 — Adversarial Spec Review + Skill Chaining
+## [0.9.1] - 2026-03-20 — Adversarial Spec Review + Skill Chaining
 
 ### Added
 
@@ -1160,7 +1160,7 @@ Thanks to @osc, @Explorer1092, @Qike-Li, @francoisaubert1, @itstimwhite, @yinanl
 - **Skills help each other now.** `/plan-ceo-review` and `/plan-eng-review` detect when you'd benefit from running `/office-hours` first and offer it — one-tap to switch, one-tap to decline. If you seem lost during a CEO review, it'll gently suggest brainstorming first.
 - **Spec review metrics.** Every adversarial review logs iterations, issues found/fixed, and quality score to `~/.gstack/analytics/spec-review.jsonl`. Over time, you can see if your design docs are getting better.
 
-## [0.9.0.1] - 2026-03-19
+## [0.9.0-1] - 2026-03-19
 
 ### Changed
 
@@ -1313,13 +1313,13 @@ Both modes write a design doc that feeds directly into `/plan-ceo-review` and `/
 
 When something is broken and you don't know why, `/debug` is your systematic debugger. It follows the Iron Law: no fixes without root cause investigation first. Traces data flow, matches against known bug patterns (race conditions, nil propagation, stale cache, config drift), and tests hypotheses one at a time. If 3 fixes fail, it stops and questions the architecture instead of thrashing.
 
-## [0.6.4.1] - 2026-03-18
+## [0.6.4-1] - 2026-03-18
 
 ### Added
 
 - **Skills now discoverable via natural language.** All 12 skills that were missing explicit trigger phrases now have them — say "deploy this" and Claude finds `/ship`, say "check my diff" and it finds `/review`. Following Anthropic's best practice: "the description field is not a summary — it's when to trigger."
 
-## [0.6.4.0] - 2026-03-17
+## [0.6.4] - 2026-03-17
 
 ### Added
 
@@ -1332,7 +1332,7 @@ When something is broken and you don't know why, `/debug` is your systematic deb
 
 - `/qa-design-review` renamed to `/design-review` — the "qa-" prefix was confusing now that `/plan-design-review` is plan-mode. Updated across all 22 files.
 
-## [0.6.3.0] - 2026-03-17
+## [0.6.3] - 2026-03-17
 
 ### Added
 
@@ -1341,14 +1341,14 @@ When something is broken and you don't know why, `/debug` is your systematic deb
 - **Design review shows up in the Review Readiness Dashboard.** The dashboard now distinguishes between "LITE" (code-level, runs automatically in /review and /ship) and "FULL" (visual audit via /plan-design-review with browse binary). Both show up as Design Review entries.
 - **E2E eval for design review detection.** Planted CSS/HTML fixtures with 7 known anti-patterns (Papyrus font, 14px body text, `outline: none`, `!important`, purple gradient, generic hero copy, 3-column feature grid). The eval verifies `/review` catches at least 4 of 7.
 
-## [0.6.2.0] - 2026-03-17
+## [0.6.2] - 2026-03-17
 
 ### Added
 
 - **Plan reviews now think like the best in the world.** `/plan-ceo-review` applies 14 cognitive patterns from Bezos (one-way doors, Day 1 proxy skepticism), Grove (paranoid scanning), Munger (inversion), Horowitz (wartime awareness), Chesky/Graham (founder mode), and Altman (leverage obsession). `/plan-eng-review` applies 15 patterns from Larson (team state diagnosis), McKinley (boring by default), Brooks (essential vs accidental complexity), Beck (make the change easy), Majors (own your code in production), and Google SRE (error budgets). `/plan-design-review` applies 12 patterns from Rams (subtraction default), Norman (time-horizon design), Zhuo (principled taste), Gebbia (design for trust, storyboard the journey), and Ive (care is visible).
 - **Latent space activation, not checklists.** The cognitive patterns name-drop frameworks and people so the LLM draws on its deep knowledge of how they actually think. The instruction is "internalize these, don't enumerate them" — making each review a genuine perspective shift, not a longer checklist.
 
-## [0.6.1.0] - 2026-03-17
+## [0.6.1] - 2026-03-17
 
 ### Added
 

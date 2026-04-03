@@ -98,10 +98,10 @@ May replace `/setup-browser-cookies` for most use cases since the user's real co
 
 ~~**What:** Save/load cookies + localStorage to JSON files for reproducible test sessions.~~
 
-`$B state save/load` ships in v0.12.1.0. V1 saves cookies + URLs only (not localStorage, which breaks on load-before-navigate). Files at `.gstack/browse-states/{name}.json` with 0o600 permissions. Load replaces session (closes all pages first). Name sanitized to `[a-zA-Z0-9_-]`.
+`$B state save/load` ships in v0.12.1. V1 saves cookies + URLs only (not localStorage, which breaks on load-before-navigate). Files at `.gstack/browse-states/{name}.json` with 0o600 permissions. Load replaces session (closes all pages first). Name sanitized to `[a-zA-Z0-9_-]`.
 
 **Remaining:** V2 localStorage support (needs pre-navigation injection strategy).
-**Completed:** v0.12.1.0 (2026-03-26)
+**Completed:** v0.12.1 (2026-03-26)
 
 ### Auth vault
 
@@ -117,9 +117,9 @@ May replace `/setup-browser-cookies` for most use cases since the user's real co
 
 ~~**What:** `frame <sel>` and `frame main` commands for cross-frame interaction.~~
 
-`$B frame` ships in v0.12.1.0. Supports CSS selector, @ref, `--name`, and `--url` pattern matching. Execution target abstraction (`getActiveFrameOrPage()`) across all read/write/snapshot commands. Frame context cleared on navigation, tab switch, resume. Detached frame auto-recovery. Page-only operations (goto, screenshot, viewport) throw clear error when in frame context.
+`$B frame` ships in v0.12.1. Supports CSS selector, @ref, `--name`, and `--url` pattern matching. Execution target abstraction (`getActiveFrameOrPage()`) across all read/write/snapshot commands. Frame context cleared on navigation, tab switch, resume. Detached frame auto-recovery. Page-only operations (goto, screenshot, viewport) throw clear error when in frame context.
 
-**Completed:** v0.12.1.0 (2026-03-26)
+**Completed:** v0.12.1 (2026-03-26)
 
 ### Semantic locators
 
@@ -225,13 +225,13 @@ Sidebar agent writes structured messages to `.context/sidebar-inbox/`. Workspace
 
 ~~**What:** GNOME Keyring / kwallet / DPAPI support for non-macOS cookie import.~~
 
-Linux cookie import shipped in v0.11.11.0 (Wave 3). Supports Chrome, Chromium, Brave, Edge on Linux with GNOME Keyring (libsecret) and "peanuts" fallback. Windows DPAPI support remains deferred.
+Linux cookie import shipped in v0.11.11 (Wave 3). Supports Chrome, Chromium, Brave, Edge on Linux with GNOME Keyring (libsecret) and "peanuts" fallback. Windows DPAPI support remains deferred.
 
 **Remaining:** Windows cookie decryption (DPAPI). Needs complete rewrite — PR #64 was 1346 lines and stale.
 
 **Effort:** L (Windows only)
 **Priority:** P4
-**Completed (Linux):** v0.11.11.0 (2026-03-23)
+**Completed (Linux):** v0.11.11 (2026-03-23)
 
 ## Ship
 
@@ -439,11 +439,11 @@ Linux cookie import shipped in v0.11.11.0 (Wave 3). Supports Chrome, Chromium, B
 
 **Why:** Some Claude E2E tests (CSO audit, review-sql-injection) create minimal fake repos but would produce more realistic results with full repo context. The infrastructure exists (`describeWithWorktree()` in e2e-helpers.ts) — this extends it to the session-runner level.
 
-**Context:** WorktreeManager shipped in v0.11.12.0. Currently only Gemini/Codex tests use worktrees. Claude tests use planted-bug fixture repos which are correct for their purpose, but new tests that want real repo context can use `describeWithWorktree()` today. This TODO is about making it even easier via a flag on `runSkillTest()`.
+**Context:** WorktreeManager shipped in v0.11.12. Currently only Gemini/Codex tests use worktrees. Claude tests use planted-bug fixture repos which are correct for their purpose, but new tests that want real repo context can use `describeWithWorktree()` today. This TODO is about making it even easier via a flag on `runSkillTest()`.
 
 **Effort:** M (human: ~2 days / CC: ~20 min)
 **Priority:** P3
-**Depends on:** Worktree isolation (shipped v0.11.12.0)
+**Depends on:** Worktree isolation (shipped v0.11.12)
 
 ### E2E model pinning — SHIPPED
 
@@ -531,13 +531,13 @@ Shipped as v0.5.0 on main. Includes `/plan-design-review` (report-only design au
 
 **What:** Extend the parallel dual-voice pattern (Codex + Claude subagent) to /plan-eng-review's architecture review section.
 
-**Why:** The design beachhead (v0.11.3.0) proves cross-model consensus works for subjective reviews. Architecture reviews have similar subjectivity in tradeoff decisions.
+**Why:** The design beachhead (v0.11.3) proves cross-model consensus works for subjective reviews. Architecture reviews have similar subjectivity in tradeoff decisions.
 
 **Context:** Depends on learnings from the design beachhead. If the litmus scorecard format proves useful, adapt it for architecture dimensions (coupling, scaling, reversibility).
 
 **Effort:** S
 **Priority:** P3
-**Depends on:** Design outside voices shipped (v0.11.3.0)
+**Depends on:** Design outside voices shipped (v0.11.3)
 
 ### Outside voices in /qa visual regression detection
 
@@ -549,7 +549,7 @@ Shipped as v0.5.0 on main. Includes `/plan-design-review` (report-only design au
 
 **Effort:** M
 **Priority:** P3
-**Depends on:** Design outside voices shipped (v0.11.3.0)
+**Depends on:** Design outside voices shipped (v0.11.3)
 
 ## Document-Release
 
@@ -764,11 +764,11 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 
 **Why:** Factory already supports 40+ MCP servers in its registry. Getting gstack's browse binary listed there is a distribution play. Nobody else has a real compiled browser binary as an MCP tool. This is the thing that makes gstack uniquely valuable on Factory Droid.
 
-**Context:** Option A (--host factory compatibility shim) ships first in v0.13.4.0. Option B is the follow-up that provides deeper integration. The browse binary is already a stateless CLI, so wrapping it as an MCP server is straightforward (stdin/stdout JSON-RPC). Each browse command becomes an MCP tool.
+**Context:** Option A (--host factory compatibility shim) ships first in v0.13.4. Option B is the follow-up that provides deeper integration. The browse binary is already a stateless CLI, so wrapping it as an MCP server is straightforward (stdin/stdout JSON-RPC). Each browse command becomes an MCP tool.
 
 **Effort:** L (human: ~1 week / CC: ~5 hours)
 **Priority:** P1
-**Depends on:** --host factory (Option A, shipping in v0.13.4.0)
+**Depends on:** --host factory (Option A, shipping in v0.13.4)
 
 ### .agent/skills/ dual output for cross-agent compatibility
 
@@ -848,15 +848,15 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 
 ## Completed
 
-### CI eval pipeline (v0.9.9.0)
+### CI eval pipeline (v0.9.9)
 - GitHub Actions eval upload on Ubicloud runners ($0.006/run)
 - Within-file test concurrency (test() → testConcurrentIfSelected())
 - Eval artifact upload + PR comment with pass/fail + cost
 - Baseline comparison via artifact download from main
 - EVALS_CONCURRENCY=40 for ~6min wall clock (was ~18min)
-**Completed:** v0.9.9.0
+**Completed:** v0.9.9
 
-### Deploy pipeline (v0.9.8.0)
+### Deploy pipeline (v0.9.8)
 - /land-and-deploy — merge PR, wait for CI/deploy, canary verification
 - /canary — post-deploy monitoring loop with anomaly detection
 - /benchmark — performance regression detection with Core Web Vitals
@@ -865,7 +865,7 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 - E2E model pinning (Sonnet default, Opus for quality tests)
 - E2E timing telemetry (first_response_ms, max_inter_turn_ms, wall_clock_ms)
 - test:e2e:fast tier, --retry 2 on all E2E scripts
-**Completed:** v0.9.8.0
+**Completed:** v0.9.8
 
 ### Phase 1: Foundations (v0.2.0)
 - Rename to gstack
