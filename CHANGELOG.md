@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.18.0.0] - 2026-04-03 — Project Hygiene Suite
+
+Three new skills that catch problems before they ship. Run `/env-sync` to find env vars in code that aren't in `.env.example`. Run `/deps` to audit for CVEs, outdated packages, unused deps, and license issues. Run `/test-gen` to generate unit tests that match your project's existing style.
+
+### Added
+
+- **`/env-sync` skill.** Scans code for all env var references (`process.env`, `env()`, `os.getenv`, `ENV[]`, etc.), diffs against `.env.example`, reports missing and stale vars with file:line locations. Fixes inline — adds missing vars with comments, comments out stale ones.
+- **`/deps` skill.** Four-check dependency audit: vulnerabilities (CVEs via native audit tools), outdated packages (major/minor/patch breakdown), unused dependencies (grep-based detection), and license flags (copyleft/unknown). Works with npm, composer, bundler, pip, go, cargo, and mix.
+- **`/test-gen` skill.** Reads 2-3 existing tests to learn your project's framework, naming, assertions, mocking, and file organization — then generates tests that match. Finds untested code, prioritizes by risk (auth/payments > utils), verifies tests pass, and reports bugs found during generation.
+
 ## [0.17.0.0] - 2026-04-02 — Cross-Session Inbox
 
 Your Claude Code sessions can now talk to each other. Run `/inbox` to send messages between concurrent sessions — completion notifications, work handoffs, questions, or general updates. A lightweight PreToolUse hook surfaces new messages inline so you never miss one.
