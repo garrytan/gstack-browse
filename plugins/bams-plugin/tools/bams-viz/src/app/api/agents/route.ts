@@ -1,49 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EventStore } from '@/lib/event-store'
+import { bamsApi } from '@/lib/bams-api'
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
 
 export async function GET(request: NextRequest) {
+  const date = request.nextUrl.searchParams.get('date') ?? undefined
+  const pipeline = request.nextUrl.searchParams.get('pipeline') ?? undefined
+
+  // date 또는 pipeline 필터 없으면 API 우선
+  if (!date && !pipeline) {
+    try {
+      const data = await bamsApi.getAgents()
+      return NextResponse.json(data, { headers: corsHeaders })
+    } catch {
+      // Fallback to EventStore
+    }
+  }
+
+  // date/pipeline 필터 있거나 API 실패: EventStore (파일 기반 집계)
   try {
-    const date = request.nextUrl.searchParams.get('date') ?? undefined
-    const pipeline = request.nextUrl.searchParams.get('pipeline') ?? undefined
     const store = EventStore.getInstance()
     const agentData = store.getAgents(date)
 
-    // Filter by pipeline slug if specified
     if (pipeline) {
-      const pipelineCalls = agentData.calls.filter(c => c.pipelineSlug === pipeline)
-      const activeAgentTypes = new Set(pipelineCalls.map(c => c.agentType))
+      const pipelineCalls = agentData.calls.filter((c: { pipelineSlug: string }) => c.pipelineSlug === pipeline)
+      const activeAgentTypes = new Set(pipelineCalls.map((c: { agentType: string }) => c.agentType))
 
-      // Recompute stats for filtered calls
-      const statsByType: Record<string, typeof agentData.stats[0]> = {}
-      for (const call of pipelineCalls) {
+      const statsByType: Record<string, unknown> = {}
+      for (const call of pipelineCalls as Array<{
+        agentType: string; department?: string; isError: boolean;
+        durationMs?: number; model?: string;
+      }>) {
         const t = call.agentType
         if (!statsByType[t]) {
           statsByType[t] = {
-            agentType: t,
-            dept: call.department || 'unknown',
-            callCount: 0,
-            errorCount: 0,
-            totalDurationMs: 0,
-            avgDurationMs: 0,
-            minDurationMs: Infinity,
-            maxDurationMs: 0,
-            errorRate: 0,
-            models: {},
+            agentType: t, dept: call.department || 'unknown',
+            callCount: 0, errorCount: 0, totalDurationMs: 0, avgDurationMs: 0,
+            minDurationMs: Infinity, maxDurationMs: 0, errorRate: 0, models: {},
           }
         }
-        const s = statsByType[t]
-        s.callCount++
-        if (call.isError) s.errorCount++
+        const s = statsByType[t] as Record<string, number | Record<string, number>>
+        ;(s.callCount as number)++
+        if (call.isError) (s.errorCount as number)++
         if (call.durationMs != null && !call.isError) {
-          s.totalDurationMs += call.durationMs
-          s.minDurationMs = Math.min(s.minDurationMs, call.durationMs)
-          s.maxDurationMs = Math.max(s.maxDurationMs, call.durationMs)
+          (s.totalDurationMs as number) += call.durationMs
+          s.minDurationMs = Math.min(s.minDurationMs as number, call.durationMs)
+          s.maxDurationMs = Math.max(s.maxDurationMs as number, call.durationMs)
         }
-        if (call.model) s.models[call.model] = (s.models[call.model] || 0) + 1
+        if (call.model) {
+          const models = s.models as Record<string, number>
+          models[call.model] = (models[call.model] || 0) + 1
+        }
       }
-      for (const s of Object.values(statsByType)) {
+      for (const s of Object.values(statsByType) as Array<Record<string, number>>) {
         const completed = s.callCount - s.errorCount
         s.avgDurationMs = completed > 0 ? Math.round(s.totalDurationMs / completed) : 0
         if (s.minDurationMs === Infinity) s.minDurationMs = 0
@@ -52,13 +62,13 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         calls: pipelineCalls,
-        stats: Object.values(statsByType).sort((a, b) => b.callCount - a.callCount),
-        collaborations: agentData.collaborations.filter(c =>
+        stats: Object.values(statsByType).sort((a, b) => (b as Record<string,number>).callCount - (a as Record<string,number>).callCount),
+        collaborations: agentData.collaborations.filter((c: { from: string; to: string }) =>
           activeAgentTypes.has(c.from) || activeAgentTypes.has(c.to)
         ),
         totalCalls: pipelineCalls.length,
-        totalErrors: pipelineCalls.filter(c => c.isError).length,
-        runningCount: pipelineCalls.filter(c => c.startedAt && !c.endedAt).length,
+        totalErrors: pipelineCalls.filter((c: { isError: boolean }) => c.isError).length,
+        runningCount: pipelineCalls.filter((c: { startedAt?: string; endedAt?: string }) => c.startedAt && !c.endedAt).length,
       }, { headers: corsHeaders })
     }
 
