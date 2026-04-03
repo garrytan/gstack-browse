@@ -1,0 +1,194 @@
+---
+name: env-sync
+preamble-tier: 1
+version: 1.0.0
+description: |
+  Audit environment variables: find vars used in code but missing from
+  .env.example, and vars in .env.example that code never references.
+  Framework-agnostic — works with Node.js, PHP, Python, Ruby, Go, Rust, etc.
+  Use when asked to "check env vars", "audit .env", "sync environment",
+  "find missing env vars", or "env-sync".
+  Proactively suggest after /index, before /ship, or when .env.example
+  looks stale. (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /env-sync: Environment Variable Audit
+
+Find env vars used in code but missing from `.env.example`, and vars in
+`.env.example` that code never references. Never reads `.env` — only
+`.env.example` / `.env.sample`.
+
+---
+
+## Step 1: Find the env example file
+
+```bash
+# Check for env example files
+[ -f .env.example ] && echo "ENV_FILE:.env.example"
+[ -f .env.sample ] && echo "ENV_FILE:.env.sample"
+[ -f .env.template ] && echo "ENV_FILE:.env.template"
+[ ! -f .env.example ] && [ ! -f .env.sample ] && [ ! -f .env.template ] && echo "NO_ENV_FILE"
+```
+
+If `NO_ENV_FILE`, ask the user:
+
+> No `.env.example` found. Want me to:
+> A) Create one from the env vars I find in your code
+> B) Point me to your env file (different name/location)
+
+---
+
+## Step 2: Extract env vars from code
+
+Scan the codebase for all environment variable references. Adapt the grep
+patterns to the detected language/framework.
+
+**For Node.js / TypeScript:**
+```bash
+grep -rn "process\.env\.\w\+" --include="*.ts" --include="*.js" --include="*.tsx" --include="*.jsx" --include="*.mjs" . 2>/dev/null | grep -v node_modules | grep -v dist | grep -v build | grep -v ".env" | head -200
+```
+
+**For PHP / Laravel:**
+```bash
+grep -rn "env(\|getenv(\|Env::\|\$_ENV\[" --include="*.php" . 2>/dev/null | grep -v vendor | grep -v storage | head -200
+```
+
+**For Python:**
+```bash
+grep -rn "os\.environ\|os\.getenv\|environ\.get\|environ\[" --include="*.py" . 2>/dev/null | grep -v venv | grep -v __pycache__ | head -200
+```
+
+**For Ruby:**
+```bash
+grep -rn "ENV\[" --include="*.rb" . 2>/dev/null | grep -v vendor | head -200
+```
+
+**For Go:**
+```bash
+grep -rn "os\.Getenv\|os\.LookupEnv\|viper\.\(Get\|GetString\)" --include="*.go" . 2>/dev/null | head -200
+```
+
+**For Rust:**
+```bash
+grep -rn "env::var\|env::var_os\|std::env::var" --include="*.rs" . 2>/dev/null | head -200
+```
+
+**For Docker / CI:**
+```bash
+grep -rn "\${[A-Z_]\+}" Dockerfile* docker-compose* .github/workflows/*.yml 2>/dev/null | head -50
+```
+
+Extract just the variable names from the grep results. Build a deduplicated
+list of all env var names found in code.
+
+---
+
+## Step 3: Extract env vars from .env.example
+
+```bash
+# Read the env example file and extract var names (lines that aren't comments/blank)
+cat .env.example 2>/dev/null | grep -v '^#' | grep -v '^$' | sed 's/=.*//' | sort -u
+```
+
+---
+
+## Step 4: Diff and report
+
+Compare the two lists:
+
+1. **In code but NOT in .env.example** — these are the dangerous ones.
+   A deploy could fail because the var is expected but not documented.
+
+2. **In .env.example but NOT in code** — these are stale. They clutter
+   the env file and confuse new developers.
+
+3. **In both** — these are good. No action needed.
+
+**Output format:**
+
+```
+/env-sync report
+═══════════════════════════════════════════════════════
+
+MISSING from .env.example (used in code):
+  STRIPE_WEBHOOK_SECRET     src/payments/webhook.ts:14
+  REDIS_CLUSTER_URL         src/cache/redis.ts:8
+  NEW_FEATURE_FLAG          src/features/flags.ts:22
+
+STALE in .env.example (not used in code):
+  OLD_API_KEY               (no references found)
+  LEGACY_DB_URL             (no references found)
+
+MATCHED (all good):
+  DATABASE_URL              12 references
+  APP_KEY                   3 references
+  MAIL_HOST                 2 references
+
+Summary: 3 missing, 2 stale, 15 matched
+```
+
+---
+
+## Step 5: Fix
+
+Ask the user what to do:
+
+> Found 3 env vars in code but missing from `.env.example`, and 2 stale
+> vars in `.env.example` that code never references.
+>
+> A) Add missing vars to .env.example (with empty values + comments)
+> B) Remove stale vars from .env.example
+> C) Do both
+> D) Just show the report, don't change anything
+
+If the user chooses A or C, add the missing vars to `.env.example` with
+empty values and a comment indicating where they're used:
+
+```
+# Added by /env-sync — used in src/payments/webhook.ts
+STRIPE_WEBHOOK_SECRET=
+```
+
+If the user chooses B or C, remove the stale vars (comment them out with
+a note rather than deleting, so the user can review):
+
+```
+# STALE (not referenced in code) — removed by /env-sync 2026-04-02
+# OLD_API_KEY=your_old_key_here
+```
+
+---
+
+## Step 6: Validate
+
+After making changes, re-run the scan to confirm everything is in sync.
+Report the final state.
+
+---
+
+## Design Principles
+
+1. **Never read .env.** Only `.env.example`, `.env.sample`, or `.env.template`.
+   The actual `.env` may contain secrets.
+
+2. **Framework-agnostic.** Detect the language from file extensions in the grep
+   results, not from config files.
+
+3. **Conservative fixes.** Comment out stale vars instead of deleting. Add
+   missing vars with empty values. The user fills in the secrets.
+
+4. **Include location.** Every missing var shows the file:line where it's used
+   so the user can verify it's real, not dead code.
+
+5. **Skip noise.** Ignore `NODE_ENV`, `PATH`, `HOME`, `USER`, `SHELL`, `TERM`,
+   and other system vars that aren't project-specific.
