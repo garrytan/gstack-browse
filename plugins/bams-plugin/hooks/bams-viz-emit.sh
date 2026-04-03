@@ -19,17 +19,12 @@ if [ -z "$EVENT_TYPE" ] || [ -z "$SLUG" ]; then
   exit 0
 fi
 
-# Resolve project root: use git root, or fallback to script's plugin directory
-BAMS_ROOT="${BAMS_CREW_DIR:-}"
-if [ -z "$BAMS_ROOT" ]; then
-  BAMS_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || true
-fi
-if [ -z "$BAMS_ROOT" ]; then
-  # Fallback: script is at <plugin>/hooks/bams-viz-emit.sh → plugin root
-  BAMS_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-fi
-EVENTS_FILE="${BAMS_ROOT}/.crew/artifacts/pipeline/${SLUG}-events.jsonl"
-AGENTS_DIR="${BAMS_ROOT}/.crew/artifacts/agents"
+# Global bams root: all projects share ~/.bams/ for cross-project visibility
+# Override: BAMS_ROOT env var (same name used in event-store.ts, app.ts, global-root.ts)
+BAMS_ROOT="${BAMS_ROOT:-$HOME/.bams}"
+mkdir -p "$BAMS_ROOT" 2>/dev/null || true
+EVENTS_FILE="${BAMS_ROOT}/artifacts/pipeline/${SLUG}-events.jsonl"
+AGENTS_DIR="${BAMS_ROOT}/artifacts/agents"
 mkdir -p "$(dirname "$EVENTS_FILE")" 2>/dev/null || true
 mkdir -p "$AGENTS_DIR" 2>/dev/null || true
 TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -118,13 +113,22 @@ case "$EVENT_TYPE" in
     printf '%s\n' "$EVENT" >> "$EVENTS_FILE"
     printf '%s\n' "$EVENT" >> "$AGENTS_FILE" 2>/dev/null || true
     # 토큰 사용량이 전달된 경우 Control Plane에 기록 (B4: CostDB 연동)
-    # 8번째 인자($8): token_usage JSON 또는 "null"
-    # 현재 Claude Code는 usage 메타데이터를 미노출하므로 구조만 준비
+    # 8번째 인자($8): token_usage JSON {"input_tokens":N,"output_tokens":N,"model":"..."} 또는 "null"
     TOKEN_USAGE="${8:-null}"
     if [ -n "$TOKEN_USAGE" ] && [ "$TOKEN_USAGE" != "null" ]; then
-      curl -s -X POST http://localhost:3099/api/costs \
+      _IN_TOK=$(echo "$TOKEN_USAGE" | jq -r '.input_tokens // 0' 2>/dev/null || echo 0)
+      _OUT_TOK=$(echo "$TOKEN_USAGE" | jq -r '.output_tokens // 0' 2>/dev/null || echo 0)
+      _MODEL=$(echo "$TOKEN_USAGE" | jq -r '.model // empty' 2>/dev/null || echo "")
+      [ -z "$_MODEL" ] && _MODEL="$AGENT_TYPE"
+      curl -s --max-time 1 -X POST http://localhost:3099/api/costs \
         -H "Content-Type: application/json" \
-        -d "{"pipeline_slug":"$SLUG","agent_slug":"$AGENT_TYPE","model":"${5:-unknown}","input_tokens":0,"output_tokens":0,"billed_cents":0}" \
+        -d "$(jq -cn \
+          --arg slug "$SLUG" \
+          --arg agent "$AGENT_TYPE" \
+          --arg model "$_MODEL" \
+          --argjson input "$_IN_TOK" \
+          --argjson output "$_OUT_TOK" \
+          '{pipeline_slug:$slug,agent_slug:$agent,model:$model,input_tokens:$input,output_tokens:$output,billed_cents:0}')" \
         > /dev/null 2>&1 || true
     fi
     ;;

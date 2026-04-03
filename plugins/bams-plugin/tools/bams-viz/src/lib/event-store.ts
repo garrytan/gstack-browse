@@ -3,6 +3,7 @@ import { join, resolve } from 'path'
 import type { Pipeline, AgentData, Trace, PipelineEvent } from './types'
 import { parseEvents, parseAgentEvents, buildTraces } from './parser'
 import { generateFlowchart, generateGantt } from './mermaid-gen'
+import { getGlobalRoot } from './global-root'
 
 const EMPTY_AGENT_DATA: AgentData = {
   calls: [],
@@ -67,37 +68,11 @@ class EventStore {
   }
 
   /**
-   * Find .crew directory — prefer git root (matches hook's write path),
-   * then walk up from cwd, then fallback to cwd/.crew
+   * Find global bams root — delegates to global-root.ts (Single Source of Truth).
+   * All projects share ~/.bams/ for cross-project visibility.
    */
   static findCrewRoot(): string {
-    // 1. Try git root first (same logic as bams-viz-hook.sh)
-    try {
-      const { execSync } = require('child_process')
-      const gitRoot = execSync('git rev-parse --show-toplevel', {
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-      }).trim()
-      const gitCrew = join(gitRoot, '.crew')
-      if (existsSync(gitCrew)) return gitCrew
-    } catch {
-      // not in a git repo
-    }
-
-    // 2. Walk up from cwd
-    let dir = process.cwd()
-    for (let i = 0; i < 10; i++) {
-      const target = join(dir, '.crew')
-      if (existsSync(target)) return target
-      const parent = resolve(dir, '..')
-      if (parent === dir) break
-      dir = parent
-    }
-
-    // 3. Fallback: create at cwd
-    const fallback = join(process.cwd(), '.crew')
-    mkdirSync(fallback, { recursive: true })
-    return fallback
+    return getGlobalRoot()
   }
 
   private ensureInitialized(): void {

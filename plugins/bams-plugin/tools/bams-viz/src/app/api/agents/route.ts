@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EventStore } from '@/lib/event-store'
-import { bamsApi } from '@/lib/bams-api'
 
-const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
+function headers(source: string) {
+  return { 'Access-Control-Allow-Origin': '*', 'X-Data-Source': source }
+}
 
 export async function GET(request: NextRequest) {
   const date = request.nextUrl.searchParams.get('date') ?? undefined
   const pipeline = request.nextUrl.searchParams.get('pipeline') ?? undefined
 
-  // date 또는 pipeline 필터 없으면 API 우선
-  if (!date && !pipeline) {
-    try {
-      const data = await bamsApi.getAgents()
-      return NextResponse.json(data, { headers: corsHeaders })
-    } catch {
-      // Fallback to EventStore
-    }
-  }
+  // Note: bamsApi.getAgents() returns { agents, count } which is NOT the AgentData
+  // shape ({ calls, stats, collaborations, totalCalls, ... }) expected by the frontend.
+  // Always use EventStore which returns the correct shape.
 
   // date/pipeline 필터 있거나 API 실패: EventStore (파일 기반 집계)
   try {
@@ -69,12 +64,12 @@ export async function GET(request: NextRequest) {
         totalCalls: pipelineCalls.length,
         totalErrors: pipelineCalls.filter((c) => c.isError).length,
         runningCount: pipelineCalls.filter((c) => c.startedAt && !c.endedAt).length,
-      }, { headers: corsHeaders })
+      }, { headers: headers('fallback') })
     }
 
-    return NextResponse.json(agentData, { headers: corsHeaders })
+    return NextResponse.json(agentData, { headers: headers('fallback') })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Internal server error'
-    return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders })
+    return NextResponse.json({ error: message }, { status: 500, headers: headers('error') })
   }
 }

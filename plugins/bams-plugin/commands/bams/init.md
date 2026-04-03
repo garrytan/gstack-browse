@@ -31,7 +31,7 @@ Options:
 - **전체 재초기화** - "모든 상태를 초기화 (board, history 포함)"
 
 **유지** 선택 시: 여기서 중단.
-**부분 재초기화** 선택 시: Step 2~4 실행 후 Step 5(디렉토리 생성) 스킵, Step 6(분석)~Step 8(config) 실행, board/history 보존.
+**부분 재초기화** 선택 시: Step 2~4 실행 후 Step 5(디렉토리 생성) 스킵, Step 5.5(DB 초기화, idempotent) 실행, Step 6(분석)~Step 8(config) 실행, board/history 보존.
 **전체 재초기화** 선택 시: 모든 Step을 처음부터 실행.
 
 ## Step 2: 언어 선택
@@ -81,7 +81,34 @@ Bash `mkdir -p`로 다음 디렉토리를 생성합니다:
 .crew/artifacts/review/
 .crew/artifacts/test/
 .crew/artifacts/pipeline/
+.crew/artifacts/agents/
+.crew/artifacts/hr/
+.crew/db/
 ```
+
+## Step 5.5: TaskDB 초기화 (SQLite)
+
+`.crew/db/bams.db`를 생성하여 DB 기반 태스크 관리를 활성화합니다.
+
+```bash
+# bams-db init-db.ts 경로 탐색 (소스 → 캐시 순)
+_INIT_DB=$(find . -path "*/bams-plugin/tools/bams-db/init-db.ts" -not -path "*/node_modules/*" 2>/dev/null | head -1)
+[ -z "$_INIT_DB" ] && _INIT_DB=$(find ~/.claude/plugins/cache -path "*/bams-plugin/*/tools/bams-db/init-db.ts" 2>/dev/null | head -1)
+
+if [ -n "$_INIT_DB" ]; then
+  bun run "$_INIT_DB" --migrate 2>&1
+else
+  echo "[bams-db] init-db.ts를 찾을 수 없습니다 — DB 초기화 스킵"
+fi
+```
+
+이 단계는:
+1. `.crew/db/bams.db` SQLite 파일을 생성합니다
+2. 스키마를 적용합니다 (tasks, task_events, token_usage, budget_policies, run_logs)
+3. 기존 `board.md`가 있으면 태스크를 DB로 마이그레이션합니다
+4. DB가 이미 존재하면 스키마만 idempotent하게 재확인합니다
+
+DB가 활성화되면 이후 파이프라인 커맨드(`/bams:dev`, `/bams:feature` 등)에서 자동으로 DB 모드로 전환됩니다.
 
 ## Step 6-7: 코드베이스 분석 + 배포 환경 점검 (병렬 실행)
 
@@ -165,6 +192,7 @@ CLAUDE.md가 있으면 Bams 플러그인 섹션을 추가. 없으면 기본 CLAU
 Git: [초기화/기존]
 배포 환경: [준비됨/미설정]
 코드베이스 분석: [완료/스킵]
+TaskDB: [활성화됨 (.crew/db/bams.db) / 스킵]
 
 다음: /bams:plan <feature> | /bams:status | /bams:sprint plan
 ```

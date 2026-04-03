@@ -9,6 +9,7 @@
  */
 
 import type { NextRequest } from "next/server";
+import { EventStore } from "@/lib/event-store";
 
 const BAMS_SERVER = process.env.BAMS_SERVER_URL ?? "http://localhost:3099";
 
@@ -44,7 +45,6 @@ export async function GET(req: NextRequest): Promise<Response> {
         },
       });
     } catch {
-      // bams-server 미실행 시 연결 오류 메시지 SSE 반환
       const errorStream = new ReadableStream<string>({
         start(controller) {
           controller.enqueue(
@@ -70,12 +70,21 @@ export async function GET(req: NextRequest): Promise<Response> {
         `${BAMS_SERVER}/api/runs/${pipeline}/logs?limit=${limit}`
       );
       const data = await res.json();
-      return Response.json(data);
+      return Response.json(data, { headers: { "X-Data-Source": "api" } });
     } catch {
-      return Response.json(
-        { error: "bams-server not available", logs: [], count: 0 },
-        { status: 503 }
-      );
+      try {
+        const store = EventStore.getInstance();
+        const events = store.getRawEvents(pipeline);
+        return Response.json(
+          { logs: events, count: events.length },
+          { headers: { "X-Data-Source": "fallback" } }
+        );
+      } catch {
+        return Response.json(
+          { logs: [], count: 0 },
+          { headers: { "X-Data-Source": "fallback" } }
+        );
+      }
     }
   }
 
@@ -87,12 +96,24 @@ export async function GET(req: NextRequest): Promise<Response> {
         `${BAMS_SERVER}/api/runs/agent/${agent}/logs?limit=${limit}`
       );
       const data = await res.json();
-      return Response.json(data);
+      return Response.json(data, { headers: { "X-Data-Source": "api" } });
     } catch {
-      return Response.json(
-        { error: "bams-server not available", logs: [], count: 0 },
-        { status: 503 }
-      );
+      try {
+        const store = EventStore.getInstance();
+        const allEvents = store.getAllRawEvents();
+        const agentEvents = allEvents.filter((e: Record<string, unknown>) =>
+          e.agent_type === agent || String(e.call_id ?? "").startsWith(agent)
+        );
+        return Response.json(
+          { logs: agentEvents, count: agentEvents.length },
+          { headers: { "X-Data-Source": "fallback" } }
+        );
+      } catch {
+        return Response.json(
+          { logs: [], count: 0 },
+          { headers: { "X-Data-Source": "fallback" } }
+        );
+      }
     }
   }
 

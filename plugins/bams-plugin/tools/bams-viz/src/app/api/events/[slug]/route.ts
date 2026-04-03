@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 import { EventStore } from '@/lib/event-store'
 import { bamsApi } from '@/lib/bams-api'
 
-const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
+function headers(source: string) {
+  return { 'Access-Control-Allow-Origin': '*', 'X-Data-Source': source }
+}
 
 export async function GET(
   _request: Request,
@@ -10,22 +12,20 @@ export async function GET(
 ) {
   const { slug } = await params
 
-  // API 우선: Control Plane에서 파이프라인 상세 조회
   try {
     const data = await bamsApi.getPipeline(slug)
-    return NextResponse.json(data, { headers: corsHeaders })
+    return NextResponse.json(data, { headers: headers('api') })
   } catch {
-    // Fallback: EventStore (파일 기반)
     try {
       const store = EventStore.getInstance()
       const pipeline = store.getPipeline(slug)
       if (!pipeline) {
-        return NextResponse.json({ error: 'Not found' }, { status: 404, headers: corsHeaders })
+        return NextResponse.json({ error: 'Not found' }, { status: 404, headers: headers('fallback') })
       }
-      return NextResponse.json(pipeline, { headers: corsHeaders })
+      return NextResponse.json(pipeline, { headers: headers('fallback') })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Internal server error'
-      return NextResponse.json({ error: message }, { status: 500, headers: corsHeaders })
+      return NextResponse.json({ error: message }, { status: 500, headers: headers('error') })
     }
   }
 }

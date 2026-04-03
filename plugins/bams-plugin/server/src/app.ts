@@ -32,7 +32,10 @@ import type { TaskStatus } from "../../tools/bams-db/schema.ts";
 // ─────────────────────────────────────────────────────────────
 
 const PORT = parseInt(process.env.BAMS_SERVER_PORT ?? "3099", 10);
-const PIPELINE_EVENTS_DIR = ".crew/artifacts/pipeline";
+// 글로벌 bams 루트: BAMS_ROOT 환경변수 → $HOME/.bams (emit.sh, event-store.ts와 동일 로직)
+const HOME_DIR = process.env.HOME ?? process.env.USERPROFILE ?? "";
+const GLOBAL_ROOT = process.env.BAMS_ROOT ?? (HOME_DIR ? `${HOME_DIR}/.bams` : ".crew");
+const PIPELINE_EVENTS_DIR = `${GLOBAL_ROOT}/artifacts/pipeline`;
 const AGENTS_DIR = "plugins/bams-plugin/agents";
 
 /** SSE 이벤트 push — SseBroker 경유 (DB 영구 보존 + 스트리밍) */
