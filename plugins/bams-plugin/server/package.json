@@ -1,0 +1,11 @@
+{
+  "name": "bams-server",
+  "version": "1.0.0",
+  "description": "bams-plugin Control Plane HTTP server",
+  "scripts": {
+    "start": "bun run src/app.ts",
+    "dev": "bun --watch run src/app.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
