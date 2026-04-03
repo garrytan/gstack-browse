@@ -42,6 +42,42 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 
 `.crew/config.md`와 `.crew/board.md`를 읽습니다.
 
+### TaskDB 연동 (DB가 존재하면 board.md 대신 DB 사용)
+
+`.crew/db/bams.db`가 존재하면 DB를 우선 사용합니다:
+
+```bash
+# DB 존재 확인
+if [ -f ".crew/db/bams.db" ]; then
+  echo "[bams-db] DB 모드 활성화"
+fi
+```
+
+**태스크 등록 시 (DB가 존재하면):** Bash로 bun 스크립트를 실행하여 TaskDB에 태스크를 등록합니다.
+
+```bash
+# DB가 존재하면 TaskDB에 태스크 등록
+if [ -f ".crew/db/bams.db" ]; then
+  bun -e "
+    import { TaskDB } from './plugins/bams-plugin/tools/bams-db/index.ts';
+    const db = new TaskDB('.crew/db/bams.db');
+    db.createTask({ pipeline_slug: '{slug}', title: '{task_title}', status: 'in_progress', assignee_agent: '{agent}', phase: {phase} });
+    db.close();
+  "
+fi
+```
+
+**파이프라인 완료 시 (DB가 존재하면):** board.md를 DB 스냅샷으로 갱신합니다.
+
+```bash
+if [ -f ".crew/db/bams.db" ]; then
+  bun run plugins/bams-plugin/tools/bams-db/sync-board.ts {slug} --write
+fi
+```
+
+DB가 없으면 기존 board.md 방식을 유지합니다.
+
+
 ### Viz 이벤트: pipeline_start
 
 사전 조건 확인 후, Bash로 다음을 실행합니다:
@@ -86,6 +122,30 @@ _EMIT=$(find ~/.claude/plugins/cache -name "bams-viz-emit.sh" -path "*/bams-plug
 - Glob으로 기존 PRD와 설계 문서 검색
 - **아티팩트가 존재하면**: "기존 계획 발견" 알림, Phase 2로 진행
 - **아티팩트가 없으면** -> Phase 0 (파이프라인 초기화)으로 진행
+
+---
+
+## bams-server 자동 기동 (C1 Control Plane)
+
+파이프라인 시작 전 bams-server가 실행 중인지 확인하고 필요시 백그라운드로 기동한다.
+
+```bash
+# bams-server 포트(3099) 확인
+if ! curl -sf http://localhost:3099/health > /dev/null 2>&1; then
+  echo "[bams] Control Plane 서버 기동 중..."
+  # 백그라운드 실행 (nohup — 터미널 종료 후에도 유지)
+  nohup bun run plugins/bams-plugin/server/src/app.ts > /tmp/bams-server.log 2>&1 &
+  echo "[bams] PID: $! — 로그: /tmp/bams-server.log"
+  sleep 1
+  if curl -sf http://localhost:3099/health > /dev/null 2>&1; then
+    echo "[bams] Control Plane 서버 기동 완료 (http://localhost:3099)"
+  else
+    echo "[bams] WARNING: 서버 기동 실패 — 파일 fallback 모드로 진행"
+  fi
+else
+  echo "[bams] Control Plane 서버 이미 실행 중 (http://localhost:3099)"
+fi
+```
 
 ---
 

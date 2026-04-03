@@ -113,6 +113,29 @@ Step 4 완료 시, Bash로 다음을 실행합니다:
 _EMIT=$(find ~/.claude/plugins/cache -name "bams-viz-emit.sh" -path "*/bams-plugin/*" 2>/dev/null | head -1); [ -n "$_EMIT" ] && bash "$_EMIT" step_end "{slug}" 4 "{status}" {duration_ms}
 ```
 
+### Step 5: 문서 Drift 감지 (doc-drift)
+
+Bash로 다음을 실행합니다:
+```bash
+_EMIT=$(find ~/.claude/plugins/cache -name "bams-viz-emit.sh" -path "*/bams-plugin/*" 2>/dev/null | head -1); [ -n "$_EMIT" ] && bash "$_EMIT" step_start "{slug}" 5 "문서 Drift 감지" "Phase 4: doc-drift"
+```
+
+`.crew/skills/doc-drift/SKILL.md`를 Read하여 doc-drift 스킬을 실행한다.
+
+**doc-drift 실행 목적:**
+- 이번 스프린트에서 변경된 커밋을 스캔하여 문서 drift 감지
+- Feature/Breaking/Structural 변경 분류
+- drift 발견 시 브랜치 생성 + 최소 편집 + PR 자동 생성
+- drift 없으면 `.doc-review-cursor`만 업데이트
+
+**스킬 파일이 없는 경우:** `skipped`.
+
+Step 5 완료 시, Bash로 다음을 실행합니다:
+```bash
+_EMIT=$(find ~/.claude/plugins/cache -name "bams-viz-emit.sh" -path "*/bams-plugin/*" 2>/dev/null | head -1); [ -n "$_EMIT" ] && bash "$_EMIT" step_end "{slug}" 5 "{status}" {duration_ms}
+```
+
+
 ## 마무리
 
 ### Viz 이벤트: pipeline_end
@@ -137,3 +160,40 @@ weekly는 gotchas의 **정기 정리** 담당:
 2. 이번 주 해결된 이슈와 gotchas 매칭 → `resolved` 처리 제안.
 3. gotchas 총 50개 초과 시 → 아카이브 프로세스 제안.
 4. 90일 이상 경과한 `completed` pipeline 추적 파일 → 아카이브 제안.
+
+
+### TaskDB 연동 (DB가 존재하면 board.md 대신 DB 사용)
+
+`.crew/db/bams.db`가 존재하면 DB를 우선 사용합니다:
+
+```bash
+# DB 존재 확인
+if [ -f ".crew/db/bams.db" ]; then
+  echo "[bams-db] DB 모드 활성화"
+fi
+```
+
+**태스크 등록 시 (DB가 존재하면):** Bash로 bun 스크립트를 실행하여 TaskDB에 태스크를 등록합니다.
+
+```bash
+# DB가 존재하면 TaskDB에 태스크 등록
+if [ -f ".crew/db/bams.db" ]; then
+  bun -e "
+    import { TaskDB } from './plugins/bams-plugin/tools/bams-db/index.ts';
+    const db = new TaskDB('.crew/db/bams.db');
+    db.createTask({ pipeline_slug: '{slug}', title: '{task_title}', status: 'in_progress', assignee_agent: '{agent}', phase: {phase} });
+    db.close();
+  "
+fi
+```
+
+**파이프라인 완료 시 (DB가 존재하면):** board.md를 DB 스냅샷으로 갱신합니다.
+
+```bash
+if [ -f ".crew/db/bams.db" ]; then
+  bun run plugins/bams-plugin/tools/bams-db/sync-board.ts {slug} --write
+fi
+```
+
+DB가 없으면 기존 board.md 방식을 유지합니다.
+

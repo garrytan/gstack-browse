@@ -43,6 +43,42 @@ Glob으로 `.crew/config.md`가 존재하는지 확인합니다. 없으면:
 
 `.crew/config.md`와 `.crew/board.md`를 읽습니다.
 
+### TaskDB 연동 (DB가 존재하면 board.md 대신 DB 사용)
+
+`.crew/db/bams.db`가 존재하면 DB를 우선 사용합니다:
+
+```bash
+# DB 존재 확인
+if [ -f ".crew/db/bams.db" ]; then
+  echo "[bams-db] DB 모드 활성화"
+fi
+```
+
+**태스크 등록 시 (DB가 존재하면):** Bash로 bun 스크립트를 실행하여 TaskDB에 태스크를 등록합니다.
+
+```bash
+# DB가 존재하면 TaskDB에 태스크 등록
+if [ -f ".crew/db/bams.db" ]; then
+  bun -e "
+    import { TaskDB } from './plugins/bams-plugin/tools/bams-db/index.ts';
+    const db = new TaskDB('.crew/db/bams.db');
+    db.createTask({ pipeline_slug: '{slug}', title: '{task_title}', status: 'in_progress', assignee_agent: '{agent}', phase: {phase} });
+    db.close();
+  "
+fi
+```
+
+**파이프라인 완료 시 (DB가 존재하면):** board.md를 DB 스냅샷으로 갱신합니다.
+
+```bash
+if [ -f ".crew/db/bams.db" ]; then
+  bun run plugins/bams-plugin/tools/bams-db/sync-board.ts {slug} --write
+fi
+```
+
+DB가 없으면 기존 board.md 방식을 유지합니다.
+
+
 추가 스캔 (병렬):
 - **`.crew/artifacts/prd/`** — 기존 PRD 확인. 인자가 기존 slug와 일치하면 해당 PRD 로딩.
 - **`.crew/artifacts/design/`** — 기존 기술설계 문서 확인.

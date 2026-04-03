@@ -56,6 +56,26 @@ bash hooks/bams-viz-emit.sh pipeline_end "{slug}" "{status}" {total_steps} {comp
 
 `{slug}-events.jsonl` 파일은 삭제하지 않습니다 (tracking 파일과 동일 생명주기).
 
+## Step 4.7: 비용 요약 조회
+
+Control Plane 서버가 실행 중이면 파이프라인의 비용 사용량을 조회하여 완료 요약에 포함합니다:
+
+```bash
+# Control Plane 서버 실행 중 확인
+if curl -s http://localhost:3099/health > /dev/null 2>&1; then
+  COST_JSON=$(curl -s "http://localhost:3099/api/costs?pipeline={slug}" 2>/dev/null || echo "{}")
+  echo "[비용] $COST_JSON"
+fi
+```
+
+조회 결과가 있으면 완료 요약 출력 시 다음 항목을 추가합니다:
+```
+비용: {total_cents}¢  ({total_tokens} tokens)
+  에이전트별: {agent} {cents}¢  ...
+```
+
+서버가 미실행 중이거나 조회 실패 시 이 단계를 스킵합니다.
+
 ## Step 5: 완료 요약 출력
 
 통일된 형식:

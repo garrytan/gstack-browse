@@ -117,6 +117,16 @@ case "$EVENT_TYPE" in
        + (if $pipeline_slug != "" then {pipeline_slug:$pipeline_slug} else {} end)')
     printf '%s\n' "$EVENT" >> "$EVENTS_FILE"
     printf '%s\n' "$EVENT" >> "$AGENTS_FILE" 2>/dev/null || true
+    # 토큰 사용량이 전달된 경우 Control Plane에 기록 (B4: CostDB 연동)
+    # 8번째 인자($8): token_usage JSON 또는 "null"
+    # 현재 Claude Code는 usage 메타데이터를 미노출하므로 구조만 준비
+    TOKEN_USAGE="${8:-null}"
+    if [ -n "$TOKEN_USAGE" ] && [ "$TOKEN_USAGE" != "null" ]; then
+      curl -s -X POST http://localhost:3099/api/costs \
+        -H "Content-Type: application/json" \
+        -d "{"pipeline_slug":"$SLUG","agent_slug":"$AGENT_TYPE","model":"${5:-unknown}","input_tokens":0,"output_tokens":0,"billed_cents":0}" \
+        > /dev/null 2>&1 || true
+    fi
     ;;
   error)
     jq -cn --arg slug "$SLUG" --arg msg "${3:-}" --argjson num "${4:-0}" --arg code "${5:-unknown}" --arg ts "$TS" \
