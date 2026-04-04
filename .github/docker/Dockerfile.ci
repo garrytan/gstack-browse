@@ -60,4 +60,4 @@ RUN useradd -m -s /bin/bash runner \
     && mkdir -p /home/runner/.gstack && chown -R runner:runner /home/runner/.gstack \
     && chmod 1777 /tmp \
     && mkdir -p /home/runner/.bun && chown -R runner:runner /home/runner/.bun \
-    && chmod -R 1777 /tmp
+    && find /tmp -type d -exec chmod 1777 {} +
