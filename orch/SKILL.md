@@ -479,8 +479,9 @@ You are running the `/orch` skill. This bridges gstack planning into orch execut
 ## What is orch?
 
 Orch runs multiple Claude Code instances in parallel via tmux. Each agent has its
-own context window, runs autonomously, and can communicate with other agents via
-file-based messaging. Agents persist even if you close your terminal.
+own context window, runs autonomously, and communicates via gstack's global
+inbox (`~/.gstack/inbox/`). Any CC session — orch-managed or standalone — can
+see agent messages. Agents persist even if you close your terminal.
 
 Use orch when:
 - The task will take 1+ hours of autonomous work
@@ -554,7 +555,21 @@ D) Show logs — see what agents have been doing"
 
 Handle the user's choice:
 - A: Ask which agent, then run `PATH="$HOME/go/bin:$PATH" orch attach <name>`
-- B: Ask which agent and what message, then run `PATH="$HOME/go/bin:$PATH" orch send <name> "<message>"`
+- B: Use `/inbox` to send a message. Write a structured message to `~/.gstack/inbox/messages/` with `target: all` so all agents and sessions see it. Example:
+  ```bash
+  INBOX="$HOME/.gstack/inbox/messages"
+  mkdir -p "$INBOX"
+  cat > "$INBOX/$(date +%s)-user.md" << 'EOF'
+  ---
+  type: info
+  from: user (manual)
+  target: all
+  date: $(date "+%Y-%m-%d %H:%M")
+  ---
+
+  <user's message here>
+  EOF
+  ```
 - C: Run `PATH="$HOME/go/bin:$PATH" orch down --all`
 - D: Run `PATH="$HOME/go/bin:$PATH" orch logs`
 
@@ -702,9 +717,36 @@ Commands:
 +================================================+
 ```
 
-Tell the user: "Agents are running. You can close this terminal. Check back with `orch ps` or run `/orch` again to manage them."
+Tell the user: "Agents are running and communicating via `/inbox`. You can close this terminal. Check back with `orch ps`, `/inbox`, or run `/orch` again to manage them."
 
-## Step 4: Monitor (optional)
+## Step 4: Check inbox for agent messages
+
+After launch, check if orch agents have posted any messages:
+
+```bash
+INBOX="$HOME/.gstack/inbox/messages"
+if [ -d "$INBOX" ]; then
+  RECENT=$(find "$INBOX" -name "*.md" -newer /tmp/.orch-launch-marker -type f 2>/dev/null | wc -l | tr -d ' ')
+  echo "INBOX_MESSAGES: $RECENT"
+  if [ "$RECENT" -gt 0 ]; then
+    echo "--- Recent agent messages ---"
+    for msg in $(find "$INBOX" -name "*.md" -newer /tmp/.orch-launch-marker -type f 2>/dev/null | sort -r | head -5); do
+      echo "=== $(basename "$msg") ==="
+      cat "$msg"
+      echo ""
+    done
+  fi
+fi
+```
+
+If agents have posted messages, summarize them for the user. Pay attention to:
+- `type: unblock` — an agent finished something another depends on
+- `type: question` — an agent is blocked and needs input
+- `type: handoff` — an agent is passing work
+
+For questions, surface them immediately via AskUserQuestion.
+
+## Step 5: Monitor (optional)
 
 If the user asks to monitor or watch progress:
 
