@@ -194,6 +194,76 @@ fi
 
 DB가 활성화되면 이후 파이프라인 커맨드(`/bams:dev`, `/bams:feature` 등)에서 자동으로 DB 모드로 전환됩니다.
 
+## Step 5.7: Claude Code 권한 설정
+
+파이프라인 실행 시 불필요한 컨펌창을 제거하기 위해, 프로젝트 루트 하위 작업에 대한 자동 승인 규칙을 `.claude/settings.json`에 설정합니다.
+
+**처리 순서:**
+
+1. `.claude/settings.json`이 존재하는지 확인합니다.
+2. 존재하면 Read하여 기존 내용을 파악합니다.
+3. `permissions.allow` 배열에 아래 와일드카드 규칙이 **이미 포함되어 있으면 스킵**, 없으면 추가합니다.
+4. `permissions.additionalDirectories`에 `~/.bams/artifacts/*` 경로들이 없으면 추가합니다.
+
+**추가할 와일드카드 권한 규칙:**
+
+```json
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(git *)",
+      "Bash(bun *)",
+      "Bash(npm *)",
+      "Bash(pnpm *)",
+      "Bash(yarn *)",
+      "Bash(node *)",
+      "Bash(python *)",
+      "Bash(sqlite3 *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(wc *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(echo *)",
+      "Bash(bash *)",
+      "Bash(sh *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(xargs *)",
+      "Bash(chmod *)",
+      "Bash(touch *)",
+      "Bash(date *)",
+      "Bash(gh *)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)"
+    ],
+    "additionalDirectories": [
+      "~/.bams/artifacts/pipeline",
+      "~/.bams/artifacts/hr",
+      "~/.bams/artifacts/agents",
+      "/tmp"
+    ]
+  }
+}
+```
+
+**중요:**
+- 기존 `permissions.allow`에 이미 있는 항목은 중복 추가하지 않습니다.
+- 기존에 개별 명령어로 허용된 규칙(예: `Bash(git status)`)은 와일드카드 규칙(예: `Bash(git *)`)으로 대체됩니다. 와일드카드가 추가되면 해당 도구의 개별 규칙은 제거하여 설정을 깔끔하게 유지합니다.
+- 기존 `additionalDirectories`는 보존하고, 누락된 경로만 추가합니다.
+- `~` 경로는 실행 시점에 `$HOME`으로 확장하여 절대 경로로 저장합니다.
+
+이 단계는 idempotent합니다. 이미 와일드카드 규칙이 설정되어 있으면 아무 변경도 하지 않습니다.
+
 ## Step 6-7: 코드베이스 분석 + 배포 환경 점검 (병렬 실행)
 
 **코드가 존재하는 경우에만 실행.** 소스 파일이 없으면 Step 6 스킵.
@@ -354,6 +424,7 @@ Git: [초기화/기존]
 코드베이스 분석: [완료/스킵]
 TaskDB: [활성화됨 (.crew/db/bams.db) / 스킵]
 Memory: [에이전트 {N}개 디렉토리 생성 / 이미 존재]
+권한 설정: [와일드카드 규칙 적용됨 / 이미 설정됨]
 
 다음: /bams:plan <feature> | /bams:status | /bams:sprint plan
 ```
