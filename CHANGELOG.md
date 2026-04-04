@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.0] - 2026-04-03 — Multi-Session Intelligence
+
+Your Claude Code sessions now work as a team. `/pair` sets up structured pair programming between two sessions — one drives, one navigates, coordinated via `/inbox`. Orch agents now communicate through the same global inbox, so standalone sessions and orch-managed agents share one message bus.
+
+### Added
+
+- **`/pair` skill.** Two CC sessions, one task. Driver writes code and sends review requests after each change. Navigator reviews in real-time and sends structured feedback (APPROVE/ISSUE/SUGGESTION). Role claims prevent conflicts. Setup wizard for both sessions.
+- **`/orch` inbox integration.** Orch agents now post status, unblock, handoff, and question messages to `~/.gstack/inbox/`. Any CC session sees orch agent progress via the PreToolUse hook. Monitoring step checks inbox for agent messages and surfaces questions immediately.
+
 ## [0.18.0] - 2026-04-03 — Project Hygiene Suite
 
 Three new skills that catch problems before they ship. Run `/env-sync` to find env vars in code that aren't in `.env.example`. Run `/deps` to audit for CVEs, outdated packages, unused deps, and license issues. Run `/test-gen` to generate unit tests that match your project's existing style.
