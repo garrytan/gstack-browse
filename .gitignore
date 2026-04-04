@@ -5,6 +5,8 @@ browse/dist/
 .claude/skills/
 .context/
 /tmp/
+.tmp/
+C*/
 *.log
 bun.lock
 *.bun-build
@@ -25,5 +27,9 @@ nvda_full.txt
 browse/test/fixtures/*.db
 ~/
 docs/STREAK_DESIGN.md
+docs/specs/
+docs/PLAN_*.md
 .wrangler/
 cloudflare/.wrangler/
+plan.md
+review-output.md

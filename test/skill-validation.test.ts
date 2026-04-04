@@ -6,6 +6,23 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+const HAS_BASH = (() => {
+  if (process.platform === 'win32') return false;
+  try {
+    const r = Bun.spawnSync(['bash', '--version'], { stdout: 'ignore', stderr: 'ignore' });
+    return r.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+const describeBash: typeof describe = ((name: any, fn: any) => {
+  if (HAS_BASH) return describe(name, fn);
+  return describe(name, () => {
+    test('skipped (bash not available)', () => {
+      expect(true).toBe(true);
+    });
+  });
+}) as any;
 
 describe('SKILL.md command validation', () => {
   test('all $B commands in SKILL.md are valid browse commands', () => {
@@ -210,7 +227,7 @@ describe('Generated SKILL.md freshness', () => {
 
 // --- Update check preamble validation ---
 
-describe('Update check preamble', () => {
+describeBash('Update check preamble', () => {
   const skillsWithUpdateCheck = [
     'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
     'qa-only/SKILL.md',
@@ -929,7 +946,7 @@ describe('CEO review mode validation', () => {
 
 // --- gstack-slug helper ---
 
-describe('gstack-slug', () => {
+describeBash('gstack-slug', () => {
   const SLUG_BIN = path.join(ROOT, 'bin', 'gstack-slug');
 
   test('binary exists and is executable', () => {

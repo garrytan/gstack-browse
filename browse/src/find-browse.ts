@@ -58,4 +58,6 @@ function main() {
   console.log(bin);
 }
 
-main();
+if (import.meta.main) {
+  main();
+}

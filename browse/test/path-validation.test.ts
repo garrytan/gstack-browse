@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'bun:test';
 import { validateOutputPath } from '../src/meta-commands';
 import { validateReadPath } from '../src/read-commands';
+import { TEMP_DIR } from '../src/platform';
+import * as path from 'path';
 
 describe('validateOutputPath', () => {
-  it('allows paths within /tmp', () => {
-    expect(() => validateOutputPath('/tmp/screenshot.png')).not.toThrow();
+  it('allows paths within temp dir', () => {
+    expect(() => validateOutputPath(path.join(TEMP_DIR, 'screenshot.png'))).not.toThrow();
   });
 
-  it('allows paths in subdirectories of /tmp', () => {
-    expect(() => validateOutputPath('/tmp/browse/output.png')).not.toThrow();
+  it('allows paths in subdirectories of temp dir', () => {
+    expect(() => validateOutputPath(path.join(TEMP_DIR, 'browse', 'output.png'))).not.toThrow();
   });
 
   it('allows paths within cwd', () => {
@@ -20,7 +22,7 @@ describe('validateOutputPath', () => {
   });
 
   it('blocks /tmpevil prefix collision', () => {
-    expect(() => validateOutputPath('/tmpevil/file.png')).toThrow(/Path must be within/);
+    expect(() => validateOutputPath(path.join(`${TEMP_DIR}-evil`, 'file.png'))).toThrow(/Path must be within/);
   });
 
   it('blocks home directory paths', () => {
@@ -28,13 +30,13 @@ describe('validateOutputPath', () => {
   });
 
   it('blocks path traversal via ..', () => {
-    expect(() => validateOutputPath('/tmp/../etc/passwd')).toThrow(/Path must be within/);
+    expect(() => validateOutputPath(path.join(TEMP_DIR, '..', 'etc', 'passwd'))).toThrow(/Path must be within/);
   });
 });
 
 describe('validateReadPath', () => {
-  it('allows absolute paths within /tmp', () => {
-    expect(() => validateReadPath('/tmp/script.js')).not.toThrow();
+  it('allows absolute paths within temp dir', () => {
+    expect(() => validateReadPath(path.join(TEMP_DIR, 'script.js'))).not.toThrow();
   });
 
   it('allows absolute paths within cwd', () => {
@@ -50,7 +52,7 @@ describe('validateReadPath', () => {
   });
 
   it('blocks /tmpevil prefix collision', () => {
-    expect(() => validateReadPath('/tmpevil/file.js')).toThrow(/Absolute path must be within/);
+    expect(() => validateReadPath(path.join(`${TEMP_DIR}-evil`, 'file.js'))).toThrow(/Absolute path must be within/);
   });
 
   it('blocks path traversal sequences', () => {

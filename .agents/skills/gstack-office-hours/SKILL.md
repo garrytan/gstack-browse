@@ -1,5 +1,6 @@
 ---
 name: office-hours
+version: 2.0.0
 description: |
   YC Office Hours — two modes. Startup mode: six forcing questions that expose
   demand reality, status quo, desperate specificity, narrowest wedge, observation,
@@ -10,6 +11,14 @@ description: |
   Proactively suggest when the user describes a new product idea or is exploring
   whether something is worth building — before any code is written.
   Use before /plan-ceo-review or /plan-eng-review.
+allowed-tools:
+  - Bash
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - Edit
+  - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

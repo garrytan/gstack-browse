@@ -79,6 +79,62 @@ curl "https://api.telegram.org/bot<TOKEN>/getWebhookInfo"
 - `/watch NVDA,AAPL,TSLA`
 - `/portfolio`
 
+## Calendar configuration
+
+The Worker can show a small economic calendar via `/calendar`.
+
+Environment variables:
+- `CALENDAR_TZ` (optional): time zone used to interpret and display the input times (default: `America/New_York`)
+- `DAILY_CRON_CMD` (optional): command to run for the daily cron push (default `/morning`, set to `halo` or `/halo` to push the HALO monitor)
+- `ECON_CALENDAR_SOURCE` (optional): set to `yahoo_viz` (preferred) to fetch from Yahoo Finance economic calendar via internal API; or `yahoo` (HTML fallback) for same-day only
+- `ECON_CALENDAR_DAYS` (optional): number of days to fetch when `ECON_CALENDAR_SOURCE=yahoo` (default 7, min 1, max 30)
+- `ECON_CALENDAR_YAHOO_MODE` (optional): `important` (default) or `all`
+- `ECON_CALENDAR_URL` (optional): HTTPS URL to a plain text file containing events
+- `ECON_CALENDAR_CACHE_TTL` (optional): cache seconds for `ECON_CALENDAR_SOURCE=yahoo` or `ECON_CALENDAR_URL` (default 900, min 60, max 86400)
+- `ECON_CALENDAR` (optional): inline multi-line fallback (used when URL is not set or fetch fails)
+
+## HALO configuration
+
+The Worker can show a small HALO monitor via `/halo`.
+
+- `/halo` shows: VIX regime + S7/T12 entry signals + stop triggers + near-miss list (S7 xor T12)
+- `/halo --all` shows more near-miss lines
+- `/halo --table` shows a full per-ticker table (PASS / S7-only / T12-only / both-fail)
+
+Environment variables:
+- `PORTFOLIO_POSITIONS` (optional): positions with quantity and cost basis (enables stop trigger checks)
+  - Format: `TICKER:QTY@COST,TICKER:QTY@COST`
+- `HALO_CORE` (optional): core monitor list (with labels)
+  - Format: `TICKER=Label,TICKER=Label`
+- `HALO_WATCHLIST` (optional): watchlist (with labels)
+  - Format: `TICKER=Label,TICKER=Label`
+- `HALO_STOP_PCTS` (optional): per-ticker stop percent
+  - Format: `TICKER:0.08,TICKER:0.06` (0.08 means -8% from cost)
+- `HALO_EMA_WINDOW` (optional): default 20
+- `HALO_VOLUME_WINDOW` (optional): default 20
+- `HALO_VOLUME_SURGE` (optional): default 1.5
+- `HALO_VIX_AMBER` (optional): default 18
+- `HALO_VIX_RED` (optional): default 25
+- `HALO_NEARMISS_PEMA_TARGET` (optional): P/EMA target hint for near-miss watch (default 1.01)
+- `HALO_MILKSHAKE_RISK` (optional): `TICKER:high` flags
+- `HALO_OBSOLESCENCE` (optional): `TICKER:high` flags
+
+Notes:
+- If `ECON_CALENDAR_SOURCE=yahoo_viz` cannot acquire a cookie/crumb (blocked network / rate limit), switch to a reliable “next N days” calendar by generating a plain-text feed via `browse` and setting `ECON_CALENDAR_URL` to that file.
+
+Generate a feed file (example):
+```bash
+bun run build
+bun run calendar:feed -- --days 7 --mode important --tz America/New_York --countries us --out cloudflare/econ_calendar.txt
+```
+
+Then publish `cloudflare/econ_calendar.txt` (e.g. GitHub raw / any HTTPS host) and set:
+- `ECON_CALENDAR_SOURCE=` (unset)
+- `ECON_CALENDAR_URL=https://.../econ_calendar.txt`
+
+Plain text format (one per line):
+`YYYY-MM-DD HH:mm Event name`
+
 ## Notes / Limitations (Worker version)
 - This Worker returns a “Trading Brief” summary. It does not run Bun/Playwright, so it does not scrape news.
 - If you need the full report and news scraping, run the local bot (`bun run telegram:bot`) on your PC/VPS.

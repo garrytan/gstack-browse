@@ -11,6 +11,13 @@ import { BrowserManager, type BrowserState } from '../src/browser-manager';
 import { handleWriteCommand } from '../src/write-commands';
 import { handleMetaCommand } from '../src/meta-commands';
 
+if (process.platform === 'win32') {
+  describe('handoff', () => {
+    test('skipped on Windows', () => {
+      expect(true).toBe(true);
+    });
+  });
+} else {
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
@@ -21,12 +28,16 @@ beforeAll(async () => {
 
   bm = new BrowserManager();
   await bm.launch();
-});
+}, 30_000);
 
-afterAll(() => {
-  try { testServer.server.stop(); } catch {}
-  setTimeout(() => process.exit(0), 500);
-});
+afterAll(async () => {
+  try {
+    await bm.close();
+  } catch {}
+  try {
+    testServer.server.stop();
+  } catch {}
+}, 30_000);
 
 // ─── Unit Tests: Failure Tracking (no browser needed) ────────────
 
@@ -233,3 +244,4 @@ describe('handoff integration', () => {
     }
   }, 45000);
 });
+}

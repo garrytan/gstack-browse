@@ -1,5 +1,6 @@
 ---
 name: design-consultation
+version: 1.0.0
 description: |
   Design consultation: understands your product, researches the landscape, proposes a
   complete design system (aesthetic, typography, color, layout, spacing, motion), and
@@ -8,6 +9,15 @@ description: |
   Use when asked to "design system", "brand guidelines", or "create DESIGN.md".
   Proactively suggest when starting a new project's UI with no existing
   design system or DESIGN.md.
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - AskUserQuestion
+  - WebSearch
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

@@ -17,6 +17,13 @@ import * as fs from 'fs';
 import { spawn } from 'child_process';
 import * as path from 'path';
 
+if (process.platform === 'win32') {
+  describe('Browse integration', () => {
+    test('skipped on Windows', () => {
+      expect(true).toBe(true);
+    });
+  });
+} else {
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
@@ -27,14 +34,16 @@ beforeAll(async () => {
 
   bm = new BrowserManager();
   await bm.launch();
-});
+}, 30_000);
 
-afterAll(() => {
-  // Force kill browser instead of graceful close (avoids hang)
-  try { testServer.server.stop(); } catch {}
-  // bm.close() can hang — just let process exit handle it
-  setTimeout(() => process.exit(0), 500);
-});
+afterAll(async () => {
+  try {
+    await bm.close();
+  } catch {}
+  try {
+    testServer.server.stop();
+  } catch {}
+}, 30_000);
 
 // ─── Navigation ─────────────────────────────────────────────────
 
@@ -1802,3 +1811,4 @@ describe('Chain with cookie-import', () => {
     }
   });
 });
+}

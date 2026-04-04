@@ -6,14 +6,23 @@ set -euo pipefail
 
 # Read stdin (JSON with tool_input)
 INPUT=$(cat)
+INPUT_FLAT=$(printf '%s' "$INPUT" | tr '\n' ' ')
 
 # Extract the "command" field value from tool_input
 # Try grep/sed first (handles 99% of cases), fall back to Python for escaped quotes
-CMD=$(printf '%s' "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//' || true)
+CMD=$(printf '%s' "$INPUT_FLAT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed 's/.*:[[:space:]]*"//;s/"$//' || true)
 
 # Python fallback if grep returned empty (e.g., escaped quotes in command)
 if [ -z "$CMD" ]; then
-  CMD=$(printf '%s' "$INPUT" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("command",""))' 2>/dev/null || true)
+  if command -v python3 >/dev/null 2>&1; then
+    CMD=$(printf '%s' "$INPUT" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("command",""))' 2>/dev/null || true)
+  elif command -v python >/dev/null 2>&1; then
+    CMD=$(printf '%s' "$INPUT" | python -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("command",""))' 2>/dev/null || true)
+  elif command -v node >/dev/null 2>&1; then
+    CMD=$(printf '%s' "$INPUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.tool_input||{}).command||""));}catch{}});' 2>/dev/null || true)
+  elif command -v bun >/dev/null 2>&1; then
+    CMD=$(printf '%s' "$INPUT" | bun -e 'let d="";for await (const c of Bun.stdin.stream()) d+=new TextDecoder().decode(c); try { const j=JSON.parse(d); process.stdout.write(String((j.tool_input||{}).command||"")); } catch {}' 2>/dev/null || true)
+  fi
 fi
 
 # If we still couldn't extract a command, allow

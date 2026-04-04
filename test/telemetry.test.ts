@@ -6,6 +6,23 @@ import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const BIN = path.join(ROOT, 'bin');
+const HAS_BASH = (() => {
+  if (process.platform === 'win32') return false;
+  try {
+    execSync('bash --version', { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+const describeBash: typeof describe = ((name: any, fn: any) => {
+  if (HAS_BASH) return describe(name, fn);
+  return describe(name, () => {
+    test('skipped (bash not available)', () => {
+      expect(true).toBe(true);
+    });
+  });
+}) as any;
 
 // Each test gets a fresh temp directory for GSTACK_STATE_DIR
 let tmpDir: string;
@@ -41,7 +58,7 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('gstack-telemetry-log', () => {
+describeBash('gstack-telemetry-log', () => {
   test('appends valid JSONL when tier=anonymous', () => {
     setConfig('telemetry', 'anonymous');
     run(`${BIN}/gstack-telemetry-log --skill qa --duration 142 --outcome success --session-id test-123`);
@@ -138,7 +155,7 @@ describe('gstack-telemetry-log', () => {
   });
 });
 
-describe('.pending marker', () => {
+describeBash('.pending marker', () => {
   test('finalizes stale .pending from another session as outcome:unknown', () => {
     setConfig('telemetry', 'anonymous');
 
@@ -212,7 +229,7 @@ describe('.pending marker', () => {
   });
 });
 
-describe('gstack-analytics', () => {
+describeBash('gstack-analytics', () => {
   test('shows "no data" for empty JSONL', () => {
     const output = run(`${BIN}/gstack-analytics`);
     expect(output).toContain('no data');
@@ -243,7 +260,7 @@ describe('gstack-analytics', () => {
   });
 });
 
-describe('gstack-telemetry-sync', () => {
+describeBash('gstack-telemetry-sync', () => {
   test('exits silently with no endpoint configured', () => {
     // Default: GSTACK_TELEMETRY_ENDPOINT is not set → exit 0
     const result = run(`${BIN}/gstack-telemetry-sync`);
@@ -256,7 +273,7 @@ describe('gstack-telemetry-sync', () => {
   });
 });
 
-describe('gstack-community-dashboard', () => {
+describeBash('gstack-community-dashboard', () => {
   test('shows unconfigured message when no Supabase config available', () => {
     // Use a fake GSTACK_DIR with no supabase/config.sh
     const output = run(`${BIN}/gstack-community-dashboard`, {

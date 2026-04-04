@@ -7,24 +7,43 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync, symlinkSync, utimesSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, existsSync, readFileSync, mkdirSync, symlinkSync, utimesSync, copyFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-const SCRIPT = join(import.meta.dir, '..', '..', 'bin', 'gstack-update-check');
+const ROOT = join(import.meta.dir, '..', '..');
+const SCRIPT = 'bin/gstack-update-check';
+const HAS_BASH = (() => {
+  try {
+    const r = Bun.spawnSync(['bash', '--version'], { stdout: 'ignore', stderr: 'ignore' });
+    return r.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+const describeBash: typeof describe = ((name: any, fn: any) => {
+  if (HAS_BASH) return describe(name, fn);
+  return describe(name, () => {
+    test('skipped (bash not available)', () => {
+      expect(true).toBe(true);
+    });
+  });
+}) as any;
 
 let gstackDir: string;
 let stateDir: string;
 
 function run(extraEnv: Record<string, string> = {}, args: string[] = []) {
-  const result = Bun.spawnSync(['bash', SCRIPT, ...args], {
-    env: {
-      ...process.env,
-      GSTACK_DIR: gstackDir,
-      GSTACK_STATE_DIR: stateDir,
-      GSTACK_REMOTE_URL: `file://${join(gstackDir, 'REMOTE_VERSION')}`,
-      ...extraEnv,
-    },
+  const gstackDirForBash = gstackDir.startsWith(ROOT) ? join('.', gstackDir.slice(ROOT.length + 1)).split('\\').join('/') : gstackDir;
+  const stateDirForBash = stateDir.startsWith(ROOT) ? join('.', stateDir.slice(ROOT.length + 1)).split('\\').join('/') : stateDir;
+  const remoteUrl = `file://${[gstackDirForBash, 'REMOTE_VERSION'].join('/')}`.replace(/\\/g, '/');
+  const shQuote = (s: string) => `'${s.replace(/'/g, `'\"'\"'`)}'`;
+  const exports = Object.entries({ GSTACK_DIR: gstackDirForBash, GSTACK_STATE_DIR: stateDirForBash, GSTACK_REMOTE_URL: remoteUrl, ...extraEnv })
+    .map(([k, v]) => `export ${k}=${shQuote(String(v))};`)
+    .join(' ');
+  const quotedArgs = args.map((a) => shQuote(a)).join(' ');
+  const result = Bun.spawnSync(['bash', '-lc', `${exports} bash ${SCRIPT} ${quotedArgs}`.trim()], {
+    cwd: ROOT,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -36,12 +55,20 @@ function run(extraEnv: Record<string, string> = {}, args: string[] = []) {
 }
 
 beforeEach(() => {
-  gstackDir = mkdtempSync(join(tmpdir(), 'gstack-upd-test-'));
-  stateDir = mkdtempSync(join(tmpdir(), 'gstack-state-test-'));
+  const tmpRoot = join(ROOT, '.tmp');
+  mkdirSync(tmpRoot, { recursive: true });
+  gstackDir = mkdtempSync(join(tmpRoot, 'gstack-upd-test-'));
+  stateDir = mkdtempSync(join(tmpRoot, 'gstack-state-test-'));
   // Link real gstack-config so update_check config check works
   const binDir = join(gstackDir, 'bin');
   mkdirSync(binDir);
-  symlinkSync(join(import.meta.dir, '..', '..', 'bin', 'gstack-config'), join(binDir, 'gstack-config'));
+  const src = join(import.meta.dir, '..', '..', 'bin', 'gstack-config');
+  const dst = join(binDir, 'gstack-config');
+  try {
+    symlinkSync(src, dst);
+  } catch {
+    copyFileSync(src, dst);
+  }
 });
 
 afterEach(() => {
@@ -61,7 +88,7 @@ function nowEpoch(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-describe('gstack-update-check', () => {
+describeBash('gstack-update-check', () => {
   // ─── Path A: No VERSION file ────────────────────────────────
   test('exits 0 with no output when VERSION file is missing', () => {
     const { exitCode, stdout } = run();
@@ -207,10 +234,11 @@ describe('gstack-update-check', () => {
   // ─── State dir creation ─────────────────────────────────────
   test('creates state dir if it does not exist', () => {
     const newStateDir = join(stateDir, 'nested', 'dir');
+    const newStateDirForBash = newStateDir.startsWith(ROOT) ? join('.', newStateDir.slice(ROOT.length + 1)).split('\\').join('/') : newStateDir;
     writeFileSync(join(gstackDir, 'VERSION'), '0.3.3\n');
     writeFileSync(join(gstackDir, 'REMOTE_VERSION'), '0.3.3\n');
 
-    const { exitCode } = run({ GSTACK_STATE_DIR: newStateDir });
+    const { exitCode } = run({ GSTACK_STATE_DIR: newStateDirForBash });
     expect(exitCode).toBe(0);
     expect(existsSync(join(newStateDir, 'last-update-check'))).toBe(true);
   });

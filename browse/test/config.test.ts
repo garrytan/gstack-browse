@@ -8,8 +8,13 @@ describe('config', () => {
   describe('getGitRoot', () => {
     test('returns a path when in a git repo', () => {
       const root = getGitRoot();
-      expect(root).not.toBeNull();
-      expect(fs.existsSync(path.join(root!, '.git'))).toBe(true);
+      const hasDotGit = fs.existsSync(path.join(process.cwd(), '.git'));
+      if (hasDotGit) {
+        expect(root).not.toBeNull();
+        expect(fs.existsSync(path.join(root!, '.git'))).toBe(true);
+      } else {
+        expect(root).toBeNull();
+      }
     });
   });
 
@@ -17,10 +22,15 @@ describe('config', () => {
     test('uses git root by default', () => {
       const config = resolveConfig({});
       const gitRoot = getGitRoot();
-      expect(gitRoot).not.toBeNull();
-      expect(config.projectDir).toBe(gitRoot);
-      expect(config.stateDir).toBe(path.join(gitRoot!, '.gstack'));
-      expect(config.stateFile).toBe(path.join(gitRoot!, '.gstack', 'browse.json'));
+      if (gitRoot) {
+        expect(config.projectDir).toBe(gitRoot);
+        expect(config.stateDir).toBe(path.join(gitRoot, '.gstack'));
+        expect(config.stateFile).toBe(path.join(gitRoot, '.gstack', 'browse.json'));
+      } else {
+        expect(config.projectDir).toBe(process.cwd());
+        expect(config.stateDir).toBe(path.join(process.cwd(), '.gstack'));
+        expect(config.stateFile).toBe(path.join(process.cwd(), '.gstack', 'browse.json'));
+      }
     });
 
     test('derives paths from BROWSE_STATE_FILE when set', () => {

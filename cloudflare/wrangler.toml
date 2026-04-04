@@ -4,3 +4,10 @@ compatibility_date = "2026-03-28"
 
 [triggers]
 crons = ["0 1 * * *"]
+
+[vars]
+ECON_CALENDAR_SOURCE = "yahoo_viz"
+ECON_CALENDAR_YAHOO_MODE = "important"
+ECON_CALENDAR_DAYS = "7"
+ECON_CALENDAR_CACHE_TTL = "900"
+CALENDAR_TZ = "America/New_York"

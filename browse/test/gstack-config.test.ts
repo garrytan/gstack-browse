@@ -6,21 +6,40 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
-import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync } from 'fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 
-const SCRIPT = join(import.meta.dir, '..', '..', 'bin', 'gstack-config');
+const ROOT = join(import.meta.dir, '..', '..');
+const SCRIPT = 'bin/gstack-config';
+const HAS_BASH = (() => {
+  try {
+    const r = Bun.spawnSync(['bash', '--version'], { stdout: 'ignore', stderr: 'ignore' });
+    return r.exitCode === 0;
+  } catch {
+    return false;
+  }
+})();
+const describeBash: typeof describe = ((name: any, fn: any) => {
+  if (HAS_BASH) return describe(name, fn);
+  return describe(name, () => {
+    test('skipped (bash not available)', () => {
+      expect(true).toBe(true);
+    });
+  });
+}) as any;
 
 let stateDir: string;
 
 function run(args: string[] = [], extraEnv: Record<string, string> = {}) {
-  const result = Bun.spawnSync(['bash', SCRIPT, ...args], {
-    env: {
-      ...process.env,
-      GSTACK_STATE_DIR: stateDir,
-      ...extraEnv,
-    },
+  const stateDirForBash = stateDir.startsWith(ROOT) ? join('.', stateDir.slice(ROOT.length + 1)).split('\\').join('/') : stateDir;
+  const shQuote = (s: string) => `'${s.replace(/'/g, `'\"'\"'`)}'`;
+  const exports = Object.entries({ GSTACK_STATE_DIR: stateDirForBash, ...extraEnv })
+    .map(([k, v]) => `export ${k}=${shQuote(String(v))};`)
+    .join(' ');
+  const quotedArgs = args.map((a) => shQuote(a)).join(' ');
+  const result = Bun.spawnSync(['bash', '-lc', `${exports} bash ${SCRIPT} ${quotedArgs}`.trim()], {
+    cwd: ROOT,
     stdout: 'pipe',
     stderr: 'pipe',
   });
@@ -32,14 +51,16 @@ function run(args: string[] = [], extraEnv: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  stateDir = mkdtempSync(join(tmpdir(), 'gstack-config-test-'));
+  const tmpRoot = join(ROOT, '.tmp');
+  mkdirSync(tmpRoot, { recursive: true });
+  stateDir = mkdtempSync(join(tmpRoot, 'gstack-config-test-'));
 });
 
 afterEach(() => {
   rmSync(stateDir, { recursive: true, force: true });
 });
 
-describe('gstack-config', () => {
+describeBash('gstack-config', () => {
   // ─── get ──────────────────────────────────────────────────
   test('get on missing file returns empty, exit 0', () => {
     const { exitCode, stdout } = run(['get', 'auto_upgrade']);
@@ -96,7 +117,8 @@ describe('gstack-config', () => {
 
   test('set creates state dir if missing', () => {
     const nestedDir = join(stateDir, 'nested', 'dir');
-    const { exitCode } = run(['set', 'foo', 'bar'], { GSTACK_STATE_DIR: nestedDir });
+    const nestedDirForBash = nestedDir.startsWith(ROOT) ? join('.', nestedDir.slice(ROOT.length + 1)).split('\\').join('/') : nestedDir;
+    const { exitCode } = run(['set', 'foo', 'bar'], { GSTACK_STATE_DIR: nestedDirForBash });
     expect(exitCode).toBe(0);
     expect(existsSync(join(nestedDir, 'config.yaml'))).toBe(true);
   });

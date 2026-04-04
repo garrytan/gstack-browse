@@ -31,9 +31,11 @@
     "eval:select": "bun run scripts/eval-select.ts",
     "streak": "bun run scripts/gstack-streak.ts",
     "streak:node": "node scripts/gstack-streak-node.mjs",
+    "plan:init": "node scripts/gstack-plan-init.mjs",
     "analytics": "bun run scripts/analytics.ts",
     "telegram:bot": "bun run scripts/telegram-bot.ts",
-    "telegram:whitelist": "bun run scripts/telegram-whitelist.ts --"
+    "telegram:whitelist": "bun run scripts/telegram-whitelist.ts --",
+    "calendar:feed": "bun run scripts/gen-econ-calendar-feed.ts --"
   },
   "dependencies": {
     "playwright": "^1.58.2",

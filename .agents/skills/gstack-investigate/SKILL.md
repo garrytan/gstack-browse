@@ -1,5 +1,6 @@
 ---
 name: investigate
+version: 1.0.0
 description: |
   Systematic debugging with root cause investigation. Four phases: investigate,
   analyze, hypothesize, implement. Iron Law: no fixes without root cause.
@@ -7,6 +8,26 @@ description: |
   "investigate this error", or "root cause analysis".
   Proactively suggest when the user reports errors, unexpected behavior, or
   is troubleshooting why something stopped working.
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+  - Grep
+  - Glob
+  - AskUserQuestion
+hooks:
+  PreToolUse:
+    - matcher: "Edit"
+      hooks:
+        - type: command
+          command: "bash ${CLAUDE_SKILL_DIR}/../freeze/bin/check-freeze.sh"
+          statusMessage: "Checking debug scope boundary..."
+    - matcher: "Write"
+      hooks:
+        - type: command
+          command: "bash ${CLAUDE_SKILL_DIR}/../freeze/bin/check-freeze.sh"
+          statusMessage: "Checking debug scope boundary..."
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

@@ -1,0 +1,27 @@
+name: Economic Calendar Feed
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 2 * * *"
+jobs:
+  build-feed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+      - run: bunx playwright install chromium
+      - run: bun build --compile browse/src/cli.ts --outfile browse/dist/browse
+      - run: bun run calendar:feed -- --days 7 --mode important --tz America/New_York --countries us --out cloudflare/econ_calendar.txt
+      - run: |
+          git status --porcelain
+          if [ -z "$(git status --porcelain)" ]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add cloudflare/econ_calendar.txt
+          git commit -m "Update economic calendar feed"
+          git push

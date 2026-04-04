@@ -1,9 +1,15 @@
 ---
 name: gstack-upgrade
+version: 1.1.0
 description: |
   Upgrade gstack to the latest version. Detects global vs vendored install,
   runs the upgrade, and shows what's new. Use when asked to "upgrade gstack",
   "update gstack", or "get latest version".
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - AskUserQuestion
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

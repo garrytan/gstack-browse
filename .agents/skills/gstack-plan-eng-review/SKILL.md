@@ -1,5 +1,6 @@
 ---
 name: plan-eng-review
+version: 1.0.0
 description: |
   Eng manager-mode plan review. Lock in the execution plan — architecture,
   data flow, diagrams, edge cases, test coverage, performance. Walks through
@@ -7,6 +8,14 @@ description: |
   "review the architecture", "engineering review", or "lock in the plan".
   Proactively suggest when the user has a plan or design doc and is about to
   start coding — to catch architecture issues before implementation.
+benefits-from: [office-hours]
+allowed-tools:
+  - Read
+  - Write
+  - Grep
+  - Glob
+  - AskUserQuestion
+  - Bash
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->

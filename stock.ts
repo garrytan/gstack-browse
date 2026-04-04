@@ -14,7 +14,29 @@ import util from "util";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const BROWSE_BIN = join(__dirname, "browse", "dist", "browse");
+
+function resolveBrowseBin(): string {
+  const candidates = [
+    process.env.GSTOCK_BROWSE_BIN,
+    join(__dirname, "browse", "dist", "browse.exe"),
+    join(__dirname, "browse", "dist", "browse"),
+    join(homedir(), ".claude", "skills", "gstack", "browse", "dist", "browse.exe"),
+    join(homedir(), ".claude", "skills", "gstack", "browse", "dist", "browse"),
+    join(homedir(), ".agents", "skills", "gstack", "browse", "dist", "browse.exe"),
+    join(homedir(), ".agents", "skills", "gstack", "browse", "dist", "browse"),
+    join(homedir(), ".codex", "skills", "gstack", "browse", "dist", "browse.exe"),
+    join(homedir(), ".codex", "skills", "gstack", "browse", "dist", "browse"),
+  ].filter((p): p is string => Boolean(p && p.trim()));
+
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p;
+    } catch {}
+  }
+  return join(__dirname, "browse", "dist", process.platform === "win32" ? "browse.exe" : "browse");
+}
+
+const BROWSE_BIN = resolveBrowseBin();
 
 type SentimentResult = { score: number; count: number };
 
@@ -355,33 +377,108 @@ async function getNewsSentiment(symbol: string, enabled: boolean): Promise<Senti
     const chainInput = JSON.stringify([
       ["goto", url],
       ["wait", "--load"],
-      ["text"],
+      ["links"],
     ]);
 
-    const result = spawnSync(BROWSE_BIN, ["chain"], { input: chainInput, encoding: "utf8" });
-    const stdout = (result.stdout || "").toString();
-    const idx = stdout.indexOf("[text] ");
-    const text = idx >= 0 ? stdout.slice(idx + "[text] ".length) : "";
+    const result = spawnSync(BROWSE_BIN, ["chain"], { input: chainInput, encoding: "utf8", timeout: 15000 });
+    const stdout = String(result.stdout || "");
+    const linksText = extractChainSection(stdout, "links");
+    const headlines = extractNewsHeadlinesFromLinks(linksText, symbol);
+    if (headlines.length === 0) return { score: 50, count: 0 };
 
-    // Simple keyword-based sentiment analysis
-    const bullishWords = ["surge", "rally", "buy", "growth", "positive", "beat", "up", "bullish", "high"];
-    const bearishWords = ["plummet", "drop", "sell", "decline", "negative", "miss", "down", "bearish", "low"];
-
-    let bullishCount = 0;
-    let bearishCount = 0;
-
-    const lowerText = text.toLowerCase();
-    bullishWords.forEach(w => { if (lowerText.includes(w)) bullishCount++; });
-    bearishWords.forEach(w => { if (lowerText.includes(w)) bearishCount++; });
-
-    const total = bullishCount + bearishCount;
-    if (total === 0) return { score: 50, count: 0 };
-
-    const score = Math.round((bullishCount / total) * 100);
-    return { score, count: total };
+    const { score } = scoreHeadlineSentiment(headlines);
+    return { score, count: headlines.length };
   } catch (e) {
     return { score: 50, count: 0 };
   }
+}
+
+export function extractChainSection(stdout: string, command: string): string {
+  const prefix = `[${command}] `;
+  const start = stdout.indexOf(prefix);
+  if (start < 0) return "";
+  const rest = stdout.slice(start + prefix.length);
+  const next = rest.indexOf("\n\n[");
+  return next >= 0 ? rest.slice(0, next).trim() : rest.trim();
+}
+
+export function parseLinkLines(text: string): Array<{ text: string; href: string }> {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const idx = line.lastIndexOf("→");
+      if (idx < 0) return null;
+      const t = line.slice(0, idx).trim();
+      const rawHref = line.slice(idx + 1).trim();
+      const href = rawHref.replace(/^`+/, "").replace(/`+$/, "").trim();
+      if (!t || !href) return null;
+      return { text: t, href };
+    })
+    .filter((v): v is { text: string; href: string } => Boolean(v));
+}
+
+export function extractNewsHeadlinesFromLinks(linksText: string, symbol: string): string[] {
+  const symbolUpper = symbol.trim().toUpperCase();
+  const nav = `/quote/${encodeURIComponent(symbolUpper)}/news`;
+  const candidates = parseLinkLines(linksText)
+    .filter((l) => l.href.includes("finance.yahoo.com/"))
+    .filter((l) => l.href.includes("/news/"))
+    .filter((l) => !l.href.includes(nav))
+    .map((l) => l.text)
+    .filter((t) => t.length >= 8 && t.length <= 140);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const t of candidates) {
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+    if (out.length >= 18) break;
+  }
+  return out;
+}
+
+export function scoreHeadlineSentiment(headlines: string[]): { score: number; bullish: number; bearish: number } {
+  const bullishWords = [
+    "surge",
+    "rally",
+    "buy",
+    "growth",
+    "positive",
+    "beat",
+    "upgrade",
+    "raises",
+    "record",
+    "bullish",
+  ];
+  const bearishWords = [
+    "plummet",
+    "drop",
+    "sell",
+    "decline",
+    "negative",
+    "miss",
+    "downgrade",
+    "cuts",
+    "warning",
+    "bearish",
+  ];
+
+  const text = headlines.join(" ").toLowerCase();
+  let bullish = 0;
+  let bearish = 0;
+  for (const w of bullishWords) {
+    if (text.includes(w)) bullish += 1;
+  }
+  for (const w of bearishWords) {
+    if (text.includes(w)) bearish += 1;
+  }
+  const total = bullish + bearish;
+  if (total === 0) return { score: 50, bullish: 0, bearish: 0 };
+  return { score: Math.round((bullish / total) * 100), bullish, bearish };
 }
 
 async function logToAnalytics(skillName: string, symbol: string) {
@@ -824,7 +921,7 @@ async function analyzeSymbol(symbol: string, options: CliOptions): Promise<{
         console.log(`📰 新聞輿情分析: N/A`);
       } else {
         const sentColor = sentiment.score >= 60 ? "\x1b[32m" : sentiment.score <= 40 ? "\x1b[31m" : "\x1b[33m";
-        console.log(`📰 新聞輿情分析: ${sentColor}${sentiment.score}% Bullish${reset} (基於 ${sentiment.count} 個關鍵字)`);
+        console.log(`📰 新聞輿情分析: ${sentColor}${sentiment.score}% Bullish${reset} (基於 ${sentiment.count} 則標題)`);
       }
 
       console.log(`\n📊 ${symbol} (S&P 500) 自訂大盤特化分析 📊`);
@@ -1208,4 +1305,9 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err);
+    process.exitCode = 1;
+  });
+}

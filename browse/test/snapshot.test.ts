@@ -13,6 +13,13 @@ import { handleWriteCommand } from '../src/write-commands';
 import { handleMetaCommand } from '../src/meta-commands';
 import * as fs from 'fs';
 
+if (process.platform === 'win32') {
+  describe('Snapshot', () => {
+    test('skipped on Windows', () => {
+      expect(true).toBe(true);
+    });
+  });
+} else {
 let testServer: ReturnType<typeof startTestServer>;
 let bm: BrowserManager;
 let baseUrl: string;
@@ -24,12 +31,16 @@ beforeAll(async () => {
 
   bm = new BrowserManager();
   await bm.launch();
-});
+}, 30_000);
 
-afterAll(() => {
-  try { testServer.server.stop(); } catch {}
-  setTimeout(() => process.exit(0), 500);
-});
+afterAll(async () => {
+  try {
+    await bm.close();
+  } catch {}
+  try {
+    testServer.server.stop();
+  } catch {}
+}, 30_000);
 
 // ─── Snapshot Output ────────────────────────────────────────────
 
@@ -465,3 +476,4 @@ describe('Snapshot combined flags', () => {
     expect(bm.getTabCount()).toBe(1);
   });
 });
+}

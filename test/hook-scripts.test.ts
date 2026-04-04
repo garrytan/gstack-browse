@@ -5,14 +5,32 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
-const CAREFUL_SCRIPT = path.join(ROOT, 'careful', 'bin', 'check-careful.sh');
-const FREEZE_SCRIPT = path.join(ROOT, 'freeze', 'bin', 'check-freeze.sh');
+const CAREFUL_SCRIPT = 'careful/bin/check-careful.sh';
+const FREEZE_SCRIPT = 'freeze/bin/check-freeze.sh';
+const HAS_BASH = (() => {
+  try {
+    const r = spawnSync('bash', ['--version'], { stdio: ['ignore', 'ignore', 'ignore'] });
+    return (r.status ?? 1) === 0;
+  } catch {
+    return false;
+  }
+})();
+const describeBash: typeof describe = ((name: any, fn: any) => {
+  if (HAS_BASH) return describe(name, fn);
+  return describe(name, () => {
+    test('skipped (bash not available)', () => {
+      expect(true).toBe(true);
+    });
+  });
+}) as any;
 
 function runHook(scriptPath: string, input: object, env?: Record<string, string>): { exitCode: number; output: any; raw: string } {
-  const result = spawnSync('bash', [scriptPath], {
+  const shQuote = (s: string) => `'${s.replace(/'/g, `'\"'\"'`)}'`;
+  const exports = env ? Object.entries(env).map(([k, v]) => `export ${k}=${shQuote(v)};`).join(' ') : '';
+  const result = spawnSync('bash', ['-lc', `${exports} bash ${scriptPath}`], {
+    cwd: ROOT,
     input: JSON.stringify(input),
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...env },
     timeout: 5000,
   });
   const raw = result.stdout.toString().trim();
@@ -24,10 +42,12 @@ function runHook(scriptPath: string, input: object, env?: Record<string, string>
 }
 
 function runHookRaw(scriptPath: string, rawInput: string, env?: Record<string, string>): { exitCode: number; output: any; raw: string } {
-  const result = spawnSync('bash', [scriptPath], {
+  const shQuote = (s: string) => `'${s.replace(/'/g, `'\"'\"'`)}'`;
+  const exports = env ? Object.entries(env).map(([k, v]) => `export ${k}=${shQuote(v)};`).join(' ') : '';
+  const result = spawnSync('bash', ['-lc', `${exports} bash ${scriptPath}`], {
+    cwd: ROOT,
     input: rawInput,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, ...env },
     timeout: 5000,
   });
   const raw = result.stdout.toString().trim();
@@ -47,12 +67,15 @@ function freezeInput(filePath: string) {
 }
 
 function withFreezeDir(freezePath: string, fn: (stateDir: string) => void) {
-  const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-freeze-test-'));
-  fs.writeFileSync(path.join(stateDir, 'freeze-dir.txt'), freezePath);
+  const tmpRoot = path.join(ROOT, '.tmp');
+  fs.mkdirSync(tmpRoot, { recursive: true });
+  const stateDirAbs = fs.mkdtempSync(path.join(tmpRoot, 'gstack-freeze-test-'));
+  fs.writeFileSync(path.join(stateDirAbs, 'freeze-dir.txt'), freezePath);
+  const stateDirEnv = path.relative(ROOT, stateDirAbs).split(path.sep).join('/');
   try {
-    fn(stateDir);
+    fn(stateDirEnv);
   } finally {
-    fs.rmSync(stateDir, { recursive: true, force: true });
+    fs.rmSync(stateDirAbs, { recursive: true, force: true });
   }
 }
 
@@ -66,7 +89,7 @@ function detectSafeRmWorks(): boolean {
 // ============================================================
 // check-careful.sh tests
 // ============================================================
-describe('check-careful.sh', () => {
+describeBash('check-careful.sh', () => {
 
   // --- Destructive rm commands ---
 
@@ -267,7 +290,7 @@ describe('check-careful.sh', () => {
 // ============================================================
 // check-freeze.sh tests
 // ============================================================
-describe('check-freeze.sh', () => {
+describeBash('check-freeze.sh', () => {
 
   describe('edits inside freeze boundary', () => {
     test('edit inside freeze boundary allows', () => {

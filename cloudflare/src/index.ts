@@ -4,10 +4,32 @@ type Env = {
   TELEGRAM_ALLOWED_CHAT_IDS?: string;
   TELEGRAM_CHAT_ID?: string;
   WEBHOOK_SECRET?: string;
+  ECON_CALENDAR?: string;
+  ECON_CALENDAR_SOURCE?: string;
+  ECON_CALENDAR_URL?: string;
+  ECON_CALENDAR_CACHE_TTL?: string;
+  ECON_CALENDAR_DAYS?: string;
+  ECON_CALENDAR_YAHOO_MODE?: string;
+  CALENDAR_TZ?: string;
+  DAILY_CRON_CMD?: string;
+  HALO_CORE?: string;
+  HALO_WATCHLIST?: string;
+  HALO_STOP_PCTS?: string;
+  HALO_MILKSHAKE_RISK?: string;
+  HALO_OBSOLESCENCE?: string;
+  HALO_EMA_WINDOW?: string;
+  HALO_VOLUME_WINDOW?: string;
+  HALO_VOLUME_SURGE?: string;
+  HALO_VIX_AMBER?: string;
+  HALO_VIX_RED?: string;
+  HALO_NEARMISS_PEMA_TARGET?: string;
   PORTFOLIO?: string;
   PORTFOLIO_POSITIONS?: string;
   POSITION_UNIT_USD?: string;
   POSITION_UNIT_HKD?: string;
+  MAX_DAILY_ADDS?: string;
+  MAX_DAILY_TRIMS?: string;
+  MAX_PER_TICKER_U?: string;
   RISK?: string;
   HORIZON?: string;
 };
@@ -103,6 +125,530 @@ function escapeText(s: string): string {
   return s.replace(/\u0000/g, "");
 }
 
+function tzOffsetMinutes(timeZone: string, utcMs: number): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(new Date(utcMs));
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value || "0");
+  const y = get("year");
+  const m = get("month");
+  const d = get("day");
+  const hh = get("hour");
+  const mm = get("minute");
+  const ss = get("second");
+  const localAsUtc = Date.UTC(y, m - 1, d, hh, mm, ss);
+  return (localAsUtc - utcMs) / 60000;
+}
+
+function zonedTimeToUtcMs(params: { year: number; month: number; day: number; hour: number; minute: number }, timeZone: string): number {
+  let guess = Date.UTC(params.year, params.month - 1, params.day, params.hour, params.minute, 0);
+  for (let i = 0; i < 3; i++) {
+    const offMin = tzOffsetMinutes(timeZone, guess);
+    const next = Date.UTC(params.year, params.month - 1, params.day, params.hour, params.minute, 0) - offMin * 60000;
+    if (Math.abs(next - guess) < 1000) {
+      guess = next;
+      break;
+    }
+    guess = next;
+  }
+  return guess;
+}
+
+function formatTMinus(msFromNow: number): string {
+  if (msFromNow <= 0) return "已發生";
+  const totalMin = Math.floor(msFromNow / 60000);
+  const d = Math.floor(totalMin / (60 * 24));
+  const h = Math.floor((totalMin - d * 60 * 24) / 60);
+  const m = totalMin - d * 60 * 24 - h * 60;
+  if (d > 0) return `in ${d}d ${h}h`;
+  if (h > 0) return `in ${h}h ${m}m`;
+  return `in ${m}m`;
+}
+
+function formatInTimeZone(utcMs: number, timeZone: string): string {
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return dtf.format(new Date(utcMs)).replace(",", "");
+}
+
+function parseCalendarLines(spec: string, timeZone: string): Array<{ utcMs: number; date: string; time: string; name: string }> {
+  const out: Array<{ utcMs: number; date: string; time: string; name: string }> = [];
+  const lines = spec.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  for (const line of lines) {
+    const m = line.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})\s+(.+)$/);
+    if (!m) continue;
+    const date = m[1];
+    const time = m[2];
+    const name = m[3].trim();
+    const [yy, mm, dd] = date.split("-").map((x) => Number(x));
+    const [hh, mi] = time.split(":").map((x) => Number(x));
+    if (![yy, mm, dd, hh, mi].every((n) => Number.isFinite(n))) continue;
+    const utcMs = zonedTimeToUtcMs({ year: yy, month: mm, day: dd, hour: hh, minute: mi }, timeZone);
+    out.push({ utcMs, date, time, name });
+  }
+  return out;
+}
+
+type CalendarEvent = { utcMs: number; name: string };
+
+function clampInt(n: number, min: number, max: number): number {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, Math.trunc(n)));
+}
+
+function compactCalendarEvents(events: CalendarEvent[]): CalendarEvent[] {
+  const byKey = new Map<string, { utcMs: number; base: string; parts: string[]; other: CalendarEvent[] }>();
+  const passthrough: CalendarEvent[] = [];
+
+  for (const e of events) {
+    const name = e.name.trim();
+    if (!name.startsWith("US ISM ")) {
+      passthrough.push(e);
+      continue;
+    }
+    const tokens = name.split(/\s+/);
+    if (tokens.length < 4) {
+      passthrough.push(e);
+      continue;
+    }
+    const base = `${tokens[0]} ${tokens[1]} ${tokens[2]}`;
+    const part = tokens.slice(3).join(" ").trim();
+    const key = `${e.utcMs}|${base}`;
+    const cur = byKey.get(key) || { utcMs: e.utcMs, base, parts: [], other: [] };
+    if (part) cur.parts.push(part);
+    byKey.set(key, cur);
+  }
+
+  const out: CalendarEvent[] = [];
+  for (const v of byKey.values()) {
+    const uniq = Array.from(new Set(v.parts)).filter(Boolean);
+    if (uniq.length <= 1) {
+      out.push({ utcMs: v.utcMs, name: uniq.length === 1 ? `${v.base} ${uniq[0]}` : v.base });
+      continue;
+    }
+    const shown = uniq.slice(0, 6);
+    const more = uniq.length - shown.length;
+    const suffix = more > 0 ? ` +${more}` : "";
+    out.push({ utcMs: v.utcMs, name: `${v.base}: ${shown.join(", ")}${suffix}` });
+  }
+
+  return [...passthrough, ...out].sort((a, b) => a.utcMs - b.utcMs);
+}
+
+function addDaysIso(date: string, days: number): string {
+  const m = String(date || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const base = m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : Date.now();
+  return new Date(base + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replaceAll("&amp;", "&")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&nbsp;", " ");
+}
+
+function stripHtml(s: string): string {
+  return decodeHtmlEntities(s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function parseYahooUtcMs(dayIso: string, timeCell: string): number | null {
+  const t = stripHtml(timeCell);
+  const m = t.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)\s*UTC$/i);
+  if (!m) return null;
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ap = m[3].toUpperCase();
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  if (ap === "PM" && hh !== 12) hh += 12;
+  if (ap === "AM" && hh === 12) hh = 0;
+  const iso = `${dayIso}T${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}:00.000Z`;
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function isImportantYahooEvent(name: string, country: string): boolean {
+  const c = country.trim().toUpperCase();
+  if (c !== "US") return false;
+  const n = name.toLowerCase();
+  const keys = [
+    "non-farm payroll",
+    "cpi",
+    "core cpi",
+    "pce",
+    "core pce",
+    "fomc",
+    "interest rate",
+    "gdp",
+    "unemployment rate",
+    "retail sales",
+    "ism",
+    "ppi",
+  ];
+  return keys.some((k) => n.includes(k));
+}
+
+function parseYahooCalendarHeaderDayIso(html: string, requestedDayIso: string): string | null {
+  const m0 = String(requestedDayIso || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m0) return null;
+  const year = Number(m0[1]);
+  if (!Number.isFinite(year)) return null;
+  const m = html.match(/Economic Events On\s+\w{3},\s+([A-Za-z]{3})\s+(\d{1,2})/i);
+  if (!m) return null;
+  const mon = m[1].toLowerCase();
+  const day = Number(m[2]);
+  const monthMap: Record<string, number> = {
+    jan: 1,
+    feb: 2,
+    mar: 3,
+    apr: 4,
+    may: 5,
+    jun: 6,
+    jul: 7,
+    aug: 8,
+    sep: 9,
+    oct: 10,
+    nov: 11,
+    dec: 12,
+  };
+  const mm = monthMap[mon];
+  if (!mm || !Number.isFinite(day)) return null;
+  return `${String(year).padStart(4, "0")}-${String(mm).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+type YahooAuth = { cookie: string; crumb: string };
+
+function parseFirstCookie(setCookie: string): { name: string; value: string } | null {
+  const m = String(setCookie || "").match(/^\s*([A-Za-z0-9_]+)=([^;]+);/);
+  if (!m) return null;
+  return { name: m[1], value: m[2] };
+}
+
+async function fetchYahooAuth(cacheTtlSec: number): Promise<YahooAuth | null> {
+  const cacheKey = new Request("https://cache.local/yahoo-auth/v1");
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    try {
+      const json = await cached.json<any>();
+      const cookie = typeof json?.cookie === "string" ? json.cookie : "";
+      const crumb = typeof json?.crumb === "string" ? json.crumb : "";
+      if (cookie && crumb) return { cookie, crumb };
+    } catch {}
+  }
+
+  try {
+    const res = await fetch("https://fc.yahoo.com", {
+      headers: { "user-agent": "Mozilla/5.0", accept: "text/html,*/*;q=0.9" },
+      redirect: "follow",
+    });
+    const setCookies: string[] =
+      typeof (res.headers as any).getSetCookie === "function"
+        ? (res.headers as any).getSetCookie()
+        : (res.headers.get("set-cookie") ? [String(res.headers.get("set-cookie"))] : []);
+    const parsed = setCookies.map(parseFirstCookie).find((c) => c && (c.name === "A1" || c.name === "A3")) || setCookies.map(parseFirstCookie).find(Boolean);
+    if (!parsed) return null;
+    const cookie = `${parsed.name}=${parsed.value}`;
+
+    const crumbRes = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", {
+      headers: { "user-agent": "Mozilla/5.0", cookie },
+    });
+    if (!crumbRes.ok) return null;
+    const crumb = (await crumbRes.text()).trim();
+    if (!crumb) return null;
+    const auth = { cookie, crumb };
+    await caches.default.put(cacheKey, new Response(JSON.stringify(auth), { headers: { "cache-control": `max-age=${cacheTtlSec}` } }));
+    return auth;
+  } catch {
+    return null;
+  }
+}
+
+function parseVizRows(payload: any): Array<Record<string, any>> {
+  const doc = payload?.finance?.result?.[0]?.documents?.[0];
+  const rows = Array.isArray(doc?.rows) ? doc.rows : [];
+  const cols = Array.isArray(doc?.columns) ? doc.columns : [];
+  const ids = cols.map((c: any) => String(c?.id || ""));
+  const out: Array<Record<string, any>> = [];
+  for (const r of rows) {
+    if (!Array.isArray(r)) continue;
+    const o: Record<string, any> = {};
+    for (let i = 0; i < Math.min(ids.length, r.length); i++) {
+      const id = ids[i];
+      if (id) o[id] = r[i];
+    }
+    out.push(o);
+  }
+  return out;
+}
+
+function parseStartdatetimeMs(v: any): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  if (/^\d{13}$/.test(s)) {
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+  const ms = Date.parse(s);
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function formatOffset(minutes: number): string {
+  const sign = minutes <= 0 ? "-" : "+";
+  const abs = Math.abs(minutes);
+  const hh = Math.floor(abs / 60);
+  const mm = abs % 60;
+  return `${sign}${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+}
+
+function dayBoundsWithOffset(dayIso: string, timeZone: string): { start: string; end: string } | null {
+  const m = String(dayIso || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const yy = Number(m[1]);
+  const mm = Number(m[2]);
+  const dd = Number(m[3]);
+  if (![yy, mm, dd].every((n) => Number.isFinite(n))) return null;
+  const startUtc = zonedTimeToUtcMs({ year: yy, month: mm, day: dd, hour: 0, minute: 0 }, timeZone);
+  const localAsUtc = Date.UTC(yy, mm - 1, dd, 0, 0, 0, 0);
+  const offsetMin = Math.trunc((localAsUtc - startUtc) / 60000);
+  const off = formatOffset(offsetMin);
+  return {
+    start: `${String(dayIso)}T00:00:00.000${off}`,
+    end: `${addDaysIso(dayIso, 1)}T00:00:00.000${off}`,
+  };
+}
+
+async function fetchYahooEconomicCalendarViz(params: {
+  dayIso: string;
+  mode: "important" | "all";
+  cacheTtlSec: number;
+  authTtlSec: number;
+  timeZone: string;
+}): Promise<CalendarEvent[]> {
+  const { dayIso, mode, cacheTtlSec, authTtlSec, timeZone } = params;
+  const cacheKey = new Request(`https://cache.local/yahoo-economic-viz/v4/${encodeURIComponent(dayIso)}/${mode}`);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    try {
+      const json = await cached.json<CalendarEvent[]>();
+      if (Array.isArray(json)) return json;
+    } catch {}
+  }
+
+  const auth = await fetchYahooAuth(authTtlSec);
+  if (!auth) return [];
+
+  const bounds = dayBoundsWithOffset(dayIso, timeZone);
+  if (!bounds) return [];
+  const includeFields = [
+    "econ_release",
+    "country_code",
+    "startdatetime",
+    "period",
+    "after_release_actual",
+    "consensus_estimate",
+    "prior_release_actual",
+    "originally_reported_actual",
+  ];
+  const body = {
+    offset: 0,
+    size: 250,
+    sortField: "startdatetime",
+    sortType: "ASC",
+    entityIdType: "ECONOMIC_EVENT",
+    includeFields,
+    query: {
+      operator: "and",
+      operands: [
+        { operator: "gte", operands: ["startdatetime", bounds.start] },
+        { operator: "lt", operands: ["startdatetime", bounds.end] },
+      ],
+    },
+  };
+
+  try {
+    const apiUrl = `https://query1.finance.yahoo.com/v1/finance/visualization?lang=en-US&region=US&crumb=${encodeURIComponent(auth.crumb)}`;
+    const res = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "user-agent": "Mozilla/5.0",
+        cookie: auth.cookie,
+        "x-crumb": auth.crumb,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    let json: any = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return [];
+    }
+    const rows = parseVizRows(json);
+    const out: CalendarEvent[] = [];
+    for (const r of rows) {
+      const name = String(r?.econ_release ?? "").trim();
+      const country = String(r?.country_code ?? "").trim().toUpperCase();
+      const utcMs = parseStartdatetimeMs(r?.startdatetime);
+      if (!name || !country || utcMs == null) continue;
+      if (mode === "important" && !isImportantYahooEvent(name, country)) continue;
+      out.push({ utcMs, name: `${country} ${name}`.trim() });
+    }
+    await caches.default.put(cacheKey, new Response(JSON.stringify(out), { headers: { "cache-control": `max-age=${cacheTtlSec}` } }));
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+async function fetchYahooEconomicCalendar(params: {
+  dayIso: string;
+  mode: "important" | "all";
+  cacheTtlSec: number;
+}): Promise<{ observedDayIso: string | null; events: CalendarEvent[] }> {
+  const { dayIso, mode, cacheTtlSec } = params;
+  const url = `https://finance.yahoo.com/calendar/economic?day=${encodeURIComponent(dayIso)}`;
+  const cacheKey = new Request(`https://cache.local/yahoo-economic/v2/${encodeURIComponent(dayIso)}/${mode}`);
+  const cached = await caches.default.match(cacheKey);
+  if (cached) {
+    try {
+      const json = await cached.json<any>();
+      if (json && Array.isArray(json.events)) {
+        return { observedDayIso: typeof json.observedDayIso === "string" ? json.observedDayIso : null, events: json.events };
+      }
+    } catch {}
+  }
+  try {
+    const res = await fetch(url, {
+      headers: {
+        accept: "text/html,*/*;q=0.9",
+        "user-agent": "Mozilla/5.0",
+      },
+    });
+    if (!res.ok) return { observedDayIso: null, events: [] };
+    const html = await res.text();
+    const observedDayIso = parseYahooCalendarHeaderDayIso(html, dayIso);
+    const effectiveDayIso = observedDayIso || dayIso;
+    const tableIdx = html.indexOf("<table");
+    if (tableIdx < 0) return { observedDayIso: observedDayIso || null, events: [] };
+    const table = html.slice(tableIdx, tableIdx + 200_000);
+    const rowMatches = table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi);
+    const out: CalendarEvent[] = [];
+    for (const rm of rowMatches) {
+      const row = rm[1] || "";
+      if (row.toLowerCase().includes("<th")) continue;
+      const cells = Array.from(row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)).map((m) => m[1] || "");
+      if (cells.length < 3) continue;
+      const eventName = stripHtml(cells[0]);
+      const country = stripHtml(cells[1]);
+      const utcMs = parseYahooUtcMs(effectiveDayIso, cells[2]);
+      if (!eventName || !country || utcMs == null) continue;
+      if (mode === "important" && !isImportantYahooEvent(eventName, country)) continue;
+      out.push({ utcMs, name: `${country} ${eventName}`.trim() });
+    }
+    const payload = { observedDayIso: observedDayIso || null, events: out };
+    await caches.default.put(cacheKey, new Response(JSON.stringify(payload), { headers: { "cache-control": `max-age=${cacheTtlSec}` } }));
+    return payload;
+  } catch {
+    return { observedDayIso: null, events: [] };
+  }
+}
+
+async function fetchCalendarEvents(env: Env, timeZone: string): Promise<CalendarEvent[]> {
+  const ttl = clampInt(Number((env.ECON_CALENDAR_CACHE_TTL || "").trim()) || 900, 60, 86400);
+  const source = (env.ECON_CALENDAR_SOURCE || "").trim().toLowerCase();
+  if (source === "yahoo_viz") {
+    const mode = (env.ECON_CALENDAR_YAHOO_MODE || "").trim().toLowerCase() === "all" ? "all" : "important";
+    const days = clampInt(Number((env.ECON_CALENDAR_DAYS || "").trim()) || 7, 1, 30);
+    const authTtl = clampInt(Math.floor(ttl * 6), 600, 43200);
+    const todayIso = formatInTimeZone(Date.now(), timeZone).slice(0, 10);
+    const all: CalendarEvent[] = [];
+    for (let i = 0; i < days; i++) {
+      const dayIso = addDaysIso(todayIso, i);
+      const events = await fetchYahooEconomicCalendarViz({ dayIso, mode, cacheTtlSec: ttl, authTtlSec: authTtl, timeZone });
+      all.push(...events);
+    }
+    const seen = new Set<string>();
+    const deduped: CalendarEvent[] = [];
+    for (const e of all) {
+      const key = `${e.utcMs}|${e.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(e);
+    }
+    return deduped.sort((a, b) => a.utcMs - b.utcMs);
+  }
+  if (source === "yahoo") {
+    const mode = (env.ECON_CALENDAR_YAHOO_MODE || "").trim().toLowerCase() === "all" ? "all" : "important";
+    const todayIso = formatInTimeZone(Date.now(), timeZone).slice(0, 10);
+    const r = await fetchYahooEconomicCalendar({ dayIso: todayIso, mode, cacheTtlSec: ttl });
+    const seen = new Set<string>();
+    const deduped: CalendarEvent[] = [];
+    for (const e of r.events) {
+      const key = `${e.utcMs}|${e.name}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(e);
+    }
+    return deduped.sort((a, b) => a.utcMs - b.utcMs);
+  }
+
+  const url = (env.ECON_CALENDAR_URL || "").trim();
+  if (url) {
+    const cacheKey = new Request(`https://cache.local/econ-calendar/${encodeURIComponent(url)}`);
+    const cached = await caches.default.match(cacheKey);
+    if (cached) {
+      const t = (await cached.text()).trim();
+      if (t) return parseCalendarLines(t, timeZone).map((e) => ({ utcMs: e.utcMs, name: e.name }));
+    }
+    try {
+      const res = await fetch(url, { headers: { accept: "text/plain,application/json;q=0.9,*/*;q=0.8", "user-agent": "Mozilla/5.0" } });
+      if (res.ok) {
+        const text = (await res.text()).slice(0, 20000).trim();
+        if (text) {
+          await caches.default.put(cacheKey, new Response(text, { headers: { "cache-control": `max-age=${ttl}` } }));
+          return parseCalendarLines(text, timeZone).map((e) => ({ utcMs: e.utcMs, name: e.name }));
+        }
+      }
+    } catch {}
+  }
+
+  const spec =
+    (env.ECON_CALENDAR || "").trim() ||
+    [
+      "2026-03-29 08:30 US CPI (YoY)",
+      "2026-03-31 14:00 FOMC Interest Rate Decision",
+      "2026-04-02 08:30 US Non-Farm Payrolls",
+    ].join("\n");
+  return parseCalendarLines(spec, timeZone).map((e) => ({ utcMs: e.utcMs, name: e.name }));
+}
+
+
 async function telegramApi(token: string, method: string, payload: any): Promise<any> {
   const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: "POST",
@@ -145,6 +691,14 @@ function buildHelpMenu() {
         { text: "4️⃣ 熱力圖", callback_data: "M|HEATMAP" },
       ],
       [
+        { text: "🔎 一鍵觀察(自選)", callback_data: "M|WATCHPORT" },
+        { text: "📋 一鍵熱力圖(自選)", callback_data: "M|HEATMAPPORT" },
+      ],
+      [
+        { text: "👤 我的觀察", callback_data: "M|WATCHME" },
+        { text: "👤 我的熱力圖", callback_data: "M|HEATMAPME" },
+      ],
+      [
         { text: "5️⃣ 投資組合", callback_data: "M|PORTFOLIO" },
         { text: "6️⃣ 六合彩", callback_data: "M|MARKSIX" },
       ],
@@ -152,7 +706,11 @@ function buildHelpMenu() {
         { text: "7️⃣ 宏觀 (Macro)", callback_data: "M|MACRO" },
         { text: "8️⃣ 操作建議", callback_data: "M|ACTION" },
       ],
-      [{ text: "9️⃣ 早晨簡報", callback_data: "M|MORNING" }],
+      [
+        { text: "9️⃣ 早晨簡報", callback_data: "M|MORNING" },
+        { text: "🗓️ 行事曆", callback_data: "M|CALENDAR" },
+      ],
+      [{ text: "🛡️ HALO 監控", callback_data: "M|HALO" }],
       [{ text: "🆔 /whoami 取得 Chat ID", callback_data: "M|WHOAMI" }],
       [{ text: "✖️ 取消/清除等待", callback_data: "M|CANCEL" }],
     ],
@@ -587,6 +1145,7 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
   epsForward: number | null;
   epsTrailing12Months: number | null;
   growthPct: number | null;
+  sources: { pe?: string; fpe?: string; epsTtm?: string; epsFwd?: string; growth?: string };
 }> {
   const cacheKey = new Request(`https://cache.local/yahoo/val/${encodeURIComponent(symbol)}`);
   const cached = await caches.default.match(cacheKey);
@@ -598,12 +1157,14 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
       const epsForward = json?.epsForward != null ? Number(json.epsForward) : null;
       const epsTrailing12Months = json?.epsTrailing12Months != null ? Number(json.epsTrailing12Months) : null;
       const growthPct = json?.growthPct != null ? Number(json.growthPct) : null;
+      const sources = (json?.sources && typeof json.sources === "object") ? json.sources : {};
       return {
         trailingPE: Number.isFinite(trailingPE as number) ? trailingPE : null,
         forwardPE: Number.isFinite(forwardPE as number) ? forwardPE : null,
         epsForward: Number.isFinite(epsForward as number) ? epsForward : null,
         epsTrailing12Months: Number.isFinite(epsTrailing12Months as number) ? epsTrailing12Months : null,
         growthPct: Number.isFinite(growthPct as number) ? growthPct : null,
+        sources,
       };
     } catch {
       // ignore
@@ -617,11 +1178,17 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
   let epsForward: number | null = null;
   let epsTTM: number | null = null;
   let growthPct: number | null = null;
+  const sources: { pe?: string; fpe?: string; epsTtm?: string; epsFwd?: string; growth?: string } = {};
   const hkSlugs: Record<string, string> = {
     "0700.HK": "tencent",
     "9988.HK": "alibaba",
     "1810.HK": "xiaomi",
     "3690.HK": "meituan-dianping",
+  };
+  const hkAdrSlugs: Record<string, string> = {
+    "0700.HK": "tcehy",
+    "9988.HK": "baba",
+    "1810.HK": "xiacy",
   };
 
   const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=summaryDetail,defaultKeyStatistics,financialData`;
@@ -642,12 +1209,33 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
       return null;
     }
   };
-    trailingPE = getNum(sd, ["trailingPE"]) ?? getNum(ks, ["trailingPE"]) ?? getNum(ks, ["trailingPE", "raw"]) ?? null;
-    forwardPE = getNum(sd, ["forwardPE"]) ?? getNum(ks, ["forwardPE"]) ?? getNum(fd, ["forwardPE"]) ?? null;
-    epsForward = getNum(fd, ["epsForward"]) ?? null;
-    epsTTM = getNum(ks, ["trailingEps"]) ?? getNum(fd, ["epsTrailingTwelveMonths"]) ?? null;
+    const tpe = getNum(sd, ["trailingPE"]) ?? getNum(ks, ["trailingPE"]) ?? getNum(ks, ["trailingPE", "raw"]) ?? null;
+    const fpe = getNum(sd, ["forwardPE"]) ?? getNum(ks, ["forwardPE"]) ?? getNum(fd, ["forwardPE"]) ?? null;
+    const ef = getNum(fd, ["epsForward"]) ?? null;
+    const et = getNum(ks, ["trailingEps"]) ?? getNum(fd, ["epsTrailingTwelveMonths"]) ?? null;
     const growthRaw = getNum(fd, ["earningsGrowth"]) ?? getNum(fd, ["revenueGrowth"]) ?? null;
-    growthPct = growthRaw != null ? growthRaw * 100 : null;
+    const gp = growthRaw != null ? growthRaw * 100 : null;
+
+    if (tpe != null) {
+      trailingPE = tpe;
+      sources.pe = sources.pe || "Yahoo";
+    }
+    if (fpe != null) {
+      forwardPE = fpe;
+      sources.fpe = sources.fpe || "Yahoo";
+    }
+    if (ef != null) {
+      epsForward = ef;
+      sources.epsFwd = sources.epsFwd || "Yahoo";
+    }
+    if (et != null) {
+      epsTTM = et;
+      sources.epsTtm = sources.epsTtm || "Yahoo";
+    }
+    if (gp != null) {
+      growthPct = gp;
+      sources.growth = sources.growth || "Yahoo";
+    }
   } catch {
     // ignore
   }
@@ -659,10 +1247,26 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
       const json2 = await res2.json<any>();
       const q = json2?.quoteResponse?.result?.[0] || {};
       const toNum = (v: any) => (Number.isFinite(Number(v)) ? Number(v) : null);
-      trailingPE = toNum(q.trailingPE) ?? trailingPE;
-      forwardPE = toNum(q.forwardPE) ?? forwardPE;
-      epsForward = toNum(q.epsForward) ?? epsForward;
-      epsTTM = toNum(q.epsTrailingEps) ?? toNum(q.epsTrailingTwelveMonths) ?? epsTTM;
+      const tpe = toNum(q.trailingPE);
+      const fpe = toNum(q.forwardPE);
+      const ef = toNum(q.epsForward);
+      const et = toNum(q.epsTrailingEps) ?? toNum(q.epsTrailingTwelveMonths);
+      if (tpe != null) {
+        trailingPE = tpe;
+        sources.pe = sources.pe || "Yahoo(quote)";
+      }
+      if (fpe != null) {
+        forwardPE = fpe;
+        sources.fpe = sources.fpe || "Yahoo(quote)";
+      }
+      if (ef != null) {
+        epsForward = ef;
+        sources.epsFwd = sources.epsFwd || "Yahoo(quote)";
+      }
+      if (et != null) {
+        epsTTM = et;
+        sources.epsTtm = sources.epsTtm || "Yahoo(quote)";
+      }
     } catch {
       // ignore
     }
@@ -689,13 +1293,18 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
       };
       trailingPE = extractMetric("PE Ratio") ?? trailingPE;
       forwardPE = extractMetric("Forward PE") ?? forwardPE;
+      if (trailingPE != null) sources.pe = sources.pe || "StockAnalysis";
+      if (forwardPE != null) sources.fpe = sources.fpe || "StockAnalysis";
 
       if (growthPct == null) {
         const re = new RegExp(`>EPS<\\/td><td[^>]*>([0-9.,-]+)[\\s\\S]*?([+-]?[0-9.]+)%`, "i");
         const m = html.match(re);
         if (m) {
           const n = Number(m[2]);
-          if (Number.isFinite(n)) growthPct = n;
+          if (Number.isFinite(n)) {
+            growthPct = n;
+            sources.growth = sources.growth || "StockAnalysis";
+          }
         }
       }
     } catch {
@@ -729,6 +1338,7 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
           const pe = m ? Number(String(m[1]).replace(/,/g, "")) : NaN;
           if (Number.isFinite(pe)) {
             trailingPE = pe;
+            sources.pe = sources.pe || "CompaniesMarketCap";
             await caches.default.put(cmcKey, new Response(String(pe), { headers: { "cache-control": "max-age=3600" } }));
           }
         }
@@ -738,7 +1348,44 @@ async function fetchYahooQuoteSummary(symbol: string): Promise<{
     }
   }
 
-  const out = { trailingPE, forwardPE, epsForward, epsTrailing12Months: epsTTM, growthPct };
+  if (symbol.endsWith(".HK") && (forwardPE == null || growthPct == null)) {
+    const adr = hkAdrSlugs[symbol.toUpperCase()] || "";
+    if (adr) {
+      try {
+        const urlAdr = `https://stockanalysis.com/stocks/${encodeURIComponent(adr)}/`;
+        const resAdr = await fetch(urlAdr, { headers: { "user-agent": "Mozilla/5.0" } });
+        const html = await resAdr.text();
+        const extractMetric = (label: string): number | null => {
+          const re = new RegExp(`>${label}<\\/td><td[^>]*>([0-9.,-]+)`, "i");
+          const m = html.match(re);
+          if (!m) return null;
+          const n = Number(String(m[1]).replace(/,/g, ""));
+          return Number.isFinite(n) ? n : null;
+        };
+        const fpe = extractMetric("Forward PE");
+        if (forwardPE == null && fpe != null) {
+          forwardPE = fpe;
+          sources.fpe = sources.fpe || `StockAnalysis(ADR:${adr.toUpperCase()})`;
+        }
+
+        if (growthPct == null) {
+          const re = new RegExp(`>EPS<\\/td><td[^>]*>([0-9.,-]+)[\\s\\S]*?([+-]?[0-9.]+)%`, "i");
+          const m = html.match(re);
+          if (m) {
+            const n = Number(m[2]);
+            if (Number.isFinite(n)) {
+              growthPct = n;
+              sources.growth = sources.growth || `StockAnalysis(ADR:${adr.toUpperCase()})`;
+            }
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  const out = { trailingPE, forwardPE, epsForward, epsTrailing12Months: epsTTM, growthPct, sources };
   const hasAny =
     out.trailingPE != null ||
     out.forwardPE != null ||
@@ -818,6 +1465,9 @@ function formatMorningLines(params: {
 async function formatActionPlan(env: Env, profile: { risk: RiskTolerance; horizon: Horizon }): Promise<string> {
   const unitUSD = parseUnit(env.POSITION_UNIT_USD, 250);
   const unitHKD = parseUnit(env.POSITION_UNIT_HKD, 2000);
+  const maxAdds = Math.max(0, Math.min(5, Math.floor(parseUnit(env.MAX_DAILY_ADDS, 2))));
+  const maxTrims = Math.max(0, Math.min(5, Math.floor(parseUnit(env.MAX_DAILY_TRIMS, 2))));
+  const maxPerTickerU = Math.max(0.5, Math.min(5, parseUnit(env.MAX_PER_TICKER_U, 1)));
 
   const vix = await fetchYahooChart("^VIX");
   const dxy = await fetchYahooChart("DX-Y.NYB");
@@ -919,16 +1569,16 @@ async function formatActionPlan(env: Env, profile: { risk: RiskTolerance; horizo
   const unitFor = (ccy: string) => (ccy === "HKD" ? unitHKD : unitUSD);
 
   if (regime === "RISK-OFF") {
-    const cands = byRisk.filter((r) => r.weight >= 20 || r.bias === "Bearish" || r.conf < 40).slice(0, 2);
+    const cands = byRisk.filter((r) => r.weight >= 20 || r.bias === "Bearish" || r.conf < 40).slice(0, maxTrims);
     for (const r of cands) {
       const amt = unitFor(r.ccy);
-      trim.push({ ticker: r.ticker, ccy: r.ccy, units: -1, amount: -amt });
+      trim.push({ ticker: r.ticker, ccy: r.ccy, units: -maxPerTickerU, amount: -amt * maxPerTickerU });
     }
   } else if (regime === "RISK-ON") {
-    const cands = byRisk.filter((r) => r.bias === "Bullish" && r.conf >= 60 && r.weight < 20).slice(0, 2);
+    const cands = byRisk.filter((r) => r.bias === "Bullish" && r.conf >= 60 && r.weight < 20).slice(0, maxAdds);
     for (const r of cands) {
       const amt = unitFor(r.ccy);
-      add.push({ ticker: r.ticker, ccy: r.ccy, units: 1, amount: amt });
+      add.push({ ticker: r.ticker, ccy: r.ccy, units: maxPerTickerU, amount: amt * maxPerTickerU });
     }
   }
 
@@ -949,6 +1599,9 @@ async function formatActionPlan(env: Env, profile: { risk: RiskTolerance; horizo
   lines.push("操作單位 (Unit)");
   lines.push(`- 1.00u = ${unitUSD.toFixed(0)} USD（USD 持倉）`);
   lines.push(`- 1.00u = ${unitHKD.toFixed(0)} HKD（HKD 持倉）`);
+  lines.push("");
+  lines.push("風險限制 (Limits)");
+  lines.push(`- 每日最多加碼: ${maxAdds} 筆 | 每日最多減碼: ${maxTrims} 筆 | 每檔最多: ${maxPerTickerU.toFixed(2)}u`);
   lines.push("");
   lines.push("觸發條件 (Triggers)");
   lines.push(`- ${triggers.length ? triggers.join(", ") : "無"}`);
@@ -1304,6 +1957,301 @@ function atr14(highs: number[], lows: number[], closes: number[]): number {
   return sma(trs, period);
 }
 
+function haloRegime(vix: number, amber: number, red: number): "🔴 RED" | "🟡 AMBER" | "🟢 GREEN" {
+  if (!Number.isFinite(vix)) return "🟡 AMBER";
+  if (vix > red) return "🔴 RED";
+  if (vix > amber) return "🟡 AMBER";
+  return "🟢 GREEN";
+}
+
+async function fetchVix(): Promise<number | null> {
+  try {
+    const data = await fetchYahooChart("^VIX");
+    const v = data.closes[data.closes.length - 1];
+    return Number.isFinite(v) ? Number(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+function buildHaloConfig(env: Env) {
+  const emaWindow = clampInt(Number((env.HALO_EMA_WINDOW || "").trim()) || 20, 5, 120);
+  const volWindow = clampInt(Number((env.HALO_VOLUME_WINDOW || "").trim()) || 20, 5, 120);
+  const volSurge = Number((env.HALO_VOLUME_SURGE || "").trim()) || 1.5;
+  const vixAmber = Number((env.HALO_VIX_AMBER || "").trim()) || 18;
+  const vixRed = Number((env.HALO_VIX_RED || "").trim()) || 25;
+  const nearMissPemaTarget = Number((env.HALO_NEARMISS_PEMA_TARGET || "").trim()) || 1.01;
+  const coreSpec =
+    (env.HALO_CORE || "").trim() || "EPD=Energy Infrastructure,KMI=Energy Infrastructure,LMT=Defence,RTX=Defence";
+  const watchSpec =
+    (env.HALO_WATCHLIST || "").trim() ||
+    "NVDA=AI Chip,TSM=Foundry,AVGO=Custom Chip,MU=Memory,GOOGL=Double-edged,MSFT=Double-edged,TCOM=High Risk (Milkshake)";
+  const stopSpec = (env.HALO_STOP_PCTS || "").trim() || "EPD:0.08,KMI:0.09,LMT:0.06,RTX:0.057";
+  const milkshakeSpec = (env.HALO_MILKSHAKE_RISK || "").trim() || "TCOM:high";
+  const obsolescenceSpec = (env.HALO_OBSOLESCENCE || "").trim() || "EPD:safe,KMI:safe,LMT:safe,RTX:safe,TCOM:high";
+  return {
+    emaWindow,
+    volWindow,
+    volSurge,
+    vixAmber,
+    vixRed,
+    nearMissPemaTarget,
+    core: parseTickerLabelSpec(coreSpec),
+    watch: parseTickerLabelSpec(watchSpec),
+    stopPcts: parseStopPctSpec(stopSpec),
+    milkshakeRisk: parseStringMapSpec(milkshakeSpec),
+    obsolescence: parseStringMapSpec(obsolescenceSpec),
+  };
+}
+
+async function formatHaloMonitor(env: Env, positions: Position[], options?: { showAll?: boolean; showTable?: boolean }): Promise<string> {
+  const cfg = buildHaloConfig(env);
+  const vix = await fetchVix();
+  const regime = haloRegime(vix ?? NaN, cfg.vixAmber, cfg.vixRed);
+  const showAll = Boolean(options?.showAll);
+  const showTable = Boolean(options?.showTable);
+
+  const all = [...cfg.core, ...cfg.watch];
+  const uniqTickers = Array.from(new Set(all.map((x) => x.ticker).filter(Boolean)));
+  const posByTicker = new Map(positions.map((p) => [p.ticker, p]));
+  const labelByTicker = new Map(all.map((x) => [x.ticker, x.label]));
+  const coreSet = new Set(cfg.core.map((x) => x.ticker));
+  const watchSet = new Set(cfg.watch.map((x) => x.ticker));
+  const positionSet = new Set(positions.map((p) => p.ticker));
+  const groupRank = (ticker: string): number => {
+    if (positionSet.has(ticker) || coreSet.has(ticker)) return 0;
+    if (watchSet.has(ticker)) return 1;
+    return 2;
+  };
+
+  const results = await Promise.all(
+    uniqTickers.map(async (ticker) => {
+      try {
+        const data = await fetchYahooChart(ticker);
+        return { ticker, ok: true as const, data };
+      } catch (e: any) {
+        return { ticker, ok: false as const, error: String(e?.message || e) };
+      }
+    }),
+  );
+
+  const entrySignals: Array<{ ticker: string; reason: string; rank: number }> = [];
+  const nearMisses: Array<{ ticker: string; metric: number; line: string; rank: number }> = [];
+  const stopTriggers: Array<{ ticker: string; msg: string; rank: number }> = [];
+  const warnings: string[] = [];
+  const tableRows: Array<{ rank: number; bucket: number; line: string }> = [];
+  const infoRows: Array<{
+    ticker: string;
+    rank: number;
+    bucket: number;
+    s7: boolean;
+    t12: boolean;
+    pOverEma: number | null;
+    volX: number | null;
+    stopPrice: number | null;
+    milkshakeHigh: boolean;
+    obsolescenceHigh: boolean;
+  }> = [];
+  let dataOk = 0;
+  let bothPass = 0;
+  let bothFail = 0;
+  let s7Only = 0;
+  let t12Only = 0;
+  const s7OnlyTickers: string[] = [];
+  const t12OnlyTickers: string[] = [];
+
+  for (const r of results) {
+    if (!r.ok) {
+      warnings.push(`${r.ticker} 資料取得失敗`);
+      continue;
+    }
+    dataOk++;
+    const data = r.data;
+    const n = data.closes.length;
+    if (n < Math.max(cfg.emaWindow, cfg.volWindow) + 1) {
+      warnings.push(`${r.ticker} 資料不足`);
+      continue;
+    }
+
+    const price = data.closes[n - 1];
+    const emaRef = avgLast(data.closes, cfg.emaWindow);
+    const vol = data.volumes[data.volumes.length - 1];
+    const avgVol = avgLast(data.volumes, cfg.volWindow);
+
+    const s7 = emaRef != null && Number.isFinite(price) ? price > emaRef : false;
+    const t12 = avgVol != null && Number.isFinite(vol) ? vol >= cfg.volSurge * avgVol : false;
+    const reason = `Price ${fmtNumber(price, 2)} / EMA${cfg.emaWindow} ${emaRef != null ? fmtNumber(emaRef, 2) : "N/A"} | Vol ${Number.isFinite(vol) ? Math.trunc(vol).toString() : "N/A"} / AvgVol ${avgVol != null ? Math.trunc(avgVol).toString() : "N/A"}`;
+    const pOverEma = emaRef != null && Number.isFinite(price) && emaRef > 0 ? price / emaRef : null;
+    const volX = avgVol != null && Number.isFinite(vol) && avgVol > 0 ? vol / avgVol : null;
+    const bucket = s7 && t12 ? 0 : s7 ? 1 : t12 ? 2 : 3;
+    const bucketLabel = s7 && t12 ? "PASS" : s7 ? "S7" : t12 ? "T12" : "--";
+
+    if (s7 && t12) {
+      bothPass++;
+      if (regime === "🔴 RED") warnings.push(`${r.ticker} 滿足 S7+T12 但 VIX>${cfg.vixRed} → 不可入場`);
+      else entrySignals.push({ ticker: r.ticker, reason, rank: groupRank(r.ticker) });
+    }
+    if (s7 !== t12) {
+      if (s7) s7Only++;
+      else t12Only++;
+      if (s7) s7OnlyTickers.push(r.ticker);
+      else t12OnlyTickers.push(r.ticker);
+      const metric = s7 ? (volX ?? 0) : (pOverEma ?? 0);
+      const line = `${r.ticker} (${s7 ? "S7✅" : "S7❌"} ${t12 ? "T12✅" : "T12❌"}) | P/EMA ${pOverEma != null ? pOverEma.toFixed(3) : "N/A"} | Vol× ${volX != null ? volX.toFixed(2) : "N/A"}`;
+      nearMisses.push({ ticker: r.ticker, metric, line, rank: groupRank(r.ticker) });
+    } else if (!s7 && !t12) {
+      bothFail++;
+    }
+
+    const pos = posByTicker.get(r.ticker);
+    const stopPct = pos && pos.costBasis != null && Number.isFinite(pos.costBasis) && pos.costBasis > 0 ? cfg.stopPcts.get(r.ticker) ?? 0.1 : null;
+    const stopPrice =
+      pos && pos.costBasis != null && Number.isFinite(pos.costBasis) && pos.costBasis > 0 && stopPct != null ? pos.costBasis * (1 - stopPct) : null;
+    if (pos && pos.costBasis != null && Number.isFinite(pos.costBasis) && pos.costBasis > 0) {
+      if (Number.isFinite(price) && price <= stopPrice) {
+        stopTriggers.push({
+          ticker: r.ticker,
+          msg: `觸發止損 @ ${stopPrice.toFixed(2)} (入場 ${pos.costBasis.toFixed(2)}, 現價 ${price.toFixed(2)})`,
+          rank: groupRank(r.ticker),
+        });
+      }
+    }
+
+    if (showTable) {
+      const obs = (cfg.obsolescence.get(r.ticker) || "").trim().toLowerCase();
+      const ms = (cfg.milkshakeRisk.get(r.ticker) || "").trim().toLowerCase();
+      const flags = [
+        ms === "high" ? "MS:HIGH" : null,
+        obs === "high" ? "OBS:HIGH" : null,
+        stopPrice != null ? `STOP ${stopPrice.toFixed(2)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      const label = labelByTicker.get(r.ticker);
+      const line = `${r.ticker}${label ? ` (${label})` : ""} ${bucketLabel} | P/EMA ${pOverEma != null ? pOverEma.toFixed(3) : "N/A"} | Vol× ${volX != null ? volX.toFixed(2) : "N/A"}${flags ? ` | ${flags}` : ""}`;
+      tableRows.push({ rank: groupRank(r.ticker), bucket, line });
+    }
+
+    {
+      const obs = (cfg.obsolescence.get(r.ticker) || "").trim().toLowerCase();
+      const ms = (cfg.milkshakeRisk.get(r.ticker) || "").trim().toLowerCase();
+      infoRows.push({
+        ticker: r.ticker,
+        rank: groupRank(r.ticker),
+        bucket,
+        s7,
+        t12,
+        pOverEma,
+        volX,
+        stopPrice,
+        milkshakeHigh: ms === "high",
+        obsolescenceHigh: obs === "high",
+      });
+    }
+
+    if (r.ticker === "TCOM") {
+      if (Number.isFinite(price)) warnings.push(`TCOM (Milkshake High Risk) 現價 ${price.toFixed(2)} — 建議減倉或清倉`);
+      else warnings.push("TCOM (Milkshake High Risk) — 建議減倉或清倉");
+    }
+  }
+
+  const hasMstr = uniqTickers.includes("MSTR") || positions.some((p) => p.ticker === "MSTR");
+  if (hasMstr) warnings.push("MSTR → PRIORITY REVIEW (Munger inversion): Would you buy fresh today at this price? If NO → sell/reduce.");
+
+  for (const t of uniqTickers) {
+    const ms = (cfg.milkshakeRisk.get(t) || "").trim().toLowerCase();
+    if (ms === "high") warnings.push(`${t} Milkshake Risk: HIGH`);
+    const obs = (cfg.obsolescence.get(t) || "").trim().toLowerCase();
+    if (obs === "high") warnings.push(`${t} Obsolescence: HIGH`);
+  }
+
+  const lines: string[] = [];
+  lines.push(`HALO Monitor — ${new Date().toISOString().slice(0, 16).replace("T", " ")} UTC`);
+  lines.push(`VIX: ${vix != null ? vix.toFixed(2) : "N/A"} → Regime: ${regime}`);
+  if (regime === "🔴 RED") lines.push("SIT ON HANDS. Manage stops only.");
+  else if (regime === "🟡 AMBER") lines.push("Reduce new entries by 50%.");
+  else lines.push("Full risk-on allowed.");
+  lines.push(`Coverage: ${dataOk}/${uniqTickers.length} ok | S7+T12 ${bothPass} | S7-only ${s7Only} | T12-only ${t12Only} | both-fail ${bothFail}`);
+
+  lines.push("");
+  lines.push("🧪 系統健康狀況評估");
+  lines.push(`- Coverage ${dataOk}/${uniqTickers.length}: ${dataOk === uniqTickers.length ? "✅" : "⚠️"}`);
+  lines.push(`- S7+T12=${bothPass}: ✅`);
+  lines.push(`- S7-only=${s7Only}${s7OnlyTickers.length ? ` (${s7OnlyTickers.join(",")})` : ""}: ✅`);
+  lines.push(`- T12-only=${t12Only}${t12OnlyTickers.length ? ` (${t12OnlyTickers.join(",")})` : ""}: ✅`);
+  const highBoth = infoRows.filter((r) => r.milkshakeHigh && r.obsolescenceHigh).map((r) => r.ticker);
+  if (highBoth.length) lines.push(`- Milkshake+Obsolescence 雙高: ${highBoth.join(",")} ✅`);
+  lines.push(`- Regime 判斷: ${regime} ✅`);
+
+  const actions: Array<{ pr: number; line: string }> = [];
+  for (const s of stopTriggers) actions.push({ pr: 0, line: `🔴 立即 ${s.ticker} 觸發止損` });
+  for (const t of highBoth) actions.push({ pr: 1, line: `🔴 立即 ${t} 減倉/清倉（Milkshake+Obsolescence 雙高）` });
+  if (hasMstr) actions.push({ pr: 1, line: "🔴 立即 MSTR PRIORITY REVIEW（Munger inversion）" });
+
+  const targetVolX = cfg.volSurge;
+  const targetPema = cfg.nearMissPemaTarget;
+  const s7Near = infoRows
+    .filter((r) => r.rank <= 1 && r.s7 && !r.t12 && r.volX != null)
+    .sort((a, b) => (b.volX ?? 0) - (a.volX ?? 0))
+    .slice(0, 3);
+  for (const r of s7Near) actions.push({ pr: 2, line: `🟡 監控 ${r.ticker} 量能追蹤（Vol× ${r.volX!.toFixed(2)} → 需要 ≥ ${targetVolX}）` });
+  const pNear = infoRows
+    .filter((r) => r.rank <= 1 && !r.s7 && r.t12 && r.pOverEma != null)
+    .sort((a, b) => (b.pOverEma ?? 0) - (a.pOverEma ?? 0))
+    .slice(0, 3);
+  for (const r of pNear) actions.push({ pr: 2, line: `🟡 監控 ${r.ticker} 價格回 EMA（P/EMA ${r.pOverEma!.toFixed(3)} → 需要 ≥ 1.000）` });
+  const emaNear = infoRows
+    .filter((r) => r.rank <= 1 && r.s7 && !r.t12 && r.pOverEma != null)
+    .sort((a, b) => (b.pOverEma ?? 0) - (a.pOverEma ?? 0))
+    .slice(0, 2);
+  for (const r of emaNear) actions.push({ pr: 3, line: `🟡 監控 ${r.ticker} 續航（P/EMA ${r.pOverEma!.toFixed(3)} → 目標 ≥ ${targetPema}）` });
+  if (regime === "🔴 RED") actions.unshift({ pr: 0, line: "🔴 立即 SIT ON HANDS（VIX > 25）" });
+
+  const uniqActions = Array.from(new Map(actions.map((a) => [a.line, a])).values())
+    .sort((a, b) => a.pr - b.pr || a.line.localeCompare(b.line))
+    .slice(0, 8);
+  lines.push("");
+  lines.push("📌 今日操作建議");
+  for (const a of uniqActions) lines.push(`- ${a.line}`);
+
+  lines.push("");
+  if (entrySignals.length) {
+    lines.push("📈 Entry Signals (S7+T12)");
+    const sorted = entrySignals.slice().sort((a, b) => a.rank - b.rank || a.ticker.localeCompare(b.ticker));
+    for (const s of sorted) lines.push(`- ${s.ticker}: ${s.reason}`);
+  } else {
+    lines.push("📉 No qualified entry signals");
+  }
+  if (showTable && tableRows.length) {
+    const sorted = tableRows.slice().sort((a, b) => a.rank - b.rank || a.bucket - b.bucket || a.line.localeCompare(b.line));
+    lines.push("");
+    lines.push("📋 Table (all tickers)");
+    for (const r of sorted) lines.push(`- ${r.line}`);
+  }
+  if (nearMisses.length) {
+    const top = nearMisses.slice().sort((a, b) => a.rank - b.rank || b.metric - a.metric).slice(0, showAll ? 12 : 6);
+    lines.push("");
+    lines.push("🟦 Near-miss (S7 xor T12)");
+    for (const x of top) lines.push(`- ${x.line}`);
+    if (!showAll && nearMisses.length > top.length) lines.push(`- (+${nearMisses.length - top.length} more)`);
+  }
+
+  if (stopTriggers.length) {
+    lines.push("");
+    lines.push("⚠️ Stop Loss Triggers");
+    const sorted = stopTriggers.slice().sort((a, b) => a.rank - b.rank || a.ticker.localeCompare(b.ticker));
+    for (const s of sorted) lines.push(`- ${s.ticker}: ${s.msg}`);
+  }
+
+  if (warnings.length) {
+    lines.push("");
+    lines.push("⚠️ Warnings");
+    for (const w of warnings) lines.push(`- ${w}`);
+  }
+
+  return lines.join("\n");
+}
+
 function macdHistogram(values: number[]): number {
   if (values.length < 30) return 0;
   const macdLine: number[] = [];
@@ -1362,6 +2310,111 @@ function parsePositionsSpec(spec: string): Position[] {
       return { ticker: normalizeTicker(rawTicker), quantity, costBasis };
     })
     .filter((x): x is Position => Boolean(x));
+}
+
+function parseTickerLabelSpec(spec: string): Array<{ ticker: string; label: string }> {
+  const raw = (spec || "").trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const [a, b] = p.split("=");
+      const ticker = normalizeTicker(String(a || "").trim());
+      if (!ticker) return null;
+      const label = String(b || "").trim();
+      return { ticker, label };
+    })
+    .filter((x): x is { ticker: string; label: string } => Boolean(x));
+}
+
+function parseStopPctSpec(spec: string): Map<string, number> {
+  const raw = (spec || "").trim();
+  const out = new Map<string, number>();
+  if (!raw) return out;
+  for (const part of raw.split(",")) {
+    const p = part.trim();
+    if (!p) continue;
+    const [lhs, rhs] = p.split(":");
+    const ticker = normalizeTicker(String(lhs || "").trim());
+    const v = Number(String(rhs || "").trim());
+    if (!ticker || !Number.isFinite(v) || v <= 0 || v >= 1) continue;
+    out.set(ticker, v);
+  }
+  return out;
+}
+
+function parseStringMapSpec(spec: string): Map<string, string> {
+  const raw = (spec || "").trim();
+  const out = new Map<string, string>();
+  if (!raw) return out;
+  for (const part of raw.split(",")) {
+    const p = part.trim();
+    if (!p) continue;
+    const [lhs, rhs] = p.split(":");
+    const ticker = normalizeTicker(String(lhs || "").trim());
+    const v = String(rhs || "").trim();
+    if (!ticker || !v) continue;
+    out.set(ticker, v);
+  }
+  return out;
+}
+
+function avgLast(values: number[], window: number): number | null {
+  if (window <= 0) return null;
+  if (!Array.isArray(values) || values.length < window) return null;
+  const slice = values.slice(values.length - window);
+  const good = slice.filter((x) => Number.isFinite(x));
+  if (good.length < window) return null;
+  const sum = good.reduce((a, b) => a + b, 0);
+  return sum / window;
+}
+
+function fmtNumber(n: number, digits: number): string {
+  if (!Number.isFinite(n)) return "N/A";
+  return n.toFixed(digits);
+}
+
+function defaultTickersFromEnv(env: Env): string[] {
+  const spec = ((env.PORTFOLIO_POSITIONS || "").trim() || (env.PORTFOLIO || "").trim()).trim();
+  if (!spec) return [];
+  if (spec.includes(":")) return parsePositionsSpec(spec).map((p) => p.ticker).filter(Boolean);
+  return spec
+    .split(",")
+    .map((s) => normalizeTicker(s))
+    .filter(Boolean);
+}
+
+function watchlistKey(chatId: number) {
+  return new Request(`https://state.local/watchlist/${chatId}`);
+}
+
+async function getWatchlist(chatId: number): Promise<string[] | null> {
+  const res = await caches.default.match(watchlistKey(chatId));
+  if (!res) return null;
+  try {
+    const json = await res.json<any>();
+    const tickers = Array.isArray(json?.tickers) ? json.tickers : [];
+    const out = tickers.map((s: any) => normalizeTicker(String(s || ""))).filter(Boolean);
+    return out.length ? out : null;
+  } catch {
+    return null;
+  }
+}
+
+async function setWatchlist(chatId: number, tickers: string[]): Promise<void> {
+  const uniq = Array.from(new Set(tickers.map((t) => normalizeTicker(t)).filter(Boolean))).slice(0, 40);
+  await caches.default.put(
+    watchlistKey(chatId),
+    new Response(JSON.stringify({ tickers: uniq }), {
+      headers: { "content-type": "application/json", "cache-control": "max-age=31536000" },
+    }),
+  );
+}
+
+async function clearWatchlist(chatId: number): Promise<void> {
+  await caches.default.delete(watchlistKey(chatId));
 }
 
 function normalizeRisk(raw: string | undefined): RiskTolerance {
@@ -1652,7 +2705,15 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       "- `/full NVDA`（完整）",
       "- `/summary NVDA`（重點）",
       "- `/watch NVDA,AAPL,TSLA`（觀察清單掃描）",
+      "- `/watch NVDA,AAPL,TSLA --valuation`（<=5 檔時顯示估值）",
       "- `/heatmap NVDA,AAPL,TSLA`（熱力圖）",
+      "- `/setwatch TSM,TCOM,NVDA,0700.HK`（設定「我的觀察」清單）",
+      "- `/setwatch`（用 PORTFOLIO / PORTFOLIO_POSITIONS 覆蓋「我的觀察」）",
+      "- `/watchme`（一鍵觀察：使用「我的觀察」，沒有就用 PORTFOLIO）",
+      "- `/heatmapme`（一鍵熱力圖：使用「我的觀察」，沒有就用 PORTFOLIO）",
+      "- `/clearwatch`（清除「我的觀察」）",
+      "- `/halo`（HALO 監控：VIX 制度 + S7/T12 + 停損；`--all` 更多 near-miss；`--table` 顯示全表）",
+      "- `/calendar`（未來重大事件行事曆）",
       "- `/morning`（早晨簡報）",
       "- `/macro`（宏觀儀表板）",
       "- `/action`（今日操作建議）",
@@ -1664,15 +2725,93 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       "- `/whoami`（取得你的 Chat ID，用於白名單）",
       "",
       "快捷選單：直接回覆 1/2/3/4/5/6/7/8/9 也可以",
+      "一鍵功能：🔎 一鍵觀察(自選)、📋 一鍵熱力圖(自選) 會使用 PORTFOLIO / PORTFOLIO_POSITIONS",
       "",
       "偏好設定（env vars）: RISK=low|medium|high, HORIZON=day|swing|invest",
       "投資組合（env vars）: PORTFOLIO_POSITIONS=NVDA:15@167.52,0700.HK:100@493.4 或 PORTFOLIO=NVDA,AAPL,0700.HK",
       "操作單位（env vars）: POSITION_UNIT_USD=250, POSITION_UNIT_HKD=2000",
+      "操作限制（env vars）: MAX_DAILY_ADDS=2, MAX_DAILY_TRIMS=2, MAX_PER_TICKER_U=1",
+      "行事曆（env vars）: ECON_CALENDAR=多行(YYYY-MM-DD HH:mm Event), CALENDAR_TZ=America/New_York",
+      "HALO（env vars）: HALO_CORE / HALO_WATCHLIST / HALO_STOP_PCTS / HALO_EMA_WINDOW / HALO_VOLUME_WINDOW / HALO_VOLUME_SURGE / HALO_VIX_AMBER / HALO_VIX_RED / HALO_MILKSHAKE_RISK / HALO_OBSOLESCENCE",
     ].join("\n");
   }
 
   if (cmd === "whoami") {
     return `你的 Chat ID: ${chatId}\n請把這串數字傳給 bot 管理員，讓他把你加入 TELEGRAM_ALLOWED_CHAT_IDS 白名單。`;
+  }
+
+  if (cmd === "setwatch") {
+    const fromEnv = defaultTickersFromEnv(env);
+    const tickers = arg ? arg.split(",").map((s) => normalizeTicker(s)).filter(Boolean) : fromEnv;
+    if (tickers.length === 0) {
+      return "尚未提供清單。\n用法：/setwatch TSM,TCOM,NVDA,0700.HK\n或先設定 PORTFOLIO / PORTFOLIO_POSITIONS，再輸入 /setwatch";
+    }
+    await setWatchlist(chatId, tickers);
+    const saved = (await getWatchlist(chatId)) || [];
+    return `✅ 已設定「我的觀察」清單（${saved.length} 檔）:\n${saved.join(", ")}\n\n你可以直接點 👤 我的觀察 / 👤 我的熱力圖。`;
+  }
+
+  if (cmd === "clearwatch") {
+    await clearWatchlist(chatId);
+    return "✅ 已清除「我的觀察」清單。";
+  }
+
+  if (cmd === "watchme" || cmd === "heatmapme") {
+    const mine = await getWatchlist(chatId);
+    const tickers = (mine && mine.length ? mine : defaultTickersFromEnv(env)).slice(0, 20);
+    if (tickers.length === 0) {
+      return "尚未設定清單。\n請用 /setwatch 設定「我的觀察」，或在 Worker env 設定 PORTFOLIO / PORTFOLIO_POSITIONS。";
+    }
+    const inner = cmd === "watchme" ? `/watch ${tickers.join(",")}` : `/heatmap ${tickers.join(",")}`;
+    return await handle(chatId, inner, env);
+  }
+
+  if (cmd === "halo") {
+    const raw = ((arg || "").trim() || (env.PORTFOLIO_POSITIONS || "").trim()).trim();
+    const tokens = raw.split(/\s+/).filter(Boolean);
+    const showAll = tokens.includes("--all");
+    const showTable = tokens.includes("--table");
+    const spec = tokens.filter((t) => !t.startsWith("--")).join(" ").trim();
+    const positions = spec.includes(":") ? parsePositionsSpec(spec) : [];
+    return await formatHaloMonitor(env, positions, { showAll, showTable });
+  }
+
+  if (cmd === "calendar") {
+    const tz = (env.CALENDAR_TZ || "").trim() || "America/New_York";
+    const events = compactCalendarEvents(
+      (await fetchCalendarEvents(env, tz)).filter((e) => Number.isFinite(e.utcMs)).sort((a, b) => a.utcMs - b.utcMs),
+    );
+    const now = Date.now();
+    const upcoming = events.filter((e) => e.utcMs >= now - 6 * 60 * 60 * 1000).slice(0, 12);
+
+    const lines: string[] = [];
+    lines.push(`🗓️ 行事曆 (Calendar) — ${new Date().toISOString().slice(0, 10)}`);
+    lines.push("");
+    lines.push(`時區: ${tz}（顯示: ${tz} + HK）`);
+    lines.push("");
+
+    if (upcoming.length === 0) {
+      lines.push("未來事件: 無");
+      lines.push("");
+      lines.push("設定方式：");
+      lines.push("- Worker env 設定 ECON_CALENDAR_SOURCE=yahoo_viz（抓 Yahoo Finance economic calendar）");
+      lines.push("- 或 ECON_CALENDAR_URL（線上純文字）");
+      lines.push("- 或 ECON_CALENDAR（多行）");
+      lines.push("格式：YYYY-MM-DD HH:mm Event name");
+      return lines.join("\n");
+    }
+
+    for (const e of upcoming) {
+      const t1 = formatInTimeZone(e.utcMs, tz);
+      const t2 = formatInTimeZone(e.utcMs, "Asia/Hong_Kong");
+      const delta = e.utcMs - now;
+      lines.push(`- ${t1} (${t2} HK) | ${formatTMinus(delta)} | ${e.name}`);
+    }
+    lines.push("");
+    lines.push("提示：CPI/FOMC/NFP 前後波動通常較大，建議減少新倉/槓桿，等數據落地再動作。");
+    lines.push("");
+    lines.push(formatFooter(profile, Math.floor(now / 1000)));
+    return lines.join("\n");
   }
 
   if (cmd === "morning") {
@@ -1813,9 +2952,14 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
 
   if (cmd === "watch") {
     if (!arg) return "用法: /watch NVDA,AAPL,TSLA";
-    const tickers = arg.split(",").map((s) => normalizeTicker(s)).filter(Boolean).slice(0, 20);
-    const rows: Array<{ t: string; bias: Bias; conf: number; price: number; rsi: number }> = [];
+    const wantVal = /\s--valuation\b|\s--val\b/.test(` ${arg} `);
+    const cleaned = arg.replace(/\s--valuation\b/g, "").replace(/\s--val\b/g, "").trim();
+    const tickers = cleaned.split(",").map((s) => normalizeTicker(s)).filter(Boolean).slice(0, 20);
+    const rows: Array<{ t: string; bias: Bias; conf: number; price: number; rsi: number; pe?: number | null; fpe?: number | null; ey?: number | null }> = [];
     let maxAsOf = 0;
+    const year = new Date().getUTCFullYear();
+    const yc = wantVal ? ((await fetchTreasuryYieldCurveLastTwo(year)) || (await fetchTreasuryYieldCurveLastTwo(year - 1))) : null;
+    const us10y = yc ? yc.latest.y10 : null;
     for (const t of tickers) {
       const data = await fetchYahooChart(t);
       maxAsOf = Math.max(maxAsOf, data.asOfUnix || 0);
@@ -1825,12 +2969,28 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       const rsi = rsi14(data.closes);
       const hist = macdHistogram(data.closes);
       const { bias, confidence } = computeBias(price, d20, d200, hist, rsi, profile);
-      rows.push({ t, bias, conf: confidence, price, rsi });
+      let pe: number | null | undefined;
+      let fpe: number | null | undefined;
+      let ey: number | null | undefined;
+      if (wantVal && tickers.length <= 5) {
+        const f = await fetchYahooQuoteSummary(t);
+        const peCalc = f.epsTrailing12Months != null && f.epsTrailing12Months > 0 ? price / f.epsTrailing12Months : null;
+        const fpeCalc = f.epsForward != null && f.epsForward > 0 ? price / f.epsForward : null;
+        pe = f.trailingPE ?? peCalc;
+        fpe = f.forwardPE ?? fpeCalc;
+        const usedForward = fpe != null && fpe > 0;
+        ey = usedForward ? (100 / (fpe as number)) : pe != null && pe > 0 ? (100 / pe) : null;
+      }
+      rows.push({ t, bias, conf: confidence, price, rsi, pe, fpe, ey });
     }
     rows.sort((a, b) => b.conf - a.conf);
     const lines = ["觀察清單（按信心度排序）:"];
     for (const r of rows) {
-      lines.push(`${r.t}: ${biasLabelZh(r.bias)} ${r.conf}% | ${r.price.toFixed(2)} | RSI ${r.rsi.toFixed(1)}`);
+      const val =
+        wantVal && tickers.length <= 5
+          ? ` | PE ${r.pe != null ? r.pe.toFixed(1) : "N/A"} | FPE ${r.fpe != null ? r.fpe.toFixed(1) : "N/A"} | EY ${r.ey != null ? r.ey.toFixed(2) + "%" : "N/A"}${us10y != null && r.ey != null ? ` | Spread ${(r.ey - us10y).toFixed(2)}%` : ""}`
+          : "";
+      lines.push(`${r.t}: ${biasLabelZh(r.bias)} ${r.conf}% | ${r.price.toFixed(2)} | RSI ${r.rsi.toFixed(1)}${val}`);
     }
     lines.push("");
     lines.push(formatFooter(profile, maxAsOf));
@@ -1927,6 +3087,16 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
       const lines: string[] = [];
       lines.push("");
       lines.push("估值 (Valuation)");
+      lines.push(`- Source: PE=${f.sources?.pe || "N/A"} | FPE=${f.sources?.fpe || "N/A"} | Growth=${f.sources?.growth || "N/A"}`);
+      const isFallback = [f.sources?.pe, f.sources?.fpe, f.sources?.growth]
+        .filter(Boolean)
+        .some((s) => !String(s).startsWith("Yahoo"));
+      const missingCore = pe == null && fpe == null && growthPct == null;
+      if (missingCore) {
+        lines.push("- 注意: 估值資料缺失，上游資料源可能被擋或暫時不可用（已嘗試 fallback）。");
+      } else if (isFallback) {
+        lines.push("- 注意: 估值使用 fallback 資料源（可能與券商/一致預期略有差異）。");
+      }
       lines.push(`- EPS (TTM): ${f.epsTrailing12Months != null ? f.epsTrailing12Months.toFixed(2) : "N/A"} | EPS (Fwd): ${f.epsForward != null ? f.epsForward.toFixed(2) : "N/A"}`);
       lines.push(`- P/E (TTM): ${pe != null ? pe.toFixed(2) : "N/A"}${f.trailingPE == null && peCalc != null ? " (calc)" : ""}`);
       lines.push(`- Forward P/E: ${fpe != null ? fpe.toFixed(2) : "N/A"}${f.forwardPE == null && fpeCalc != null ? " (calc)" : ""}`);
@@ -1950,16 +3120,228 @@ async function handle(chatId: number, text: string, env: Env): Promise<string> {
   return body + "\n\n" + formatFooter(profile, data.asOfUnix);
 }
 
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    const path = url.pathname;
+    if (path === "/health") {
+      const token = getToken(env);
+      const secret = (env.WEBHOOK_SECRET || "").trim();
+      const allowed = parseAllowedChatIds(env);
+      const payload = {
+        ok: true,
+        hasTelegramToken: Boolean(token),
+        hasWebhookSecret: Boolean(secret),
+        allowedChatIdsConfigured: allowed.length > 0,
+        allowedChatIdsCount: allowed.length,
+        calendar: {
+          source: (env.ECON_CALENDAR_SOURCE || "").trim() || "inline",
+          tz: (env.CALENDAR_TZ || "").trim() || "America/New_York",
+          days: (env.ECON_CALENDAR_DAYS || "").trim() || "7",
+          mode: (env.ECON_CALENDAR_YAHOO_MODE || "").trim() || "important",
+        },
+      };
+      return new Response(JSON.stringify(payload, null, 2), { headers: { "content-type": "application/json; charset=utf-8" } });
+    }
+
+    if (path === "/yahoo-auth-debug") {
+      const secret = (env.WEBHOOK_SECRET || "").trim();
+      const key = (url.searchParams.get("key") || "").trim();
+      if (secret && key !== secret) return new Response("Not found", { status: 404 });
+      try {
+        const res = await fetch("https://fc.yahoo.com", {
+          headers: { "user-agent": "Mozilla/5.0", accept: "text/html,*/*;q=0.9" },
+          redirect: "follow",
+        });
+        const setCookies: string[] =
+          typeof (res.headers as any).getSetCookie === "function"
+            ? (res.headers as any).getSetCookie()
+            : (res.headers.get("set-cookie") ? [String(res.headers.get("set-cookie"))] : []);
+        const parsed = setCookies.map(parseFirstCookie).filter(Boolean) as Array<{ name: string; value: string }>;
+        const cookie = parsed.length > 0 ? `${parsed[0].name}=${parsed[0].value}` : "";
+        const crumbRes = cookie
+          ? await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb", { headers: { "user-agent": "Mozilla/5.0", cookie } })
+          : null;
+        const crumbText = crumbRes ? (await crumbRes.text()).trim() : "";
+        const payload = {
+          ok: true,
+          fcStatus: res.status,
+          hasSetCookie: setCookies.length > 0,
+          cookieNames: parsed.map((c) => c.name),
+          a1orA3Present: parsed.some((c) => c.name === "A1" || c.name === "A3"),
+          crumbStatus: crumbRes ? crumbRes.status : null,
+          hasCrumb: Boolean(crumbText),
+          crumbLen: crumbText.length,
+        };
+        return new Response(JSON.stringify(payload, null, 2), { headers: { "content-type": "application/json; charset=utf-8" } });
+      } catch (e: any) {
+        return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }, null, 2), {
+          headers: { "content-type": "application/json; charset=utf-8" },
+          status: 200,
+        });
+      }
+    }
+
+    if (path === "/yahoo-viz-debug") {
+      const secret = (env.WEBHOOK_SECRET || "").trim();
+      const key = (url.searchParams.get("key") || "").trim();
+      if (secret && key !== secret) return new Response("Not found", { status: 404 });
+      const tz = (url.searchParams.get("tz") || (env.CALENDAR_TZ || "").trim() || "America/New_York").trim() || "America/New_York";
+      const dayIso = (url.searchParams.get("day") || formatInTimeZone(Date.now(), tz).slice(0, 10)).trim();
+      const mode = (url.searchParams.get("mode") || (env.ECON_CALENDAR_YAHOO_MODE || "").trim() || "important").trim().toLowerCase() === "all" ? "all" : "important";
+      const ttl = clampInt(Number((env.ECON_CALENDAR_CACHE_TTL || "").trim()) || 900, 60, 86400);
+      const auth = await fetchYahooAuth(clampInt(Math.floor(ttl * 6), 600, 43200));
+      if (!auth) {
+        return new Response(JSON.stringify({ ok: false, error: "no_auth" }, null, 2), { headers: { "content-type": "application/json; charset=utf-8" } });
+      }
+      const bounds = dayBoundsWithOffset(dayIso, tz);
+      if (!bounds) {
+        return new Response(JSON.stringify({ ok: false, error: "bad_day" }, null, 2), { headers: { "content-type": "application/json; charset=utf-8" } });
+      }
+      const eventsViaFn = await fetchYahooEconomicCalendarViz({
+        dayIso,
+        mode,
+        cacheTtlSec: ttl,
+        authTtlSec: clampInt(Math.floor(ttl * 6), 600, 43200),
+        timeZone: tz,
+      });
+      const body = {
+        offset: 0,
+        size: 25,
+        sortField: "startdatetime",
+        sortType: "ASC",
+        entityIdType: "ECONOMIC_EVENT",
+        includeFields: ["econ_release", "country_code", "startdatetime", "period", "after_release_actual", "consensus_estimate", "prior_release_actual", "originally_reported_actual"],
+        query: {
+          operator: "and",
+          operands: [
+            { operator: "gte", operands: ["startdatetime", bounds.start] },
+            { operator: "lt", operands: ["startdatetime", bounds.end] },
+          ],
+        },
+      };
+      const apiUrl = `https://query1.finance.yahoo.com/v1/finance/visualization?lang=en-US&region=US&crumb=${encodeURIComponent(auth.crumb)}`;
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "user-agent": "Mozilla/5.0",
+          cookie: auth.cookie,
+          "x-crumb": auth.crumb,
+        },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+      } catch {}
+      const rows = json ? parseVizRows(json) : [];
+      const sample = rows.slice(0, 3);
+      const usSample = rows.filter((r) => String(r?.country_code || "").trim().toUpperCase() === "US").slice(0, 5);
+      const payload = {
+        ok: true,
+        dayIso,
+        tz,
+        mode,
+        status: res.status,
+        bodyLen: text.length,
+        hasFinance: Boolean(json?.finance),
+        error: json?.finance?.error || null,
+        rawHead: text.slice(0, 300),
+        sample,
+        usSample,
+        fnCount: eventsViaFn.length,
+        fnSample: eventsViaFn.slice(0, 5),
+      };
+      return new Response(JSON.stringify(payload, null, 2), { headers: { "content-type": "application/json; charset=utf-8" } });
+    }
+
+    if (path === "/calendar-debug") {
+      const debugEnv: Env = {
+        ...env,
+        ECON_CALENDAR_SOURCE: url.searchParams.get("source") ?? env.ECON_CALENDAR_SOURCE,
+        ECON_CALENDAR_URL: url.searchParams.get("url") ?? env.ECON_CALENDAR_URL,
+        ECON_CALENDAR_CACHE_TTL: url.searchParams.get("ttl") ?? env.ECON_CALENDAR_CACHE_TTL,
+        ECON_CALENDAR_DAYS: url.searchParams.get("days") ?? env.ECON_CALENDAR_DAYS,
+        ECON_CALENDAR_YAHOO_MODE: url.searchParams.get("mode") ?? env.ECON_CALENDAR_YAHOO_MODE,
+        CALENDAR_TZ: url.searchParams.get("tz") ?? env.CALENDAR_TZ,
+      };
+      const tz = (debugEnv.CALENDAR_TZ || "").trim() || "America/New_York";
+      const events = (await fetchCalendarEvents(debugEnv, tz)).filter((e) => Number.isFinite(e.utcMs)).sort((a, b) => a.utcMs - b.utcMs);
+      const now = Date.now();
+      const upcoming = events.filter((e) => e.utcMs >= now - 6 * 60 * 60 * 1000).slice(0, 30);
+
+      const format = (url.searchParams.get("format") || "").trim().toLowerCase();
+      if (format === "json") {
+        const source = (debugEnv.ECON_CALENDAR_SOURCE || "").trim() || "inline";
+        const yahooRaw =
+          source.toLowerCase() === "yahoo"
+            ? await fetchYahooEconomicCalendar({
+                dayIso: formatInTimeZone(Date.now(), tz).slice(0, 10),
+                mode: (debugEnv.ECON_CALENDAR_YAHOO_MODE || "").trim().toLowerCase() === "all" ? "all" : "important",
+                cacheTtlSec: clampInt(Number((debugEnv.ECON_CALENDAR_CACHE_TTL || "").trim()) || 900, 60, 86400),
+              })
+            : null;
+        return new Response(
+          JSON.stringify(
+            {
+              asOf: new Date(now).toISOString(),
+              tz,
+              source,
+              yahooObservedDayIso: yahooRaw?.observedDayIso ?? null,
+              days: debugEnv.ECON_CALENDAR_DAYS,
+              mode: debugEnv.ECON_CALENDAR_YAHOO_MODE,
+              count: upcoming.length,
+              upcoming: upcoming.map((e) => ({
+                utcMs: e.utcMs,
+                utc: new Date(e.utcMs).toISOString(),
+                inTz: formatInTimeZone(e.utcMs, tz),
+                inHK: formatInTimeZone(e.utcMs, "Asia/Hong_Kong"),
+                name: e.name,
+              })),
+            },
+            null,
+            2,
+          ),
+          { headers: { "content-type": "application/json; charset=utf-8" } },
+        );
+      }
+
+      const lines: string[] = [];
+      lines.push("calendar-debug");
+      lines.push(`asOf: ${new Date(now).toISOString()}`);
+      lines.push(`tz: ${tz}`);
+      lines.push(`source: ${(debugEnv.ECON_CALENDAR_SOURCE || "").trim() || "inline"}`);
+      if (debugEnv.ECON_CALENDAR_SOURCE) {
+        if ((debugEnv.ECON_CALENDAR_SOURCE || "").trim().toLowerCase() === "yahoo") {
+          lines.push(`days: ${debugEnv.ECON_CALENDAR_DAYS || "7"}`);
+          lines.push(`mode: ${(debugEnv.ECON_CALENDAR_YAHOO_MODE || "").trim() || "important"}`);
+        }
+      }
+      lines.push("");
+      for (const e of upcoming) {
+        const t1 = formatInTimeZone(e.utcMs, tz);
+        const t2 = formatInTimeZone(e.utcMs, "Asia/Hong_Kong");
+        lines.push(`- ${t1} (${t2} HK) | ${formatTMinus(e.utcMs - now)} | ${e.name}`);
+      }
+      if (upcoming.length === 0) {
+        lines.push("(no upcoming events)");
+      }
+      lines.push("");
+      lines.push("Try:");
+      lines.push("- /calendar-debug?format=json");
+      lines.push("- /calendar-debug?source=yahoo&days=7&mode=important&tz=America/New_York");
+      return new Response(lines.join("\n"), { headers: { "content-type": "text/plain; charset=utf-8" } });
+    }
+
     const token = getToken(env);
     if (!token) return new Response("Missing TELEGRAM_TOKEN", { status: 500 });
 
     const allowed = parseAllowedChatIds(env);
     const secret = (env.WEBHOOK_SECRET || "").trim();
 
-    const url = new URL(request.url);
-    const path = url.pathname;
     const expectedPrefix = secret ? `/telegram/${secret}` : "/telegram";
     if (!path.startsWith(expectedPrefix)) return new Response("Not found", { status: 404 });
     if (request.method !== "POST") return new Response("OK", { status: 200 });
@@ -2005,6 +3387,37 @@ export default {
         return new Response("OK", { status: 200 });
       }
 
+      if (sel === "WATCHPORT" || sel === "HEATMAPPORT") {
+        await setPending(chatId, null);
+        const tickers = defaultTickersFromEnv(env).slice(0, 20);
+        if (tickers.length === 0) {
+          const prompt =
+            "尚未設定自選清單。\n請在 Worker env 設定 PORTFOLIO（或 PORTFOLIO_POSITIONS），或用 `/portfolio ...` 先建立清單。";
+          ctx.waitUntil(sendMessage(token, chatId, prompt, { replyMarkup: buildHelpMenu() }));
+          return new Response("OK", { status: 200 });
+        }
+        const cmdText = sel === "WATCHPORT" ? `/watch ${tickers.join(",")}` : `/heatmap ${tickers.join(",")}`;
+        const body = await handle(chatId, cmdText, env);
+        ctx.waitUntil(sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() }));
+        return new Response("OK", { status: 200 });
+      }
+
+      if (sel === "WATCHME" || sel === "HEATMAPME") {
+        await setPending(chatId, null);
+        const mine = await getWatchlist(chatId);
+        const tickers = (mine && mine.length ? mine : defaultTickersFromEnv(env)).slice(0, 20);
+        if (tickers.length === 0) {
+          const prompt =
+            "尚未設定「我的觀察」清單。\n請用 /setwatch 設定（例如：/setwatch TSM,TCOM,NVDA,0700.HK），或先在 Worker env 設定 PORTFOLIO。";
+          ctx.waitUntil(sendMessage(token, chatId, prompt, { replyMarkup: buildHelpMenu() }));
+          return new Response("OK", { status: 200 });
+        }
+        const cmdText = sel === "WATCHME" ? `/watch ${tickers.join(",")}` : `/heatmap ${tickers.join(",")}`;
+        const body = await handle(chatId, cmdText, env);
+        ctx.waitUntil(sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() }));
+        return new Response("OK", { status: 200 });
+      }
+
       if (sel === "WATCH" || sel === "HEATMAP") {
         await setPending(chatId, sel === "WATCH" ? "watch" : "heatmap");
         ctx.waitUntil(sendMessage(token, chatId, "請輸入清單（例如：NVDA,AAPL,TSLA）。", { replyMarkup: buildHelpMenu() }));
@@ -2034,6 +3447,20 @@ export default {
       if (sel === "MACRO") {
         await setPending(chatId, null);
         const body = await handle(chatId, "/macro", env);
+        ctx.waitUntil(sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() }));
+        return new Response("OK", { status: 200 });
+      }
+
+      if (sel === "CALENDAR") {
+        await setPending(chatId, null);
+        const body = await handle(chatId, "/calendar", env);
+        ctx.waitUntil(sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() }));
+        return new Response("OK", { status: 200 });
+      }
+
+      if (sel === "HALO") {
+        await setPending(chatId, null);
+        const body = await handle(chatId, "/halo", env);
         ctx.waitUntil(sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() }));
         return new Response("OK", { status: 200 });
       }
@@ -2204,12 +3631,14 @@ export default {
     if (!token) return;
     const allowed = parseAllowedChatIds(env);
     if (allowed.length === 0) return;
+    const rawCmd = (env.DAILY_CRON_CMD || "").trim();
+    const cmd = rawCmd ? (rawCmd.startsWith("/") ? rawCmd : `/${rawCmd}`) : "/morning";
 
     ctx.waitUntil(
       (async () => {
         for (const chatId of allowed) {
           try {
-            const body = await handle(chatId, "/morning", env);
+            const body = await handle(chatId, cmd, env);
             await sendMessage(token, chatId, body, { replyMarkup: buildHelpMenu() });
           } catch {
             // ignore

@@ -31,7 +31,15 @@ FILE_PATH=$(printf '%s' "$INPUT" | grep -o '"file_path"[[:space:]]*:[[:space:]]*
 
 # Python fallback if grep returned empty
 if [ -z "$FILE_PATH" ]; then
-  FILE_PATH=$(printf '%s' "$INPUT" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("file_path",""))' 2>/dev/null || true)
+  if command -v python3 >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | python3 -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("file_path",""))' 2>/dev/null || true)
+  elif command -v python >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | python -c 'import sys,json; print(json.loads(sys.stdin.read()).get("tool_input",{}).get("file_path",""))' 2>/dev/null || true)
+  elif command -v node >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | node -e 'let d="";process.stdin.on("data",c=>d+=c);process.stdin.on("end",()=>{try{const j=JSON.parse(d);process.stdout.write(String((j.tool_input||{}).file_path||""));}catch{}});' 2>/dev/null || true)
+  elif command -v bun >/dev/null 2>&1; then
+    FILE_PATH=$(printf '%s' "$INPUT" | bun -e 'let d="";for await (const c of Bun.stdin.stream()) d+=new TextDecoder().decode(c); try { const j=JSON.parse(d); process.stdout.write(String((j.tool_input||{}).file_path||"")); } catch {}' 2>/dev/null || true)
+  fi
 fi
 
 # If we couldn't extract a file path, allow (don't block on parse failure)
