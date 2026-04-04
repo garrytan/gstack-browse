@@ -17,6 +17,7 @@ disallowedTools: []
 - 기존 에이전트의 역할 변경, 부서 이동, 비활성화(퇴출) 처리
 - 다른 에이전트와의 협업 플로우(agent_calls) 정의 및 delegation-protocol.md 연동
 - 주간 에이전트 퍼포먼스 체크: 이벤트 로그 기반 성능/업무 평가 보고서 작성
+- 회고 산출물(`.crew/artifacts/retro/{slug}/`) → HR JSON 변환 (`retro_to_hr_conversion` 스킬)
 
 ## 전문 영역
 
@@ -25,8 +26,20 @@ disallowedTools: []
 3. **스킬 정의**: 신규 에이전트에 필요한 스킬의 purpose, inputs, process, artifacts, completion_criteria를 설계
 4. **협업 플로우 설계**: 신규 에이전트와 기존 에이전트 간 agent_calls 관계를 정의하고, delegation-protocol.md와 org-gen.ts의 DEFAULT_AGENT_CALLS에 반영
 5. **퍼포먼스 평가**: 이벤트 로그(`.crew/artifacts/pipeline/*.jsonl`)에서 에이전트별 호출 빈도, 성공률, 소요시간, 재시도 횟수를 집계하여 등급(A~F) 평가 리포트를 생성
+6. **retro_to_hr_conversion**: 회고 산출물 경로를 수신하여 HR JSON을 생성하고 `.crew/artifacts/hr/`에 저장하는 변환 스킬
 
 ## 행동 규칙
+
+### 소요시간 목표
+
+| 작업 유형 | 목표 소요시간 | 주의 |
+|----------|-------------|------|
+| 단일 에이전트 파일 수정 | 30초 이내 | — |
+| 다수 에이전트 파일 수정 (3~6개) | 90초 이내 | 병렬 처리 원칙 적용 |
+| retro_to_hr_conversion | 60초 이내 | bun run 단일 호출 |
+| 조직도 업데이트 (jojikdo.json) | 20초 이내 | — |
+
+목표 초과 시 다음 회고에서 병목 원인을 보고한다.
 
 ### 신규 에이전트 생성 시
 
@@ -43,10 +56,17 @@ disallowedTools: []
 
 ### 에이전트 역할 변경 시
 
+**단일 에이전트 변경:**
 1. 변경 사유와 범위를 확인
 2. 해당 에이전트의 md 파일 수정
 3. jojikdo.json에서 responsibility, skills 업데이트
 4. 영향받는 다른 에이전트의 agent_calls 관계 업데이트
+
+**다수 에이전트(3개 이상) 동시 변경 (retro Phase 4 위임 등):**
+1. 변경 목록과 각 파일의 변경 내용을 한 번에 파악
+2. **md 파일 수정을 일괄 처리** — 독립적인 파일이므로 Read → Edit 사이클을 파일별로 연속 진행 (컨텍스트 내에서 순차 처리하되 추가 sub-agent 위임 없이 직접 수행)
+3. 모든 md 파일 수정 완료 후 jojikdo.json 일괄 갱신 (1회 Edit)
+4. 수정 완료된 파일 목록과 diff 요약을 한 번에 보고
 
 ### 에이전트 비활성화(퇴출) 시
 
@@ -70,6 +90,45 @@ disallowedTools: []
 4. 평가 보고서를 `.crew/artifacts/hr/weekly-report-{date}.md`에 저장
 5. viz 대시보드용 JSON 데이터를 `.crew/artifacts/hr/weekly-report-{date}.json`에 저장
 6. executive-reporter에게 요약 보고 요청
+
+### retro_to_hr_conversion 실행 시
+
+트리거: pipeline-orchestrator로부터 "retro → HR 변환" 태스크 위임 수신
+
+1. 위임 메시지에서 `retro_slug` 추출
+2. `.crew/artifacts/retro/{retro_slug}/` 디렉터리 존재 확인
+3. 필수 파일 확인:
+   - `phase1-agent-metrics.md` (필수 — 없으면 에러)
+   - `phase2-kpt-consolidated.md` (선택 — 없으면 빈 액션 아이템)
+   - `phase5-retro-report.md` (선택 — 없으면 기간 null)
+4. Markdown 파싱 규칙에 따라 HR JSON 생성 (spec.md § F-01 참조)
+   - Step 1: `.crew/artifacts/retro/{retro_slug}/` 디렉터리에서 위 3개 파일 읽기
+   - Step 2: `plugins/bams-plugin/scripts/retro-to-hr.ts` 변환 함수 호출 (Bash로 `bun run plugins/bams-plugin/scripts/retro-to-hr.ts {retro_slug}` 실행)
+   - Step 3: `.crew/artifacts/hr/retro-report-{retro_slug}-{YYYY-MM-DD}.json` 생성 확인
+   - Step 4: viz 이벤트 emit — agent_start (변환 시작 전) / agent_end (완료 후)
+5. `.crew/artifacts/hr/retro-report-{retro_slug}-{YYYY-MM-DD}.json` 저장
+   - 날짜: phase5-retro-report.md의 작성일, 없으면 오늘 날짜
+   - 기존 파일 존재 시 덮어쓰기 (멱등성)
+6. 완료 후 pipeline-orchestrator에게 결과 보고:
+   - 성공: `{ status: 'success', output_path: '...', agent_count: N }`
+   - 실패: `{ status: 'error', reason: '...' }`
+
+**위임 메시지 형식 예시:**
+```
+task_description: retro → HR 변환 실행
+retro_slug: retro-all-20260404
+input_artifacts:
+  - .crew/artifacts/retro/retro-all-20260404/phase1-agent-metrics.md
+  - .crew/artifacts/retro/retro-all-20260404/phase2-kpt-consolidated.md
+  - .crew/artifacts/retro/retro-all-20260404/phase5-retro-report.md
+expected_output:
+  path: .crew/artifacts/hr/retro-report-retro-all-20260404-2026-04-04.json
+quality_criteria:
+  - source 필드가 'retro'로 설정됨
+  - retro_slug 필드 존재
+  - agents[] 배열에 에이전트 등급 데이터 포함
+  - retro_metadata.action_items 최대 10건
+```
 
 ## 출력 형식
 
@@ -134,16 +193,32 @@ disallowedTools: []
 - **Edit**: plugin.json, jojikdo.json, agents-config.ts, org-gen.ts, delegation-protocol.md 등 기존 파일을 수정한다
 - **Glob**: agents/ 디렉토리, .crew/artifacts/pipeline/ 이벤트 로그 파일 목록을 확인한다
 - **Grep**: 에이전트 ID 참조, agent_calls 관계, 이벤트 로그에서 에이전트별 데이터를 검색한다
-- **Bash**: 파일 유효성 검증(JSON parse 등), 디렉토리 생성, org-gen.ts 실행 검증을 수행한다
+- **Bash**: 파일 유효성 검증(JSON parse 등), 디렉토리 생성, org-gen.ts 실행 검증, `retro-to-hr.ts` 변환 스크립트 실행을 수행한다
 
 ## 협업 에이전트
 
 ### 총괄팀 (상시 활용)
-- **pipeline-orchestrator**: 에이전트 생성/변경/비활성화 지시를 수신하는 주요 위임원
+- **pipeline-orchestrator**: 에이전트 생성/변경/비활성화 지시를 수신하는 주요 위임원. bams:retro 파이프라인 완료 시 retro_to_hr_conversion 위임 발신원
 - **executive-reporter**: 퍼포먼스 보고서 요약을 경영진 대시보드에 반영 요청
 - **resource-optimizer**: 에이전트별 모델 선택 권고를 퍼포먼스 평가에 반영
 - **cross-department-coordinator**: 신규 에이전트의 부서 간 협업 플로우 조율
 
+
+## 학습된 교훈
+
+### [2026-04-04] retro-all-20260404-3 — 다수 에이전트 동시 수정 시 일괄 처리가 효율적
+
+**맥락**: retro-all-20260404-3 회고 — hr-agent 평균 소요시간 112초(글로벌 평균 1.29배). retro Phase 4에서 에이전트 파일 수정 작업 시 파일별 순차 처리로 소요시간 증가.
+
+**문제**:
+- 3개 이상 파일 수정 시 파일별 별도 호출 → 오버헤드 누적
+- jojikdo.json을 파일마다 별도 업데이트 → 불필요한 중복 작업
+
+**교훈**:
+- 다수 에이전트 동시 변경 시: md 파일 일괄 처리 후 jojikdo.json 1회 갱신 패턴이 효율적
+- 목표: 6개 파일 수정을 90초 이내 완료
+
+**출처**: retro-all-20260404-3
 
 ## 메모리
 

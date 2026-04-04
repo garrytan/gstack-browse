@@ -584,3 +584,135 @@ export function getDefaultCostDB(): CostDB {
 }
 
 export type { TokenUsage, BudgetPolicy, BudgetStatus };
+
+// ─────────────────────────────────────────────────────────────
+// HrReportDB — HR 보고서 CRUD
+// ─────────────────────────────────────────────────────────────
+
+import {
+  HR_REPORTS_TABLE_DDL,
+  type HrReportRow,
+} from "./schema.ts";
+
+export class HrReportDB {
+  private db: Database;
+
+  constructor(dbPath: string = DEFAULT_DB_PATH) {
+    const fs = require("fs");
+    const dir = dbPath.substring(0, dbPath.lastIndexOf("/"));
+    if (dir) fs.mkdirSync(dir, { recursive: true });
+
+    this.db = new Database(dbPath, { create: true });
+    this.db.exec("PRAGMA journal_mode = WAL;");
+    this.db.exec("PRAGMA foreign_keys = ON;");
+    this.db.exec("PRAGMA synchronous = NORMAL;");
+    this.initSchema();
+  }
+
+  private initSchema(): void {
+    this.db.exec(HR_REPORTS_TABLE_DDL);
+  }
+
+  /**
+   * HR 보고서를 upsert한다 (retro_slug 기준 INSERT OR REPLACE).
+   * convertRetroToHR() 완료 후 호출.
+   *
+   * @param retroSlug  retro 파이프라인 슬러그 (e.g. "retro-all-20260404")
+   * @param reportDate 보고서 날짜 (YYYY-MM-DD)
+   * @param data       전체 HRReport 객체 (JSON 직렬화되어 저장됨)
+   * @returns 삽입/교체된 레코드의 id
+   */
+  upsertHrReport(
+    retroSlug: string,
+    reportDate: string,
+    data: Record<string, unknown>
+  ): string {
+    const id = randomUUID();
+    const periodStart = (data.period as { start?: string } | undefined)?.start ?? null;
+    const periodEnd = (data.period as { end?: string } | undefined)?.end ?? null;
+    const source = typeof data.source === "string" ? data.source : "retro";
+
+    this.db
+      .prepare(
+        `INSERT OR REPLACE INTO hr_reports
+          (id, retro_slug, report_date, source, period_start, period_end, data, updated_at)
+         VALUES (
+           COALESCE((SELECT id FROM hr_reports WHERE retro_slug = ?), ?),
+           ?, ?, ?, ?, ?, ?, datetime('now')
+         )`
+      )
+      .run(retroSlug, id, retroSlug, reportDate, source, periodStart, periodEnd, JSON.stringify(data));
+
+    const row = this.db
+      .prepare<{ id: string }>("SELECT id FROM hr_reports WHERE retro_slug = ?")
+      .get(retroSlug);
+
+    return row?.id ?? id;
+  }
+
+  /**
+   * 전체 HR 보고서 목록 조회 (날짜 내림차순)
+   */
+  getHrReports(): HrReportRow[] {
+    return this.db
+      .prepare<HrReportRow>(
+        "SELECT * FROM hr_reports ORDER BY report_date DESC, created_at DESC"
+      )
+      .all();
+  }
+
+  /**
+   * 가장 최근 HR 보고서 1건 조회
+   */
+  getHrReportLatest(): HrReportRow | null {
+    return (
+      this.db
+        .prepare<HrReportRow>(
+          "SELECT * FROM hr_reports ORDER BY report_date DESC, created_at DESC LIMIT 1"
+        )
+        .get() ?? null
+    );
+  }
+
+  /**
+   * retro_slug로 특정 보고서 조회
+   * (기존 JSON API의 ?filename= 파라미터와 동일한 역할)
+   */
+  getHrReportBySlug(retroSlug: string): HrReportRow | null {
+    return (
+      this.db
+        .prepare<HrReportRow>("SELECT * FROM hr_reports WHERE retro_slug = ?")
+        .get(retroSlug) ?? null
+    );
+  }
+
+  /**
+   * retro source 보고서만 조회하여 retro-journal 형식으로 반환.
+   * UI의 /api/hr/retro-journal 엔드포인트가 사용함.
+   */
+  getRetroJournal(): HrReportRow[] {
+    return this.db
+      .prepare<HrReportRow>(
+        `SELECT * FROM hr_reports
+         WHERE source = 'retro'
+         ORDER BY report_date DESC, created_at DESC`
+      )
+      .all();
+  }
+
+  /** DB 연결 종료 */
+  close(): void {
+    this.db.close();
+  }
+}
+
+// 싱글턴 HrReportDB
+let _defaultHrReportDb: HrReportDB | null = null;
+export function getDefaultHrReportDB(): HrReportDB {
+  if (!_defaultHrReportDb) {
+    _defaultHrReportDb = new HrReportDB();
+  }
+  return _defaultHrReportDb;
+}
+
+export type { HrReportRow } from "./schema.ts";

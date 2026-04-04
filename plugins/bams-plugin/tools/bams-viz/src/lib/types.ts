@@ -194,3 +194,70 @@ export interface Span {
   tokenUsage: { input: number; output: number } | null
   description: string
 }
+
+// HR Report types
+export interface HRReportSummary {
+  total_pipelines: number
+  total_invocations: number
+  overall_success_rate: number | null
+}
+
+export interface HRDepartment {
+  department_id: string
+  agent_count: number
+  avg_success_rate: number | null
+  total_invocations: number
+}
+
+export interface HRAgent {
+  agent_id: string
+  department: string
+  grade: string
+  invocation_count: number
+  success_rate: number | null
+  avg_duration_ms: number
+  retry_count: number
+  escalation_count: number
+  trend: 'improving' | 'declining' | 'stable'
+}
+
+export interface AgentImprovement {
+  agent_id: string
+  grade_before: string
+  grade_target: string
+  changes: string[]
+}
+
+export interface RetroMetadata {
+  analyzed_pipelines: number
+  retro_date: string
+  action_items: string[]
+  keep_count: number
+  problem_count: number
+  try_count: number
+  grade_distribution?: Record<string, number>
+  improvements?: AgentImprovement[]
+}
+
+export interface HRReport {
+  report_date: string | null
+  source?: 'weekly' | 'retro'
+  retro_slug?: string
+  period: { start: string | null; end: string | null }
+  summary: HRReportSummary
+  departments: HRDepartment[]
+  agents: HRAgent[]
+  alerts: string[]
+  recommendations: string[]
+  retro_metadata?: RetroMetadata
+}
+
+export interface RetroJournalEntry {
+  retro_slug: string
+  report_date: string
+  period: { start: string | null; end: string | null }
+  agent_count: number
+  alert_count: number
+  retro_metadata: RetroMetadata
+  agents: HRAgent[]
+}

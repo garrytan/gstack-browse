@@ -52,3 +52,30 @@ export function getAgentsEventsDir(): string {
 export function getHrDir(): string {
   return join(getGlobalRoot(), 'artifacts', 'hr')
 }
+
+/** HR 보고서용 DB 경로를 반환합니다. DB가 존재하지 않으면 null을 반환합니다.
+ *
+ * 탐색 우선순위:
+ *   1. BAMS_DB_PATH 환경변수 (명시적 오버라이드)
+ *   2. process.cwd() 기준 .crew/db/bams.db
+ *   3. 글로벌 경로 ~/.bams/db/bams.db (폴백)
+ *
+ * DB 파일이 없으면 null을 반환하고 호출자가 JSON fallback을 사용한다.
+ */
+export function getDbPath(): string | null {
+  if (process.env.BAMS_DB_PATH) return process.env.BAMS_DB_PATH
+
+  const { existsSync } = require('fs') as typeof import('fs')
+
+  const cwdPath = join(process.cwd(), '.crew', 'db', 'bams.db')
+  if (existsSync(cwdPath)) return cwdPath
+
+  try {
+    const globalPath = join(getGlobalRoot(), 'db', 'bams.db')
+    if (existsSync(globalPath)) return globalPath
+  } catch {
+    // HOME not set — skip
+  }
+
+  return null
+}

@@ -338,3 +338,44 @@ export interface RunLog {
   payload: string | null;
   created_at: string;
 }
+
+// ─────────────────────────────────────────────────────────────
+// HR Reports 스키마
+// retro 파이프라인 완료 시 자동 저장되는 HR 보고서 테이블
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * hr_reports 테이블 DDL
+ * retro 완료 시 convertRetroToHR()가 생성한 HRReport를 DB에 영구 저장.
+ * JSON 파일(~/.bams/artifacts/hr/)과 병렬 저장하며, DB가 primary source로 사용됨.
+ */
+export const HR_REPORTS_TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS hr_reports (
+    id              TEXT PRIMARY KEY,
+    retro_slug      TEXT NOT NULL UNIQUE,
+    report_date     TEXT NOT NULL,
+    source          TEXT NOT NULL DEFAULT 'retro',
+    period_start    TEXT,
+    period_end      TEXT,
+    data            TEXT NOT NULL,
+    created_at      DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at      DATETIME NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS hr_reports_date_idx ON hr_reports(report_date DESC);
+`;
+
+/**
+ * HrReport DB 레코드 타입
+ * data 컬럼에는 전체 HRReport JSON이 직렬화되어 저장됨
+ */
+export interface HrReportRow {
+  id: string;
+  retro_slug: string;
+  report_date: string;
+  source: string;
+  period_start: string | null;
+  period_end: string | null;
+  data: string;           // JSON serialized HRReport
+  created_at: string;
+  updated_at: string;
+}
