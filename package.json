@@ -33,7 +33,9 @@
     "eval:watch": "bun run scripts/eval-watch.ts",
     "eval:select": "bun run scripts/eval-select.ts",
     "analytics": "bun run scripts/analytics.ts",
-    "test:audit": "bun test test/audit-compliance.test.ts"
+    "test:audit": "bun test test/audit-compliance.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint:ts": "eslint \"bin/**/*.ts\" \"browse/**/*.ts\" \"design/**/*.ts\" \"lib/**/*.ts\" \"scripts/**/*.ts\" \"test/**/*.ts\""
   },
   "dependencies": {
     "diff": "^7.0.0",
@@ -54,6 +56,11 @@
     "devtools"
   ],
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0"
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@eslint/js": "^10.0.0",
+    "@types/bun": "latest",
+    "eslint": "^10.0.0",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.0.0"
   }
 }
