@@ -82,9 +82,7 @@ After the user chooses, execute their choice (commit or stash), then continue wi
 
 {{DESIGN_SETUP}}
 
-If `DESIGN_READY`: during the fix loop, you can generate "target mockups" showing what a finding should look like after fixing. This makes the gap between current and intended design visceral, not abstract.
-
-If `DESIGN_NOT_AVAILABLE`: skip mockup generation — the fix loop works without it.
+The fix loop uses HTML previews for any target mockups — no external API needed.
 
 **Create output directories:**
 
@@ -158,17 +156,13 @@ For each fixable finding, in impact order:
 - ONLY modify files directly related to the finding
 - Prefer CSS/styling changes over structural component changes
 
-### 8a.5. Target Mockup (if DESIGN_READY)
+### 8a.5. Target Mockup (optional)
 
-If the gstack designer is available and the finding involves visual layout, hierarchy, or spacing (not just a CSS value fix like wrong color or font-size), generate a target mockup showing what the corrected version should look like:
+For findings involving visual layout, hierarchy, or spacing (not just a CSS value fix), generate a target mockup as an HTML preview page showing what the corrected version should look like. Save to `$REPORT_DIR/screenshots/finding-NNN-target.html` and open it for the user.
 
-```bash
-$D generate --brief "<description of the page/component with the finding fixed, referencing DESIGN.md constraints>" --output "$REPORT_DIR/screenshots/finding-NNN-target.png"
-```
+Show the user: "Here's the current state (screenshot) and here's what it should look like (preview). Now I'll fix the source to match."
 
-Show the user: "Here's the current state (screenshot) and here's what it should look like (mockup). Now I'll fix the source to match."
-
-This step is optional — skip for trivial CSS fixes (wrong hex color, missing padding value). Use it for findings where the intended design isn't obvious from the description alone.
+Skip for trivial CSS fixes (wrong hex color, missing padding value). Use it for findings where the intended design isn't obvious from the description alone.
 
 ### 8b. Fix
 
@@ -244,7 +238,7 @@ DESIGN-FIX RISK:
 After all fixes are applied:
 
 1. Re-run the design audit on all affected pages
-2. If target mockups were generated during the fix loop AND `DESIGN_READY`: run `$D verify --mockup "$REPORT_DIR/screenshots/finding-NNN-target.png" --screenshot "$REPORT_DIR/screenshots/finding-NNN-after.png"` to compare the fix result against the target. Include pass/fail in the report.
+2. If target mockup HTML previews were generated during the fix loop, compare the after-screenshot against the target preview visually. Include pass/fail in the report.
 3. Compute final design score and AI slop score
 4. **If final scores are WORSE than baseline:** WARN prominently — something regressed
 

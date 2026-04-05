@@ -139,14 +139,11 @@ After routing, output a brief context summary:
 
 ## Step 1: Design Analysis
 
-1. If `$D` is available (`DESIGN_READY`), extract a structured implementation spec:
-```bash
-$D prompt --image <approved-variant.png> --output json
-```
-This returns colors, typography, layout structure, and component inventory via GPT-4o vision.
-
-2. If `$D` is not available, read the approved PNG inline using the Read tool.
-   Describe the visual layout, colors, typography, and component structure yourself.
+1. If an approved variant exists (PNG or HTML from /design-shotgun), read it:
+   - **HTML variant:** Read the file directly and extract colors, typography, layout,
+     and component structure from the CSS and markup.
+   - **PNG variant:** Read the image inline using the Read tool. Describe the visual
+     layout, colors, typography, and component structure yourself.
 
 3. If in plan-driven or freeform mode (no approved PNG), design from context:
    - **Plan-driven:** read the CEO plan and/or design review notes. Extract the described
