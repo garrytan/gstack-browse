@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased: Stack-aware `/ship`
+
+### Changed
+
+- **`/ship` test execution is stack-aware.** Rails projects (detected by `Gemfile` containing `rails`) get the same `bin/test-lane`, `db:test:prepare`, `app/services/*_prompt_builder.rb` eval-suite flow as before. Any other project gets a generic path that finds the project's own test command via `package.json`, `Makefile`, or language defaults, then falls back to `AskUserQuestion` when nothing is detectable. Previously, every project running `/ship` followed the Rails-only instructions.
+
+### Rails projects: no behavior change
+
+The Rails block is moved, not rewritten. `bin/test-lane`, the `db:test:prepare` warning, the `app/services/*_prompt_builder.rb` and `config/system_prompts/*.txt` globs, the eval-suite runner pattern, the `EVAL_JUDGE_TIER=full` tier reference all sit byte-for-byte inside the `SHIP_STACK: rails` branch. Detection uses the same `Gemfile grep rails` that `{{TEST_BOOTSTRAP}}` already uses.
+
 ## [0.15.7.0] - 2026-04-05 — Security Wave 1
 
 Fourteen fixes for the security audit (#783). Design server no longer binds all interfaces. Path traversal, auth bypass, CORS wildcard, world-readable files, prompt injection, and symlink race conditions all closed. Community PRs from @Gonzih and @garagon included.

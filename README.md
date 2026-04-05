@@ -299,6 +299,13 @@ I open sourced how I build software. You can fork it and make it your own.
 | [Contributing](CONTRIBUTING.md) | Dev setup, testing, contributor mode, and dev mode |
 | [Changelog](CHANGELOG.md) | What's new in every version |
 
+## Stack-aware skills
+
+`/ship` detects the project stack at skill-run time and emits test instructions that fit the detected stack.
+
+- **Rails** (`Gemfile` contains `rails`). Same `bin/test-lane` path, same `db:test:prepare` warning, same `app/services/*_prompt_builder.rb` eval-suite flow as previous gstack releases.
+- **Any other stack** (Next.js, Go, Rust, Python, PHP, Elixir, plain Node, anything else). `/ship` detects the project's own test command. Detection order: `package.json` scripts (`test:ci`, then `test:all`, then `test`), then `Makefile` `test`/`check` targets, then language defaults (`go test ./...`, `cargo test`, `pytest`, `bundle exec rspec`). If none is detectable, `/ship` asks via `AskUserQuestion` rather than guessing.
+
 ## Privacy & Telemetry
 
 gstack includes **opt-in** usage telemetry to help improve the project. Here's exactly what happens:

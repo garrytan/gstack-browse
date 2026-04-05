@@ -230,6 +230,16 @@ For template authoring best practices (natural language over bash-isms, dynamic 
 
 To add a browse command, add it to `browse/src/commands.ts`. To add a snapshot flag, add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts`. Then rebuild.
 
+### Adding a new stack branch to `/ship`
+
+`/ship` picks its test strategy based on the project stack. The logic lives in `generateShipTestExecution` inside `scripts/resolvers/testing.ts`. The generated SKILL.md checks `Gemfile` and `package.json` at skill-run time, then the runner follows the branch that matches `SHIP_STACK`.
+
+To add a new stack (Next.js, Django, Go, etc.):
+
+1. Add a detection line to the `_STACK="generic"` block.
+2. Add a matching `### If \`SHIP_STACK: <name>\`` section inside the template literal.
+3. Leave the generic fallback as the last branch so projects without a dedicated branch still run their tests.
+
 ## Multi-host development
 
 gstack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.

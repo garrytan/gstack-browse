@@ -1,4 +1,5 @@
 import type { TemplateContext } from './types';
+import { generateTestFailureTriage } from './preamble';
 
 export function generateTestBootstrap(_ctx: TemplateContext): string {
   return `## Test Framework Bootstrap
@@ -570,4 +571,160 @@ export function generateTestCoverageAuditShip(_ctx: TemplateContext): string {
 
 export function generateTestCoverageAuditReview(_ctx: TemplateContext): string {
   return generateTestCoverageAuditInner('review');
+}
+
+/**
+ * Emit stack-aware "Run tests" content for /ship.
+ *
+ * Detection happens at skill-run time (not generator time) so a single
+ * generated SKILL.md works across every host/project. The emitted bash
+ * sniffs Gemfile / package.json to decide which branch to show the user,
+ * then tells the skill-runner which instructions to follow.
+ *
+ * Current branches:
+ *   - Rails (Gemfile contains "rails"): preserves the original block
+ *     (bin/test-lane, db:test:prepare, app/services eval suites, etc.)
+ *   - Generic fallback (anything else): run the project's test command,
+ *     ask the user if none is obvious.
+ *
+ * Next.js gets a dedicated branch in a follow-up PR. Until then it lands
+ * on the generic fallback, which fixes the pre-change behavior where
+ * non-Rails projects followed Rails-only instructions.
+ */
+export function generateShipTestExecution(_ctx: TemplateContext): string {
+  return `## Step 3: Run tests (on merged code)
+
+**Detect the project stack** so you emit the right test instructions:
+
+\`\`\`bash
+_STACK="generic"
+[ -f Gemfile ] && grep -q "rails" Gemfile 2>/dev/null && _STACK="rails"
+echo "SHIP_STACK: $_STACK"
+\`\`\`
+
+Follow the section below that matches \`SHIP_STACK\`.
+
+---
+
+### If \`SHIP_STACK: rails\`
+
+**Do NOT run \`RAILS_ENV=test bin/rails db:migrate\`** — \`bin/test-lane\` already calls
+\`db:test:prepare\` internally, which loads the schema into the correct lane database.
+Running bare test migrations without INSTANCE hits an orphan DB and corrupts structure.sql.
+
+Run both test suites in parallel:
+
+\`\`\`bash
+bin/test-lane 2>&1 | tee /tmp/ship_tests.txt &
+npm run test 2>&1 | tee /tmp/ship_vitest.txt &
+wait
+\`\`\`
+
+After both complete, read the output files and check pass/fail.
+
+**If any test fails:** Do NOT immediately stop. Apply the **Test Failure Ownership Triage** (section after the generic branch below).
+
+**After triage:** If any in-branch failures remain unfixed, **STOP**. Do not proceed. If all failures were pre-existing and handled (fixed, TODOed, assigned, or skipped), continue to Step 3.25.
+
+**If all pass:** Continue silently — just note the counts briefly.
+
+---
+
+#### Step 3.25: Eval Suites (conditional, Rails only)
+
+Evals are mandatory when prompt-related files change. Skip this step entirely if no prompt files are in the diff.
+
+**1. Check if the diff touches prompt-related files:**
+
+\`\`\`bash
+git diff origin/<base> --name-only
+\`\`\`
+
+Match against these patterns (from CLAUDE.md):
+- \`app/services/*_prompt_builder.rb\`
+- \`app/services/*_generation_service.rb\`, \`*_writer_service.rb\`, \`*_designer_service.rb\`
+- \`app/services/*_evaluator.rb\`, \`*_scorer.rb\`, \`*_classifier_service.rb\`, \`*_analyzer.rb\`
+- \`app/services/concerns/*voice*.rb\`, \`*writing*.rb\`, \`*prompt*.rb\`, \`*token*.rb\`
+- \`app/services/chat_tools/*.rb\`, \`app/services/x_thread_tools/*.rb\`
+- \`config/system_prompts/*.txt\`
+- \`test/evals/**/*\` (eval infrastructure changes affect all suites)
+
+**If no matches:** Print "No prompt-related files changed — skipping evals." and continue to Step 3.5.
+
+**2. Identify affected eval suites:**
+
+Each eval runner (\`test/evals/*_eval_runner.rb\`) declares \`PROMPT_SOURCE_FILES\` listing which source files affect it. Grep these to find which suites match the changed files:
+
+\`\`\`bash
+grep -l "changed_file_basename" test/evals/*_eval_runner.rb
+\`\`\`
+
+Map runner → test file: \`post_generation_eval_runner.rb\` → \`post_generation_eval_test.rb\`.
+
+**Special cases:**
+- Changes to \`test/evals/judges/*.rb\`, \`test/evals/support/*.rb\`, or \`test/evals/fixtures/\` affect ALL suites that use those judges/support files. Check imports in the eval test files to determine which.
+- Changes to \`config/system_prompts/*.txt\` — grep eval runners for the prompt filename to find affected suites.
+- If unsure which suites are affected, run ALL suites that could plausibly be impacted. Over-testing is better than missing a regression.
+
+**3. Run affected suites at \`EVAL_JUDGE_TIER=full\`:**
+
+\`/ship\` is a pre-merge gate, so always use full tier (Sonnet structural + Opus persona judges).
+
+\`\`\`bash
+EVAL_JUDGE_TIER=full EVAL_VERBOSE=1 bin/test-lane --eval test/evals/<suite>_eval_test.rb 2>&1 | tee /tmp/ship_evals.txt
+\`\`\`
+
+If multiple suites need to run, run them sequentially (each needs a test lane). If the first suite fails, stop immediately — don't burn API cost on remaining suites.
+
+**4. Check results:**
+
+- **If any eval fails:** Show the failures, the cost dashboard, and **STOP**. Do not proceed.
+- **If all pass:** Note pass counts and cost. Continue to Step 3.5.
+
+**5. Save eval output** — include eval results and cost dashboard in the PR body (Step 8).
+
+**Tier reference (for context — /ship always uses \`full\`):**
+| Tier | When | Speed (cached) | Cost |
+|------|------|----------------|------|
+| \`fast\` (Haiku) | Dev iteration, smoke tests | ~5s (14x faster) | ~$0.07/run |
+| \`standard\` (Sonnet) | Default dev, \`bin/test-lane --eval\` | ~17s (4x faster) | ~$0.37/run |
+| \`full\` (Opus persona) | **\`/ship\` and pre-merge** | ~72s (baseline) | ~$1.27/run |
+
+---
+
+### If \`SHIP_STACK: generic\` (default)
+
+Run the project's test command. Detection order:
+
+1. **Explicit scripts in \`package.json\`.** Prefer \`test\`, \`test:ci\`, or \`test:all\` if defined.
+   \`\`\`bash
+   [ -f package.json ] && node -e "const s=require('./package.json').scripts||{}; console.log(s['test:ci']||s['test:all']||s.test||'')" 2>/dev/null
+   \`\`\`
+2. **Makefile target.** Use if a \`test\` or \`check\` target exists.
+   \`\`\`bash
+   [ -f Makefile ] && grep -E '^(test|check):' Makefile 2>/dev/null
+   \`\`\`
+3. **Language default.** \`go test ./...\`, \`cargo test\`, \`pytest\`, \`bundle exec rspec\`, etc. Fall back here only when steps 1 and 2 find nothing.
+
+Run the detected command and capture output:
+
+\`\`\`bash
+{detected command} 2>&1 | tee /tmp/ship_tests.txt
+\`\`\`
+
+**If no test command can be detected:** Use \`AskUserQuestion\`:
+- Question: "I couldn't find a test command for this project. How should \`/ship\` run tests?"
+- Options: ["Run \`<guess>\`", "Skip tests this ship", "Let me type the command"]
+
+If the user picks "Skip tests this ship", print a loud warning in the PR body: *"Ship ran with \`--skip-tests\` per user choice. Verify manually before merge."*
+
+**After the command finishes, read \`/tmp/ship_tests.txt\`:**
+
+- **Any failure:** Apply the **Test Failure Ownership Triage** section below. If any in-branch failures remain after triage, **STOP**. Do not proceed.
+- **All pass:** Continue silently, note counts briefly.
+
+---
+
+${generateTestFailureTriage()}
+`;
 }
