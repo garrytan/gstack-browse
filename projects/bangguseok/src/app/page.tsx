@@ -266,7 +266,7 @@ export default function Home() {
       {/* ═══ Header ═══ */}
       <header className="header container">
         <h1 className="header__logo">방구석 사진관</h1>
-        <p className="header__tagline">반려 걱정 없는 증명사진, 10초면 완성</p>
+        <p className="header__tagline">반려 걱정 없는 증명사진, 여권청 규격 프리패스</p>
         <span className="header__badge">무료 베타 서비스</span>
       </header>
 
@@ -346,17 +346,26 @@ export default function Home() {
 
           {/* Right: Trust/Aesthetic Column */}
           <div className="trust-col">
-            {/* Sample Result */}
-            <div className="card" style={{ padding: '32px 24px', textAlign: 'center' }}>
-              <div className="comparison" style={{ marginBottom: 0 }}>
-                <div className="comparison__item">
-                  <span className="comparison__label">원본</span>
-                  <div style={{ width: 100, height: 130, background: 'rgba(0,0,0,0.05)', borderRadius: 12, margin: '0 auto' }} />
+            {/* Photo Upload Guidelines */}
+            <div className="card" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '20px', textAlign: 'center' }}>
+                📸 반려 걱정 없는 업로드 가이드
+              </h3>
+              <div className="guide-grid" style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+                <div className="guide-item" style={{ flex: 1, maxWidth: '140px', textAlign: 'center' }}>
+                  <div style={{ width: '100%', aspectRatio: '3/4', background: 'var(--success-bg)', borderRadius: '12px', marginBottom: '8px', overflow: 'hidden', position: 'relative', border: '2px solid var(--success)' }}>
+                    <img src="/guide-good.jpg" alt="조은 예시" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://placehold.co/300x400/e8f5e9/4caf50?text=Good+Photo' }} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--success)', color: '#fff', fontSize: '12px', padding: '6px 0', fontWeight: 600, letterSpacing: '0.05em' }}>통과 예시</div>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.4, wordBreak: 'keep-all' }}><strong>여권 사진 기준:</strong> 정면 응시, 어깨선과 양 귀가 잘 보이는 무표정한 사진</p>
                 </div>
-                <span className="comparison__arrow" style={{ opacity: 0.3 }}>→</span>
-                <div className="comparison__item">
-                  <span className="comparison__label">규격 완성</span>
-                  <div style={{ width: 100, height: 130, background: '#fff', border: '1px solid var(--border)', borderRadius: 12, margin: '0 auto', boxShadow: 'var(--shadow-card)' }} />
+                
+                <div className="guide-item" style={{ flex: 1, maxWidth: '140px', textAlign: 'center' }}>
+                  <div style={{ width: '100%', aspectRatio: '3/4', background: 'var(--danger-bg)', borderRadius: '12px', marginBottom: '8px', overflow: 'hidden', position: 'relative', border: '2px solid var(--danger)' }}>
+                    <img src="/guide-bad.jpg" alt="나쁜 예시" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.currentTarget.src = 'https://placehold.co/300x400/ffebee/f44336?text=Bad+Photo' }} />
+                    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'var(--danger)', color: '#fff', fontSize: '12px', padding: '6px 0', fontWeight: 600, letterSpacing: '0.05em' }}>반려 예시</div>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.4, wordBreak: 'keep-all' }}>너무 가깝거나 렌즈 왜곡으로 귀가 안 보이거나 치아가 보이는 웃는 표정의 사진</p>
                 </div>
               </div>
             </div>
@@ -368,8 +377,8 @@ export default function Home() {
                   <ClockIcon />
                 </div>
                 <div className="trust-badge__text">
-                  <p className="trust-badge__label">10초 완성</p>
-                  <p className="trust-badge__desc">번거로운 다운로드 없이 10초면 완성</p>
+                  <p className="trust-badge__label">규격 프리패스</p>
+                  <p className="trust-badge__desc">여권청 등 주요 기관 규격 100% 통과</p>
                 </div>
               </div>
               <div className="trust-badge">
@@ -402,7 +411,7 @@ export default function Home() {
             <div className="loading__circle" />
             <div>
               <p className="loading__text">{LOADING_STEPS[loadingStep]}</p>
-              <p className="loading__subtext">잠시만 기다려주세요 (약 30초 소요)</p>
+              <p className="loading__subtext">잠시만 기다려주세요 (약 40~50초 소요)</p>
             </div>
           </div>
         </div>

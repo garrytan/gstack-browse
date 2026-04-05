@@ -25,7 +25,7 @@ const pretendard = localFont({
 export const metadata: Metadata = {
   title: "방구석 사진관 — 증명사진 AI 규격 검증",
   description:
-    "여권, 주민등록증, 이력서 증명사진을 AI가 자동 검증하고 규격에 맞게 크롭합니다. 반려 걱정 없이 10초만에 완성.",
+    "여권, 주민등록증, 이력서 증명사진을 AI가 자동 검증하고 규격에 맞게 크롭합니다. 반려 걱정 없이 빠른 시간 내에 완성.",
   keywords: [
     "증명사진",
     "여권사진 규격",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: "방구석 사진관 — 증명사진 AI 규격 검증",
-    description: "반려 걱정 없이 10초만에 증명사진 완성",
+    description: "반려 걱정 없는 AI 증명사진 완성",
     type: "website",
     locale: "ko_KR",
   },

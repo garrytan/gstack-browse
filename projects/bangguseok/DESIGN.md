@@ -1,42 +1,35 @@
 # 방구석 사진관 — Design System
 
-> **Aesthetic: Morning Studio (아침 사진관)**
-> 따뜻한 자연광이 들어오는 사진관.
-> 깨끗하지만 차갑지 않고, 세련되지만 기계적이지 않음.
+> **Aesthetic: Refined Morning Glass (정제된 아침햇살과 유리)**
+> 따뜻한 자연광이 들어오는 실사 배경 위에, 투명한 얼음과 유리 같은 UI 요소를 중첩 배치.
+> 평범한 컨버팅 툴을 넘어 오프라인 프리미엄 스튜디오의 경험을 제공.
 
 ---
 
 ## Color
 
 ### Background
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--bg-warm` | `#FEFCF9` | 메인 배경 (크리미 화이트) |
-| `--bg-cream` | `#F5F0EB` | 카드/섹션 배경 |
-| `--bg-section` | `#FAF7F4` | 보조 섹션 배경 |
-| `--bg-glow` | `rgba(212,165,116,0.08)` | 은은한 햇살 글로우 |
+| Token | Hex/RGBA | Usage |
+|-------|----------|-------|
+| `--bg-warm` | `#FAF9F6` | 메인 배경 (솔리드 폴백용) |
+| `--bg-cream` | `rgba(255, 255, 255, 0.3)` | 서브 카드 배경 (초고투명) |
+| `--bg-section` | `rgba(255, 255, 255, 0.45)` | 메인 카드/영역 배경 (고투명 글래스) |
+| `--bg-glow` | `rgba(215, 191, 166, 0.3)` | 햇살 글로우 포커스 |
 
 ### Text
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--text-dark` | `#3D2B1F` | 제목 (다크 브라운) |
-| `--text-body` | `#6B5B4F` | 본문 |
-| `--text-muted` | `#A39585` | 보조/캡션 |
-| `--text-white` | `#FEFCF9` | 버튼 위 텍스트 |
+| `--text-dark` | `#12100E` | 제목 (극강의 대비) |
+| `--text-body` | `#2B2622` | 본문 |
+| `--text-muted` | `#544D46` | 보조/캡션 |
+| `--text-white` | `#FFFFFF` | 버튼 위 텍스트/반전색 |
 
 ### Accent
 | Token | Hex | Usage |
 |-------|-----|-------|
-| `--accent` | `#D4A574` | CTA, 강조 (앰버) |
-| `--accent-hover` | `#C4905E` | 호버 상태 |
-| `--accent-soft` | `rgba(212,165,116,0.12)` | 배지/아이콘 배경 |
-
-### Status
-| Token | Hex | Usage |
-|-------|-----|-------|
-| `--success` | `#59A96A` | PASS |
-| `--danger` | `#D45A5A` | FAIL |
-| `--warning` | `#D4A04A` | 경고 |
+| `--accent` | `#CFA67E` | 세련된 오크/코랄 (프리미엄 무드) |
+| `--accent-hover` | `#AB8866` | 호버 상태 |
+| `--accent-soft` | `rgba(215, 191, 166, 0.25)` | 뱃지/아이콘 백그라운드 |
 
 ---
 
@@ -44,92 +37,31 @@
 
 | Role | Font | Weight | Size |
 |------|------|--------|------|
-| 로고/타이틀 | Noto Serif KR | 700 | 36px (desktop) / 28px (mobile) |
-| 본문 | Pretendard | 400-500 | 16px / line-height 1.6 |
-| 라벨 | Pretendard | 600 | 14px |
-| 캡션 | Pretendard | 400 | 12-13px |
-| CTA 버튼 | Pretendard | 600 | 16px |
+| 로고/헤드라인 | Gowun Batang (Serif) | 700 | 42px (desktop) / 32px (mobile) |
+| 섭타이틀 | Gowun Batang (Serif) | 600 | 17px |
+| 본문/UI | Pretendard | 400-500 | 16px / line-height 1.8 |
+| 버튼/라벨 | Pretendard | 500-600 | 14px-17px |
 
-### Scale
-`12 → 13 → 14 → 16 → 18 → 24 → 28 → 36`
+> **리스크 테이킹 (과감한 적용):** AI 서비스의 정형화된 고딕을 탈피하고, 가장 중요한 메시지(로고, 슬로건 등)에 세리프 폰트를 강하게 도입하여 매거진 화보같은 무드를 연출함.
 
 ---
 
-## Spacing
+## Shape & Shadow & Blur
 
-4px 기본 단위.
-
+### Shape
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--space-xs` | 4px | 미세 간격 |
-| `--space-sm` | 8px | 아이콘-텍스트 간격 |
-| `--space-md` | 16px | 요소 간 기본 간격 |
-| `--space-lg` | 24px | 카드 내부 패딩 |
-| `--space-xl` | 32px | 섹션 간 간격 |
-| `--space-2xl` | 48px | 대영역 간 간격 |
+| `--radius-sm` | 12px | 버튼, 입력, 체크리스트 |
+| `--radius-md` | 20px | 카드 내부, 트러스트 뱃지 |
+| `--radius-lg` | 32px | 메인 카드, 업로드 영역 |
+| `--radius-full` | 9999px | 뱃지, 탭 셀렉터 |
 
----
-
-## Shape
-
+### Shadow & Filter
 | Token | Value | Usage |
 |-------|-------|-------|
-| `--radius-sm` | 8px | 버튼, 입력, 체크리스트 |
-| `--radius-md` | 12px | 카드, 다운로드 버튼 |
-| `--radius-lg` | 20px | 업로드 영역, 결과 배너 |
-| `--radius-full` | 9999px | 배지, 필 셀렉터 |
-
----
-
-## Shadow
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--shadow-soft` | `0 2px 16px rgba(61,43,31,0.06)` | 기본 그림자 |
-| `--shadow-card` | `0 4px 24px rgba(61,43,31,0.08)` | 카드 그림자 |
-| `--shadow-cta` | `0 4px 20px rgba(212,165,116,0.3)` | CTA 버튼 그림자 |
-
----
-
-## Motion
-
-| 대상 | Value | 설명 |
-|------|-------|------|
-| 기본 전환 | `0.2s ease` | 호버, 색상 변경 |
-| 호버 리프트 | `translateY(-1px) + shadow 강화` | 버튼, 카드 |
-| 로딩 시머 | `1.5s ease-in-out infinite` | 진행 바 밝기 변화 |
-| 햇살 글로우 | `fixed, always visible` | 우상단 radial-gradient |
-
-### Reduced Motion
-```css
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-```
-
----
-
-## Layout
-
-### Breakpoints
-| Name | Breakpoint | Layout |
-|------|-----------|--------|
-| Desktop | ≥960px | 2컬럼 (좌: 액션 / 우: 신뢰) |
-| Tablet | 640-959px | 1컬럼, max-width 560px |
-| Mobile | <640px | 풀폭, 터치 최적화 |
-
-### Desktop Grid
-```
-┌──── 좌 컬럼 (1fr) ────┬──── 우 컬럼 (1fr) ────┐
-│  필 셀렉터             │  예시 결과물            │
-│  업로드 영역           │  신뢰 배지 3개          │
-│  CTA 버튼             │                        │
-└────────────────────────┴────────────────────────┘
-max-width: 960px, gap: 32px
-```
+| `--shadow-soft` | `0 8px 32px rgba(120, 112, 104, 0.08)` | 공통 UI 그림자 (플로팅) |
+| `--shadow-card` | `0 12px 48px rgba(120, 112, 104, 0.14)` | 카드 호버시 강한 그림자 |
+| `backdrop-filter` | `blur(16px)` ~ `blur(8px)` | 메인 카드(.card), 뱃지 |
 
 ---
 
@@ -137,37 +69,17 @@ max-width: 960px, gap: 32px
 
 | Component | 설명 |
 |-----------|------|
-| `header` | 세리프 로고 + 서브타이틀 + 베타 배지 |
-| `doc-selector` | 필 버튼 3개 (여권/주민/이력서) |
-| `upload-zone` | 점선 영역 + 카메라 아이콘 + 안내 텍스트 |
-| `btn-cta` | 앰버 풀폭 CTA 버튼 |
-| `sample-result` | 전후 비교 미니 카드 |
-| `trust-badge` | 아이콘 + 라벨 + 설명 |
-| `progress-bar` | 5단계 로딩 바 + 텍스트 |
-| `result-banner` | 성공/실패 배너 |
-| `comparison` | 전후 나란히 비교 |
-| `btn-download` | 녹색 다운로드 CTA |
-| `check-list` | 검증 항목 리스트 |
-| `footer` | 면책, 개인정보 링크 |
-
----
-
-## Accessibility
-
-- **명암비:** `#3D2B1F` on `#FEFCF9` = 12.4:1 (AAA 통과)
-- **focus-visible:** 모든 인터랙티브 요소에 2px accent 링
-- **터치 영역:** 최소 44×44px (모바일)
-- **키보드:** Tab 순서 = 용도 → 업로드 → CTA → 결과 → 다운로드
-- **ARIA:** 업로드 영역에 `role="button"` + `aria-label`
-- **prefers-reduced-motion:** 전체 애니메이션 해제
+| `body::before/after` | 실사 배경 이미지 + 전체 화면 소프트 블러 오버레이 |
+| `header` | 하이콘트라스트 세리프 텍스트 록업 |
+| `card` | 32px 둥근 모서리 + rgba 0.45 반투명도 + 16px 블러 처리된 유리판 |
+| `trust-badge` | 고도의 투명함(0.3)을 가져, 뒤 배경 이미지가 아른거리도록 설계됨 |
+| `btn-cta` | 가장 무겁고 단단한 블랙(#12100E)을 사용하여 시각적 중심을 잡아줌 |
 
 ---
 
 ## Don'ts
 
-- ❌ 이모지를 UI에 사용하지 않음
-- ❌ 보라색 그라디언트 사용하지 않음
-- ❌ 다크 모드 사용하지 않음
-- ❌ backdrop-filter: blur 사용하지 않음
-- ❌ 480px 고정 레이아웃 사용하지 않음
-- ❌ 기능 나열형 카피 사용하지 않음 ("AI가 자동으로...")
+- ❌ 이모지를 과도하게 사용하지 않음 (신뢰감을 위해 최소화)
+- ❌ 강한 비비드 컬러(원색 파랑/초록)를 메인으로 쓰지 않음 (파스텔 톤 억제)
+- ❌ 다크 모드 사용하지 않음 (기본 배경 사진 자체가 아침 채광 컨셉)
+- ❌ **불투명 흰색 배경 사용하지 않음!** 항상 `rgba(255,255,255, 0.X)` 와 `blur`를 병행할 것.

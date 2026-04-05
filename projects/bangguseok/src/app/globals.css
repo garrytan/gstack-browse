@@ -8,13 +8,13 @@
 :root {
   /* Backgrounds: Soft & Airy */
   --bg-warm: #FAF9F6;
-  --bg-cream: rgba(255, 255, 255, 0.6);
-  --bg-section: rgba(255, 255, 255, 0.85);
+  --bg-cream: rgba(255, 255, 255, 0.3);
+  --bg-section: rgba(255, 255, 255, 0.45);
   
   /* Typography */
-  --text-dark: #1A1817;
-  --text-body: #4A443E;
-  --text-muted: #7A726A;
+  --text-dark: #12100E;
+  --text-body: #2B2622;
+  --text-muted: #544D46;
   --text-white: #FFFFFF;
   
   /* Accents (Soft Sand & Coral) */
@@ -75,12 +75,13 @@ body::before {
 }
 
 /* Light semi-transparent overlay to guarantee high contrast and legibility */
+/* Light semi-transparent overlay to guarantee high contrast and legibility, but weak enough to reveal the curtain */
 body::after {
   content: '';
   position: fixed;
   inset: 0;
-  background: rgba(255, 255, 255, 0.35);
-  backdrop-filter: blur(8px);
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(2px);
   pointer-events: none;
   z-index: 0;
 }
@@ -120,8 +121,8 @@ body::after {
 .header__tagline {
   font-family: var(--font-display);
   font-size: 17px;
-  color: var(--text-body);
-  font-weight: 400;
+  color: var(--text-dark);
+  font-weight: 600;
   margin-bottom: 24px;
   letter-spacing: 0.02em;
 }
@@ -130,9 +131,9 @@ body::after {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 20px;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid var(--border);
+  padding: 8px 24px;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255,255,255,0.6);
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 500;
@@ -159,17 +160,18 @@ body::after {
 .action-col { display: flex; flex-direction: column; gap: 24px; }
 
 /* Doc Type Selector */
-.doc-selector { display: flex; gap: 10px; }
+.doc-selector { display: flex; gap: 10px; flex-wrap: wrap; }
 
 .doc-pill {
   flex: 1;
+  min-width: 100px;
   padding: 16px 8px;
   background: var(--bg-section);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-hover);
   border-radius: var(--radius-full);
   font-family: var(--font-body);
   font-size: 14px;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
@@ -327,11 +329,12 @@ body::after {
 }
 
 .btn-cta:disabled {
-  background: var(--border-hover);
-  color: var(--text-muted);
+  background: rgba(120, 112, 104, 0.35);
+  color: var(--text-dark);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+  font-weight: 500;
 }
 
 /* ─── Right Column: Esthetic Info ─── */
@@ -373,8 +376,8 @@ body::after {
 
 .trust-badge {
   padding: 24px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--radius-md);
   text-align: left;
   transition: all 0.3s ease;

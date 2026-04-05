@@ -133,11 +133,33 @@ export async function cropAndResize(
     const imgHeight = metadata.height;
     if (!imgWidth || !imgHeight) return null;
 
-    // 1) 픽셀 스캔으로 실제 머리 꼭대기 찾기
-    const hairTopPx = await detectHairTopByPixel(imageBuffer);
-    const actualHairTop = hairTopPx ?? face.top * imgHeight; // fallback: Gemini 좌표
+    const geminiFaceTopPx = face.top * imgHeight;
+    const geminiChinPx = face.chin * imgHeight;
+    const faceBoxHeight = geminiChinPx - geminiFaceTopPx;
 
-    console.log(`[crop] hairTop: pixel=${hairTopPx}, gemini=${Math.round(face.top * imgHeight)}, using=${Math.round(actualHairTop)}`);
+    // 1) 픽셀 스캔으로 실제 머리 꼭대기 찾기
+    let hairTopPx = await detectHairTopByPixel(imageBuffer);
+    
+    // 픽셀 스캔 결과 검증 (오탐률 보정)
+    if (hairTopPx !== null) {
+      // 1-1. 빛 반사 오탐: 머리 꼭대기가 얼굴 상단(이마)보다 너무 아래인 경우 (얼굴 높이 10% 이상 하강)
+      if (hairTopPx > geminiFaceTopPx + faceBoxHeight * 0.1) {
+        console.warn(`[crop] Pixel scan hairTop (${hairTopPx}) is too low (glare detected). Fallbacking.`);
+        hairTopPx = null;
+      }
+      // 1-2. 배경 노이즈 오탐: 머리 꼭대기가 얼굴 상단보다 너무 높은 경우 (얼굴 높이의 80% 초과 상승)
+      else if (hairTopPx < geminiFaceTopPx - faceBoxHeight * 0.8) {
+        console.warn(`[crop] Pixel scan hairTop (${hairTopPx}) is too high (noise/shadow). Fallbacking.`);
+        hairTopPx = null;
+      }
+    }
+
+    // Geometry 기반 안전한 Fallback
+    // 픽셀 검증 실패 시: Gemini가 잡은 얼굴 상단(보통 이마)에서 얼굴 높이의 25%만큼 위로 올린 지점을 정수리(Vertex)로 추정.
+    const geometricHairTop = Math.max(0, geminiFaceTopPx - faceBoxHeight * 0.25);
+    const actualHairTop = hairTopPx ?? geometricHairTop;
+
+    console.log(`[crop] hairTop: pixel=${hairTopPx}, geminiTop=${Math.round(geminiFaceTopPx)}, using=${Math.round(actualHairTop)}`);
 
     // 2) 크롭 영역 계산 (머리 잘리면 faceRatio 줄여서 재시도)
     let currentSpec = { ...spec };
