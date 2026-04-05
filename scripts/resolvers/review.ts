@@ -275,7 +275,7 @@ Use AskUserQuestion (regardless of codex availability):
 > A) Yes, get a second opinion
 > B) No, proceed to alternatives
 
-If B: skip Phase 3.5 entirely. Remember that the second opinion did NOT run (affects design doc, founder signals, and Phase 4 below).
+If B: skip Phase 3.5 entirely. Remember that the second opinion did NOT run (affects design doc and Phase 4 below).
 
 **If A: Run the Codex cold read.**
 
@@ -361,7 +361,7 @@ SECOND OPINION (Claude subagent):
 > A) Revise this premise based on Codex's input
 > B) Keep the original premise — proceed to alternatives
 
-If A: revise the premise and note the revision. If B: proceed (and note that the user defended this premise with reasoning — this is a founder signal if they articulate WHY they disagree, not just dismiss).`;
+If A: revise the premise and note the revision. If B: proceed (and note that the user defended this premise with reasoning).`;
 }
 
 // ─── Scope Drift Detection (shared between /review and /ship) ────────
