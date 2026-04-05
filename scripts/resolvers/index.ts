@@ -18,6 +18,7 @@ import { generateConfidenceCalibration } from './confidence';
 import { generateInvokeSkill } from './composition';
 import { generateReviewArmy } from './review-army';
 import { generateDxFramework } from './dx';
+import { generateVoiceProfileCheck, generateFormatDetection, generateSlopRules } from './writing';
 
 export const RESOLVERS: Record<string, ResolverFn> = {
   SLUG_EVAL: generateSlugEval,
@@ -61,4 +62,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   CHANGELOG_WORKFLOW: generateChangelogWorkflow,
   REVIEW_ARMY: generateReviewArmy,
   DX_FRAMEWORK: generateDxFramework,
+  VOICE_PROFILE_CHECK: generateVoiceProfileCheck,
+  FORMAT_DETECTION: generateFormatDetection,
+  SLOP_RULES: generateSlopRules,
 };
