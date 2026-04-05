@@ -520,6 +520,12 @@ export async function handleWriteCommand(
         throw new Error(`Invalid CSS property name: ${property}. Only letters and hyphens allowed.`);
       }
 
+      // Validate CSS value — block data exfiltration patterns
+      const DANGEROUS_CSS = /url\s*\(|expression\s*\(|@import|javascript:|data:/i;
+      if (DANGEROUS_CSS.test(value)) {
+        throw new Error('CSS value rejected: contains potentially dangerous pattern.');
+      }
+
       const mod = await modifyStyle(page, selector, property, value);
       return `Style modified: ${selector} { ${property}: ${mod.oldValue || '(none)'} → ${value} } (${mod.method})`;
     }

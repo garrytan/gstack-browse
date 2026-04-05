@@ -49,6 +49,63 @@ function extractFunction(src: string, name: string): string {
   return src.slice(start);
 }
 
+// ─── Shared source reads for CSS validator tests ────────────────────────────
+const CDP_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/cdp-inspector.ts'), 'utf-8');
+const EXTENSION_SRC = fs.readFileSync(
+  path.join(import.meta.dir, '../../extension/inspector.js'),
+  'utf-8'
+);
+
+// ─── Task 2: Shared CSS value validator ─────────────────────────────────────
+
+describe('Task 2: CSS value validator blocks dangerous patterns', () => {
+  describe('source-level checks', () => {
+    it('write-commands.ts style handler contains DANGEROUS_CSS url check', () => {
+      const styleBlock = sliceBetween(WRITE_SRC, "case 'style':", 'case \'cleanup\'');
+      expect(styleBlock).toMatch(/url\\s\*\\\(/);
+    });
+
+    it('write-commands.ts style handler blocks expression()', () => {
+      const styleBlock = sliceBetween(WRITE_SRC, "case 'style':", "case 'cleanup'");
+      expect(styleBlock).toMatch(/expression\\s\*\\\(/);
+    });
+
+    it('write-commands.ts style handler blocks @import', () => {
+      const styleBlock = sliceBetween(WRITE_SRC, "case 'style':", "case 'cleanup'");
+      expect(styleBlock).toContain('@import');
+    });
+
+    it('cdp-inspector.ts modifyStyle contains DANGEROUS_CSS url check', () => {
+      const fn = extractFunction(CDP_SRC, 'modifyStyle');
+      expect(fn).toBeTruthy();
+      expect(fn).toMatch(/url\\s\*\\\(/);
+    });
+
+    it('cdp-inspector.ts modifyStyle blocks @import', () => {
+      const fn = extractFunction(CDP_SRC, 'modifyStyle');
+      expect(fn).toContain('@import');
+    });
+
+    it('extension injectCSS validates id format', () => {
+      const fn = extractFunction(EXTENSION_SRC, 'injectCSS');
+      expect(fn).toBeTruthy();
+      // Should contain a regex test for valid id characters
+      expect(fn).toMatch(/\^?\[a-zA-Z0-9_-\]/);
+    });
+
+    it('extension injectCSS blocks dangerous CSS patterns', () => {
+      const fn = extractFunction(EXTENSION_SRC, 'injectCSS');
+      expect(fn).toMatch(/url\\s\*\\\(/);
+    });
+
+    it('extension toggleClass validates className format', () => {
+      const fn = extractFunction(EXTENSION_SRC, 'toggleClass');
+      expect(fn).toBeTruthy();
+      expect(fn).toMatch(/\^?\[a-zA-Z0-9_-\]/);
+    });
+  });
+});
+
 // ─── Task 1: Harden validateOutputPath to use realpathSync ──────────────────
 
 describe('Task 1: validateOutputPath uses realpathSync', () => {
