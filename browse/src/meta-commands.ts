@@ -221,9 +221,10 @@ export async function handleMetaCommand(
 
       for (const vp of viewports) {
         await page.setViewportSize({ width: vp.width, height: vp.height });
-        const path = `${prefix}-${vp.name}.png`;
-        await page.screenshot({ path, fullPage: true });
-        results.push(`${vp.name} (${vp.width}x${vp.height}): ${path}`);
+        const screenshotPath = `${prefix}-${vp.name}.png`;
+        validateOutputPath(screenshotPath);
+        await page.screenshot({ path: screenshotPath, fullPage: true });
+        results.push(`${vp.name} (${vp.width}x${vp.height}): ${screenshotPath}`);
       }
 
       // Restore original viewport

@@ -435,3 +435,33 @@ describe('loadSession session ID validation', () => {
     expect(block).toContain('return null');
   });
 });
+
+// ─── Task 10: Responsive screenshot path validation ──────────────────────────
+
+describe('Task 10: responsive screenshot path validation', () => {
+  it('responsive loop contains validateOutputPath before page.screenshot()', () => {
+    // Extract the responsive case block
+    const block = sliceBetween(META_SRC, "case 'responsive':", 'Restore original viewport');
+    expect(block).toBeTruthy();
+    expect(block).toContain('validateOutputPath');
+  });
+
+  it('responsive loop calls validateOutputPath on the per-viewport path, not just the prefix', () => {
+    const block = sliceBetween(META_SRC, 'for (const vp of viewports)', 'Restore original viewport');
+    expect(block).toContain('validateOutputPath');
+  });
+
+  it('validateOutputPath appears before page.screenshot() in the loop', () => {
+    const block = sliceBetween(META_SRC, 'for (const vp of viewports)', 'Restore original viewport');
+    const validateIdx = block.indexOf('validateOutputPath');
+    const screenshotIdx = block.indexOf('page.screenshot');
+    expect(validateIdx).toBeGreaterThan(-1);
+    expect(screenshotIdx).toBeGreaterThan(-1);
+    expect(validateIdx).toBeLessThan(screenshotIdx);
+  });
+
+  it('results.push is present in the loop block (loop structure intact)', () => {
+    const block = sliceBetween(META_SRC, 'for (const vp of viewports)', 'Restore original viewport');
+    expect(block).toContain('results.push');
+  });
+});
