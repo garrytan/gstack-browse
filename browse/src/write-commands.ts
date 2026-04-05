@@ -462,7 +462,14 @@ export async function handleWriteCommand(
 
       for (const c of cookies) {
         if (!c.name || c.value === undefined) throw new Error('Each cookie must have "name" and "value" fields');
-        if (!c.domain) c.domain = defaultDomain;
+        if (!c.domain) {
+          c.domain = defaultDomain;
+        } else {
+          const cookieDomain = c.domain.startsWith('.') ? c.domain.slice(1) : c.domain;
+          if (cookieDomain !== defaultDomain && !defaultDomain.endsWith('.' + cookieDomain)) {
+            throw new Error(`Cookie domain "${c.domain}" does not match current page domain "${defaultDomain}". Use the target site first.`);
+          }
+        }
         if (!c.path) c.path = '/';
       }
 
@@ -482,6 +489,12 @@ export async function handleWriteCommand(
       if (domainIdx !== -1 && domainIdx + 1 < args.length) {
         // Direct import mode — no UI
         const domain = args[domainIdx + 1];
+        // Validate --domain against current page hostname to prevent cross-site cookie injection
+        const pageHostname = new URL(page.url()).hostname;
+        const normalizedDomain = domain.startsWith('.') ? domain.slice(1) : domain;
+        if (normalizedDomain !== pageHostname && !pageHostname.endsWith('.' + normalizedDomain)) {
+          throw new Error(`--domain "${domain}" does not match current page domain "${pageHostname}". Navigate to the target site first.`);
+        }
         const browser = browserArg || 'comet';
         const result = await importCookies(browser, [domain], profile);
         if (result.cookies.length > 0) {
