@@ -14,11 +14,32 @@ import { TEMP_DIR, isPathWithin } from './platform';
 import { modifyStyle, undoModification, resetModifications, getModificationHistory } from './cdp-inspector';
 
 // Security: Path validation for screenshot output
-const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()];
+// Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp → /private/tmp)
+const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()].map(d => {
+  try { return fs.realpathSync(d); } catch { return d; }
+});
 
 function validateOutputPath(filePath: string): void {
-  const resolved = path.resolve(filePath);
-  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
+  // Always resolve to absolute first (fixes relative path symlink bypass)
+  const absolute = path.resolve(filePath);
+  // Resolve symlinks — for new files, resolve the parent directory
+  let realPath: string;
+  try {
+    realPath = fs.realpathSync(absolute);
+  } catch (err: any) {
+    if (err.code === 'ENOENT') {
+      // File doesn't exist — resolve directory part for symlinks (e.g., /tmp → /private/tmp)
+      try {
+        const dir = fs.realpathSync(path.dirname(absolute));
+        realPath = path.join(dir, path.basename(absolute));
+      } catch {
+        realPath = absolute;
+      }
+    } else {
+      throw new Error(`Cannot resolve real path: ${filePath} (${err.code})`);
+    }
+  }
+  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(realPath, dir));
   if (!isSafe) {
     throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
   }
