@@ -88,7 +88,7 @@ Ask the user a single question that covers everything you need to know. Pre-fill
 **AskUserQuestion Q1 — include ALL of these:**
 1. Confirm what the product is, who it's for, what space/industry
 2. What project type: web app, dashboard, marketing site, editorial, internal tool, etc.
-3. "Want me to research what top products in your space are doing for design, or should I work from my design knowledge?"
+3. "Want me to research what top products in your space are doing for design, or should I work from my design knowledge? Either way, I'll reference the 54 brand design systems I have on file (Stripe, Airbnb, Linear, Figma, etc.) — I can pull specific tokens from any of them."
 4. **Explicitly say:** "At any point you can just drop into chat and we'll talk through anything — this isn't a rigid form, it's a conversation."
 
 If the README or office-hours output gives you enough context, pre-fill and confirm: *"From what I can see, this is [X] for [Y] in the [Z] space. Sound right? And would you like me to research what's out there in this space, or should I work from what I know?"*
@@ -139,7 +139,66 @@ Summarize conversationally:
 - Browse unavailable → WebSearch only (still good)
 - WebSearch also unavailable → agent's built-in design knowledge (always works)
 
-If the user said no research, skip entirely and proceed to Phase 3 using your built-in design knowledge.
+If the user said no research, skip entirely — but still run the brand library scan below.
+
+---
+
+## Phase 2b: Brand Library Scan
+
+**Always run this step** — whether or not the user opted into competitive research.
+gstack ships with 54 professional design systems from top companies. Use them as
+concrete reference points for your proposal.
+
+**Step 1: Pick 3-5 relevant brands based on the product's space**
+
+Map the product type to the most relevant brands:
+
+| Product space | Read these brands |
+|---|---|
+| Fintech / payments | stripe, coinbase, revolut, wise, kraken |
+| Developer tools / APIs | vercel, linear.app, supabase, sentry, resend |
+| SaaS / productivity | notion, airtable, superhuman, zapier, intercom |
+| Design / creative | figma, framer, webflow, miro, pinterest |
+| AI / ML products | claude, cohere, replicate, mistral.ai, elevenlabs |
+| Consumer / marketplace | airbnb, uber, spotify, apple, bmw |
+| Enterprise / infrastructure | hashicorp, mongodb, clickhouse, ibm, nvidia |
+| Marketing site / landing page | vercel, framer, stripe, linear.app, cal |
+
+If the product spans categories, pick the best 3-5 across them.
+
+**Step 2: Read the selected brands**
+
+For each relevant brand, read its DESIGN.md from the local library:
+
+```bash
+BRAND="<brand-name>"
+LOCAL="$HOME/.claude/skills/gstack/design-ref/brands/$BRAND.md"
+[ -f "$LOCAL" ] && cat "$LOCAL" || echo "NOT_FOUND: $BRAND"
+```
+
+Read 3-5 brand files. Don't read all 54 — that's too much context. Pick the ones
+that matter most for this product.
+
+**Step 3: Extract what's relevant**
+
+For each brand you read, note:
+- What design choices are relevant to THIS product (not everything — just the applicable parts)
+- What works well that we should borrow or adapt
+- What doesn't fit and why (e.g., "Stripe's purple palette signals trust for payments, but this is a social app — warmth matters more")
+
+**Step 4: Weave into the conversation**
+
+When you present findings, reference specific brands with concrete details:
+
+> "I looked at how Stripe, Linear, and Notion handle this. Stripe uses multi-layer
+> blue-tinted shadows for depth — subtle but premium. Linear goes minimal with a
+> single-color accent system. Notion uses near-zero decoration, letting content breathe.
+> For your product, I'd take Stripe's shadow approach but Linear's color restraint,
+> because [reason]..."
+
+The goal: the user should feel like they're talking to a designer who has deep knowledge
+of what the best products actually look like — because you literally just read their
+design specs.
 
 ---
 
