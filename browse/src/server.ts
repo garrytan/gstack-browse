@@ -1220,7 +1220,8 @@ async function start() {
           // Sync active tab from Chrome extension — detects manual tab switches
           const activeUrl = url.searchParams.get('activeUrl');
           if (activeUrl) {
-            browserManager.syncActiveTabByUrl(activeUrl);
+            const sanitized = sanitizeExtensionUrl(activeUrl);
+            if (sanitized) browserManager.syncActiveTabByUrl(sanitized);
           }
           const tabs = await browserManager.getTabListWithTitles();
           return new Response(JSON.stringify({ tabs }), {
@@ -1293,7 +1294,8 @@ async function start() {
         // Sync active tab BEFORE reading the ID — the user may have switched
         // tabs manually and the server's activeTabId is stale.
         if (extensionUrl) {
-          browserManager.syncActiveTabByUrl(extensionUrl);
+          const sanitized = sanitizeExtensionUrl(extensionUrl);
+          if (sanitized) browserManager.syncActiveTabByUrl(sanitized);
         }
         const msgTabId = browserManager?.getActiveTabId?.() ?? 0;
         const ts = new Date().toISOString();

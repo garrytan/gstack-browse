@@ -515,3 +515,38 @@ describe('Task 11: state load cookie validation', () => {
     expect(validateIdx).toBeLessThan(gotoIdx);
   });
 });
+
+// ─── Task 12: Validate activeTabUrl before syncActiveTabByUrl ─────────────────
+
+describe('Task 12: activeTabUrl sanitized before syncActiveTabByUrl', () => {
+  it('sidebar-tabs route sanitizes activeUrl before syncActiveTabByUrl', () => {
+    const block = sliceBetween(SERVER_SRC, "url.pathname === '/sidebar-tabs'", "url.pathname === '/sidebar-tabs/switch'");
+    expect(block).toContain('sanitizeExtensionUrl');
+    expect(block).toContain('syncActiveTabByUrl');
+    const sanitizeIdx = block.indexOf('sanitizeExtensionUrl');
+    const syncIdx = block.indexOf('syncActiveTabByUrl');
+    expect(sanitizeIdx).toBeLessThan(syncIdx);
+  });
+
+  it('sidebar-command route sanitizes extensionUrl before syncActiveTabByUrl', () => {
+    const block = sliceBetween(SERVER_SRC, "url.pathname === '/sidebar-command'", "url.pathname === '/sidebar-chat/clear'");
+    expect(block).toContain('sanitizeExtensionUrl');
+    expect(block).toContain('syncActiveTabByUrl');
+    const sanitizeIdx = block.indexOf('sanitizeExtensionUrl');
+    const syncIdx = block.indexOf('syncActiveTabByUrl');
+    expect(sanitizeIdx).toBeLessThan(syncIdx);
+  });
+
+  it('direct unsanitized syncActiveTabByUrl calls are not present (all calls go through sanitize)', () => {
+    // Every syncActiveTabByUrl call should be preceded by sanitizeExtensionUrl in the nearby code
+    // We verify there are no direct browserManager.syncActiveTabByUrl(activeUrl) or
+    // browserManager.syncActiveTabByUrl(extensionUrl) patterns (without sanitize wrapper)
+    const block1 = sliceBetween(SERVER_SRC, "url.pathname === '/sidebar-tabs'", "url.pathname === '/sidebar-tabs/switch'");
+    // Should NOT contain direct call with raw activeUrl
+    expect(block1).not.toMatch(/syncActiveTabByUrl\(activeUrl\)/);
+
+    const block2 = sliceBetween(SERVER_SRC, "url.pathname === '/sidebar-command'", "url.pathname === '/sidebar-chat/clear'");
+    // Should NOT contain direct call with raw extensionUrl
+    expect(block2).not.toMatch(/syncActiveTabByUrl\(extensionUrl\)/);
+  });
+});
