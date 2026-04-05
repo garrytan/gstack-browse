@@ -77,4 +77,71 @@ describe('Server auth security', () => {
     // Should not have wildcard CORS for the SSE stream
     expect(streamBlock).not.toContain("Access-Control-Allow-Origin': '*'");
   });
+
+  // Test 7: /command accepts scoped tokens (not just root)
+  // This was the Wintermute bug — /command was BELOW the blanket validateAuth gate
+  // which only accepts root tokens. Scoped tokens got 401'd before reaching getTokenInfo.
+  test('/command endpoint sits ABOVE the blanket root-only auth gate', () => {
+    const commandIdx = SERVER_SRC.indexOf("url.pathname === '/command'");
+    const blanketGateIdx = SERVER_SRC.indexOf("Auth-required endpoints (root token only)");
+    // /command must appear BEFORE the blanket gate in source order
+    expect(commandIdx).toBeGreaterThan(0);
+    expect(blanketGateIdx).toBeGreaterThan(0);
+    expect(commandIdx).toBeLessThan(blanketGateIdx);
+  });
+
+  // Test 7b: /command uses getTokenInfo (accepts scoped tokens), not validateAuth (root-only)
+  test('/command uses getTokenInfo for auth, not validateAuth', () => {
+    const commandBlock = sliceBetween(SERVER_SRC, "url.pathname === '/command'", "Auth-required endpoints");
+    expect(commandBlock).toContain('getTokenInfo');
+    expect(commandBlock).not.toContain('validateAuth');
+  });
+
+  // Test 8: /tunnel/start requires root token
+  test('/tunnel/start requires root token', () => {
+    const tunnelBlock = sliceBetween(SERVER_SRC, "/tunnel/start", "Refs endpoint");
+    expect(tunnelBlock).toContain('isRootRequest');
+    expect(tunnelBlock).toContain('Root token required');
+  });
+
+  // Test 8b: /tunnel/start checks ngrok native config paths
+  test('/tunnel/start reads ngrok native config files', () => {
+    const tunnelBlock = sliceBetween(SERVER_SRC, "/tunnel/start", "Refs endpoint");
+    expect(tunnelBlock).toContain("'ngrok.yml'");
+    expect(tunnelBlock).toContain('authtoken');
+  });
+
+  // Test 8c: /tunnel/start returns already_active if tunnel is running
+  test('/tunnel/start returns already_active when tunnel exists', () => {
+    const tunnelBlock = sliceBetween(SERVER_SRC, "/tunnel/start", "Refs endpoint");
+    expect(tunnelBlock).toContain('already_active');
+    expect(tunnelBlock).toContain('tunnelActive');
+  });
+
+  // Test 9: /pair requires root token
+  test('/pair requires root token', () => {
+    const pairBlock = sliceBetween(SERVER_SRC, "url.pathname === '/pair'", "/tunnel/start");
+    expect(pairBlock).toContain('isRootRequest');
+    expect(pairBlock).toContain('Root token required');
+  });
+
+  // Test 9b: /pair calls createSetupKey (not createToken)
+  test('/pair creates setup keys, not session tokens', () => {
+    const pairBlock = sliceBetween(SERVER_SRC, "url.pathname === '/pair'", "/tunnel/start");
+    expect(pairBlock).toContain('createSetupKey');
+    expect(pairBlock).not.toContain('createToken');
+  });
+
+  // Test 10: tab ownership check happens before command dispatch
+  test('tab ownership check runs before command dispatch for scoped tokens', () => {
+    const handleBlock = sliceBetween(SERVER_SRC, "async function handleCommand", "Block mutation commands while watching");
+    expect(handleBlock).toContain('checkTabAccess');
+    expect(handleBlock).toContain('Tab not owned by your agent');
+  });
+
+  // Test 10b: activity attribution includes clientId
+  test('activity events include clientId from token', () => {
+    const commandStartBlock = sliceBetween(SERVER_SRC, "Activity: emit command_start", "try {");
+    expect(commandStartBlock).toContain('clientId: tokenInfo?.clientId');
+  });
 });

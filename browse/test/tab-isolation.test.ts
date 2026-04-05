@@ -148,4 +148,97 @@ describe('generateInstructionBlock', () => {
     expect(block).toContain('403');
     expect(block).toContain('429');
   });
+
+  it('teaches the snapshot→@ref pattern', () => {
+    const block = generateInstructionBlock({
+      setupKey: 'gsk_setup_snap',
+      serverUrl: 'https://test.ngrok.dev',
+      scopes: ['read', 'write'],
+      expiresAt: '2026-04-06T00:00:00Z',
+    });
+
+    // Must explain the snapshot→@ref workflow
+    expect(block).toContain('snapshot');
+    expect(block).toContain('@e1');
+    expect(block).toContain('@e2');
+    expect(block).toContain("Always snapshot first");
+    expect(block).toContain("Don't guess selectors");
+  });
+
+  it('shows SERVER URL prominently', () => {
+    const block = generateInstructionBlock({
+      setupKey: 'gsk_setup_url',
+      serverUrl: 'https://my-tunnel.ngrok.dev',
+      scopes: ['read', 'write'],
+      expiresAt: '2026-04-06T00:00:00Z',
+    });
+
+    expect(block).toContain('SERVER: https://my-tunnel.ngrok.dev');
+  });
+
+  it('includes newtab in COMMAND REFERENCE', () => {
+    const block = generateInstructionBlock({
+      setupKey: 'gsk_setup_ref',
+      serverUrl: 'https://test.ngrok.dev',
+      scopes: ['read', 'write'],
+      expiresAt: '2026-04-06T00:00:00Z',
+    });
+
+    expect(block).toContain('"command": "newtab"');
+    expect(block).toContain('"command": "goto"');
+    expect(block).toContain('"command": "snapshot"');
+    expect(block).toContain('"command": "click"');
+    expect(block).toContain('"command": "fill"');
+  });
+});
+
+// Test CLI source-level behavior (pair-agent headed mode, ngrok detection)
+import * as fs from 'fs';
+import * as path from 'path';
+
+const CLI_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/cli.ts'), 'utf-8');
+
+describe('pair-agent CLI behavior', () => {
+  // Extract the pair-agent block: from "pair-agent" dispatch to "process.exit(0)"
+  const pairStart = CLI_SRC.indexOf("command === 'pair-agent'");
+  const pairEnd = CLI_SRC.indexOf('process.exit(0)', pairStart);
+  const pairBlock = CLI_SRC.slice(pairStart, pairEnd);
+
+  it('auto-switches to headed mode unless --headless', () => {
+    expect(pairBlock).toContain("state.mode !== 'headed'");
+    expect(pairBlock).toContain("--headless");
+    expect(pairBlock).toContain("connect");
+  });
+
+  it('uses process.execPath for binary path (not argv[1] which is virtual in compiled)', () => {
+    expect(pairBlock).toContain('process.execPath');
+    // browseBin should be set to execPath, not argv[1]
+    expect(pairBlock).toContain('const browseBin = process.execPath');
+  });
+
+  it('isNgrokAvailable checks gstack env, NGROK_AUTHTOKEN, and native config', () => {
+    const ngrokBlock = CLI_SRC.slice(
+      CLI_SRC.indexOf('function isNgrokAvailable'),
+      CLI_SRC.indexOf('// ─── Pair-Agent DX')
+    );
+    // Three sources checked (paths are in path.join() calls, check the string literals)
+    expect(ngrokBlock).toContain("'ngrok.env'");
+    expect(ngrokBlock).toContain('NGROK_AUTHTOKEN');
+    expect(ngrokBlock).toContain("'ngrok.yml'");
+    // Checks macOS, Linux XDG, and legacy paths
+    expect(ngrokBlock).toContain("'Application Support'");
+    expect(ngrokBlock).toContain("'.config'");
+    expect(ngrokBlock).toContain("'.ngrok2'");
+  });
+
+  it('calls POST /tunnel/start when ngrok is available (not restart)', () => {
+    const handleBlock = CLI_SRC.slice(
+      CLI_SRC.indexOf('async function handlePairAgent'),
+      CLI_SRC.indexOf('function main()')
+    );
+    expect(handleBlock).toContain('/tunnel/start');
+    // Must NOT contain server restart logic
+    expect(handleBlock).not.toContain('Bun.spawn([\'bun\', \'run\'');
+    expect(handleBlock).not.toContain('BROWSE_TUNNEL');
+  });
 });
