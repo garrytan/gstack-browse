@@ -313,9 +313,10 @@ async function askClaude(queueEntry: QueueEntry): Promise<void> {
     // Timeout (default 300s / 5 min — multi-page tasks need time)
     const timeoutMs = parseInt(process.env.SIDEBAR_AGENT_TIMEOUT || '300000', 10);
     setTimeout(() => {
-      try { proc.kill(); } catch (killErr: any) {
-        console.warn(`[sidebar-agent] Tab ${tid}: Failed to kill timed-out process:`, killErr.message);
+      try { proc.kill('SIGTERM'); } catch (killErr: any) {
+        console.warn(`[sidebar-agent] Tab ${tid}: Failed to SIGTERM timed-out process:`, killErr.message);
       }
+      setTimeout(() => { try { proc.kill('SIGKILL'); } catch {} }, 3000);
       const timeoutMsg = stderrBuffer.trim()
         ? `Timed out after ${timeoutMs / 1000}s\nstderr: ${stderrBuffer.trim().slice(-500)}`
         : `Timed out after ${timeoutMs / 1000}s`;

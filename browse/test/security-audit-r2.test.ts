@@ -651,3 +651,31 @@ describe('Task 15: pollChat reentrancy guard and deferred call in switchChatTab'
   });
 });
 
+// ─── Task 16: SIGKILL escalation in sidebar-agent timeout ────────────────────
+
+describe('Task 16: sidebar-agent timeout handler uses SIGTERM→SIGKILL escalation', () => {
+  it('timeout block sends SIGTERM first', () => {
+    // Slice from "Timed out" / setTimeout block to processingTabs.delete
+    const timeoutStart = AGENT_SRC.indexOf("SIDEBAR_AGENT_TIMEOUT");
+    expect(timeoutStart).toBeGreaterThan(-1);
+    const timeoutBlock = AGENT_SRC.slice(timeoutStart, timeoutStart + 600);
+    expect(timeoutBlock).toContain('SIGTERM');
+  });
+
+  it('timeout block escalates to SIGKILL after delay', () => {
+    const timeoutStart = AGENT_SRC.indexOf("SIDEBAR_AGENT_TIMEOUT");
+    const timeoutBlock = AGENT_SRC.slice(timeoutStart, timeoutStart + 600);
+    expect(timeoutBlock).toContain('SIGKILL');
+  });
+
+  it('SIGTERM appears before SIGKILL in timeout block', () => {
+    const timeoutStart = AGENT_SRC.indexOf("SIDEBAR_AGENT_TIMEOUT");
+    const timeoutBlock = AGENT_SRC.slice(timeoutStart, timeoutStart + 600);
+    const sigtermIdx = timeoutBlock.indexOf('SIGTERM');
+    const sigkillIdx = timeoutBlock.indexOf('SIGKILL');
+    expect(sigtermIdx).toBeGreaterThan(-1);
+    expect(sigkillIdx).toBeGreaterThan(-1);
+    expect(sigtermIdx).toBeLessThan(sigkillIdx);
+  });
+});
+
