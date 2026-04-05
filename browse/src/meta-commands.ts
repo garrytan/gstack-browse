@@ -46,6 +46,11 @@ export function validateOutputPath(filePath: string): void {
   }
 }
 
+/** Escape special regex metacharacters in a user-supplied string to prevent ReDoS. */
+export function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /** Tokenize a pipe segment respecting double-quoted strings. */
 function tokenizePipeSegment(segment: string): string[] {
   const tokens: string[] = [];
@@ -259,6 +264,10 @@ export async function handleMetaCommand(
         try {
           let result: string;
           if (WRITE_COMMANDS.has(name)) {
+            if (bm.isWatching()) {
+              results.push(`[${name}] BLOCKED: write commands disabled in watch mode`);
+              continue;
+            }
             result = await handleWriteCommand(name, cmdArgs, bm);
             lastWasWrite = true;
           } else if (READ_COMMANDS.has(name)) {
@@ -556,7 +565,7 @@ export async function handleMetaCommand(
         frame = page.frame({ name: args[1] });
       } else if (target === '--url') {
         if (!args[1]) throw new Error('Usage: frame --url <pattern>');
-        frame = page.frame({ url: new RegExp(args[1]) });
+        frame = page.frame({ url: new RegExp(escapeRegExp(args[1])) });
       } else {
         // CSS selector or @ref for the iframe element
         const resolved = await bm.resolveRef(target);
