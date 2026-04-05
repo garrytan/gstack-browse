@@ -66,35 +66,58 @@ Accept any of the 55 known brands. If the user types something not in the list, 
 
 ---
 
-## Step 2: Fetch the DESIGN.md
+## Step 2: Load the DESIGN.md
+
+All 54 brand design systems ship with gstack — no network fetch needed. They live at
+`~/.claude/skills/gstack/design-ref/brands/<brand>.md`.
 
 Using the brand selected in Step 1:
 
 ```bash
 BRAND="<selected-brand>"
-mkdir -p ~/.gstack/design-refs
-CACHE="$HOME/.gstack/design-refs/$BRAND-DESIGN.md"
-if [ ! -f "$CACHE" ]; then
-  curl -sL "https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/$BRAND/DESIGN.md" -o "$CACHE"
+GSTACK_DIR="$HOME/.claude/skills/gstack"
+LOCAL="$GSTACK_DIR/design-ref/brands/$BRAND.md"
+if [ -f "$LOCAL" ]; then
+  echo "FOUND_LOCAL: $LOCAL"
+  wc -l "$LOCAL"
+  head -50 "$LOCAL"
+else
+  echo "NOT_FOUND_LOCAL"
+  # Fallback: fetch from GitHub in case the brand was added after this gstack version
+  mkdir -p ~/.gstack/design-refs
+  CACHE="$HOME/.gstack/design-refs/$BRAND-DESIGN.md"
+  if [ ! -f "$CACHE" ]; then
+    curl -sL "https://raw.githubusercontent.com/VoltAgent/awesome-design-md/main/design-md/$BRAND/DESIGN.md" -o "$CACHE"
+  fi
+  if [ -s "$CACHE" ]; then
+    echo "FOUND_REMOTE: $CACHE"
+    wc -l "$CACHE"
+    head -50 "$CACHE"
+  else
+    echo "NOT_FOUND"
+  fi
 fi
-wc -l "$CACHE"
-head -50 "$CACHE"
 ```
 
-Replace `<selected-brand>` with the actual brand name from Step 1 (lowercase, hyphenated — e.g., `mistral-ai`, `cal-com`).
+Replace `<selected-brand>` with the actual brand name from Step 1 (lowercase, hyphenated — e.g., `mistral-ai`, `cal-com`, `linear.app`).
 
-If curl returns an empty file or a 404 page, tell the user: "Could not fetch the design system for [brand]. The brand may not be in the repository. Pick another?"
-
-If the file was already cached, say: "Using cached version. Delete `~/.gstack/design-refs/<brand>-DESIGN.md` to re-fetch."
+If `NOT_FOUND`: tell the user the brand isn't available. List what is by running `ls ~/.claude/skills/gstack/design-ref/brands/`.
 
 ---
 
 ## Step 3: Read and Summarize the Design System
 
-Read the full cached DESIGN.md file for the selected brand:
+Read the full DESIGN.md file for the selected brand (use whichever path was found in Step 2):
 
 ```bash
-cat "$HOME/.gstack/design-refs/<selected-brand>-DESIGN.md"
+BRAND="<selected-brand>"
+LOCAL="$HOME/.claude/skills/gstack/design-ref/brands/$BRAND.md"
+CACHE="$HOME/.gstack/design-refs/$BRAND-DESIGN.md"
+if [ -f "$LOCAL" ]; then
+  cat "$LOCAL"
+elif [ -f "$CACHE" ]; then
+  cat "$CACHE"
+fi
 ```
 
 After reading the full file, present a concise summary covering:
