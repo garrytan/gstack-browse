@@ -318,7 +318,9 @@ export async function handleWriteCommand(
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse wait <selector|--networkidle|--load|--domcontentloaded>');
       if (selector === '--networkidle') {
-        const timeout = args[1] ? parseInt(args[1], 10) : 15000;
+        const MAX_WAIT_MS = 300_000;
+        const MIN_WAIT_MS = 1_000;
+        const timeout = Math.min(Math.max(args[1] ? parseInt(args[1], 10) || MIN_WAIT_MS : 15000, MIN_WAIT_MS), MAX_WAIT_MS);
         await page.waitForLoadState('networkidle', { timeout });
         return 'Network idle';
       }
@@ -330,7 +332,9 @@ export async function handleWriteCommand(
         await page.waitForLoadState('domcontentloaded');
         return 'DOM content loaded';
       }
-      const timeout = args[1] ? parseInt(args[1], 10) : 15000;
+      const MAX_WAIT_MS = 300_000;
+      const MIN_WAIT_MS = 1_000;
+      const timeout = Math.min(Math.max(args[1] ? parseInt(args[1], 10) || MIN_WAIT_MS : 15000, MIN_WAIT_MS), MAX_WAIT_MS);
       const resolved = await bm.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.waitFor({ state: 'visible', timeout });
@@ -343,7 +347,9 @@ export async function handleWriteCommand(
     case 'viewport': {
       const size = args[0];
       if (!size || !size.includes('x')) throw new Error('Usage: browse viewport <WxH> (e.g., 375x812)');
-      const [w, h] = size.split('x').map(Number);
+      const [rawW, rawH] = size.split('x').map(Number);
+      const w = Math.min(Math.max(Math.round(rawW) || 1280, 1), 16384);
+      const h = Math.min(Math.max(Math.round(rawH) || 720, 1), 16384);
       await bm.setViewport(w, h);
       return `Viewport set to ${w}x${h}`;
     }

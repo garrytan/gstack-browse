@@ -679,3 +679,36 @@ describe('Task 16: sidebar-agent timeout handler uses SIGTERM→SIGKILL escalati
   });
 });
 
+// ─── Task 17: viewport and wait bounds clamping ──────────────────────────────
+
+describe('Task 17: viewport dimensions and wait timeouts are clamped', () => {
+  it('viewport case clamps width and height with Math.min/Math.max', () => {
+    const block = sliceBetween(WRITE_SRC, "case 'viewport':", "case 'cookie':");
+    expect(block).toBeTruthy();
+    expect(block).toMatch(/Math\.min|Math\.max/);
+  });
+
+  it('viewport case uses rawW/rawH before clamping (not direct destructure)', () => {
+    const block = sliceBetween(WRITE_SRC, "case 'viewport':", "case 'cookie':");
+    expect(block).toContain('rawW');
+    expect(block).toContain('rawH');
+  });
+
+  it('wait case (networkidle branch) clamps timeout with MAX_WAIT_MS', () => {
+    const block = sliceBetween(WRITE_SRC, "case 'wait':", "case 'viewport':");
+    expect(block).toBeTruthy();
+    expect(block).toMatch(/MAX_WAIT_MS/);
+  });
+
+  it('wait case (element branch) also clamps timeout', () => {
+    const block = sliceBetween(WRITE_SRC, "case 'wait':", "case 'viewport':");
+    // Both the networkidle and element branches declare MAX_WAIT_MS
+    const maxWaitCount = (block.match(/MAX_WAIT_MS/g) || []).length;
+    expect(maxWaitCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('wait case uses MIN_WAIT_MS as a floor', () => {
+    const block = sliceBetween(WRITE_SRC, "case 'wait':", "case 'viewport':");
+    expect(block).toContain('MIN_WAIT_MS');
+  });
+});
