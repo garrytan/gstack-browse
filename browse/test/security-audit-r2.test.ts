@@ -550,3 +550,29 @@ describe('Task 12: activeTabUrl sanitized before syncActiveTabByUrl', () => {
     expect(block2).not.toMatch(/syncActiveTabByUrl\(extensionUrl\)/);
   });
 });
+
+// ─── Task 13: Inbox output wrapped as untrusted ──────────────────────────────
+
+describe('Task 13: inbox output wrapped as untrusted content', () => {
+  it('inbox handler wraps userMessage with wrapUntrustedContent', () => {
+    const block = sliceBetween(META_SRC, "case 'inbox':", "case 'state':");
+    expect(block).toContain('wrapUntrustedContent');
+  });
+
+  it('inbox handler applies wrapUntrustedContent to userMessage', () => {
+    const block = sliceBetween(META_SRC, "case 'inbox':", "case 'state':");
+    // Should wrap userMessage
+    expect(block).toMatch(/wrapUntrustedContent.*userMessage|userMessage.*wrapUntrustedContent/);
+  });
+
+  it('inbox handler applies wrapUntrustedContent to url', () => {
+    const block = sliceBetween(META_SRC, "case 'inbox':", "case 'state':");
+    // Should also wrap url
+    expect(block).toMatch(/wrapUntrustedContent.*msg\.url|msg\.url.*wrapUntrustedContent/);
+  });
+
+  it('wrapUntrustedContent calls appear in the message formatting loop', () => {
+    const block = sliceBetween(META_SRC, 'for (const msg of messages)', 'Handle --clear flag');
+    expect(block).toContain('wrapUntrustedContent');
+  });
+});

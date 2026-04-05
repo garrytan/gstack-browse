@@ -474,8 +474,8 @@ export async function handleMetaCommand(
 
       for (const msg of messages) {
         const ts = msg.timestamp ? `[${msg.timestamp}]` : '[unknown]';
-        lines.push(`${ts} ${msg.url}`);
-        lines.push(`  "${msg.userMessage}"`);
+        lines.push(`${ts} ${wrapUntrustedContent(msg.url, 'inbox:url')}`);
+        lines.push(`  "${wrapUntrustedContent(msg.userMessage, 'inbox:message')}"`);
         lines.push('');
       }
 
