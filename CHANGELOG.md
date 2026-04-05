@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.20.0] - 2026-04-05 — Performance Profiling + README Refresh
+
+Find performance bottlenecks before they ship. `/perf` profiles your backend — API response times, N+1 queries, memory leaks, CPU hotspots, and bundle sizes. Works with any framework: Node.js, PHP/Laravel, Python, Go, Rust, Ruby/Rails.
+
+### Added
+
+- **`/perf` skill.** Six profiling modes: API endpoints, database queries, memory, CPU, bundle size, or full sweep. Detects your framework and available tools automatically. Static N+1 detection catches the #1 backend perf killer across all ORMs. Generates reports with file:line references and estimated fix impact. Offers to fix issues with atomic commits and before/after measurements.
+
+### Fixed
+
+- **README now lists all skills.** Added `/perf`, `/pair`, `/test-gen`, `/deps`, `/env-sync`, `/qa-backend`, `/health`, and `/checkpoint` to the skills table, install prompts, and key features section.
+- **Inbox zsh safety.** Fixed unsafe glob patterns in `/inbox` that could fail in zsh (`ls *.md` → `find`).
+- **package.json version sync.** Version now matches VERSION file.
+
 ## [0.19.0] - 2026-04-03 — Multi-Session Intelligence
 
 Your Claude Code sessions now work as a team. `/pair` sets up structured pair programming between two sessions — one drives, one navigates, coordinated via `/inbox`. Orch agents now communicate through the same global inbox, so standalone sessions and orch-managed agents share one message bus.

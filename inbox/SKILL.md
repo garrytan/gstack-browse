@@ -542,12 +542,14 @@ Read all messages, newest first. Show full content.
 INBOX="$HOME/.gstack/inbox"
 echo "=== Inbox: $INBOX ==="
 echo ""
-for msg in $(ls -t "$INBOX/messages"/*.md 2>/dev/null); do
+FOUND=0
+for msg in $(find "$INBOX/messages" -maxdepth 1 -name '*.md' -print 2>/dev/null | xargs ls -t 2>/dev/null); do
+  FOUND=1
   echo "--- $(basename "$msg") ---"
   cat "$msg"
   echo ""
 done
-if [ -z "$(ls "$INBOX/messages"/*.md 2>/dev/null)" ]; then
+if [ "$FOUND" -eq 0 ]; then
   echo "(empty — no messages)"
 fi
 ```
@@ -617,14 +619,15 @@ Show all active sessions and their claims.
 INBOX="$HOME/.gstack/inbox"
 
 echo "=== Active Claims ==="
-for claim in "$INBOX/claims"/*.lock 2>/dev/null; do
-  [ -f "$claim" ] || continue
+FOUND_CLAIMS=0
+for claim in $(find "$INBOX/claims" -maxdepth 1 -name '*.lock' -print 2>/dev/null); do
+  FOUND_CLAIMS=1
   NAME=$(basename "$claim" .lock)
   OWNER=$(head -1 "$claim")
   WHEN=$(sed -n '2p' "$claim")
   echo "  $NAME — $OWNER (since $WHEN)"
 done
-if [ -z "$(ls "$INBOX/claims"/*.lock 2>/dev/null)" ]; then
+if [ "$FOUND_CLAIMS" -eq 0 ]; then
   echo "  (no active claims)"
 fi
 

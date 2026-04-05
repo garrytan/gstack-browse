@@ -28,11 +28,11 @@ Originally created by [Garry Tan](https://github.com/garrytan/gstack). This fork
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install gstack: run **`git clone --single-branch --depth 1 https://github.com/jeffdhooton/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /autoplan, /build, /orch, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn, /index, /inbox. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run **`git clone --single-branch --depth 1 https://github.com/jeffdhooton/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /qa-backend, /test-gen, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /env-sync, /deps, /autoplan, /build, /orch, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn, /index, /inbox, /pair, /checkpoint, /health, /perf. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Add to your repo so teammates get it (optional)
 
-> Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /autoplan, /build, /orch, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+> Add gstack to this project: run **`cp -Rf ~/.claude/skills/gstack .claude/skills/gstack && rm -rf .claude/skills/gstack/.git && cd .claude/skills/gstack && ./setup`** then add a "gstack" section to this project's CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /qa-backend, /test-gen, /design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex, /cso, /env-sync, /deps, /autoplan, /build, /orch, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn, /pair, /checkpoint, /health, /perf, and tells Claude that if gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
 
 Real files get committed to your repo (not a submodule), so `git clone` just works. Everything lives inside `.claude/`. Nothing touches your PATH or runs in the background.
 
@@ -156,11 +156,17 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/design-html` | **Design Engineer** | Generates production-quality HTML with Pretext for computed text layout. Works with approved mockups, CEO plans, design reviews, or from scratch. Text reflows on resize, heights adjust to content. Smart API routing picks the right Pretext patterns per design type. Framework detection for React/Svelte/Vue. |
 | `/qa` | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
 | `/qa-only` | **QA Reporter** | Same methodology as /qa but report only. Pure bug report without code changes. |
+| `/qa-backend` | **Backend QA** | API contract testing, database health, slow query profiling, auth boundary verification. For when /qa (browser) is overkill. |
+| `/test-gen` | **Test Writer** | Reads your existing tests to learn the project's style, finds uncovered code, generates matching tests. Prioritizes by risk. |
 | `/cso` | **Chief Security Officer** | OWASP Top 10 + STRIDE threat model. Runs deterministic SAST tools first (bandit, gosec, Semgrep, etc.), then layers LLM analysis. Zero-noise: 17 false positive exclusions, 8/10+ confidence gate. Each finding includes a concrete exploit scenario. |
+| `/env-sync` | **Env Auditor** | Finds env vars used in code but missing from .env.example, and stale vars nobody references. Works with any framework. |
+| `/deps` | **Dependency Auditor** | Vulnerability scan, outdated packages, unused deps, license audit. Wraps npm/composer/bundle/pip/go/cargo audit tools. |
 | `/ship` | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. |
 | `/land-and-deploy` | **Release Engineer** | Merge the PR, wait for CI and deploy, verify production health. One command from "approved" to "verified in production." |
 | `/canary` | **SRE** | Post-deploy monitoring loop. Watches for console errors, performance regressions, and page failures. |
 | `/benchmark` | **Performance Engineer** | Baseline page load times, Core Web Vitals, and resource sizes. Compare before/after on every PR. |
+| `/perf` | **Performance Profiler** | Profile response times, database queries, memory, CPU hotspots, and bundle sizes. Framework-agnostic — works with Node.js, PHP, Python, Go, Rust, Ruby. |
+| `/health` | **Code Quality Dashboard** | Wraps your type checker, linter, test runner, dead code detector. Weighted 0-10 score with trends over time. |
 | `/document-release` | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. |
 | `/retro` | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. `/retro global` runs across all your projects and AI tools (Claude Code, Codex, Gemini). |
 | `/browse` | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. `$B connect` launches your real Chrome as a headed window — watch every action live. |
@@ -175,6 +181,8 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | Skill | What it does |
 |-------|-------------|
 | `/codex` | **Second Opinion** — independent code review from OpenAI Codex CLI. Three modes: review (pass/fail gate), adversarial challenge, and open consultation. Cross-model analysis when both `/review` and `/codex` have run. |
+| `/pair` | **Pair Programmer** — two CC sessions, one task. Driver writes code, navigator reviews in real-time via /inbox. Structured handoffs prevent conflicts. |
+| `/checkpoint` | **Progress Saver** — save and resume working state. Captures git state, decisions, and remaining work so you can pick up where you left off. |
 | `/careful` | **Safety Guardrails** — warns before destructive commands (rm -rf, DROP TABLE, force-push). Say "be careful" to activate. Override any warning. |
 | `/freeze` | **Edit Lock** — restrict file edits to one directory. Prevents accidental changes outside scope while debugging. |
 | `/guard` | **Full Safety** — `/careful` + `/freeze` in one command. Maximum safety for prod work. |
@@ -202,6 +210,10 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 **Codebase index.** `/index` generates compact reference files (routes, models, pages, components, lib exports, config) that replace 50K+ tokens of AI exploration per conversation. Works with any framework. A standalone `gstack-reindex` script keeps the index fresh via git pre-commit hook — zero cost, ~1s.
 
 **Cross-session messaging.** `/inbox` lets concurrent Claude Code sessions talk to each other. Structured message types (`unblock`, `handoff`, `question`, `info`) with project-level targeting. A PreToolUse hook surfaces new messages inline so sessions never miss a notification. Work claims prevent double-booking.
+
+**Performance profiling.** `/perf` profiles response times, database queries, memory, CPU, and bundle sizes across any framework.
+
+**Pair programming.** `/pair` coordinates two Claude Code sessions on the same task — one drives, one reviews in real-time via `/inbox`.
 
 ## Parallel execution
 
@@ -261,9 +273,11 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
 Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
 /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy,
-/canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review,
-/setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex,
-/cso, /autoplan, /build, /orch, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn, /index, /inbox.
+/canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /qa-backend, /test-gen,
+/design-review, /setup-browser-cookies, /setup-deploy, /retro, /investigate,
+/document-release, /codex, /cso, /env-sync, /deps, /autoplan, /build, /orch, /careful,
+/freeze, /guard, /unfreeze, /gstack-upgrade, /learn, /index, /inbox, /pair, /checkpoint,
+/health, /perf.
 ```
 
 ## License
