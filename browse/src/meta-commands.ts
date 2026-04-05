@@ -45,12 +45,20 @@ function tokenizePipeSegment(segment: string): string[] {
   return tokens;
 }
 
+/** Options passed from handleCommandInternal for chain routing */
+export interface MetaCommandOpts {
+  chainDepth?: number;
+  /** Callback to route subcommands through the full security pipeline (handleCommandInternal) */
+  executeCommand?: (body: { command: string; args?: string[]; tabId?: number }, tokenInfo?: TokenInfo | null) => Promise<{ status: number; result: string; json?: boolean }>;
+}
+
 export async function handleMetaCommand(
   command: string,
   args: string[],
   bm: BrowserManager,
   shutdown: () => Promise<void> | void,
-  tokenInfo?: TokenInfo | null
+  tokenInfo?: TokenInfo | null,
+  opts?: MetaCommandOpts,
 ): Promise<string> {
   switch (command) {
     // ─── Tabs ──────────────────────────────────────────
@@ -230,10 +238,6 @@ export async function handleMetaCommand(
           .map(seg => tokenizePipeSegment(seg.trim()));
       }
 
-      const results: string[] = [];
-      const { handleReadCommand } = await import('./read-commands');
-      const { handleWriteCommand } = await import('./write-commands');
-
       // Pre-validate ALL subcommands against the token's scope before executing any.
       // This prevents partial execution where some subcommands succeed before a
       // scope violation is hit, leaving the browser in an inconsistent state.
@@ -249,29 +253,60 @@ export async function handleMetaCommand(
         }
       }
 
+      // Route each subcommand through handleCommandInternal for full security:
+      // scope, domain, tab ownership, content wrapping — all enforced per subcommand.
+      // Chain-specific options: skip rate check (chain = 1 request), skip activity
+      // events (chain emits 1 event), increment chain depth (recursion guard).
+      const executeCmd = opts?.executeCommand;
+      const results: string[] = [];
       let lastWasWrite = false;
-      for (const cmd of commands) {
-        const [name, ...cmdArgs] = cmd;
-        try {
-          let result: string;
-          if (WRITE_COMMANDS.has(name)) {
-            result = await handleWriteCommand(name, cmdArgs, bm);
-            lastWasWrite = true;
-          } else if (READ_COMMANDS.has(name)) {
-            result = await handleReadCommand(name, cmdArgs, bm);
-            if (PAGE_CONTENT_COMMANDS.has(name)) {
-              result = wrapUntrustedContent(result, bm.getCurrentUrl());
-            }
-            lastWasWrite = false;
-          } else if (META_COMMANDS.has(name)) {
-            result = await handleMetaCommand(name, cmdArgs, bm, shutdown, tokenInfo);
-            lastWasWrite = false;
+
+      if (executeCmd) {
+        // Full security pipeline via handleCommandInternal
+        for (const cmd of commands) {
+          const [name, ...cmdArgs] = cmd;
+          const cr = await executeCmd(
+            { command: name, args: cmdArgs },
+            tokenInfo,
+          );
+          if (cr.status === 200) {
+            results.push(`[${name}] ${cr.result}`);
           } else {
-            throw new Error(`Unknown command: ${name}`);
+            // Parse error from JSON result
+            let errMsg = cr.result;
+            try { errMsg = JSON.parse(cr.result).error || cr.result; } catch {}
+            results.push(`[${name}] ERROR: ${errMsg}`);
           }
-          results.push(`[${name}] ${result}`);
-        } catch (err: any) {
-          results.push(`[${name}] ERROR: ${err.message}`);
+          lastWasWrite = WRITE_COMMANDS.has(name);
+        }
+      } else {
+        // Fallback: direct dispatch (CLI mode, no server context)
+        const { handleReadCommand } = await import('./read-commands');
+        const { handleWriteCommand } = await import('./write-commands');
+
+        for (const cmd of commands) {
+          const [name, ...cmdArgs] = cmd;
+          try {
+            let result: string;
+            if (WRITE_COMMANDS.has(name)) {
+              result = await handleWriteCommand(name, cmdArgs, bm);
+              lastWasWrite = true;
+            } else if (READ_COMMANDS.has(name)) {
+              result = await handleReadCommand(name, cmdArgs, bm);
+              if (PAGE_CONTENT_COMMANDS.has(name)) {
+                result = wrapUntrustedContent(result, bm.getCurrentUrl());
+              }
+              lastWasWrite = false;
+            } else if (META_COMMANDS.has(name)) {
+              result = await handleMetaCommand(name, cmdArgs, bm, shutdown, tokenInfo, opts);
+              lastWasWrite = false;
+            } else {
+              throw new Error(`Unknown command: ${name}`);
+            }
+            results.push(`[${name}] ${result}`);
+          } catch (err: any) {
+            results.push(`[${name}] ERROR: ${err.message}`);
+          }
         }
       }
 

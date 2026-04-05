@@ -811,58 +811,81 @@ function wrapError(err: any): string {
   return msg;
 }
 
-async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<Response> {
+/** Internal command result — used by handleCommand and chain subcommand routing */
+interface CommandResult {
+  status: number;
+  result: string;
+  headers?: Record<string, string>;
+  json?: boolean; // true if result is JSON (errors), false for text/plain
+}
+
+/**
+ * Core command execution logic. Returns a structured result instead of HTTP Response.
+ * Used by both the HTTP handler (handleCommand) and chain subcommand routing.
+ *
+ * Options:
+ *   skipRateCheck: true when called from chain (chain counts as 1 request)
+ *   skipActivity: true when called from chain (chain emits 1 event for all subcommands)
+ *   chainDepth: recursion guard — reject nested chains (depth > 0 means inside a chain)
+ */
+async function handleCommandInternal(
+  body: { command: string; args?: string[]; tabId?: number },
+  tokenInfo?: TokenInfo | null,
+  opts?: { skipRateCheck?: boolean; skipActivity?: boolean; chainDepth?: number },
+): Promise<CommandResult> {
   const { command, args = [], tabId } = body;
 
   if (!command) {
-    return new Response(JSON.stringify({ error: 'Missing "command" field' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return { status: 400, result: JSON.stringify({ error: 'Missing "command" field' }), json: true };
+  }
+
+  // ─── Recursion guard: reject nested chains ──────────────────
+  if (command === 'chain' && (opts?.chainDepth ?? 0) > 0) {
+    return { status: 400, result: JSON.stringify({ error: 'Nested chain commands are not allowed' }), json: true };
   }
 
   // ─── Scope check (for scoped tokens) ──────────────────────────
   if (tokenInfo && tokenInfo.clientId !== 'root') {
     if (!checkScope(tokenInfo, command)) {
-      return new Response(JSON.stringify({
-        error: `Command "${command}" not allowed by your token scope`,
-        hint: `Your scopes: ${tokenInfo.scopes.join(', ')}. Ask the user to re-pair with --admin for eval/cookies/storage access.`,
-      }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return {
+        status: 403, json: true,
+        result: JSON.stringify({
+          error: `Command "${command}" not allowed by your token scope`,
+          hint: `Your scopes: ${tokenInfo.scopes.join(', ')}. Ask the user to re-pair with --admin for eval/cookies/storage access.`,
+        }),
+      };
     }
 
     // Domain check for navigation commands
-    if (command === 'goto' && args[0]) {
+    if ((command === 'goto' || command === 'newtab') && args[0]) {
       if (!checkDomain(tokenInfo, args[0])) {
-        return new Response(JSON.stringify({
-          error: `Domain not allowed by your token scope`,
-          hint: `Allowed domains: ${tokenInfo.domains?.join(', ') || 'none configured'}`,
-        }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return {
+          status: 403, json: true,
+          result: JSON.stringify({
+            error: `Domain not allowed by your token scope`,
+            hint: `Allowed domains: ${tokenInfo.domains?.join(', ') || 'none configured'}`,
+          }),
+        };
       }
     }
 
-    // Rate check
-    const rateResult = checkRate(tokenInfo);
-    if (!rateResult.allowed) {
-      return new Response(JSON.stringify({
-        error: 'Rate limit exceeded',
-        hint: `Max ${tokenInfo.rateLimit} requests/second. Retry after ${rateResult.retryAfterMs}ms.`,
-      }), {
-        status: 429,
-        headers: {
-          'Content-Type': 'application/json',
-          'Retry-After': String(Math.ceil((rateResult.retryAfterMs || 1000) / 1000)),
-        },
-      });
+    // Rate check (skipped for chain subcommands — chain counts as 1 request)
+    if (!opts?.skipRateCheck) {
+      const rateResult = checkRate(tokenInfo);
+      if (!rateResult.allowed) {
+        return {
+          status: 429, json: true,
+          result: JSON.stringify({
+            error: 'Rate limit exceeded',
+            hint: `Max ${tokenInfo.rateLimit} requests/second. Retry after ${rateResult.retryAfterMs}ms.`,
+          }),
+          headers: { 'Retry-After': String(Math.ceil((rateResult.retryAfterMs || 1000) / 1000)) },
+        };
+      }
     }
 
     // Record command execution for idempotent key exchange tracking
-    if (tokenInfo.token) recordCommand(tokenInfo.token);
+    if (!opts?.skipRateCheck && tokenInfo.token) recordCommand(tokenInfo.token);
   }
 
   // Pin to a specific tab if requested (set by BROWSE_TAB env var in sidebar agents).
@@ -881,73 +904,75 @@ async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<R
   if (tokenInfo && tokenInfo.clientId !== 'root' && WRITE_COMMANDS.has(command)) {
     const targetTab = tabId ?? browserManager.getActiveTabId();
     if (!browserManager.checkTabAccess(targetTab, tokenInfo.clientId, true)) {
-      return new Response(JSON.stringify({
-        error: 'Tab not owned by your agent. Use newtab to create your own tab.',
-        hint: `Tab ${targetTab} is owned by ${browserManager.getTabOwner(targetTab) || 'root'}. Your agent: ${tokenInfo.clientId}.`,
-      }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return {
+        status: 403, json: true,
+        result: JSON.stringify({
+          error: 'Tab not owned by your agent. Use newtab to create your own tab.',
+          hint: `Tab ${targetTab} is owned by ${browserManager.getTabOwner(targetTab) || 'root'}. Your agent: ${tokenInfo.clientId}.`,
+        }),
+      };
     }
   }
 
   // ─── newtab with ownership for scoped tokens ──────────────
   if (command === 'newtab' && tokenInfo && tokenInfo.clientId !== 'root') {
-    // Domain check for newtab URL (same as goto)
-    if (args[0] && !checkDomain(tokenInfo, args[0])) {
-      return new Response(JSON.stringify({
-        error: 'Domain not allowed by your token scope',
-        hint: `Allowed domains: ${tokenInfo.domains?.join(', ') || 'none configured'}`,
-      }), {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
     const newId = await browserManager.newTab(args[0] || undefined, tokenInfo.clientId);
-    return new Response(JSON.stringify({
-      tabId: newId,
-      owner: tokenInfo.clientId,
-      hint: 'Include "tabId": ' + newId + ' in subsequent commands to target this tab.',
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return {
+      status: 200, json: true,
+      result: JSON.stringify({
+        tabId: newId,
+        owner: tokenInfo.clientId,
+        hint: 'Include "tabId": ' + newId + ' in subsequent commands to target this tab.',
+      }),
+    };
   }
 
   // Block mutation commands while watching (read-only observation mode)
   if (browserManager.isWatching() && WRITE_COMMANDS.has(command)) {
-    return new Response(JSON.stringify({
-      error: 'Cannot run mutation commands while watching. Run `$B watch stop` first.',
-    }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return {
+      status: 400, json: true,
+      result: JSON.stringify({ error: 'Cannot run mutation commands while watching. Run `$B watch stop` first.' }),
+    };
   }
 
-  // Activity: emit command_start
+  // Activity: emit command_start (skipped for chain subcommands)
   const startTime = Date.now();
-  emitActivity({
-    type: 'command_start',
-    command,
-    args,
-    url: browserManager.getCurrentUrl(),
-    tabs: browserManager.getTabCount(),
-    mode: browserManager.getConnectionMode(),
-    clientId: tokenInfo?.clientId,
-  });
+  if (!opts?.skipActivity) {
+    emitActivity({
+      type: 'command_start',
+      command,
+      args,
+      url: browserManager.getCurrentUrl(),
+      tabs: browserManager.getTabCount(),
+      mode: browserManager.getConnectionMode(),
+      clientId: tokenInfo?.clientId,
+    });
+  }
 
   try {
     let result: string;
 
     if (READ_COMMANDS.has(command)) {
       result = await handleReadCommand(command, args, browserManager);
+      // Content wrapping for page-content commands (scoped vs root handled here)
+      // Chain subcommands: each gets wrapped individually here. Chain result is NOT re-wrapped.
       if (PAGE_CONTENT_COMMANDS.has(command)) {
         result = wrapUntrustedContent(result, browserManager.getCurrentUrl());
       }
     } else if (WRITE_COMMANDS.has(command)) {
       result = await handleWriteCommand(command, args, browserManager);
     } else if (META_COMMANDS.has(command)) {
-      result = await handleMetaCommand(command, args, browserManager, shutdown, tokenInfo);
+      // Pass chain depth + executeCommand callback so chain routes subcommands
+      // through the full security pipeline (scope, domain, tab, wrapping).
+      const chainDepth = (opts?.chainDepth ?? 0);
+      result = await handleMetaCommand(command, args, browserManager, shutdown, tokenInfo, {
+        chainDepth,
+        executeCommand: (body, ti) => handleCommandInternal(body, ti, {
+          skipRateCheck: true,    // chain counts as 1 request
+          skipActivity: true,     // chain emits 1 event for all subcommands
+          chainDepth: chainDepth + 1,  // recursion guard
+        }),
+      });
       // Start periodic snapshot interval when watch mode begins
       if (command === 'watch' && args[0] !== 'stop' && browserManager.isWatching()) {
         const watchInterval = setInterval(async () => {
@@ -966,33 +991,32 @@ async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<R
       }
     } else if (command === 'help') {
       const helpText = generateHelpText();
-      return new Response(helpText, {
-        status: 200,
-        headers: { 'Content-Type': 'text/plain' },
-      });
+      return { status: 200, result: helpText };
     } else {
-      return new Response(JSON.stringify({
-        error: `Unknown command: ${command}`,
-        hint: `Available commands: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
-      }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return {
+        status: 400, json: true,
+        result: JSON.stringify({
+          error: `Unknown command: ${command}`,
+          hint: `Available commands: ${[...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS].sort().join(', ')}`,
+        }),
+      };
     }
 
-    // Activity: emit command_end (success)
-    emitActivity({
-      type: 'command_end',
-      command,
-      args,
-      url: browserManager.getCurrentUrl(),
-      duration: Date.now() - startTime,
-      status: 'ok',
-      result: result,
-      tabs: browserManager.getTabCount(),
-      mode: browserManager.getConnectionMode(),
-      clientId: tokenInfo?.clientId,
-    });
+    // Activity: emit command_end (skipped for chain subcommands)
+    if (!opts?.skipActivity) {
+      emitActivity({
+        type: 'command_end',
+        command,
+        args,
+        url: browserManager.getCurrentUrl(),
+        duration: Date.now() - startTime,
+        status: 'ok',
+        result: result,
+        tabs: browserManager.getTabCount(),
+        mode: browserManager.getConnectionMode(),
+        clientId: tokenInfo?.clientId,
+      });
+    }
 
     browserManager.resetFailures();
     // Restore original active tab if we pinned to a specific one
@@ -1001,10 +1025,7 @@ async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<R
         console.warn('[browse] Failed to restore tab after command:', restoreErr.message);
       }
     }
-    return new Response(result, {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return { status: 200, result };
   } catch (err: any) {
     // Restore original active tab even on error
     if (savedTabId !== null) {
@@ -1013,29 +1034,38 @@ async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<R
       }
     }
 
-    // Activity: emit command_end (error)
-    emitActivity({
-      type: 'command_end',
-      command,
-      args,
-      url: browserManager.getCurrentUrl(),
-      duration: Date.now() - startTime,
-      status: 'error',
-      error: err.message,
-      tabs: browserManager.getTabCount(),
-      mode: browserManager.getConnectionMode(),
-      clientId: tokenInfo?.clientId,
-    });
+    // Activity: emit command_end (error) — skipped for chain subcommands
+    if (!opts?.skipActivity) {
+      emitActivity({
+        type: 'command_end',
+        command,
+        args,
+        url: browserManager.getCurrentUrl(),
+        duration: Date.now() - startTime,
+        status: 'error',
+        error: err.message,
+        tabs: browserManager.getTabCount(),
+        mode: browserManager.getConnectionMode(),
+        clientId: tokenInfo?.clientId,
+      });
+    }
 
     browserManager.incrementFailures();
     let errorMsg = wrapError(err);
     const hint = browserManager.getFailureHint();
     if (hint) errorMsg += '\n' + hint;
-    return new Response(JSON.stringify({ error: errorMsg }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return { status: 500, result: JSON.stringify({ error: errorMsg }), json: true };
   }
+}
+
+/** HTTP wrapper — converts CommandResult to Response */
+async function handleCommand(body: any, tokenInfo?: TokenInfo | null): Promise<Response> {
+  const cr = await handleCommandInternal(body, tokenInfo);
+  const contentType = cr.json ? 'application/json' : 'text/plain';
+  return new Response(cr.result, {
+    status: cr.status,
+    headers: { 'Content-Type': contentType, ...cr.headers },
+  });
 }
 
 async function shutdown() {

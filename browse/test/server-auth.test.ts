@@ -44,10 +44,13 @@ describe('Server auth security', () => {
   });
 
   // Test 1c: newtab must check domain restrictions (CSO finding #5)
+  // Domain check for newtab is now unified with goto in the scope check section:
+  // (command === 'goto' || command === 'newtab') && args[0] → checkDomain
   test('newtab enforces domain restrictions', () => {
-    const newtabBlock = sliceBetween(SERVER_SRC, "newtab with ownership for scoped tokens", "Block mutation commands while watching");
-    expect(newtabBlock).toContain('checkDomain');
-    expect(newtabBlock).toContain('Domain not allowed');
+    const scopeBlock = sliceBetween(SERVER_SRC, "Scope check (for scoped tokens)", "Pin to a specific tab");
+    expect(scopeBlock).toContain("command === 'newtab'");
+    expect(scopeBlock).toContain('checkDomain');
+    expect(scopeBlock).toContain('Domain not allowed');
   });
 
   // Test 2: /refs endpoint requires auth via validateAuth
@@ -168,7 +171,7 @@ describe('Server auth security', () => {
 
   // Test 10d: server passes tokenInfo to handleMetaCommand
   test('server passes tokenInfo to handleMetaCommand', () => {
-    expect(SERVER_SRC).toContain('handleMetaCommand(command, args, browserManager, shutdown, tokenInfo)');
+    expect(SERVER_SRC).toContain('handleMetaCommand(command, args, browserManager, shutdown, tokenInfo,');
   });
 
   // Test 10e: activity attribution includes clientId
