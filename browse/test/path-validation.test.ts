@@ -33,6 +33,16 @@ describe('validateOutputPath', () => {
   it('blocks path traversal via ..', () => {
     expect(() => validateOutputPath('/tmp/../etc/passwd')).toThrow(/Path must be within/);
   });
+
+  it('blocks symlink inside safe dir pointing outside', () => {
+    const linkPath = join(tmpdir(), 'test-output-symlink-' + Date.now());
+    try {
+      symlinkSync('/etc', linkPath);
+      expect(() => validateOutputPath(join(linkPath, 'passwd'))).toThrow(/Path must be within/);
+    } finally {
+      try { unlinkSync(linkPath); } catch {}
+    }
+  });
 });
 
 describe('validateReadPath', () => {
