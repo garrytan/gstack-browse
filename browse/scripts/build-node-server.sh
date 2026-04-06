@@ -7,7 +7,7 @@
 
 set -e
 
-GSTACK_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
+GSTACK_DIR="$(CDPATH= cd "$(dirname "$0")/../.." && pwd)"
 SRC_DIR="$GSTACK_DIR/browse/src"
 DIST_DIR="$GSTACK_DIR/browse/dist"
 

@@ -14,8 +14,8 @@ if ! command -v bun >/dev/null 2>&1; then
   exit 1
 fi
 
-INSTALL_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd)"
-SOURCE_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+INSTALL_GSTACK_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
+SOURCE_GSTACK_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd -P)"
 INSTALL_SKILLS_DIR="$(dirname "$INSTALL_GSTACK_DIR")"
 BROWSE_BIN="$SOURCE_GSTACK_DIR/browse/dist/browse"
 CODEX_SKILLS="$HOME/.codex/skills"

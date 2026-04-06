@@ -6,7 +6,7 @@
 # Reads ~/.gstack/projects/$SLUG/timeline.jsonl, filters, formats.
 # Exit 0 silently if no timeline file exists.
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
 GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 

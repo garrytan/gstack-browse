@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_NAME="GStack Browser"
 BUNDLE_ID="com.gstack.browser"

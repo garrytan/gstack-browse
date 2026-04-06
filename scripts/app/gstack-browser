@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 
 # Detect mode: .app bundle or dev
 if [ -d "$SCRIPT_DIR/../Resources" ]; then

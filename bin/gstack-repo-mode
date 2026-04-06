@@ -11,7 +11,7 @@
 # Cache:    ~/.gstack/projects/$SLUG/repo-mode.json (7-day TTL)
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 # Compute SLUG directly (avoid eval of gstack-slug — branch names can contain shell metacharacters)
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || true)
 if [ -z "$REMOTE_URL" ]; then

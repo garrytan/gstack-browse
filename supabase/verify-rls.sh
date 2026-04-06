@@ -10,7 +10,7 @@
 #   bash supabase/verify-rls.sh
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/config.sh"
 
 URL="$GSTACK_SUPABASE_URL"

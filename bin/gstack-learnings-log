@@ -5,7 +5,7 @@
 # Append-only storage. Duplicates (same key+type) are resolved at read time
 # by gstack-learnings-search ("latest winner" per key+type).
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(CDPATH= cd "$(dirname "$0")" && pwd)"
 eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
 GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 mkdir -p "$GSTACK_HOME/projects/$SLUG"
