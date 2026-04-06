@@ -1597,32 +1597,21 @@ smarter on their codebase over time.
 
 ## Structural Code Analysis (sqry)
 
-If preamble shows `SQRY: unavailable`: skip this section entirely.
+If `SQRY: unavailable`: skip this section.
+If `SQRY: available` but no `mcp__sqry__` tools visible: tell user to run `sqry mcp setup` and restart session.
 
-If preamble shows `SQRY: available`: check your available tools for the `mcp__sqry__` prefix.
-- If you see `mcp__sqry__` tools: use them as described below.
-- If you do NOT see `mcp__sqry__` tools despite `SQRY: available`: tell the user
-  "sqry is installed but not configured as an MCP server. Run `sqry mcp setup`
-  to enable structural code analysis, then restart this session."
+**Before first query:** read `sqry://meta/manifest` via ReadMcpResourceTool to confirm MCP server connection.
 
-**Server health:** Before your first sqry query, read `sqry://meta/manifest` via
-ReadMcpResourceTool to confirm the MCP server is connected and check the installed version.
+**Index freshness:** if `SQRY_INDEXED: no` or `SQRY_STALE: yes` → run `mcp__sqry__rebuild_index` first.
+If you made structural changes this session, call rebuild_index before your next sqry query.
 
-**Index freshness:**
-- If `SQRY_INDEXED: no`: run `mcp__sqry__rebuild_index` before any queries.
-- If `SQRY_STALE: yes`: run `mcp__sqry__rebuild_index` before any queries.
-- If you made structural changes this session, call rebuild_index before your next sqry query.
+**structural verification before shipping** — use these `mcp__sqry__` tools:
 
-**During structural verification before shipping**, use these sqry MCP tools:
-
-- `mcp__sqry__find_cycles` — verify no circular dependencies in shipped code
+- `mcp__sqry__find_cycles` — no circular dependencies in shipped code
 - `mcp__sqry__find_unused` — catch dead code being shipped
 - `mcp__sqry__complexity_metrics` — verify complexity hasn't regressed
 
-**Parameter guidance:** For limits (max_depth, max_results, scoping) and cost tiering,
-read `sqry://docs/capability-map` via ReadMcpResourceTool. For full tool parameters,
-read `sqry://docs/tool-guide`. These resources are served live by sqry and always match
-your installed version — do not hardcode parameter values.
+**Limits/tiering:** read `sqry://docs/capability-map` via ReadMcpResourceTool. Full params: `sqry://docs/tool-guide`. Live from sqry — do not hardcode.
 
 ## Step 3.48: Scope Drift Detection
 
