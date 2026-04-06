@@ -7,11 +7,7 @@
     "min_version": "7.0.0",
     "rebuild_hint": "If you made structural changes this session, call rebuild_index before your next sqry query."
   },
-  "mcp_resources": {
-    "capability_map": "sqry://docs/capability-map",
-    "tool_guide": "sqry://docs/tool-guide",
-    "manifest": "sqry://meta/manifest"
-  },
+  "parameter_guidance": "Most sqry tools accept `max_depth` (default 3, max 10) and `max_results` (default 20, max 100). Scope queries to specific files or directories when possible — full-repo queries on large codebases are expensive. Use `semantic_search` for broad discovery, then `direct_callers`/`direct_callees` for focused tracing.",
   "integrations": {
     "investigate": {
       "phase": "root-cause-investigation",

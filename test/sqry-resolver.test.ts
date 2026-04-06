@@ -54,15 +54,14 @@ describe('sqry tools.json schema validation', () => {
     expect(toolsConfig.integrations).toBeDefined();
   });
 
-  test('has no top-level defaults section (delegated to MCP resources)', () => {
-    expect(toolsConfig.defaults).toBeUndefined();
+  test('has no mcp_resources section (resource reads are prohibited — see contrib/add-tool/README.md Security)', () => {
+    expect(toolsConfig.mcp_resources).toBeUndefined();
   });
 
-  test('has mcp_resources with required URIs', () => {
-    expect(toolsConfig.mcp_resources).toBeDefined();
-    expect(toolsConfig.mcp_resources.capability_map).toBe('sqry://docs/capability-map');
-    expect(toolsConfig.mcp_resources.tool_guide).toBe('sqry://docs/tool-guide');
-    expect(toolsConfig.mcp_resources.manifest).toBe('sqry://meta/manifest');
+  test('has static parameter_guidance string', () => {
+    expect(toolsConfig.parameter_guidance).toBeDefined();
+    expect(typeof toolsConfig.parameter_guidance).toBe('string');
+    expect(toolsConfig.parameter_guidance.length).toBeGreaterThan(20);
   });
 
   const integrationNames = Object.keys(toolsConfig.integrations);
@@ -135,23 +134,11 @@ describe('SQRY_CONTEXT resolver', () => {
       expect(result).toContain('rebuild_index');
     });
 
-    test(`${skillName}: delegates to MCP resource for parameter guidance`, () => {
+    test(`${skillName}: emits static parameter guidance (no MCP resource reads)`, () => {
       const result = generateSqryContext(makeCtx(skillName));
-      expect(result).toContain('sqry://docs/capability-map');
-      expect(result).toContain('sqry://docs/tool-guide');
-      expect(result).toContain('ReadMcpResourceTool');
-    });
-
-    test(`${skillName}: includes security boundary for MCP resources`, () => {
-      const result = generateSqryContext(makeCtx(skillName));
-      expect(result).toContain('SECURITY');
-      expect(result).toContain('untrusted external content');
-    });
-
-    test(`${skillName}: does not hardcode parameter limits`, () => {
-      const result = generateSqryContext(makeCtx(skillName));
-      expect(result).not.toMatch(/Default to max_depth \d/);
-      expect(result).not.toMatch(/Default to .* max_results \d/);
+      expect(result).toContain('Tool parameters:');
+      expect(result).not.toContain('ReadMcpResourceTool');
+      expect(result).not.toContain('sqry://');
     });
 
     test(`${skillName}: uses context from tools.json`, () => {
@@ -184,10 +171,11 @@ describe('generated SKILL.md files contain sqry content', () => {
       expect(content).not.toContain('{{SQRY_CONTEXT}}');
     });
 
-    test(`${skill}/SKILL.md delegates to MCP resources with security boundary`, () => {
+    test(`${skill}/SKILL.md has static parameter guidance (no MCP resource reads)`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('sqry://docs/capability-map');
-      expect(content).toContain('untrusted external content');
+      expect(content).not.toContain('ReadMcpResourceTool');
+      expect(content).not.toContain('sqry://');
+      expect(content).toContain('Tool parameters:');
     });
   }
 
