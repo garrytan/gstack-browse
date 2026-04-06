@@ -699,10 +699,11 @@ describe('Enum & Value Completeness in review checklist', () => {
 // --- Completeness Principle spot-check ---
 
 describe('Completeness Principle in generated SKILL.md files', () => {
+  // Tier 2+ skills only (tier 1 skills like SKILL.md, browse, setup-browser-cookies
+  // do not include the Completeness section)
   const skillsWithPreamble = [
-    'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
+    'qa/SKILL.md',
     'qa-only/SKILL.md',
-    'setup-browser-cookies/SKILL.md',
     'ship/SKILL.md', 'review/SKILL.md',
     'plan-ceo-review/SKILL.md', 'plan-eng-review/SKILL.md',
     'retro/SKILL.md',
