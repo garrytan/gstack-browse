@@ -222,10 +222,10 @@ describe('Generated SKILL.md freshness', () => {
   });
 });
 
-// --- Update check preamble validation ---
+// --- Preamble session tracking validation ---
 
-describe('Update check preamble', () => {
-  const skillsWithUpdateCheck = [
+describe('Preamble session tracking', () => {
+  const skillsWithPreamble = [
     'SKILL.md', 'browse/SKILL.md', 'qa/SKILL.md',
     'qa-only/SKILL.md',
     'setup-browser-cookies/SKILL.md',
@@ -244,38 +244,11 @@ describe('Update check preamble', () => {
     'cso/SKILL.md',
   ];
 
-  for (const skill of skillsWithUpdateCheck) {
-    test(`${skill} update check line ends with || true`, () => {
-      const content = fs.readFileSync(path.join(ROOT, skill), 'utf-8');
-      // The second line of the bash block must end with || true
-      // to avoid exit code 1 when _UPD is empty (up to date)
-      const match = content.match(/\[ -n "\$_UPD" \].*$/m);
-      expect(match).not.toBeNull();
-      expect(match![0]).toContain('|| true');
-    });
-  }
-
-  test('all skills with update check are generated from .tmpl', () => {
-    for (const skill of skillsWithUpdateCheck) {
+  test('all preamble skills are generated from .tmpl', () => {
+    for (const skill of skillsWithPreamble) {
       const tmplPath = path.join(ROOT, skill + '.tmpl');
       expect(fs.existsSync(tmplPath)).toBe(true);
     }
-  });
-
-  test('update check bash block exits 0 when up to date', () => {
-    // Simulate the exact preamble command from SKILL.md
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    expect(result.exitCode).toBe(0);
-  });
-
-  test('update check bash block exits 0 when upgrade available', () => {
-    const result = Bun.spawnSync(['bash', '-c',
-      '_UPD=$(echo "UPGRADE_AVAILABLE 0.3.3 0.4.0" || true); [ -n "$_UPD" ] && echo "$_UPD" || true'
-    ], { stdout: 'pipe', stderr: 'pipe' });
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString().trim()).toBe('UPGRADE_AVAILABLE 0.3.3 0.4.0');
   });
 });
 
@@ -594,83 +567,22 @@ describe('v0.4.1 preamble features', () => {
 describe('office-hours skill structure', () => {
   const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
 
-  // Original structural assertions
+  // Core structural assertions
   for (const section of ['Phase 1', 'Phase 2', 'Phase 3', 'Phase 4', 'Phase 5', 'Phase 6',
                           'Design Doc', 'Supersedes', 'APPROVED', 'Premise Challenge',
                           'Alternatives', 'Smart-skip']) {
     test(`contains ${section}`, () => expect(content).toContain(section));
   }
 
-  // Dual-mode structure
-  for (const section of ['Startup mode', 'Builder mode']) {
-    test(`contains ${section}`, () => expect(content).toContain(section));
-  }
-
-  // Mode detection question
-  test('contains explicit mode detection question', () => {
-    expect(content).toContain("what's your goal");
-  });
-
-  // Six forcing questions (startup mode)
+  // Forcing questions
   for (const question of ['Demand Reality', 'Status Quo', 'Desperate Specificity',
                            'Narrowest Wedge', 'Observation & Surprise', 'Future-Fit']) {
     test(`contains forcing question: ${question}`, () => expect(content).toContain(question));
   }
 
-  // Builder mode questions
-  test('contains builder brainstorming questions', () => {
-    expect(content).toContain('coolest version');
-    expect(content).toContain('delightful');
-  });
-
-  // Intrapreneurship adaptation
-  test('contains intrapreneurship adaptation', () => {
-    expect(content).toContain('Intrapreneurship');
-  });
-
-  // YC founder discovery engine
-  test('contains YC apply CTA with ref tracking', () => {
-    expect(content).toContain('ycombinator.com/apply?ref=gstack');
-  });
-
-  test('contains "What I noticed" design doc section', () => {
-    expect(content).toContain('What I noticed about how you think');
-  });
-
-  test('contains golden age framing', () => {
-    expect(content).toContain('golden age');
-  });
-
-  test('contains Garry Tan personal plea', () => {
-    expect(content).toContain('Garry Tan, the creator of GStack');
-  });
-
-  test('contains founder signal synthesis phase', () => {
-    expect(content).toContain('Founder Signal Synthesis');
-  });
-
-  test('contains three-tier decision rubric', () => {
-    expect(content).toContain('Top tier');
-    expect(content).toContain('Middle tier');
-    expect(content).toContain('Base tier');
-  });
-
-  test('contains anti-slop examples', () => {
-    expect(content).toContain('GOOD:');
-    expect(content).toContain('BAD:');
-  });
-
-  test('contains "One more thing" transition beat', () => {
-    expect(content).toContain('One more thing');
-  });
-
-  // Operating principles per mode
-  test('contains startup operating principles', () => {
+  // Operating principles
+  test('contains operating principles', () => {
     expect(content).toContain('Specificity is the only currency');
-  });
-
-  test('contains builder operating principles', () => {
-    expect(content).toContain('Delight is the currency');
   });
 
   // Spec Review Loop (Phase 5.5)

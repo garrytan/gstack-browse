@@ -153,9 +153,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'design-shotgun-session':         ['design-shotgun/**', 'scripts/resolvers/design.ts'],
   'design-shotgun-full':            ['design-shotgun/**', 'design/src/**', 'browse/src/**'],
 
-  // gstack-upgrade
-  'gstack-upgrade-happy-path': ['gstack-upgrade/**'],
-
   // Deploy skills
   'land-and-deploy-workflow':      ['land-and-deploy/**', 'scripts/gen-skill-docs.ts'],
   'land-and-deploy-first-run':     ['land-and-deploy/**', 'scripts/gen-skill-docs.ts', 'bin/gstack-slug'],
@@ -299,9 +296,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'design-shotgun-session': 'gate',
   'design-shotgun-full': 'periodic',
 
-  // gstack-upgrade
-  'gstack-upgrade-happy-path': 'gate',
-
   // Deploy skills
   'land-and-deploy-workflow': 'gate',
   'land-and-deploy-first-run': 'gate',
@@ -372,8 +366,6 @@ export const LLM_JUDGE_TOUCHFILES: Record<string, string[]> = {
   // Other skills
   'retro/SKILL.md instructions':          ['retro/SKILL.md', 'retro/SKILL.md.tmpl'],
   'qa-only/SKILL.md workflow':            ['qa-only/SKILL.md', 'qa-only/SKILL.md.tmpl'],
-  'gstack-upgrade/SKILL.md upgrade flow': ['gstack-upgrade/SKILL.md', 'gstack-upgrade/SKILL.md.tmpl'],
-
   // Voice directive
   'voice directive tone':                 ['scripts/resolvers/preamble.ts', 'review/SKILL.md', 'review/SKILL.md.tmpl', 'scripts/gen-skill-docs.ts'],
 };

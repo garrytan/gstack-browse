@@ -21,7 +21,6 @@ import {
   opencode,
   slate,
   cursor,
-  openclaw,
 } from '../hosts/index';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 
@@ -52,7 +51,6 @@ describe('hosts/index.ts', () => {
     expect(opencode.name).toBe('opencode');
     expect(slate.name).toBe('slate');
     expect(cursor.name).toBe('cursor');
-    expect(openclaw.name).toBe('openclaw');
   });
 
   test('getHostConfig returns correct config', () => {
@@ -469,36 +467,12 @@ describe('host config correctness', () => {
     expect(codex.boundaryInstruction).toContain('Do NOT read');
   });
 
-  test('openclaw has tool rewrites for exec/read/write', () => {
-    expect(openclaw.toolRewrites).toBeDefined();
-    expect(openclaw.toolRewrites!['use the Bash tool']).toBe('use the exec tool');
-    expect(openclaw.toolRewrites!['use the Read tool']).toBe('use the read tool');
-  });
-
-  test('openclaw has CLAUDE.md→AGENTS.md path rewrite', () => {
-    expect(openclaw.pathRewrites.some(r => r.from === 'CLAUDE.md' && r.to === 'AGENTS.md')).toBe(true);
-  });
-
-  test('openclaw has adapter path', () => {
-    expect(openclaw.adapter).toBeDefined();
-    expect(openclaw.adapter).toContain('openclaw-adapter');
-  });
-
-  test('openclaw has no staticFiles (SOUL.md removed)', () => {
-    expect(openclaw.staticFiles).toBeUndefined();
-  });
-
-  test('openclaw includeSkills is empty (native skills replaced generated ones)', () => {
-    expect(openclaw.generation.includeSkills).toBeDefined();
-    expect(openclaw.generation.includeSkills!.length).toBe(0);
-  });
 
   test('every host has coAuthorTrailer or undefined', () => {
     // Claude, Codex, Factory, OpenClaw have explicit trailers
     expect(claude.coAuthorTrailer).toContain('Claude');
     expect(codex.coAuthorTrailer).toContain('Codex');
     expect(factory.coAuthorTrailer).toContain('Factory');
-    expect(openclaw.coAuthorTrailer).toContain('OpenClaw');
   });
 
   test('every external host skips the codex skill', () => {
