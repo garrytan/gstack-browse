@@ -536,14 +536,14 @@ After `resume`, you get a fresh snapshot of wherever the user left off.
 The snapshot is your primary tool for understanding and interacting with pages.
 
 ```
--i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs
+-i        --interactive           Interactive elements only (buttons, links, inputs) with @e refs. Also auto-enables cursor-interactive scan (-C) to capture dropdowns and popovers.
 -c        --compact               Compact (no empty structural nodes)
 -d <N>    --depth                 Limit tree depth (0 = root only, default: unlimited)
 -s <sel>  --selector              Scope to CSS selector
 -D        --diff                  Unified diff against previous snapshot (first call stores baseline)
 -a        --annotate              Annotated screenshot with red overlay boxes and ref labels
 -o <path> --output                Output path for annotated screenshot (default: <temp>/browse-annotated.png)
--C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick)
+-C        --cursor-interactive    Cursor-interactive elements (@c refs — divs with pointer, onclick). Auto-enabled when -i is used.
 ```
 
 All flags can be combined freely. `-o` only applies when `-a` is also used.
