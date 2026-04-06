@@ -199,9 +199,9 @@ Format:
 
 Example entries:
 ```
-2026-03-13 | garrytan/myapp | fp | app/services/auth_service.rb | race-condition
-2026-03-13 | garrytan/myapp | fix | app/models/user.rb | null-check
-2026-03-13 | garrytan/myapp | already-fixed | lib/payments.rb | error-handling
+2026-03-13 | alpacahq/myapp | fp | app/services/auth_service.rb | race-condition
+2026-03-13 | alpacahq/myapp | fix | app/models/user.rb | null-check
+2026-03-13 | alpacahq/myapp | already-fixed | lib/payments.rb | error-handling
 ```
 
 ---

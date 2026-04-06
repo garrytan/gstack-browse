@@ -4,7 +4,7 @@
 
 export interface DesignBrief {
   goal: string;           // "Dashboard for coding assessment tool"
-  audience: string;       // "Technical users, YC partners"
+  audience: string;       // "Technical users, product and engineering teams"
   style: string;          // "Dark theme, cream accents, minimal"
   elements: string[];     // ["builder name", "score badge", "narrative letter"]
   constraints?: string;   // "Max width 1024px, mobile-first"

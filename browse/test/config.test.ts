@@ -136,24 +136,24 @@ describe('config', () => {
 
     test('parses SSH remote URLs', () => {
       // Test the regex directly since we can't mock Bun.spawnSync easily
-      const url = 'git@github.com:garrytan/gstack.git';
+      const url = 'git@github.com:alpacahq/gstack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('garrytan-gstack');
+      expect(`${match![1]}-${match![2]}`).toBe('alpacahq-gstack');
     });
 
     test('parses HTTPS remote URLs', () => {
-      const url = 'https://github.com/garrytan/gstack.git';
+      const url = 'https://github.com/alpacahq/gstack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('garrytan-gstack');
+      expect(`${match![1]}-${match![2]}`).toBe('alpacahq-gstack');
     });
 
     test('parses HTTPS remote URLs without .git suffix', () => {
-      const url = 'https://github.com/garrytan/gstack';
+      const url = 'https://github.com/alpacahq/gstack';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('garrytan-gstack');
+      expect(`${match![1]}-${match![2]}`).toBe('alpacahq-gstack');
     });
   });
 

@@ -102,7 +102,7 @@ describe('welcome page served via HTTP', () => {
 
   test('has try-it section with example prompts', () => {
     expect(html).toContain('Try it now');
-    expect(html).toContain('news.ycombinator.com');
+    expect(html).toContain('reuters.com');
   });
 
   // ─── Extension auto-hide ──────────────────────────────────────────
@@ -137,7 +137,7 @@ describe('welcome page served via HTTP', () => {
   // ─── Footer ───────────────────────────────────────────────────────
 
   test('has footer with attribution', () => {
-    expect(html).toContain('Garry Tan');
-    expect(html).toContain('github.com/garrytan/gstack');
+    expect(html).toContain('open source tooling');
+    expect(html).toContain('Claude Code sessions');
   });
 });

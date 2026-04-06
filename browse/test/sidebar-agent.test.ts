@@ -402,7 +402,7 @@ describe('describeToolCall', () => {
   });
 
   test('full browse binary path recognized', () => {
-    const result = describeToolCall('Bash', { command: '/Users/garrytan/.claude/skills/gstack/browse/dist/browse goto https://example.com' });
+    const result = describeToolCall('Bash', { command: '/Users/developer/.claude/skills/gstack/browse/dist/browse goto https://example.com' });
     expect(result).toBe('Opening https://example.com');
   });
 
