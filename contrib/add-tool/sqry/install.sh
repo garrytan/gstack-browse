@@ -13,11 +13,11 @@ echo ""
 if ! command -v sqry >/dev/null 2>&1; then
   echo "sqry not found on PATH."
   echo ""
-  echo "Install via the signed installer:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/verivus-oss/sqry/main/scripts/install.sh | bash -s -- --component all"
-  echo ""
-  echo "Or via cargo:"
+  echo "Install via cargo (recommended — builds from source):"
   echo "  cargo install sqry-cli sqry-mcp"
+  echo ""
+  echo "Or download a release binary from:"
+  echo "  https://github.com/verivus-oss/sqry/releases"
   echo ""
   echo "Then re-run this script."
   exit 1
@@ -41,7 +41,7 @@ version_lt() {
 
 if version_lt "$SQRY_VERSION" "$MIN_VERSION"; then
   echo "sqry $MIN_VERSION+ required. Please upgrade:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/verivus-oss/sqry/main/scripts/install.sh | bash -s -- --component all"
+  echo "  cargo install sqry-cli sqry-mcp"
   exit 1
 fi
 
@@ -50,9 +50,6 @@ if ! command -v sqry-mcp >/dev/null 2>&1; then
   echo "sqry-mcp not found on PATH."
   echo ""
   echo "Install the MCP server:"
-  echo "  curl -fsSL https://raw.githubusercontent.com/verivus-oss/sqry/main/scripts/install.sh | bash -s -- --component mcp"
-  echo ""
-  echo "Or via cargo:"
   echo "  cargo install sqry-mcp"
   echo ""
   echo "Then re-run this script."

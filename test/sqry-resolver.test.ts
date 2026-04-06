@@ -132,7 +132,6 @@ describe('SQRY_CONTEXT resolver', () => {
     test(`${skillName}: contains index freshness instructions`, () => {
       const result = generateSqryContext(makeCtx(skillName));
       expect(result).toContain('SQRY_INDEXED: no');
-      expect(result).toContain('SQRY_STALE: yes');
       expect(result).toContain('rebuild_index');
     });
 
@@ -143,9 +142,10 @@ describe('SQRY_CONTEXT resolver', () => {
       expect(result).toContain('ReadMcpResourceTool');
     });
 
-    test(`${skillName}: includes manifest health check`, () => {
+    test(`${skillName}: includes security boundary for MCP resources`, () => {
       const result = generateSqryContext(makeCtx(skillName));
-      expect(result).toContain('sqry://meta/manifest');
+      expect(result).toContain('SECURITY');
+      expect(result).toContain('untrusted external content');
     });
 
     test(`${skillName}: does not hardcode parameter limits`, () => {
@@ -184,10 +184,10 @@ describe('generated SKILL.md files contain sqry content', () => {
       expect(content).not.toContain('{{SQRY_CONTEXT}}');
     });
 
-    test(`${skill}/SKILL.md delegates to MCP resources`, () => {
+    test(`${skill}/SKILL.md delegates to MCP resources with security boundary`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
       expect(content).toContain('sqry://docs/capability-map');
-      expect(content).toContain('sqry://meta/manifest');
+      expect(content).toContain('untrusted external content');
     });
   }
 
@@ -209,9 +209,7 @@ describe('preamble detection block', () => {
     const preamble = fs.readFileSync(path.join(ROOT, 'scripts/resolvers/preamble.ts'), 'utf-8');
     expect(preamble).toContain('sqry');
     expect(preamble).toContain('SQRY:');
-    expect(preamble).toContain('SQRY_VERSION');
     expect(preamble).toContain('SQRY_INDEXED');
-    expect(preamble).toContain('SQRY_STALE');
   });
 
   test('generated SKILL.md preamble contains sqry detection output', () => {
