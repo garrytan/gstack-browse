@@ -1,0 +1,87 @@
+{
+  "tool": "sqry",
+  "homepage": "https://github.com/verivus-oss/sqry",
+  "mcp_server_name": "sqry",
+  "detection": {
+    "binary": "sqry",
+    "min_version": "7.0.0",
+    "rebuild_hint": "If you made structural changes this session, call rebuild_index before your next sqry query."
+  },
+  "mcp_resources": {
+    "capability_map": "sqry://docs/capability-map",
+    "tool_guide": "sqry://docs/tool-guide",
+    "manifest": "sqry://meta/manifest"
+  },
+  "integrations": {
+    "investigate": {
+      "phase": "root-cause-investigation",
+      "context": "structural root cause analysis",
+      "tools": [
+        { "tool": "direct_callers", "when": "find immediate callers of the suspect function (one-hop)" },
+        { "tool": "direct_callees", "when": "find immediate callees of the suspect function (one-hop)" },
+        { "tool": "call_hierarchy", "when": "trace multi-level caller/callee chains when one-hop is insufficient" },
+        { "tool": "is_node_in_cycle", "when": "check if the bug site is in a circular dependency" },
+        { "tool": "trace_path", "when": "find the call path from entry point to bug site" },
+        { "tool": "dependency_impact", "when": "understand blast radius — what else breaks if this symbol is wrong" },
+        { "tool": "get_definition", "when": "jump to the actual definition of a symbol referenced in stack traces" },
+        { "tool": "get_references", "when": "find all usages of a suspect symbol across the codebase" }
+      ]
+    },
+    "cso": {
+      "phase": "structural-security-analysis",
+      "context": "AST-powered security audit",
+      "tools": [
+        { "tool": "trace_path", "when": "trace structural call paths from input handlers toward dangerous sinks (exec, eval, innerHTML, raw SQL)" },
+        { "tool": "call_hierarchy", "when": "map the full call tree from auth/authz entry points to verify coverage" },
+        { "tool": "find_cycles", "when": "detect circular dependencies that could cause infinite loops (DoS vectors)" },
+        { "tool": "find_unused", "when": "find dead code that may contain old vulnerabilities or stale auth checks" },
+        { "tool": "complexity_metrics", "when": "flag high-complexity functions (cyclomatic >15) for manual security review" },
+        { "tool": "direct_callers", "when": "verify that security-critical functions are only called from trusted contexts" },
+        { "tool": "semantic_search", "when": "find all functions matching security-relevant patterns (auth*, sanitize*, validate*, escape*)" },
+        { "tool": "cross_language_edges", "when": "find FFI/HTTP boundaries where trust assumptions change" }
+      ]
+    },
+    "review": {
+      "phase": "structural-diff-analysis",
+      "context": "structural analysis of changed code",
+      "tools": [
+        { "tool": "complexity_metrics", "when": "check cyclomatic complexity of changed files — flag regressions" },
+        { "tool": "find_cycles", "when": "check if changed symbols introduced or participate in cycles" },
+        { "tool": "dependency_impact", "when": "analyze downstream impact of changed public APIs" },
+        { "tool": "find_unused", "when": "catch newly-dead code after refactors or API changes" },
+        { "tool": "semantic_diff", "when": "compare structural changes between the PR branch and base branch" },
+        { "tool": "direct_callers", "when": "verify callers of changed functions still work with the new signature" }
+      ]
+    },
+    "retro": {
+      "phase": "structural-trend-analysis",
+      "context": "structural code quality analysis for retrospective",
+      "tools": [
+        { "tool": "semantic_diff", "when": "compare structural changes between this week's HEAD and last week's tag/commit" },
+        { "tool": "complexity_metrics", "when": "track complexity trends — are we adding or reducing complexity?" },
+        { "tool": "find_cycles", "when": "check if new cycles were introduced this week" },
+        { "tool": "get_insights", "when": "get overall codebase health metrics for the retrospective dashboard" }
+      ]
+    },
+    "plan-eng-review": {
+      "phase": "architecture-understanding",
+      "context": "structural architecture analysis for plan review",
+      "tools": [
+        { "tool": "export_graph", "when": "visualize module dependencies to validate architecture boundaries" },
+        { "tool": "subgraph", "when": "extract the dependency neighborhood around components the plan modifies" },
+        { "tool": "show_dependencies", "when": "verify dependency tree of modules the plan touches" },
+        { "tool": "find_cycles", "when": "check for existing cycles the plan should address or avoid" },
+        { "tool": "cross_language_edges", "when": "understand cross-language boundaries the plan must respect" }
+      ]
+    },
+    "ship": {
+      "phase": "pre-ship-structural-check",
+      "context": "structural verification before shipping",
+      "tools": [
+        { "tool": "find_cycles", "when": "verify no circular dependencies in shipped code" },
+        { "tool": "find_unused", "when": "catch dead code being shipped" },
+        { "tool": "complexity_metrics", "when": "verify complexity hasn't regressed" }
+      ]
+    }
+  }
+}
