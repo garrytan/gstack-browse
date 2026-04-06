@@ -645,9 +645,35 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
     fi
     log "  browse: $BROWSE_BIN"
   else
+    # Not inside a skills/ directory — symlink into ~/.claude/skills/ and retry
+    CLAUDE_SKILLS_DIR="$HOME/.claude/skills"
+    CLAUDE_GSTACK_LINK="$CLAUDE_SKILLS_DIR/gstack"
+    mkdir -p "$CLAUDE_SKILLS_DIR"
+    ln -snf "$SOURCE_GSTACK_DIR" "$CLAUDE_GSTACK_LINK"
+    log "  symlinked $CLAUDE_GSTACK_LINK -> $SOURCE_GSTACK_DIR"
+    INSTALL_SKILLS_DIR="$CLAUDE_SKILLS_DIR"
+    INSTALL_GSTACK_DIR="$CLAUDE_GSTACK_LINK"
+    # Clean up stale symlinks from the opposite prefix mode
+    if [ "$SKILL_PREFIX" -eq 1 ]; then
+      cleanup_old_claude_symlinks "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    else
+      cleanup_prefixed_claude_symlinks "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    fi
+    "$SOURCE_GSTACK_DIR/bin/gstack-patch-names" "$SOURCE_GSTACK_DIR" "$SKILL_PREFIX"
+    link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
+    GSTACK_RELINK="$SOURCE_GSTACK_DIR/bin/gstack-relink"
+    if [ -x "$GSTACK_RELINK" ]; then
+      GSTACK_SKILLS_DIR="$INSTALL_SKILLS_DIR" GSTACK_INSTALL_DIR="$SOURCE_GSTACK_DIR" "$GSTACK_RELINK" >/dev/null 2>&1 || true
+    fi
+    _OGB_LINK="$INSTALL_SKILLS_DIR/connect-chrome"
+    if [ "$SKILL_PREFIX" -eq 1 ]; then
+      _OGB_LINK="$INSTALL_SKILLS_DIR/gstack-connect-chrome"
+    fi
+    if [ -L "$_OGB_LINK" ] || [ ! -e "$_OGB_LINK" ]; then
+      ln -snf "gstack/open-gstack-browser" "$_OGB_LINK"
+    fi
     log "gstack ready (claude)."
     log "  browse: $BROWSE_BIN"
-    log "  (skipped skill symlinks — not inside .claude/skills/)"
   fi
 fi
 
