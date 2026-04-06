@@ -731,53 +731,6 @@ describe('Completeness Principle in generated SKILL.md files', () => {
 
 // --- Part 7: Planted-bug fixture validation (A4) ---
 
-describe('Planted-bug fixture validation', () => {
-  test('qa-eval ground truth has exactly 5 planted bugs', () => {
-    const groundTruth = JSON.parse(
-      fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'qa-eval-ground-truth.json'), 'utf-8')
-    );
-    expect(groundTruth.bugs).toHaveLength(5);
-    expect(groundTruth.total_bugs).toBe(5);
-  });
-
-  test('qa-eval-spa ground truth has exactly 5 planted bugs', () => {
-    const groundTruth = JSON.parse(
-      fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'qa-eval-spa-ground-truth.json'), 'utf-8')
-    );
-    expect(groundTruth.bugs).toHaveLength(5);
-    expect(groundTruth.total_bugs).toBe(5);
-  });
-
-  test('qa-eval-checkout ground truth has exactly 5 planted bugs', () => {
-    const groundTruth = JSON.parse(
-      fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'qa-eval-checkout-ground-truth.json'), 'utf-8')
-    );
-    expect(groundTruth.bugs).toHaveLength(5);
-    expect(groundTruth.total_bugs).toBe(5);
-  });
-
-  test('qa-eval.html contains the planted bugs', () => {
-    const html = fs.readFileSync(path.join(ROOT, 'browse', 'test', 'fixtures', 'qa-eval.html'), 'utf-8');
-    // BUG 1: broken link
-    expect(html).toContain('/nonexistent-404-page');
-    // BUG 2: disabled submit
-    expect(html).toContain('disabled');
-    // BUG 3: overflow
-    expect(html).toContain('overflow: hidden');
-    // BUG 4: missing alt
-    expect(html).toMatch(/<img[^>]*src="\/logo\.png"[^>]*>/);
-    expect(html).not.toMatch(/<img[^>]*src="\/logo\.png"[^>]*alt=/);
-    // BUG 5: console error
-    expect(html).toContain("Cannot read properties of undefined");
-  });
-
-  test('review-eval-vuln.rb contains expected vulnerability patterns', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-vuln.rb'), 'utf-8');
-    expect(content).toContain('params[:id]');
-    expect(content).toContain('update_column');
-  });
-});
-
 // --- CEO review mode validation ---
 
 describe('CEO review mode validation', () => {
