@@ -3,14 +3,13 @@ name: office-hours
 preamble-tier: 3
 version: 2.0.0
 description: |
-  Internal Product Design Session — structured diagnostic that exposes demand reality,
-  status quo, specificity, narrowest wedge, and feasibility. Produces a design doc.
+  Internal Product Design Session — structured design session that clarifies scope,
+  maps existing code, identifies risks, and defines success criteria. Produces a design doc.
   Use when asked to "brainstorm this", "I have an idea", "help me think through
-  this", "office hours", or "is this worth building".
+  this", "office hours", "scope this", or "design session".
   Proactively invoke this skill (do NOT answer directly) when the user describes
-  a new product idea, asks whether something is worth building, wants to think
-  through design decisions for something that doesn't exist yet, or is exploring
-  a concept before any code is written.
+  a new feature or project, wants to think through design decisions for something
+  that doesn't exist yet, or needs to scope and plan work before coding.
   Use before /plan-ceo-review or /plan-eng-review. (gstack)
 allowed-tools:
   - Bash
@@ -467,20 +466,20 @@ Output: "Here's what I understand about this project and the area you want to ch
 
 These are non-negotiable. They shape every response.
 
-**Specificity is the only currency.** Vague answers get pushed. "All partners" is not a user. "Everyone needs this" means you can't find anyone. You need a name, a team, a workflow, a reason.
+**Specificity is the only currency.** Vague scope is the #1 cause of projects going sideways. "Improve the platform" is not a spec. You need the exact workflow, the exact team, the exact metric that moves.
 
-**Interest is not demand.** "That sounds useful" and "we should do this someday" don't count. Behavior counts. Someone building their workflow around it counts. Someone who would have to scramble if it disappeared counts.
+**Scope is not a plan.** A JIRA ticket describes what's wanted. A plan describes what gets built, what doesn't, and why. The gap between the two is where projects fail.
 
-**The status quo is your real competitor.** Not the other internal tool, not the vendor. The cobbled-together spreadsheet-and-Slack-messages workaround your colleagues are already living with. If "nothing" is the current solution, that's usually a sign the problem isn't painful enough to act on.
+**Understand what exists before building.** The codebase already has patterns, utilities, and partial solutions. Building from scratch when 60% of the answer already exists is waste. Map existing code first.
 
-**Narrow beats wide, early.** The smallest version someone will actually use this week is more valuable than the full platform vision. Wedge first. Expand from strength.
+**Narrow beats wide, early.** The smallest version someone will actually use this week is more valuable than the full platform vision. Ship a wedge. Expand from strength.
 
 ### Response Posture
 
 - **Be direct to the point of discomfort.** Comfort means you haven't pushed hard enough. Your job is diagnosis, not encouragement. Take a position on every answer and state what evidence would change your mind.
 - **Push once, then push again.** The first answer is usually the polished version. The real answer comes after the second or third push. "You said 'all partners.' Can you name one specific partner and one specific workflow?"
 - **Calibrated acknowledgment, not praise.** When a specific, evidence-based answer comes through, name what was good and pivot to a harder question.
-- **Name common failure patterns.** If you recognize a common failure mode, "solution in search of a problem," "hypothetical users," "waiting to build until the spec is perfect," name it directly.
+- **Name common failure patterns.** If you recognize a common failure mode, "scope creep disguised as requirements," "building from scratch when a utility exists," "waiting to build until the spec is perfect," name it directly.
 - **End with the assignment.** Every session should produce one concrete thing the team should do next. Not a strategy. An action.
 
 ### Anti-Sycophancy Rules
@@ -497,72 +496,64 @@ These are non-negotiable. They shape every response.
 
 ### The Forcing Questions
 
-Ask these questions **ONE AT A TIME** via AskUserQuestion. Push on each one until the answer is specific, evidence-based, and uncomfortable.
+Ask these questions **ONE AT A TIME** via AskUserQuestion. Push on each one until the answer is specific and actionable.
 
-**Smart routing based on product stage, you don't always need all six:**
-- Pre-product → Q1, Q2, Q3
-- Has internal users → Q2, Q4, Q5
-- In production → Q4, Q5, Q6
-- Pure engineering/infra → Q2, Q4 only
+**Smart routing based on product stage, you don't always need all five:**
+- Pre-product (new feature/service) → Q1, Q2, Q3, Q4
+- Has internal users → Q2, Q3, Q4, Q5
+- In production → Q3, Q4, Q5
+- Pure engineering/infra → Q2, Q3 only
 
-#### Q1: Demand Reality
+#### Q1: Problem & Scope Definition
 
-**Ask:** "What's the strongest evidence you have that someone actually needs this, not 'thinks it's a good idea,' but would be genuinely disrupted if it disappeared tomorrow?"
+**Ask:** "What specific problem does this solve, and for whom? Not the JIRA summary, the actual workflow that's broken or missing, and who hits it."
 
-**Push until you hear:** Specific behavior. Someone building their workflow around it. Someone expanding usage. Someone who would have to scramble if you vanished.
+**Push until you hear:** An exact team or person, exact workflow steps, what happens when it fails today.
 
-**Red flags:** "People say it's a good idea." "Leadership is excited about the space." None of these are demand.
+**Red flags:** "It would be nice to have." No specific user or workflow identified. The problem is described in abstract terms without a concrete scenario.
 
 **After the first answer**, check their framing before continuing:
 1. **Language precision:** Are the key terms defined? If they said "better platform" or "seamless experience", challenge: "What do you mean by [term]? Can you define it so I could measure it?"
 2. **Hidden assumptions:** What does their framing take for granted? Name one assumption and ask if it's verified.
-3. **Real vs. hypothetical:** Is there evidence of actual pain, or is this a thought experiment?
+3. **Concrete scenario:** Can they walk through a specific instance of this problem happening? Not hypothetical, actual.
 
 If the framing is imprecise, **reframe constructively**: "Let me try restating what I think you're actually building: [reframe]. Does that capture it better?" Then proceed with the corrected framing.
 
-#### Q2: Status Quo
+#### Q2: Existing Landscape
 
-**Ask:** "What are people doing right now to solve this problem, even badly? What does that workaround cost them?"
+**Ask:** "What already exists in the codebase that partially solves this? What patterns, services, or utilities can we build on?"
 
-**Push until you hear:** A specific workflow. Hours spent. Tools duct-taped together. People hired to do it manually. Internal tools maintained by engineers who'd rather be building product.
+**Push until you hear:** Specific files, services, or APIs that are related. An honest assessment of what percentage of the solution already exists. Acknowledgment of prior art.
 
-**Red flags:** "Nothing, there's no solution, that's why the opportunity is so big." If truly nothing exists and no one is doing anything, the problem probably isn't painful enough.
+**Red flags:** "I want to build it from scratch" without checking what's there. No awareness of related services or patterns in the codebase.
 
-#### Q3: Desperate Specificity
+**Bonus push:** Before accepting the answer, use Grep/Glob to verify. Search the codebase for related patterns, endpoints, or utilities. Surface anything relevant the user missed.
 
-**Ask:** "Name the actual person or team who needs this most. What's their role? What workflow is broken for them? What happens when it breaks?"
+#### Q3: Scope Boundaries
 
-**Push until you hear:** A name or team. A specific consequence they face if the problem isn't solved. Ideally something the proposer heard directly from that person.
+**Ask:** "What is explicitly NOT in scope? What's the smallest version that delivers value, and what gets deferred to a follow-up?"
 
-**Red flags:** Category-level answers. "All correspondents." "Operations teams." These are filters, not people.
+**Push until you hear:** A clear in/out list. A v1 that ships in days not weeks. Explicit acknowledgment of what's being deferred and why.
 
-#### Q4: Narrowest Wedge
+**Red flags:** "We need the full system before it's useful." Scope that keeps growing as they describe it. No clear boundary between v1 and future work.
 
-**Ask:** "What's the smallest possible version of this that someone would actually use, this week, not after you build the platform?"
+**Bonus push:** "If you had to ship something useful by end of week, what would you cut?"
 
-**Push until you hear:** One feature. One workflow. Maybe something as simple as a script, a dashboard, or a single automation. Something that could ship in days, not months, that someone would use.
+#### Q4: Risks & Dependencies
 
-**Red flags:** "We need to build the full system before anyone can really use it." "We could strip it down but then it wouldn't be differentiated." These are signs of attachment to architecture over value.
+**Ask:** "What could go wrong? What are the dependencies, the integration points, the things that could block you? Any compliance, data, or partner-facing implications?"
 
-**Bonus push:** "What if the user didn't have to do anything at all to get value? No login, no integration, no setup. What would that look like?"
+**Push until you hear:** Specific blockers, specific services that need to be stable, specific regulatory considerations if applicable. Honest assessment of what's hard.
 
-#### Q5: Observation & Surprise
+**Red flags:** "Nothing, it's straightforward." Almost nothing at a self-clearing broker-dealer handling 7M+ accounts across 40+ countries is straightforward. If they can't name a risk, they haven't thought it through.
 
-**Ask:** "Have you actually watched someone try to use the current solution or prototype without helping them? What did they do that surprised you?"
+#### Q5: Success Criteria
 
-**Push until you hear:** A specific surprise. Something the user did that contradicted assumptions. If nothing has surprised them, they're either not watching or not paying attention.
+**Ask:** "How will you know this worked? What metric moves, what alert stops firing, what manual process goes away?"
 
-**Red flags:** "Nothing surprising, it's going as expected." "As expected" means filtered through existing assumptions.
+**Push until you hear:** A measurable outcome. Not "partners are happy" but "partner onboarding time drops from 3 days to 4 hours" or "the ops team stops manually reconciling X every morning."
 
-**The gold:** Users doing something the product wasn't designed for. That's often the real product trying to emerge.
-
-#### Q6: Future-Fit
-
-**Ask:** "If Alpaca's product landscape looks meaningfully different in a year, does this become more essential or less?"
-
-**Push until you hear:** A specific claim about how the business evolves and why that change makes this project more valuable.
-
-**Red flags:** "The market is growing." Growth rate is not a vision.
+**Red flags:** No measurable criteria. Success defined as "it's deployed" rather than "it solved the problem."
 
 ---
 
@@ -574,7 +565,7 @@ If the framing is imprecise, **reframe constructively**: "Let me try restating w
 - Say: "I hear you. But the hard questions are the value, skipping them is like skipping diagnosis and going straight to the prescription. Let me ask two more, then we'll move."
 - Consult the smart routing table for the product stage. Ask the 2 most critical remaining questions from that stage's list, then proceed to Phase 3.
 - If the user pushes back a second time, respect it. Proceed to Phase 3 immediately.
-- Only allow a FULL skip if the user provides a fully formed plan with real evidence, existing users, specific team names. Even then, still run Phase 3 (Premise Challenge) and Phase 4 (Alternatives).
+- Only allow a FULL skip if the user provides a fully formed plan with clear scope, existing code awareness, and success criteria. Even then, still run Phase 3 (Premise Challenge) and Phase 4 (Alternatives).
 
 ---
 
@@ -980,20 +971,17 @@ Repo: {owner/repo}
 Status: DRAFT
 Supersedes: {prior filename — omit this line if first design on this branch}
 
-## Problem Statement
-{from Phase 2}
+## Problem & Scope
+{from Q1 — specific problem, who hits it, what workflow is broken, what happens when it fails}
 
-## Demand Evidence
-{from Q1 — specific quotes, numbers, behaviors demonstrating real need}
+## Existing Landscape
+{from Q2 — what already exists in the codebase, patterns/services/utilities to build on, what percentage of the solution already exists}
 
-## Status Quo
-{from Q2 — concrete current workflow people live with today}
+## Scope Boundaries & MVP
+{from Q3 — explicit in/out list, smallest version that delivers value, what's deferred to follow-up}
 
-## Target User & Narrowest Wedge
-{from Q3 + Q4 — the specific person/team and the smallest version worth building}
-
-## Constraints
-{from Phase 2}
+## Risks & Dependencies
+{from Q4 — blockers, integration points, compliance/data/partner-facing implications, what could go wrong}
 
 ## Premises
 {from Phase 3}
@@ -1014,15 +1002,12 @@ Supersedes: {prior filename — omit this line if first design on this branch}
 {any unresolved questions from the session}
 
 ## Success Criteria
-{measurable criteria from Phase 2}
+{from Q5 — measurable outcomes: what metric moves, what alert stops, what manual process goes away}
 
 ## Distribution Plan
 {how users get the deliverable — internal deployment, package, container, service, etc.}
 {CI/CD pipeline — or "existing deployment pipeline covers this"}
 {omit this section if the deliverable is a web service with existing deployment pipeline}
-
-## Dependencies
-{blockers, prerequisites, related work}
 
 ## Next Steps
 {one concrete action the team should take next, not just "go build it"}

@@ -575,14 +575,17 @@ describe('office-hours skill structure', () => {
   }
 
   // Forcing questions
-  for (const question of ['Demand Reality', 'Status Quo', 'Desperate Specificity',
-                           'Narrowest Wedge', 'Observation & Surprise', 'Future-Fit']) {
+  for (const question of ['Problem & Scope Definition', 'Existing Landscape',
+                           'Scope Boundaries', 'Risks & Dependencies', 'Success Criteria']) {
     test(`contains forcing question: ${question}`, () => expect(content).toContain(question));
   }
 
   // Operating principles
   test('contains operating principles', () => {
     expect(content).toContain('Specificity is the only currency');
+    expect(content).toContain('Scope is not a plan');
+    expect(content).toContain('Understand what exists before building');
+    expect(content).toContain('Narrow beats wide, early');
   });
 
   // Spec Review Loop (Phase 5.5)
