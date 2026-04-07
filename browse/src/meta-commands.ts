@@ -125,8 +125,6 @@ export async function handleMetaCommand(
         `PID: ${process.pid}`,
       ];
       if (bm.getIsPersistentMode()) {
-        lines.push(`Profile: ${process.env.BROWSE_PROFILE_DIR || 'unknown'}`);
-      }
         lines.push(`Mode: persistent-profile`);
         lines.push(`Profile: ${process.env.BROWSE_PROFILE_DIR || 'unknown'}`);
       }
