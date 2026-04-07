@@ -18,6 +18,8 @@ INSTALL_DIR="${GSTACK_INSTALL_DIR:-}"
 if [ -z "$INSTALL_DIR" ]; then
   if [ -d "$HOME/.claude/skills/gstack" ]; then
     INSTALL_DIR="$HOME/.claude/skills/gstack"
+  elif [ -d "$HOME/.gemini/skills/gstack" ]; then
+    INSTALL_DIR="$HOME/.gemini/skills/gstack"
   elif [ -d "${SCRIPT_DIR}/.." ] && [ -f "${SCRIPT_DIR}/../setup" ]; then
     INSTALL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
   fi
@@ -52,14 +54,14 @@ for skill_dir in "$INSTALL_DIR"/*/; do
   [ -d "$skill_dir" ] || continue
   skill=$(basename "$skill_dir")
   # Skip non-skill directories
-  case "$skill" in bin|browse|design|docs|extension|lib|node_modules|scripts|test|.git|.github) continue ;; esac
+  case "$skill" in bin | browse | design | docs | extension | lib | node_modules | scripts | test | .git | .github) continue ;; esac
   [ -f "$skill_dir/SKILL.md" ] || continue
 
   if [ "$PREFIX" = "true" ]; then
     # Don't double-prefix directories already named gstack-*
     case "$skill" in
-      gstack-*) link_name="$skill" ;;
-      *)        link_name="gstack-$skill" ;;
+    gstack-*) link_name="$skill" ;;
+    *) link_name="gstack-$skill" ;;
     esac
     # Remove old flat entry if it exists (and isn't the same as the new link)
     [ "$link_name" != "$skill" ] && _cleanup_skill_entry "$SKILLS_DIR/$skill"
@@ -67,8 +69,8 @@ for skill_dir in "$INSTALL_DIR"/*/; do
     link_name="$skill"
     # Don't remove gstack-* dirs that are their real name (e.g., gstack-upgrade)
     case "$skill" in
-      gstack-*) ;; # Already the real name, no old prefixed link to clean
-      *)        _cleanup_skill_entry "$SKILLS_DIR/gstack-$skill" ;;
+    gstack-*) ;; # Already the real name, no old prefixed link to clean
+    *) _cleanup_skill_entry "$SKILLS_DIR/gstack-$skill" ;;
     esac
   fi
   target="$SKILLS_DIR/$link_name"

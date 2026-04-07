@@ -123,6 +123,7 @@ Or target a specific agent with `./setup --host <name>`:
 | Agent | Flag | Skills install to |
 |-------|------|-------------------|
 | OpenAI Codex CLI | `--host codex` | `~/.codex/skills/gstack-*/` |
+| Gemini CLI | `--host gemini` | `~/.gemini/skills/gstack-*/` |
 | OpenCode | `--host opencode` | `~/.config/opencode/skills/gstack-*/` |
 | Cursor | `--host cursor` | `~/.cursor/skills/gstack-*/` |
 | Factory Droid | `--host factory` | `~/.factory/skills/gstack-*/` |
