@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.15.1] - 2026-04-06
+
+### Fixed
+- Parent-process watchdog kills headed Chromium after 15 seconds. The watchdog now checks connection mode (headed/tunnel) and a 30-second activity grace period before shutting down, mirroring the idle timer guards. Headless mode is unchanged.
+- `$B connect` crashes with "domains is not defined". A stray variable reference in the disconnect command body prevented proper cleanup.
+- Watchdog error handling only checked EPERM; now correctly treats only ESRCH as "parent gone" and ignores all other error codes.
+- Pair-agent connect subprocess leaks BROWSE_PARENT_PID from parent environment, causing premature server termination. Now explicitly sets BROWSE_PARENT_PID=0 to disable the watchdog.
+
 ## [0.15.15.0] - 2026-04-06
 
 Community security wave: 8 PRs from 4 contributors, every fix credited as co-author.

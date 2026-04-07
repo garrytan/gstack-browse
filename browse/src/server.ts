@@ -724,12 +724,16 @@ function resetIdleTimer() {
   lastActivity = Date.now();
 }
 
+// Shared guard: headed and tunnel modes should never auto-terminate.
+// Used by both idle timer and parent-process watchdog.
+function shouldSuppressAutoShutdown(): boolean {
+  if (browserManager.getConnectionMode() === 'headed') return true;
+  if (tunnelActive) return true;
+  return false;
+}
+
 const idleCheckInterval = setInterval(() => {
-  // Headed mode: the user is looking at the browser. Never auto-die.
-  // Only shut down when the user explicitly disconnects or closes the window.
-  if (browserManager.getConnectionMode() === 'headed') return;
-  // Tunnel mode: remote agents may send commands sporadically. Never auto-die.
-  if (tunnelActive) return;
+  if (shouldSuppressAutoShutdown()) return;
   if (Date.now() - lastActivity > IDLE_TIMEOUT_MS) {
     console.log(`[browse] Idle for ${IDLE_TIMEOUT_MS / 1000}s, shutting down`);
     shutdown();
@@ -753,16 +757,13 @@ const WATCHDOG_GRACE_MS = 30_000; // skip kill if a command arrived within this 
 let watchdogInterval: ReturnType<typeof setInterval> | null = null;
 if (BROWSE_PARENT_PID > 0) {
   watchdogInterval = setInterval(() => {
-    // Headed mode: user is looking at the browser. Never auto-terminate.
-    if (browserManager.getConnectionMode() === 'headed') return;
-    // Tunnel mode: remote agents may reconnect sporadically.
-    if (tunnelActive) return;
+    if (shouldSuppressAutoShutdown()) return;
     try {
       process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only
     } catch (err: any) {
       // ESRCH = process doesn't exist (parent is gone).
-      // EPERM = process exists but we lack permission — treat as alive.
-      if (err?.code === 'EPERM') return;
+      // Any other code (EPERM, EINVAL, platform-specific) = treat as alive.
+      if (err?.code !== 'ESRCH') return;
       // Parent is gone. But the CLI is short-lived — each `$B` call is a
       // new process, so this fires within seconds of server start. Only
       // shut down if the server has also been idle (no recent commands),
@@ -951,7 +952,8 @@ async function handleCommandInternal(
   }
 
   // ─── Tab ownership check (for scoped tokens) ──────────────
-  if (tokenInfo && tokenInfo.clientId !== 'root' && (WRITE_COMMANDS.has(command) || tokenInfo.tabPolicy === 'own-only')) {
+  // Skip for newtab — it creates a new tab, doesn't access an existing one.
+  if (command !== 'newtab' && tokenInfo && tokenInfo.clientId !== 'root' && (WRITE_COMMANDS.has(command) || tokenInfo.tabPolicy === 'own-only')) {
     const targetTab = tabId ?? browserManager.getActiveTabId();
     if (!browserManager.checkTabAccess(targetTab, tokenInfo.clientId, { isWrite: WRITE_COMMANDS.has(command), ownOnly: tokenInfo.tabPolicy === 'own-only' })) {
       return {
