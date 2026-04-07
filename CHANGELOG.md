@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.15.1] - 2026-04-06
+
+### Fixed
+- pair-agent tunnel drops after 15 seconds. The browse server was monitoring its parent process ID and self-terminating when the CLI exited. Now pair-agent sessions disable the parent watchdog so the server and tunnel stay alive.
+- `$B connect` crashes with "domains is not defined". A stray variable reference in the headed-mode status check prevented GStack Browser from initializing properly.
+
 ## [0.15.15.0] - 2026-04-06
 
 Community security wave: 8 PRs from 4 contributors, every fix credited as co-author.

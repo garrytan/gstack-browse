@@ -929,7 +929,8 @@ async function handleCommandInternal(
   }
 
   // ─── Tab ownership check (for scoped tokens) ──────────────
-  if (tokenInfo && tokenInfo.clientId !== 'root' && (WRITE_COMMANDS.has(command) || tokenInfo.tabPolicy === 'own-only')) {
+  // Skip for newtab — it creates a new tab, doesn't access an existing one.
+  if (command !== 'newtab' && tokenInfo && tokenInfo.clientId !== 'root' && (WRITE_COMMANDS.has(command) || tokenInfo.tabPolicy === 'own-only')) {
     const targetTab = tabId ?? browserManager.getActiveTabId();
     if (!browserManager.checkTabAccess(targetTab, tokenInfo.clientId, { isWrite: WRITE_COMMANDS.has(command), ownOnly: tokenInfo.tabPolicy === 'own-only' })) {
       return {

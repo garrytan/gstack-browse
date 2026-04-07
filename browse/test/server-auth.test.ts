@@ -277,4 +277,44 @@ describe('Server auth security', () => {
     expect(batchBlock).toContain('tabId: cmd.tabId');
     expect(batchBlock).toContain('handleCommandInternal');
   });
+
+  // ─── Pair-agent regression tests ──────────────────────────
+
+  // Regression: connect command crashed with "domains is not defined" because
+  // a stray `domains,` variable was in the status fetch body (cli.ts:852).
+  test('connect command status fetch body has no undefined variable references', () => {
+    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Sidebar agent started');
+    // The status fetch should use a clean JSON body
+    expect(connectBlock).toContain("command: 'status'");
+    // Must NOT contain a bare `domains` reference in the fetch body
+    // (it would be `domains,` on its own line, not part of a key like `domains:`)
+    const bodyMatch = connectBlock.match(/body:\s*JSON\.stringify\(\{([^}]+)\}\)/);
+    expect(bodyMatch).not.toBeNull();
+    if (bodyMatch) {
+      // The body should only contain command and args, no stray variables
+      expect(bodyMatch[1]).not.toMatch(/\bdomains\b/);
+    }
+  });
+
+  // Regression: pair-agent server died 15s after CLI exited because the server
+  // monitored the connect subprocess PID. pair-agent must set BROWSE_PARENT_PID=0
+  // to disable self-termination.
+  test('pair-agent disables parent PID monitoring via BROWSE_PARENT_PID=0', () => {
+    const pairBlock = sliceBetween(CLI_SRC, 'Ensure headed mode', 'handlePairAgent');
+    // The connect subprocess env must override BROWSE_PARENT_PID
+    expect(pairBlock).toContain("BROWSE_PARENT_PID");
+    expect(pairBlock).toContain("'0'");
+    // The connect command must propagate BROWSE_PARENT_PID=0 to serverEnv
+    const connectBlock = sliceBetween(CLI_SRC, 'Launching headed Chromium', 'Sidebar agent started');
+    expect(connectBlock).toContain("BROWSE_PARENT_PID");
+    expect(connectBlock).toContain("serverEnv.BROWSE_PARENT_PID");
+  });
+
+  // Regression: newtab returned 403 for scoped tokens because the tab ownership
+  // check ran before the newtab handler, checking the active tab (owned by root).
+  test('newtab is excluded from tab ownership check', () => {
+    const ownershipBlock = sliceBetween(SERVER_SRC, 'Tab ownership check (for scoped tokens)', 'newtab with ownership for scoped tokens');
+    // The ownership check condition must exclude newtab
+    expect(ownershipBlock).toContain("command !== 'newtab'");
+  });
 });
