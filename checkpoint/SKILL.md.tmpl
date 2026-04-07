@@ -23,26 +23,21 @@ allowed-tools:
 
 # /checkpoint — Save and Resume Working State
 
-You are a **Staff Engineer who keeps meticulous session notes**. Your job is to
-capture the full working context — what's being done, what decisions were made,
-what's left — so that any future session (even on a different branch or workspace)
-can resume without losing a beat.
+You are a **Staff Engineer who keeps meticulous session notes**. Capture full working context — what's being done, decisions made, what's left — so any future session (even on a different branch or workspace) can resume without losing a beat.
 
-**HARD GATE:** Do NOT implement code changes. This skill captures and restores
-context only.
+**HARD GATE:** Do NOT implement code changes. Capture and restore context only.
 
 ---
 
 ## Detect command
 
-Parse the user's input to determine which command to run:
+Parse input to determine which command to run:
 
 - `/checkpoint` or `/checkpoint save` → **Save**
 - `/checkpoint resume` → **Resume**
 - `/checkpoint list` → **List**
 
-If the user provides a title after the command (e.g., `/checkpoint auth refactor`),
-use it as the checkpoint title. Otherwise, infer a title from the current work.
+If the user provides a title after the command (e.g., `/checkpoint auth refactor`), use it. Otherwise infer a title from the current work.
 
 ---
 
@@ -53,8 +48,6 @@ use it as the checkpoint title. Otherwise, infer a title from the current work.
 ```bash
 {{SLUG_SETUP}}
 ```
-
-Collect the current working state:
 
 ```bash
 echo "=== BRANCH ==="
@@ -71,23 +64,18 @@ git log --oneline -10 2>/dev/null
 
 ### Step 2: Summarize context
 
-Using the gathered state plus your conversation history, produce a summary covering:
+Using the gathered state plus conversation history, produce a summary covering:
 
 1. **What's being worked on** — the high-level goal or feature
 2. **Decisions made** — architectural choices, trade-offs, approaches chosen and why
 3. **Remaining work** — concrete next steps, in priority order
-4. **Notes** — anything a future session needs to know (gotchas, blocked items,
-   open questions, things that were tried and didn't work)
+4. **Notes** — gotchas, blocked items, open questions, things tried that didn't work
 
-If the user provided a title, use it. Otherwise, infer a concise title (3-6 words)
-from the work being done.
+If the user provided a title, use it. Otherwise infer a concise title (3-6 words).
 
 ### Step 3: Compute session duration
 
-Try to determine how long this session has been active:
-
 ```bash
-# Try _TEL_START (Conductor timestamp) first, then shell process start time
 if [ -n "$_TEL_START" ]; then
   START_EPOCH="$_TEL_START"
 elif [ -n "$PPID" ]; then
@@ -102,8 +90,7 @@ else
 fi
 ```
 
-If the duration cannot be determined, omit the `session_duration_s` field from the
-checkpoint file.
+If duration cannot be determined, omit `session_duration_s` from the checkpoint file.
 
 ### Step 4: Write checkpoint file
 
@@ -116,11 +103,9 @@ echo "CHECKPOINT_DIR=$CHECKPOINT_DIR"
 echo "TIMESTAMP=$TIMESTAMP"
 ```
 
-Write the checkpoint file to `{CHECKPOINT_DIR}/{TIMESTAMP}-{title-slug}.md` where
-`title-slug` is the title in kebab-case (lowercase, spaces replaced with hyphens,
-special characters removed).
+Write to `{CHECKPOINT_DIR}/{TIMESTAMP}-{title-slug}.md` where `title-slug` is the title in kebab-case.
 
-The file format:
+File format:
 
 ```markdown
 ---
@@ -152,10 +137,9 @@ files_modified:
 {Gotchas, blocked items, open questions, things tried that didn't work}
 ```
 
-The `files_modified` list comes from `git status --short` (both staged and unstaged
-modified files). Use relative paths from the repo root.
+`files_modified` comes from `git status --short` (staged and unstaged). Use relative paths from repo root.
 
-After writing, confirm to the user:
+After writing, confirm:
 
 ```
 CHECKPOINT SAVED
@@ -184,17 +168,13 @@ else
 fi
 ```
 
-List checkpoints from **all branches** (checkpoint files contain the branch name
-in their frontmatter, so all files in the directory are candidates). This enables
-Conductor workspace handoff — a checkpoint saved on one branch can be resumed from
-another.
+List checkpoints from **all branches** — enables Conductor workspace handoff (checkpoint saved on one branch can be resumed from another).
 
 ### Step 2: Load checkpoint
 
-If the user specified a checkpoint (by number, title fragment, or date), find the
-matching file. Otherwise, load the **most recent** checkpoint.
+If the user specified a checkpoint (by number, title fragment, or date), find the match. Otherwise load the **most recent**.
 
-Read the checkpoint file and present a summary:
+Read the file and present:
 
 ```
 RESUMING CHECKPOINT
@@ -210,19 +190,17 @@ Status:      {status}
 {summary from checkpoint}
 
 ### Remaining Work
-{remaining work items from checkpoint}
+{remaining work items}
 
 ### Notes
-{notes from checkpoint}
+{notes}
 ```
 
-If the current branch differs from the checkpoint's branch, note this:
-"This checkpoint was saved on branch `{branch}`. You are currently on
-`{current branch}`. You may want to switch branches before continuing."
+If current branch differs from checkpoint's branch: "This checkpoint was saved on branch `{branch}`. You are currently on `{current branch}`. You may want to switch branches before continuing."
 
 ### Step 3: Offer next steps
 
-After presenting the checkpoint, ask via AskUserQuestion:
+AskUserQuestion:
 
 - A) Continue working on the remaining items
 - B) Show the full checkpoint file
@@ -249,15 +227,9 @@ fi
 
 ### Step 2: Display table
 
-**Default behavior:** Show checkpoints for the **current branch** only.
+**Default:** Current branch only. With `--all` (e.g., `/checkpoint list --all`): all branches.
 
-If the user passes `--all` (e.g., `/checkpoint list --all`), show checkpoints
-from **all branches**.
-
-Read the frontmatter of each checkpoint file to extract `status`, `branch`, and
-`timestamp`. Parse the title from the filename (the part after the timestamp).
-
-Present as a table:
+Read frontmatter of each file to extract `status`, `branch`, `timestamp`. Parse title from filename.
 
 ```
 CHECKPOINTS ({branch} branch)
@@ -266,34 +238,18 @@ CHECKPOINTS ({branch} branch)
 ─  ──────────  ───────────────────────  ───────────
 1  2026-03-31  auth-refactor            in-progress
 2  2026-03-30  api-pagination           completed
-3  2026-03-28  db-migration-setup       in-progress
 ════════════════════════════════════════
 ```
 
-If `--all` is used, add a Branch column:
+With `--all`, add a Branch column.
 
-```
-CHECKPOINTS (all branches)
-════════════════════════════════════════
-#  Date        Title                    Branch              Status
-─  ──────────  ───────────────────────  ──────────────────  ───────────
-1  2026-03-31  auth-refactor            feat/auth           in-progress
-2  2026-03-30  api-pagination           main                completed
-3  2026-03-28  db-migration-setup       feat/db-migration   in-progress
-════════════════════════════════════════
-```
-
-If there are no checkpoints, tell the user: "No checkpoints saved yet. Run
-`/checkpoint` to save your current working state."
+If no checkpoints: "No checkpoints saved yet. Run `/checkpoint` to save your current working state."
 
 ---
 
 ## Important Rules
 
-- **Never modify code.** This skill only reads state and writes checkpoint files.
-- **Always include the branch name** in checkpoint files — this is critical for
-  cross-branch resume in Conductor workspaces.
-- **Checkpoint files are append-only.** Never overwrite or delete existing checkpoint
-  files. Each save creates a new file.
-- **Infer, don't interrogate.** Use git state and conversation context to fill in
-  the checkpoint. Only use AskUserQuestion if the title genuinely cannot be inferred.
+- **Never modify code.** Only reads state and writes checkpoint files.
+- **Always include branch name** in checkpoint files — critical for cross-branch resume.
+- **Checkpoint files are append-only.** Never overwrite or delete existing files.
+- **Infer, don't interrogate.** Use git state and conversation context. Only use AskUserQuestion if title genuinely cannot be inferred.

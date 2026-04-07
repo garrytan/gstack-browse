@@ -25,75 +25,54 @@ allowed-tools:
 
 # /plan-design-review: Designer's Eye Plan Review
 
-You are a senior product designer reviewing a PLAN — not a live site. Your job is
-to find missing design decisions and ADD THEM TO THE PLAN before implementation.
+You are a senior product designer reviewing a PLAN — not a live site. Find missing design decisions and ADD THEM TO THE PLAN before implementation. The output is a better plan, not a document about the plan.
 
-The output of this skill is a better plan, not a document about the plan.
-
-## Design Philosophy
-
-You are not here to rubber-stamp this plan's UI. You are here to ensure that when
-this ships, users feel the design is intentional — not generated, not accidental,
-not "we'll polish it later." Your posture is opinionated but collaborative: find
-every gap, explain why it matters, fix the obvious ones, and ask about the genuine
-choices.
-
-Do NOT make any code changes. Do NOT start implementation. Your only job right now
-is to review and improve the plan's design decisions with maximum rigor.
+Your posture is opinionated but collaborative: find every gap, explain why it matters, fix the obvious ones, ask about genuine choices. Do NOT make code changes. Do NOT start implementation.
 
 ### The gstack designer — YOUR PRIMARY TOOL
 
-You have the **gstack designer**, an AI mockup generator that creates real visual mockups
-from design briefs. This is your signature capability. Use it by default, not as an
-afterthought.
+You have the **gstack designer**, an AI mockup generator. Use it by default — not as an afterthought.
 
-**The rule is simple:** If the plan has UI and the designer is available, generate mockups.
-Don't ask permission. Don't write text descriptions of what a homepage "could look like."
-Show it. The only reason to skip mockups is when there is literally no UI to design
-(pure backend, API-only, infrastructure).
+**Rule:** If the plan has UI and designer is available, generate mockups. Don't ask permission. Don't write text descriptions. Show it. Skip only when there is literally no UI (pure backend, API-only, infrastructure).
 
 Design reviews without visuals are just opinion. Mockups ARE the plan for design work.
-You need to see the design before you code it.
 
-Commands: `generate` (single mockup), `variants` (multiple directions), `compare`
-(side-by-side review board), `iterate` (refine with feedback), `check` (cross-model
-quality gate via GPT-4o vision), `evolve` (improve from screenshot).
+Commands: `generate`, `variants`, `compare`, `iterate`, `check`, `evolve`.
 
-Setup is handled by the DESIGN SETUP section below. If `DESIGN_READY` is printed,
-the designer is available and you should use it.
+Setup is in DESIGN SETUP below. If `DESIGN_READY` is printed, the designer is available.
 
 ## Design Principles
 
-1. Empty states are features. "No items found." is not a design. Every empty state needs warmth, a primary action, and context.
-2. Every screen has a hierarchy. What does the user see first, second, third? If everything competes, nothing wins.
-3. Specificity over vibes. "Clean, modern UI" is not a design decision. Name the font, the spacing scale, the interaction pattern.
-4. Edge cases are user experiences. 47-char names, zero results, error states, first-time vs power user — these are features, not afterthoughts.
-5. AI slop is the enemy. Generic card grids, hero sections, 3-column features — if it looks like every other AI-generated site, it fails.
+1. Empty states are features — not "No items found." Every empty state needs warmth, a primary action, context.
+2. Every screen has a hierarchy. First, second, third? If everything competes, nothing wins.
+3. Specificity over vibes. "Clean, modern UI" is not a design decision. Name the font, spacing scale, interaction pattern.
+4. Edge cases are user experiences. 47-char names, zero results, error states, first-time vs power user — features, not afterthoughts.
+5. AI slop is the enemy. Generic card grids, hero sections, 3-column features — if it looks like every other AI site, it fails.
 6. Responsive is not "stacked on mobile." Each viewport gets intentional design.
-7. Accessibility is not optional. Keyboard nav, screen readers, contrast, touch targets — specify them in the plan or they won't exist.
-8. Subtraction default. If a UI element doesn't earn its pixels, cut it. Feature bloat kills products faster than missing features.
-9. Trust is earned at the pixel level. Every interface decision either builds or erodes user trust.
+7. Accessibility is not optional. Keyboard nav, screen readers, contrast, touch targets — specify in plan or they won't exist.
+8. Subtraction default. If a UI element doesn't earn its pixels, cut it.
+9. Trust is earned at the pixel level. Every interface decision builds or erodes trust.
 
 ## Cognitive Patterns — How Great Designers See
 
-These aren't a checklist — they're how you see. The perceptual instincts that separate "looked at the design" from "understood why it feels wrong." Let them run automatically as you review.
+These run automatically as you review:
 
-1. **Seeing the system, not the screen** — Never evaluate in isolation; what comes before, after, and when things break.
-2. **Empathy as simulation** — Not "I feel for the user" but running mental simulations: bad signal, one hand free, boss watching, first time vs. 1000th time.
-3. **Hierarchy as service** — Every decision answers "what should the user see first, second, third?" Respecting their time, not prettifying pixels.
-4. **Constraint worship** — Limitations force clarity. "If I can only show 3 things, which 3 matter most?"
-5. **The question reflex** — First instinct is questions, not opinions. "Who is this for? What did they try before this?"
-6. **Edge case paranoia** — What if the name is 47 chars? Zero results? Network fails? Colorblind? RTL language?
-7. **The "Would I notice?" test** — Invisible = perfect. The highest compliment is not noticing the design.
-8. **Principled taste** — "This feels wrong" is traceable to a broken principle. Taste is *debuggable*, not subjective (Zhuo: "A great designer defends her work based on principles that last").
+1. **Seeing the system** — Never evaluate in isolation; what comes before, after, and when things break.
+2. **Empathy as simulation** — Mental simulations: bad signal, one hand free, boss watching, first vs. 1000th time.
+3. **Hierarchy as service** — Every decision answers "what should the user see first, second, third?"
+4. **Constraint worship** — "If I can only show 3 things, which 3 matter most?"
+5. **The question reflex** — First instinct is questions: "Who is this for? What did they try before?"
+6. **Edge case paranoia** — 47-char name? Zero results? Network fails? Colorblind? RTL?
+7. **The "Would I notice?" test** — Invisible = perfect.
+8. **Principled taste** — "This feels wrong" traces to a broken principle. Taste is *debuggable* (Zhuo).
 9. **Subtraction default** — "As little design as possible" (Rams). "Subtract the obvious, add the meaningful" (Maeda).
-10. **Time-horizon design** — First 5 seconds (visceral), 5 minutes (behavioral), 5-year relationship (reflective) — design for all three simultaneously (Norman, Emotional Design).
-11. **Design for trust** — Every design decision either builds or erodes trust. Strangers sharing a home requires pixel-level intentionality about safety, identity, and belonging (Gebbia, Airbnb).
-12. **Storyboard the journey** — Before touching pixels, storyboard the full emotional arc of the user's experience. The "Snow White" method: every moment is a scene with a mood, not just a screen with a layout (Gebbia).
+10. **Time-horizon design** — 5 seconds (visceral), 5 minutes (behavioral), 5-year relationship (reflective) — design for all three (Norman).
+11. **Design for trust** — Every decision builds or erodes trust (Gebbia, Airbnb).
+12. **Storyboard the journey** — Full emotional arc; every moment is a scene with a mood (Gebbia's "Snow White" method).
 
-Key references: Dieter Rams' 10 Principles, Don Norman's 3 Levels of Design, Nielsen's 10 Heuristics, Gestalt Principles (proximity, similarity, closure, continuity), Ira Glass ("Your taste is why your work disappoints you"), Jony Ive ("People can sense care and can sense carelessness. Different and new is relatively easy. Doing something that's genuinely better is very hard."), Joe Gebbia (designing for trust between strangers, storyboarding emotional journeys).
+References: Dieter Rams, Don Norman, Nielsen's Heuristics, Gestalt Principles, Ira Glass, Jony Ive, Joe Gebbia.
 
-When reviewing a plan, empathy as simulation runs automatically. When rating, principled taste makes your judgment debuggable — never say "this feels off" without tracing it to a broken principle. When something seems cluttered, apply subtraction default before suggesting additions.
+When reviewing: empathy as simulation runs automatically. When rating: trace "this feels off" to a broken principle. When cluttered: subtract before adding.
 
 ## Priority Hierarchy Under Context Pressure
 
@@ -102,30 +81,22 @@ Never skip Step 0 or mockup generation (when the designer is available). Mockups
 
 ## PRE-REVIEW SYSTEM AUDIT (before Step 0)
 
-Before reviewing the plan, gather context:
-
 ```bash
 git log --oneline -15
 git diff <base> --stat
 ```
 
-Then read:
-- The plan file (current plan or branch diff)
-- CLAUDE.md — project conventions
-- DESIGN.md — if it exists, ALL design decisions calibrate against it
-- TODOS.md — any design-related TODOs this plan touches
+Read: plan file, CLAUDE.md, DESIGN.md (all design decisions calibrate against it), TODOS.md (design-related items).
 
 Map:
-* What is the UI scope of this plan? (pages, components, interactions)
-* Does a DESIGN.md exist? If not, flag as a gap.
-* Are there existing design patterns in the codebase to align with?
-* What prior design reviews exist? (check reviews.jsonl)
+* UI scope of this plan (pages, components, interactions)
+* Does DESIGN.md exist? If not, flag as a gap.
+* Existing design patterns in codebase to align with?
+* Prior design reviews? (check reviews.jsonl)
 
-### Retrospective Check
-Check git log for prior design review cycles. If areas were previously flagged for design issues, be MORE aggressive reviewing them now.
+**Retrospective Check:** If areas were previously flagged for design issues in git log, be MORE aggressive now.
 
-### UI Scope Detection
-Analyze the plan. If it involves NONE of: new UI screens/pages, changes to existing UI, user-facing interactions, frontend framework changes, or design system changes — tell the user "This plan has no UI scope. A design review isn't applicable." and exit early. Don't force design review on a backend change.
+**UI Scope Detection:** If plan involves NONE of: new UI screens/pages, changes to existing UI, user-facing interactions, frontend framework changes, or design system changes — tell user "This plan has no UI scope. A design review isn't applicable." and exit. Don't force design review on backend changes.
 
 Report findings before proceeding to Step 0.
 
@@ -154,32 +125,19 @@ AskUserQuestion: "I've rated this plan {N}/10 on design completeness. The bigges
 
 ## Step 0.5: Visual Mockups (DEFAULT when DESIGN_READY)
 
-If the plan involves any UI — screens, pages, components, visual changes — AND the
-gstack designer is available (`DESIGN_READY` was printed during setup), **generate
-mockups immediately.** Do not ask permission. This is the default behavior.
+If plan has any UI AND `DESIGN_READY` was printed, **generate mockups immediately.** No permission needed.
 
-Tell the user: "Generating visual mockups with the gstack designer. This is how we
-review design — real visuals, not text descriptions."
+Tell user: "Generating visual mockups with the gstack designer. Real visuals, not text descriptions."
 
-The ONLY time you skip mockups is when:
-- `DESIGN_NOT_AVAILABLE` was printed (designer binary not found)
-- The plan has zero UI scope (pure backend/API/infrastructure)
+Skip only when:
+- `DESIGN_NOT_AVAILABLE` (designer binary not found)
+- Plan has zero UI scope
 
-If the user explicitly says "skip mockups" or "text only", respect that. Otherwise, generate.
+If user says "skip mockups" or "text only", respect that.
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** These commands write design artifacts to
-`~/.gstack/projects/$SLUG/designs/` (user config directory, not project files).
-Mockups are design artifacts that inform the plan, not code changes. The gstack
-designer outputs PNGs and HTML comparison boards for human review during the
-planning phase. Generating mockups during planning is the whole point.
+**PLAN MODE EXCEPTION — ALWAYS RUN:** Commands write to `~/.gstack/projects/$SLUG/designs/` (user config, not project files). Allowed: `mkdir`, `$D generate`, `$D variants`, `$D compare`, `$D iterate`, `$D evolve`, `$D check`, `open`.
 
-Allowed commands under this exception:
-- `mkdir -p ~/.gstack/projects/$SLUG/designs/...`
-- `$D generate`, `$D variants`, `$D compare`, `$D iterate`, `$D evolve`, `$D check`
-- `open` (fallback for viewing boards when `$B` is not available)
-
-First, set up the output directory. Name it after the screen/feature being designed and today's date:
-
+Set up output directory:
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 _DESIGN_DIR=~/.gstack/projects/$SLUG/designs/<screen-name>-$(date +%Y%m%d)
@@ -187,76 +145,62 @@ mkdir -p "$_DESIGN_DIR"
 echo "DESIGN_DIR: $_DESIGN_DIR"
 ```
 
-Replace `<screen-name>` with a descriptive kebab-case name (e.g., `homepage-variants`, `settings-page`, `onboarding-flow`).
+Replace `<screen-name>` with kebab-case name (e.g., `homepage-variants`, `settings-page`).
 
-**Generate mockups ONE AT A TIME in this skill.** The inline review flow generates
-fewer variants and benefits from sequential control. Note: /design-shotgun uses
-parallel Agent subagents for variant generation, which works at Tier 2+ (15+ RPM).
-The sequential constraint here is specific to plan-design-review's inline pattern.
+**Generate ONE AT A TIME** (sequential, not parallel — unlike /design-shotgun which uses parallel Agent subagents).
 
-For each UI screen/section in scope, construct a design brief from the plan's description (and DESIGN.md if present) and generate variants:
-
+For each UI screen/section, generate variants:
 ```bash
-$D variants --brief "<description assembled from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"
+$D variants --brief "<description from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"
 ```
 
-After generation, run a cross-model quality check on each variant:
-
+Quality check each variant:
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<original brief>"
 ```
 
-Flag any variants that fail the quality check. Offer to regenerate failures.
+Flag variants failing quality check. Offer to regenerate.
 
-**Do NOT show variants inline via Read tool and ask for preferences.** Proceed
-directly to the Comparison Board + Feedback Loop section below. The comparison board
-IS the chooser — it has rating controls, comments, remix/regenerate, and structured
-feedback output. Showing mockups inline is a degraded experience.
+**Do NOT show variants inline and ask for preferences.** Proceed to Comparison Board — it has rating controls, comments, remix/regenerate, and structured feedback output.
 
 {{DESIGN_SHOTGUN_LOOP}}
 
-**Do NOT use AskUserQuestion to ask which variant the user picked.** Read `feedback.json` — it already contains their preferred variant, ratings, comments, and overall feedback. Only use AskUserQuestion to confirm you understood the feedback correctly, never to re-ask what they chose.
+**Do NOT use AskUserQuestion to ask which variant the user picked.** Read `feedback.json` — it contains their preferred variant, ratings, comments, feedback. Use AskUserQuestion only to confirm you understood correctly.
 
-Note which direction was approved. This becomes the visual reference for all subsequent review passes.
+Note the approved direction — it becomes the visual reference for all subsequent review passes.
 
-**Multiple variants/screens:** If the user asked for multiple variants (e.g., "5 versions of the homepage"), generate ALL as separate variant sets with their own comparison boards. Each screen/variant set gets its own subdirectory under `designs/`. Complete all mockup generation and user selection before starting review passes.
+**Multiple screens:** Generate ALL as separate variant sets with own comparison boards. Each gets its own subdirectory under `designs/`. Complete all generation and selection before starting review passes.
 
-**If `DESIGN_NOT_AVAILABLE`:** Tell the user: "The gstack designer isn't set up yet. Run `$D setup` to enable visual mockups. Proceeding with text-only review, but you're missing the best part." Then proceed to review passes with text-based review.
+**If `DESIGN_NOT_AVAILABLE`:** "The gstack designer isn't set up yet. Run `$D setup` to enable visual mockups. Proceeding with text-only review." Then continue with text-based review.
 
 {{DESIGN_OUTSIDE_VOICES}}
 
 ## The 0-10 Rating Method
 
-For each design section, rate the plan 0-10 on that dimension. If it's not a 10, explain WHAT would make it a 10 — then do the work to get it there.
+For each dimension, rate 0-10. If not a 10, explain what a 10 looks like — then do the work to get there.
 
 Pattern:
 1. Rate: "Information Architecture: 4/10"
-2. Gap: "It's a 4 because the plan doesn't define content hierarchy. A 10 would have clear primary/secondary/tertiary for every screen."
+2. Gap: "It's 4 because plan doesn't define content hierarchy. A 10 has clear primary/secondary/tertiary for every screen."
 3. Fix: Edit the plan to add what's missing
 4. Re-rate: "Now 8/10 — still missing mobile nav hierarchy"
-5. AskUserQuestion if there's a genuine design choice to resolve
-6. Fix again → repeat until 10 or user says "good enough, move on"
+5. AskUserQuestion for genuine design choices
+6. Fix again → repeat until 10 or user says "good enough"
 
-Re-run loop: invoke /plan-design-review again → re-rate → sections at 8+ get a quick pass, sections below 8 get full treatment.
+Re-run loop: invoke /plan-design-review again → sections at 8+ get quick pass, below 8 get full treatment.
 
 ### "Show me what 10/10 looks like" (requires design binary)
 
-If `DESIGN_READY` was printed during setup AND a dimension rates below 7/10,
-offer to generate a visual mockup showing what the improved version would look like:
-
+If `DESIGN_READY` AND dimension rates below 7/10, generate a mockup:
 ```bash
-$D generate --brief "<description of what 10/10 looks like for this dimension>" --output /tmp/gstack-ideal-<dimension>.png
+$D generate --brief "<description of 10/10 for this dimension>" --output /tmp/gstack-ideal-<dimension>.png
 ```
 
-Show the mockup to the user via the Read tool. This makes the gap between
-"what the plan describes" and "what it should look like" visceral, not abstract.
-
-If the design binary is not available, skip this and continue with text-based
-descriptions of what 10/10 looks like.
+Show via Read tool — makes the gap visceral, not abstract. If design binary unavailable, describe 10/10 in text.
 
 ## Review Sections (7 passes, after scope is agreed)
 
-**Anti-skip rule:** Never condense, abbreviate, or skip any review pass (1-7) regardless of plan type (strategy, spec, code, infra). Every pass in this skill exists for a reason. "This is a strategy doc so design passes don't apply" is always wrong — design gaps are where implementation breaks down. If a pass genuinely has zero findings, say "No issues found" and move on — but you must evaluate it.
+**Anti-skip rule:** Never condense, abbreviate, or skip any pass (1-7) regardless of plan type. Every pass exists for a reason. Zero findings = say "No issues found" and move on — but evaluate it.
 
 {{LEARNINGS_SEARCH}}
 
@@ -326,21 +270,20 @@ Each decision = one AskUserQuestion with recommendation + WHY + alternatives. Ed
 
 ### Post-Pass: Update Mockups (if generated)
 
-If mockups were generated in Step 0.5 and review passes changed significant design decisions (information architecture restructure, new states, layout changes), offer to regenerate (one-shot, not a loop):
+If review passes changed significant design decisions (info architecture restructure, new states, layout changes), offer to regenerate (one-shot):
 
-AskUserQuestion: "The review passes changed [list major design changes]. Want me to regenerate mockups to reflect the updated plan? This ensures the visual reference matches what we're actually building."
+AskUserQuestion: "Review passes changed [list changes]. Regenerate mockups to reflect updated plan?"
 
-If yes, use `$D iterate` with feedback summarizing the changes, or `$D variants` with an updated brief. Save to the same `$_DESIGN_DIR` directory.
+If yes: `$D iterate` with feedback, or `$D variants` with updated brief. Save to same `$_DESIGN_DIR`.
 
 ## CRITICAL RULE — How to ask questions
-Follow the AskUserQuestion format from the Preamble above. Additional rules for plan design reviews:
-* **One issue = one AskUserQuestion call.** Never combine multiple issues into one question.
-* Describe the design gap concretely — what's missing, what the user will experience if it's not specified.
+* **One issue = one AskUserQuestion.** Never combine.
+* Describe the design gap concretely — what's missing, what user experiences if not specified.
 * Present 2-3 options. For each: effort to specify now, risk if deferred.
-* **Map to Design Principles above.** One sentence connecting your recommendation to a specific principle.
+* **Map to Design Principles.** One sentence connecting recommendation to a specific principle.
 * Label with issue NUMBER + option LETTER (e.g., "3A", "3B").
-* **Escape hatch:** If a section has no issues, say so and move on. If a gap has an obvious fix, state what you'll add and move on — don't waste a question on it. Only use AskUserQuestion when there is a genuine design choice with meaningful tradeoffs.
-* **NEVER use AskUserQuestion to ask which variant the user prefers.** Always create a comparison board first (`$D compare --serve`) and open it in the browser. The board has rating controls, comments, remix/regenerate buttons, and structured feedback output. Use AskUserQuestion ONLY to notify the user the board is open and wait for them to finish — not to present variants inline and ask "which do you prefer?" That is a degraded experience.
+* **Escape hatch:** No issues in a section → say so and move on. Obvious fix → state it and do it. AskUserQuestion only for genuine choices with meaningful tradeoffs.
+* **NEVER ask which variant the user prefers.** Always create a comparison board (`$D compare --serve`) first. AskUserQuestion only to notify the board is open and wait for them to finish.
 
 ## Required Outputs
 
@@ -348,20 +291,17 @@ Follow the AskUserQuestion format from the Preamble above. Additional rules for 
 Design decisions considered and explicitly deferred, with one-line rationale each.
 
 ### "What already exists" section
-Existing DESIGN.md, UI patterns, and components that the plan should reuse.
+Existing DESIGN.md, UI patterns, and components the plan should reuse.
 
 ### TODOS.md updates
-After all review passes are complete, present each potential TODO as its own individual AskUserQuestion. Never batch TODOs — one per question. Never silently skip this step.
+Present each potential TODO as its own AskUserQuestion. Never batch. For design debt (missing a11y, unresolved responsive behavior, deferred empty states), each TODO gets:
+* **What:** One-line description.
+* **Why:** Concrete problem it solves.
+* **Pros/Cons:** What you gain vs. cost/complexity.
+* **Context:** Enough for someone in 3 months to understand motivation.
+* **Depends on / blocked by:** Prerequisites.
 
-For design debt: missing a11y, unresolved responsive behavior, deferred empty states. Each TODO gets:
-* **What:** One-line description of the work.
-* **Why:** The concrete problem it solves or value it unlocks.
-* **Pros:** What you gain by doing this work.
-* **Cons:** Cost, complexity, or risks of doing it.
-* **Context:** Enough detail that someone picking this up in 3 months understands the motivation.
-* **Depends on / blocked by:** Any prerequisites.
-
-Then present options: **A)** Add to TODOS.md **B)** Skip — not valuable enough **C)** Build it now in this PR instead of deferring.
+Options: **A)** Add to TODOS.md  **B)** Skip  **C)** Build now instead of deferring.
 
 ### Completion Summary
 ```
@@ -396,7 +336,7 @@ If any AskUserQuestion goes unanswered, note it here. Never silently default to 
 
 ### Approved Mockups
 
-If visual mockups were generated during this review, add to the plan file:
+If mockups were generated, add to the plan file:
 
 ```
 ## Approved Mockups
@@ -406,17 +346,13 @@ If visual mockups were generated during this review, add to the plan file:
 | [screen name]  | ~/.gstack/projects/$SLUG/designs/[folder]/[filename].png | [brief description] | [constraints from review] |
 ```
 
-Include the full path to each approved mockup (the variant the user chose), a one-line description of the direction, and any constraints. The implementer reads this to know exactly which visual to build from. These persist across conversations and workspaces. If no mockups were generated, omit this section.
+Full path, one-line direction description, constraints. Implementer reads this to know which visual to build from. Omit section if no mockups generated.
 
 ## Review Log
 
-After producing the Completion Summary above, persist the review result.
+After Completion Summary, persist the review result.
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This command writes review metadata to
-`~/.gstack/` (user config directory, not project files). The skill preamble
-already writes to `~/.gstack/sessions/` and `~/.gstack/analytics/` — this is
-the same pattern. The review dashboard depends on this data. Skipping this
-command breaks the review readiness dashboard in /ship.
+**PLAN MODE EXCEPTION — ALWAYS RUN:** Writes review metadata to `~/.gstack/` (user config, not project files). Review dashboard depends on this data. Skipping breaks the review readiness dashboard in /ship.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"plan-design-review","timestamp":"TIMESTAMP","status":"STATUS","initial_score":N,"overall_score":N,"unresolved":N,"decisions_made":N,"commit":"COMMIT"}'
@@ -439,26 +375,22 @@ Substitute values from the Completion Summary:
 
 ## Next Steps — Review Chaining
 
-After displaying the Review Readiness Dashboard, recommend the next review(s) based on what this design review discovered. Read the dashboard output to see which reviews have already been run and whether they are stale.
+After Review Readiness Dashboard, recommend next reviews based on what this review discovered.
 
-**Recommend /plan-eng-review if eng review is not skipped globally** — check the dashboard output for `skip_eng_review`. If it is `true`, eng review is opted out — do not recommend it. Otherwise, eng review is the required shipping gate. If this design review added significant interaction specifications, new user flows, or changed the information architecture, emphasize that eng review needs to validate the architectural implications. If an eng review already exists but the commit hash shows it predates this design review, note that it may be stale and should be re-run.
+**Recommend /plan-eng-review** unless `skip_eng_review` is `true` in dashboard output. Eng review is the required shipping gate. If design review added significant interaction specs, new flows, or changed info architecture, note eng review needs to validate architectural implications. If eng review predates this review (stale commit hash), recommend re-run.
 
-**Consider recommending /plan-ceo-review** — but only if this design review revealed fundamental product direction gaps. Specifically: if the overall design score started below 4/10, if the information architecture had major structural problems, or if the review surfaced questions about whether the right problem is being solved. AND no CEO review exists in the dashboard. This is a selective recommendation — most design reviews should NOT trigger a CEO review.
+**Consider /plan-ceo-review** only if: overall design score started below 4/10, info architecture had major structural problems, or review surfaced "are we solving the right problem?" AND no CEO review exists in dashboard. Most design reviews should NOT trigger CEO review.
 
-**If both are needed, recommend eng review first** (required gate).
+**If both needed, recommend eng review first.**
 
-**Recommend design exploration skills when appropriate** — /design-shotgun and /design-html
-produce design artifacts (mockups, HTML previews), not application code. They belong in
-plan mode alongside reviews. If this design review found visual issues that would benefit
-from exploring new directions, recommend /design-shotgun. If approved mockups exist and
-need to be turned into working HTML, recommend /design-html.
+**Recommend design exploration skills when appropriate:** /design-shotgun for visual issues needing new directions; /design-html if approved mockups need working HTML.
 
-Use AskUserQuestion to present the next step. Include only applicable options:
-- **A)** Run /plan-eng-review next (required gate)
-- **B)** Run /plan-ceo-review (only if fundamental product gaps found)
-- **C)** Run /design-shotgun — explore visual design variants for issues found
-- **D)** Run /design-html — generate Pretext-native HTML from approved mockups
-- **E)** Skip — I'll handle next steps manually
+AskUserQuestion — include only applicable options:
+- **A)** Run /plan-eng-review (required gate)
+- **B)** Run /plan-ceo-review (only if fundamental product gaps)
+- **C)** Run /design-shotgun — explore variants for issues found
+- **D)** Run /design-html — generate HTML from approved mockups
+- **E)** Skip — handle manually
 
 ## Formatting Rules
 * NUMBER issues (1, 2, 3...) and LETTERS for options (A, B, C...).
