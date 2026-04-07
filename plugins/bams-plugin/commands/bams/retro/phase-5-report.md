@@ -235,11 +235,11 @@ SKIPPED=0
 if [ -f "$METRICS_FILE" ]; then
   # 마크다운 테이블에서 slug 추출 (헤더/구분선 제외, 첫 번째 데이터 컬럼)
   SLUGS=$(awk -F'|' '
-    NR > 1 && !/^[[:space:]]*\|[[:space:]]*[-]+/ && !/^[[:space:]]*\|[[:space:]]*slug/ && NF > 2 {
+    NR > 1 && !/^[[:space:]]*\|[[:space:]]*[-]+/ && NF > 2 {
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
-      if ($2 != "" && $2 != "slug") print $2
+      if ($2 != "" && $2 != "slug" && $2 != "항목" && $2 != "type" && $2 != "순서") print $2
     }
-  ' "$METRICS_FILE")
+  ' "$METRICS_FILE" | grep -E '^(debug|dev|feature|hotfix|plan|ship|retro)_' | sort -u)
 
   if [ -z "$SLUGS" ]; then
     echo "[retro] WARNING: phase1-pipeline-metrics.md에서 slug를 추출할 수 없음 — 스킵"
