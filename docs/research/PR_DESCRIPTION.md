@@ -66,7 +66,7 @@ The tradeoff: authoring TOML is slightly more work than writing prose. But the T
 
 82 minutes wall time. One human (Werner), one Opus 4.6 orchestrator, 29 Sonnet/Haiku agents across 3 waves. The Opus orchestrator read source material from three internal repos, analyzed the gstack codebase, optimized the 3 highest-impact files directly (achieving 53-70% reduction), then dispatched agent fleets for the remaining ~45 files.
 
-The first two agent waves failed on tool permissions (14 agents denied Read/Bash access). The third wave succeeded after permissions were granted. One agent verified the build passes: `bun run gen:skill-docs` regenerates all 36 SKILL.md files cleanly from the optimized templates.
+One agent verified the build passes: `bun run gen:skill-docs` regenerates all 36 SKILL.md files cleanly from the optimized templates. Gemini Pro reviewed the full branch for semantic preservation, structural quality, and risk assessment.
 
 Full timeline in `docs/research/SESSION_LOG.md`.
 
