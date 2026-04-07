@@ -360,7 +360,17 @@ is for execution clarity only.
   symlink awareness, publishing to ClawHub details
 - Run full eval suite to confirm no behavior regressions
 
-**Step 8: Regenerate all SKILL.md files and ship**
+**Step 8: Multi-platform instruction files**
+- Apply token optimization to AGENTS.md (OpenAI Codex, Gemini CLI discovery file)
+- Create GEMINI.md following token-optimized patterns (Gemini CLI native instructions)
+- Ensure all platform instruction files (CLAUDE.md, AGENTS.md, GEMINI.md) share the
+  same TOML contract references so methodology rules are consistent across Claude,
+  Codex, and Gemini regardless of which agent reads which file
+- The 9 host configs (claude, codex, cursor, factory, kiro, openclaw, opencode, slate)
+  each generate host-specific SKILL.md variants. Token optimization applies uniformly
+  via the shared resolver pipeline. TOML contracts are host-agnostic by design.
+
+**Step 9: Regenerate all SKILL.md files and ship**
 - `bun run gen:skill-docs` to regenerate all 36 canonical SKILL.md files and all 7
   host directory variants
 - Run `bun run test:evals:all` (not diff-gated -- this is a broad infrastructure change
