@@ -10,6 +10,7 @@
 - 금지: Edit/Write로 소스 코드 직접 변경, 에이전트 역할 대신 수행
 - "내가 직접 하면 더 빠르다"는 판단으로 위임을 건너뛰지 않는다
 - 위반 감지 시: 즉시 중단하고 pipeline-orchestrator에게 해당 작업을 위임
+- **Work Unit 선택 규칙 준수 필수**: 활성 WU가 2개 이상이면 반드시 AskUserQuestion으로 사용자에게 선택을 요청한다. 커맨드 레벨에서 임의로 WU를 결정하지 않는다 (`_shared_common.md` §Work Unit 선택 참조)
 
 ## 2. 조직도 (6부서 27에이전트)
 
