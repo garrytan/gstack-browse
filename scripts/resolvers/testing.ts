@@ -27,25 +27,22 @@ ls -d test/ tests/ spec/ __tests__/ cypress/ e2e/ 2>/dev/null
 
 **If test framework detected** (config files or test directories found):
 Print "Test framework detected: {name} ({N} existing tests). Skipping bootstrap."
-Read 2-3 existing test files to learn conventions (naming, imports, assertion style, setup patterns).
-Store conventions as prose context for use in Phase 8e.5 or Step 3.4. **Skip the rest of bootstrap.**
+Read 2-3 existing test files to learn conventions (naming, imports, assertion style, setup patterns). **Skip the rest of bootstrap.**
 
-**If BOOTSTRAP_DECLINED** appears: Print "Test bootstrap previously declined — skipping." **Skip the rest of bootstrap.**
+**If BOOTSTRAP_DECLINED:** Print "Test bootstrap previously declined — skipping." **Skip the rest of bootstrap.**
 
-**If NO runtime detected** (no config files found): Use AskUserQuestion:
+**If NO runtime detected:** Use AskUserQuestion:
 "I couldn't detect your project's language. What runtime are you using?"
 Options: A) Node.js/TypeScript B) Ruby/Rails C) Python D) Go E) Rust F) PHP G) Elixir H) This project doesn't need tests.
-If user picks H → write \`.gstack/no-test-bootstrap\` and continue without tests.
+If H → write \`.gstack/no-test-bootstrap\` and continue without tests.
 
-**If runtime detected but no test framework — bootstrap:**
+**If runtime detected but no test framework:**
 
 ### B2. Research best practices
 
-Use WebSearch to find current best practices for the detected runtime:
-- \`"[runtime] best test framework 2025 2026"\`
-- \`"[framework A] vs [framework B] comparison"\`
+WebSearch: \`"[runtime] best test framework 2025 2026"\` and \`"[framework A] vs [framework B] comparison"\`.
 
-If WebSearch is unavailable, use this built-in knowledge table:
+If WebSearch unavailable, use this built-in knowledge table:
 
 | Runtime | Primary recommendation | Alternative |
 |---------|----------------------|-------------|
@@ -73,33 +70,32 @@ If multiple runtimes detected (monorepo) → ask which runtime to set up first, 
 
 ### B4. Install and configure
 
-1. Install the chosen packages (npm/bun/gem/pip/etc.)
+1. Install chosen packages (npm/bun/gem/pip/etc.)
 2. Create minimal config file
 3. Create directory structure (test/, spec/, etc.)
-4. Create one example test matching the project's code to verify setup works
+4. Create one example test to verify setup works
 
-If package installation fails → debug once. If still failing → revert with \`git checkout -- package.json package-lock.json\` (or equivalent for the runtime). Warn user and continue without tests.
+If installation fails → debug once. If still failing → revert with \`git checkout -- package.json package-lock.json\` (or equivalent). Warn user and continue without tests.
 
 ### B4.5. First real tests
 
 Generate 3-5 real tests for existing code:
 
 1. **Find recently changed files:** \`git log --since=30.days --name-only --format="" | sort | uniq -c | sort -rn | head -10\`
-2. **Prioritize by risk:** Error handlers > business logic with conditionals > API endpoints > pure functions
-3. **For each file:** Write one test that tests real behavior with meaningful assertions. Never \`expect(x).toBeDefined()\` — test what the code DOES.
-4. Run each test. Passes → keep. Fails → fix once. Still fails → delete silently.
-5. Generate at least 1 test, cap at 5.
+2. **Prioritize by risk:** Error handlers > business logic > API endpoints > pure functions
+3. **Write one test per file** for real behavior with meaningful assertions. Never \`expect(x).toBeDefined()\`.
+4. Run each. Passes → keep. Fails → fix once. Still fails → delete silently.
+5. At least 1 test, cap at 5.
 
-Never import secrets, API keys, or credentials in test files. Use environment variables or test fixtures.
+Never import secrets or credentials. Use environment variables or test fixtures.
 
 ### B5. Verify
 
 \`\`\`bash
-# Run the full test suite to confirm everything works
 {detected test command}
 \`\`\`
 
-If tests fail → debug once. If still failing → revert all bootstrap changes and warn user.
+If tests fail → debug once. Still failing → revert all bootstrap changes and warn user.
 
 ### B5.5. CI/CD pipeline
 
@@ -116,33 +112,26 @@ Create \`.github/workflows/test.yml\` with:
 - The same test command verified in B5
 - Trigger: push + pull_request
 
-If non-GitHub CI detected → skip CI generation with note: "Detected {provider} — CI pipeline generation supports GitHub Actions only. Add test step to your existing pipeline manually."
+If non-GitHub CI detected → skip CI generation: "Detected {provider} — CI generation supports GitHub Actions only. Add test step to your existing pipeline manually."
 
 ### B6. Create TESTING.md
 
-First check: If TESTING.md already exists → read it and update/append rather than overwriting. Never destroy existing content.
+If TESTING.md already exists → read and update/append, don't overwrite.
 
 Write TESTING.md with:
 - Philosophy: "100% test coverage is the key to great vibe coding. Tests let you move fast, trust your instincts, and ship with confidence — without them, vibe coding is just yolo coding. With tests, it's a superpower."
 - Framework name and version
-- How to run tests (the verified command from B5)
-- Test layers: Unit tests (what, where, when), Integration tests, Smoke tests, E2E tests
-- Conventions: file naming, assertion style, setup/teardown patterns
+- How to run tests (verified command from B5)
+- Test layers: Unit, Integration, Smoke, E2E
+- Conventions: naming, assertion style, setup/teardown patterns
 
 ### B7. Update CLAUDE.md
 
-First check: If CLAUDE.md already has a \`## Testing\` section → skip. Don't duplicate.
+If CLAUDE.md already has \`## Testing\` → skip. Don't duplicate.
 
-Append a \`## Testing\` section:
-- Run command and test directory
-- Reference to TESTING.md
-- Test expectations:
-  - 100% test coverage is the goal — tests make vibe coding safe
-  - When writing new functions, write a corresponding test
-  - When fixing a bug, write a regression test
-  - When adding error handling, write a test that triggers the error
-  - When adding a conditional (if/else, switch), write tests for BOTH paths
-  - Never commit code that makes existing tests fail
+Append \`## Testing\`:
+- Run command and test directory; reference TESTING.md
+- Expectations: 100% coverage goal; test new functions, regression-test bugs, test error handling, test both paths of every conditional; never commit with failing tests
 
 ### B8. Commit
 
@@ -150,7 +139,7 @@ Append a \`## Testing\` section:
 git status --porcelain
 \`\`\`
 
-Only commit if there are changes. Stage all bootstrap files (config, test directory, TESTING.md, CLAUDE.md, .github/workflows/test.yml if created):
+Only commit if there are changes. Stage all bootstrap files:
 \`git commit -m "chore: bootstrap test framework ({framework name})"\`
 
 ---`;
@@ -184,21 +173,19 @@ function generateTestCoverageAuditInner(mode: CoverageAuditMode): string {
 
   // ── Intro (mode-specific) ──
   if (mode === 'ship') {
-    sections.push(`100% coverage is the goal — every untested path is a path where bugs hide and vibe coding becomes yolo coding. Evaluate what was ACTUALLY coded (from the diff), not what was planned.`);
+    sections.push(`100% coverage is the goal — every untested path is where bugs hide. Evaluate what was ACTUALLY coded (from the diff), not what was planned.`);
   } else if (mode === 'plan') {
-    sections.push(`100% coverage is the goal. Evaluate every codepath in the plan and ensure the plan includes tests for each one. If the plan is missing tests, add them — the plan should be complete enough that implementation includes full test coverage from the start.`);
+    sections.push(`100% coverage is the goal. Evaluate every codepath in the plan; add missing tests — implementation should include full coverage from the start.`);
   } else {
-    sections.push(`100% coverage is the goal. Evaluate every codepath changed in the diff and identify test gaps. Gaps become INFORMATIONAL findings that follow the Fix-First flow.`);
+    sections.push(`100% coverage is the goal. Evaluate every codepath changed in the diff; gaps become INFORMATIONAL findings following the Fix-First flow.`);
   }
 
   // ── Test framework detection (shared) ──
   sections.push(`
 ### Test Framework Detection
 
-Before analyzing coverage, detect the project's test framework:
-
-1. **Read CLAUDE.md** — look for a \`## Testing\` section with test command and framework name. If found, use that as the authoritative source.
-2. **If CLAUDE.md has no testing section, auto-detect:**
+1. **Read CLAUDE.md** — look for \`## Testing\` section. If found, use as authoritative source.
+2. **If no testing section, auto-detect:**
 
 \`\`\`bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
@@ -232,10 +219,10 @@ Store this number for the PR body.`);
   const traceSource = mode === 'plan'
     ? `**Step 1. Trace every codepath in the plan:**
 
-Read the plan document. For each new feature, service, endpoint, or component described, trace how data will flow through the code — don't just list planned functions, actually follow the planned execution:`
+Read the plan document. For each new feature, service, endpoint, or component described, trace how data will flow through the code:`
     : `**${mode === 'ship' ? '1' : 'Step 1'}. Trace every codepath changed** using \`git diff origin/<base>...HEAD\`:
 
-Read every changed file. For each one, trace how data flows through the code — don't just list functions, actually follow the execution:`;
+Read every changed file. For each one, trace how data flows through the code:`;
 
   const traceStep1 = mode === 'plan'
     ? `1. **Read the plan.** For each planned component, understand what it does and how it connects to existing code.`
@@ -245,97 +232,75 @@ Read every changed file. For each one, trace how data flows through the code —
 ${traceSource}
 
 ${traceStep1}
-2. **Trace data flow.** Starting from each entry point (route handler, exported function, event listener, component render), follow the data through every branch:
+2. **Trace data flow.** From each entry point (route handler, exported function, event listener, component render), follow data through every branch:
    - Where does input come from? (request params, props, database, API call)
    - What transforms it? (validation, mapping, computation)
    - Where does it go? (database write, API response, rendered output, side effect)
-   - What can go wrong at each step? (null/undefined, invalid input, network failure, empty collection)
+   - What can go wrong? (null/undefined, invalid input, network failure, empty collection)
 3. **Diagram the execution.** For each changed file, draw an ASCII diagram showing:
-   - Every function/method that was added or modified
+   - Every function/method added or modified
    - Every conditional branch (if/else, switch, ternary, guard clause, early return)
    - Every error path (try/catch, rescue, error boundary, fallback)
    - Every call to another function (trace into it — does IT have untested branches?)
-   - Every edge: what happens with null input? Empty array? Invalid type?
+   - Every edge: null input? Empty array? Invalid type?
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.`);
+This is the critical step — building a map of every line that can execute differently based on input. Every branch needs a test.`);
 
   // ── User flow coverage (shared) ──
   sections.push(`
 **${mode === 'ship' ? '2' : 'Step 2'}. Map user flows, interactions, and error states:**
 
-Code coverage isn't enough — you need to cover how real users interact with the changed code. For each changed feature, think through:
+Code coverage isn't enough — cover how real users interact with changed code:
 
-- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs a test.
-- **Interaction edge cases:** What happens when the user does something unexpected?
-  - Double-click/rapid resubmit
-  - Navigate away mid-operation (back button, close tab, click another link)
-  - Submit with stale data (page sat open for 30 minutes, session expired)
-  - Slow connection (API takes 10 seconds — what does the user see?)
-  - Concurrent actions (two tabs, same form)
-- **Error states the user can see:** For every error the code handles, what does the user actually experience?
-  - Is there a clear error message or a silent failure?
-  - Can the user recover (retry, go back, fix input) or are they stuck?
-  - What happens with no network? With a 500 from the API? With invalid data from the server?
-- **Empty/zero/boundary states:** What does the UI show with zero results? With 10,000 results? With a single character input? With maximum-length input?
+- **User flows:** Map the full journey (e.g., "click 'Pay' → validate → API → success/failure"). Each step needs a test.
+- **Interaction edge cases:** double-click/rapid resubmit, navigate away mid-operation, stale data (session expired), slow connection, concurrent actions (two tabs).
+- **Error states:** For every handled error — clear message or silent failure? Can the user recover? No network? 500 from API? Invalid server data?
+- **Empty/zero/boundary states:** Zero results? 10,000 results? Single character? Max-length input?
 
-Add these to your diagram alongside the code branches. A user flow with no test is just as much a gap as an untested if/else.`);
+Add these to your diagram. An untested user flow is as much a gap as an untested if/else.`);
 
   // ── Check branches against tests + quality rubric (shared) ──
   sections.push(`
 **${mode === 'ship' ? '3' : 'Step 3'}. Check each branch against existing tests:**
 
-Go through your diagram branch by branch — both code paths AND user flows. For each one, search for a test that exercises it:
-- Function \`processPayment()\` → look for \`billing.test.ts\`, \`billing.spec.ts\`, \`test/billing_test.rb\`
-- An if/else → look for tests covering BOTH the true AND false path
-- An error handler → look for a test that triggers that specific error condition
-- A call to \`helperFn()\` that has its own branches → those branches need tests too
-- A user flow → look for an integration or E2E test that walks through the journey
-- An interaction edge case → look for a test that simulates the unexpected action
+Go through your diagram — code paths AND user flows. Search for a covering test for each:
+- \`processPayment()\` → look for \`billing.test.ts\`, \`billing.spec.ts\`, \`test/billing_test.rb\`
+- if/else → tests for BOTH true AND false paths
+- Error handler → test that triggers that specific error
+- \`helperFn()\` with its own branches → those branches need tests too
+- User flow → integration or E2E test walking the journey
+- Edge case → test simulating the unexpected action
 
-Quality scoring rubric:
+Quality rubric:
 - ★★★  Tests behavior with edge cases AND error paths
 - ★★   Tests correct behavior, happy path only
-- ★    Smoke test / existence check / trivial assertion (e.g., "it renders", "it doesn't throw")`);
+- ★    Smoke test / existence check / trivial assertion`);
 
   // ── E2E test decision matrix (shared) ──
   sections.push(`
 ### E2E Test Decision Matrix
 
-When checking each branch, also determine whether a unit test or E2E/integration test is the right tool:
+**[→E2E]:** User flow spanning 3+ components/services; integration point where mocking hides real failures; auth/payment/data-destruction flows.
 
-**RECOMMEND E2E (mark as [→E2E] in the diagram):**
-- Common user flow spanning 3+ components/services (e.g., signup → verify email → first login)
-- Integration point where mocking hides real failures (e.g., API → queue → worker → DB)
-- Auth/payment/data-destruction flows — too important to trust unit tests alone
+**[→EVAL]:** Critical LLM call needing quality eval; changes to prompt templates, system instructions, or tool definitions.
 
-**RECOMMEND EVAL (mark as [→EVAL] in the diagram):**
-- Critical LLM call that needs a quality eval (e.g., prompt change → test output still meets quality bar)
-- Changes to prompt templates, system instructions, or tool definitions
-
-**STICK WITH UNIT TESTS:**
-- Pure function with clear inputs/outputs
-- Internal helper with no side effects
-- Edge case of a single function (null input, empty array)
-- Obscure/rare flow that isn't customer-facing`);
+**Unit tests:** Pure function; internal helper with no side effects; edge case of a single function; obscure non-customer-facing flow.`);
 
   // ── Regression rule (shared) ──
   sections.push(`
 ### REGRESSION RULE (mandatory)
 
-**IRON RULE:** When the coverage audit identifies a REGRESSION — code that previously worked but the diff broke — a regression test is ${mode === 'plan' ? 'added to the plan as a critical requirement' : 'written immediately'}. No AskUserQuestion. No skipping. Regressions are the highest-priority test because they prove something broke.
+**IRON RULE:** When the audit identifies a REGRESSION — code the diff broke — a regression test is ${mode === 'plan' ? 'added to the plan as a critical requirement' : 'written immediately'}. No AskUserQuestion. No skipping.
 
-A regression is when:
-- The diff modifies existing behavior (not new code)
-- The existing test suite (if any) doesn't cover the changed path
-- The change introduces a new failure mode for existing callers
+A regression: the diff modifies existing behavior; the test suite doesn't cover the changed path; the change introduces a new failure mode for existing callers.
 
-When uncertain whether a change is a regression, err on the side of writing the test.${mode !== 'plan' ? '\n\nFormat: commit as `test: regression test for {what broke}`' : ''}`);
+When uncertain, err on the side of writing the test.${mode !== 'plan' ? '\n\nFormat: `test: regression test for {what broke}`' : ''}`);
 
   // ── ASCII coverage diagram (shared) ──
   sections.push(`
 **${mode === 'ship' ? '4' : 'Step 4'}. Output ASCII coverage diagram:**
 
-Include BOTH code paths and user flows in the same diagram. Mark E2E-worthy and eval-worthy paths:
+Include BOTH code paths and user flows. Mark E2E-worthy and eval-worthy paths:
 
 \`\`\`
 CODE PATH COVERAGE
@@ -386,19 +351,15 @@ GAPS: 8 paths need tests (2 need E2E, 1 needs eval)
     sections.push(`
 **Step 5. Add missing tests to the plan:**
 
-For each GAP identified in the diagram, add a test requirement to the plan. Be specific:
-- What test file to create (match existing naming conventions)
-- What the test should assert (specific inputs → expected outputs/behavior)
-- Whether it's a unit test, E2E test, or eval (use the decision matrix)
-- For regressions: flag as **CRITICAL** and explain what broke
+For each GAP, add a test requirement: test file name (match naming conventions), what to assert (inputs → expected outputs), unit/E2E/eval type. For regressions: flag **CRITICAL** and explain what broke.
 
-The plan should be complete enough that when implementation begins, every test is written alongside the feature code — not deferred to a follow-up.`);
+The plan must be complete enough that every test is written alongside feature code — not deferred.`);
 
     // ── Test plan artifact (plan + ship) ──
     sections.push(`
 ### Test Plan Artifact
 
-After producing the coverage diagram, write a test plan artifact to the project directory so \`/qa\` and \`/qa-only\` can consume it as primary test input:
+Write a test plan artifact for \`/qa\` and \`/qa-only\`:
 
 \`\`\`bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
@@ -427,75 +388,60 @@ Repo: {owner/repo}
 - {end-to-end flow that must work}
 \`\`\`
 
-This file is consumed by \`/qa\` and \`/qa-only\` as primary test input. Include only the information that helps a QA tester know **what to test and where** — not implementation details.`);
+Include only what helps a QA tester know **what to test and where**.`);
   } else if (mode === 'ship') {
     sections.push(`
 **5. Generate tests for uncovered paths:**
 
 If test framework detected (or bootstrapped in Step 2.5):
-- Prioritize error handlers and edge cases first (happy paths are more likely already tested)
-- Read 2-3 existing test files to match conventions exactly
-- Generate unit tests. Mock all external dependencies (DB, API, Redis).
-- For paths marked [→E2E]: generate integration/E2E tests using the project's E2E framework (Playwright, Cypress, Capybara, etc.)
-- For paths marked [→EVAL]: generate eval tests using the project's eval framework, or flag for manual eval if none exists
-- Write tests that exercise the specific uncovered path with real assertions
-- Run each test. Passes → commit as \`test: coverage for {feature}\`
-- Fails → fix once. Still fails → revert, note gap in diagram.
+- Prioritize error handlers and edge cases first
+- Read 2-3 existing test files to match conventions
+- Unit tests: mock all external dependencies (DB, API, Redis)
+- [→E2E] paths: generate integration/E2E tests using the project's E2E framework
+- [→EVAL] paths: generate eval tests or flag for manual eval if none exists
+- Run each. Passes → commit as \`test: coverage for {feature}\`. Fails → fix once. Still fails → revert, note gap.
 
-Caps: 30 code paths max, 20 tests generated max (code + user flow combined), 2-min per-test exploration cap.
+Caps: 30 code paths, 20 tests, 2-min per-test exploration.
 
-If no test framework AND user declined bootstrap → diagram only, no generation. Note: "Test generation skipped — no test framework configured."
+If no test framework AND user declined bootstrap → diagram only. Note: "Test generation skipped — no test framework configured."
 
-**Diff is test-only changes:** Skip Step 3.4 entirely: "No new application code paths to audit."
+**Diff is test-only changes:** Skip Step 3.4: "No new application code paths to audit."
 
 **6. After-count and coverage summary:**
 
 \`\`\`bash
-# Count test files after generation
 find . -name '*.test.*' -o -name '*.spec.*' -o -name '*_test.*' -o -name '*_spec.*' | grep -v node_modules | wc -l
 \`\`\`
 
-For PR body: \`Tests: {before} → {after} (+{delta} new)\`
+PR body: \`Tests: {before} → {after} (+{delta} new)\`
 Coverage line: \`Test Coverage Audit: N new code paths. M covered (X%). K tests generated, J committed.\`
 
 **7. Coverage gate:**
 
-Before proceeding, check CLAUDE.md for a \`## Test Coverage\` section with \`Minimum:\` and \`Target:\` fields. If found, use those percentages. Otherwise use defaults: Minimum = 60%, Target = 80%.
+Check CLAUDE.md for \`## Test Coverage\` with \`Minimum:\` and \`Target:\` fields. Defaults: Minimum = 60%, Target = 80%.
 
-Using the coverage percentage from the diagram in substep 4 (the \`COVERAGE: X/Y (Z%)\` line):
+Using \`COVERAGE: X/Y (Z%)\` from the diagram:
 
-- **>= target:** Pass. "Coverage gate: PASS ({X}%)." Continue.
-- **>= minimum, < target:** Use AskUserQuestion:
-  - "AI-assessed coverage is {X}%. {N} code paths are untested. Target is {target}%."
-  - RECOMMENDATION: Choose A because untested code paths are where production bugs hide.
-  - Options:
-    A) Generate more tests for remaining gaps (recommended)
-    B) Ship anyway — I accept the coverage risk
-    C) These paths don't need tests — mark as intentionally uncovered
-  - If A: Loop back to substep 5 (generate tests) targeting the remaining gaps. After second pass, if still below target, present AskUserQuestion again with updated numbers. Maximum 2 generation passes total.
-  - If B: Continue. Include in PR body: "Coverage gate: {X}% — user accepted risk."
-  - If C: Continue. Include in PR body: "Coverage gate: {X}% — {N} paths intentionally uncovered."
+- **>= target:** "Coverage gate: PASS ({X}%)." Continue.
+- **>= minimum, < target:** AskUserQuestion:
+  - "AI-assessed coverage is {X}%. {N} paths untested. Target is {target}%."
+  - Options: A) Generate more tests (recommended) B) Ship — I accept the risk C) Mark uncovered paths as intentional
+  - A: loop back to substep 5, max 2 passes. B: PR body "Coverage gate: {X}% — user accepted risk." C: PR body "Coverage gate: {X}% — {N} paths intentionally uncovered."
 
-- **< minimum:** Use AskUserQuestion:
-  - "AI-assessed coverage is critically low ({X}%). {N} of {M} code paths have no tests. Minimum threshold is {minimum}%."
-  - RECOMMENDATION: Choose A because less than {minimum}% means more code is untested than tested.
-  - Options:
-    A) Generate tests for remaining gaps (recommended)
-    B) Override — ship with low coverage (I understand the risk)
-  - If A: Loop back to substep 5. Maximum 2 passes. If still below minimum after 2 passes, present the override choice again.
-  - If B: Continue. Include in PR body: "Coverage gate: OVERRIDDEN at {X}%."
+- **< minimum:** AskUserQuestion:
+  - "AI-assessed coverage is critically low ({X}%). {N} of {M} paths untested. Minimum: {minimum}%."
+  - Options: A) Generate tests (recommended) B) Override — ship anyway
+  - A: loop back, max 2 passes. B: PR body "Coverage gate: OVERRIDDEN at {X}%."
 
-**Coverage percentage undetermined:** If the coverage diagram doesn't produce a clear numeric percentage (ambiguous output, parse error), **skip the gate** with: "Coverage gate: could not determine percentage — skipping." Do not default to 0% or block.
+**Undetermined percentage:** Skip the gate: "Coverage gate: could not determine percentage — skipping." Don't default to 0%.
 
-**Test-only diffs:** Skip the gate (same as the existing fast-path).
-
-**100% coverage:** "Coverage gate: PASS (100%)." Continue.`);
+**Test-only diffs:** Skip the gate. **100%:** "Coverage gate: PASS (100%)." Continue.`);
 
     // ── Test plan artifact (ship mode) ──
     sections.push(`
 ### Test Plan Artifact
 
-After producing the coverage diagram, write a test plan artifact so \`/qa\` and \`/qa-only\` can consume it:
+Write a test plan artifact for \`/qa\` and \`/qa-only\`:
 
 \`\`\`bash
 eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
@@ -528,33 +474,27 @@ Repo: {owner/repo}
     sections.push(`
 **Step 5. Generate tests for gaps (Fix-First):**
 
-If test framework is detected and gaps were identified:
-- Classify each gap as AUTO-FIX or ASK per the Fix-First Heuristic:
-  - **AUTO-FIX:** Simple unit tests for pure functions, edge cases of existing tested functions
-  - **ASK:** E2E tests, tests requiring new test infrastructure, tests for ambiguous behavior
-- For AUTO-FIX gaps: generate the test, run it, commit as \`test: coverage for {feature}\`
-- For ASK gaps: include in the Fix-First batch question with the other review findings
-- For paths marked [→E2E]: always ASK (E2E tests are higher-effort and need user confirmation)
-- For paths marked [→EVAL]: always ASK (eval tests need user confirmation on quality criteria)
+If test framework detected and gaps identified:
+- **AUTO-FIX:** Simple unit tests for pure functions, edge cases of existing tested functions → generate, run, commit as \`test: coverage for {feature}\`
+- **ASK:** E2E tests, new test infrastructure, ambiguous behavior → include in Fix-First batch question
+- [→E2E] always ASK; [→EVAL] always ASK
 
-If no test framework detected → include gaps as INFORMATIONAL findings only, no generation.
+If no test framework → INFORMATIONAL findings only, no generation.
 
-**Diff is test-only changes:** Skip Step 4.75 entirely: "No new application code paths to audit."
+**Diff is test-only changes:** Skip Step 4.75: "No new application code paths to audit."
 
 ### Coverage Warning
 
-After producing the coverage diagram, check the coverage percentage. Read CLAUDE.md for a \`## Test Coverage\` section with a \`Minimum:\` field. If not found, use default: 60%.
+Check coverage percentage. Read CLAUDE.md for \`## Test Coverage\` with \`Minimum:\` field (default: 60%).
 
-If coverage is below the minimum threshold, output a prominent warning **before** the regular review findings:
+If below minimum, output **before** review findings:
 
 \`\`\`
 ⚠️ COVERAGE WARNING: AI-assessed coverage is {X}%. {N} code paths untested.
 Consider writing tests before running /ship.
 \`\`\`
 
-This is INFORMATIONAL — does not block /review. But it makes low coverage visible early so the developer can address it before reaching the /ship coverage gate.
-
-If coverage percentage cannot be determined, skip the warning silently.`);
+INFORMATIONAL — does not block /review. If coverage percentage undetermined, skip silently.`);
   }
 
   return sections.join('\n');

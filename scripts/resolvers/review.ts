@@ -26,11 +26,11 @@ After completing the review, read the review log and config to display the dashb
 ~/.claude/skills/gstack/bin/gstack-review-read
 \`\`\`
 
-Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review). Ignore entries with timestamps older than 7 days. For the Eng Review row, show whichever is more recent between \`review\` (diff-scoped pre-landing review) and \`plan-eng-review\` (plan-stage architecture review). Append "(DIFF)" or "(PLAN)" to the status to distinguish. For the Adversarial row, show whichever is more recent between \`adversarial-review\` (new auto-scaled) and \`codex-review\` (legacy). For Design Review, show whichever is more recent between \`plan-design-review\` (full visual audit) and \`design-review-lite\` (code-level check). Append "(FULL)" or "(LITE)" to the status to distinguish. For the Outside Voice row, show the most recent \`codex-plan-review\` entry — this captures outside voices from both /plan-ceo-review and /plan-eng-review.
+Parse the output. Find the most recent entry for each skill (plan-ceo-review, plan-eng-review, review, plan-design-review, design-review-lite, adversarial-review, codex-review, codex-plan-review). Ignore entries older than 7 days. For Eng Review, show whichever is more recent between \`review\` (diff-scoped) and \`plan-eng-review\` (plan-stage); append "(DIFF)" or "(PLAN)". For Adversarial, show whichever is more recent between \`adversarial-review\` and \`codex-review\` (legacy). For Design Review, show whichever is more recent between \`plan-design-review\` (full) and \`design-review-lite\` (code-level); append "(FULL)" or "(LITE)". For Outside Voice, show the most recent \`codex-plan-review\` entry.
 
-**Source attribution:** If the most recent entry for a skill has a \\\`"via"\\\` field, append it to the status label in parentheses. Examples: \`plan-eng-review\` with \`via:"autoplan"\` shows as "CLEAR (PLAN via /autoplan)". \`review\` with \`via:"ship"\` shows as "CLEAR (DIFF via /ship)". Entries without a \`via\` field show as "CLEAR (PLAN)" or "CLEAR (DIFF)" as before.
+**Source attribution:** If an entry has a \\\`"via"\\\` field, append it to the status label. Examples: \`plan-eng-review\` with \`via:"autoplan"\` → "CLEAR (PLAN via /autoplan)". \`review\` with \`via:"ship"\` → "CLEAR (DIFF via /ship)". Entries without \`via\` show as "CLEAR (PLAN)" or "CLEAR (DIFF)".
 
-Note: \`autoplan-voices\` and \`design-outside-voices\` entries are audit-trail-only (forensic data for cross-model consensus analysis). They do not appear in the dashboard and are not checked by any consumer.
+Note: \`autoplan-voices\` and \`design-outside-voices\` entries are audit-trail-only. They do not appear in the dashboard.
 
 Display:
 
@@ -51,41 +51,38 @@ Display:
 \`\`\`
 
 **Review tiers:**
-- **Eng Review (required by default):** The only review that gates shipping. Covers architecture, code quality, tests, performance. Can be disabled globally with \\\`gstack-config set skip_eng_review true\\\` (the "don't bother me" setting).
-- **CEO Review (optional):** Use your judgment. Recommend it for big product/business changes, new user-facing features, or scope decisions. Skip for bug fixes, refactors, infra, and cleanup.
-- **Design Review (optional):** Use your judgment. Recommend it for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
-- **Adversarial Review (automatic):** Always-on for every review. Every diff gets both Claude adversarial subagent and Codex adversarial challenge. Large diffs (200+ lines) additionally get Codex structured review with P1 gate. No configuration needed.
-- **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete in /plan-ceo-review and /plan-eng-review. Falls back to Claude subagent if Codex is unavailable. Never gates shipping.
+- **Eng Review (required by default):** Gates shipping. Covers architecture, code quality, tests, performance. Disable with \\\`gstack-config set skip_eng_review true\\\`.
+- **CEO Review (optional):** Recommend for big product/business changes, new user-facing features, scope decisions. Skip for bug fixes, refactors, infra.
+- **Design Review (optional):** Recommend for UI/UX changes. Skip for backend-only, infra, or prompt-only changes.
+- **Adversarial Review (automatic):** Always-on. Every diff gets Claude adversarial subagent and Codex adversarial challenge. Large diffs (200+ lines) additionally get Codex structured review with P1 gate.
+- **Outside Voice (optional):** Independent plan review from a different AI model. Offered after all review sections complete. Falls back to Claude subagent if Codex unavailable. Never gates shipping.
 
 **Verdict logic:**
-- **CLEARED**: Eng Review has >= 1 entry within 7 days from either \\\`review\\\` or \\\`plan-eng-review\\\` with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
+- **CLEARED**: Eng Review has >= 1 entry within 7 days from \\\`review\\\` or \\\`plan-eng-review\\\` with status "clean" (or \\\`skip_eng_review\\\` is \\\`true\\\`)
 - **NOT CLEARED**: Eng Review missing, stale (>7 days), or has open issues
 - CEO, Design, and Codex reviews are shown for context but never block shipping
-- If \\\`skip_eng_review\\\` config is \\\`true\\\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
+- If \\\`skip_eng_review\\\` is \\\`true\\\`, Eng Review shows "SKIPPED (global)" and verdict is CLEARED
 
-**Staleness detection:** After displaying the dashboard, check if any existing reviews may be stale:
-- Parse the \\\`---HEAD---\\\` section from the bash output to get the current HEAD commit hash
-- For each review entry that has a \\\`commit\\\` field: compare it against the current HEAD. If different, count elapsed commits: \\\`git rev-list --count STORED_COMMIT..HEAD\\\`. Display: "Note: {skill} review from {date} may be stale — {N} commits since review"
-- For entries without a \\\`commit\\\` field (legacy entries): display "Note: {skill} review from {date} has no commit tracking — consider re-running for accurate staleness detection"
-- If all reviews match the current HEAD, do not display any staleness notes`;
+**Staleness detection:** After displaying the dashboard, check if existing reviews may be stale:
+- Parse the \\\`---HEAD---\\\` section from bash output to get the current HEAD commit hash
+- For entries with a \\\`commit\\\` field: compare against HEAD. If different, count elapsed commits: \\\`git rev-list --count STORED_COMMIT..HEAD\\\`. Display: "Note: {skill} review from {date} may be stale — {N} commits since review"
+- For entries without a \\\`commit\\\` field: display "Note: {skill} review from {date} has no commit tracking — consider re-running"
+- If all reviews match HEAD, display no staleness notes`;
 }
 
 export function generatePlanFileReviewReport(_ctx: TemplateContext): string {
   return `## Plan File Review Report
 
-After displaying the Review Readiness Dashboard in conversation output, also update the
-**plan file** itself so review status is visible to anyone reading the plan.
+After displaying the Review Readiness Dashboard, also update the **plan file** so review status is visible to anyone reading it.
 
 ### Detect the plan file
 
-1. Check if there is an active plan file in this conversation (the host provides plan file
-   paths in system messages — look for plan file references in the conversation context).
-2. If not found, skip this section silently — not every review runs in plan mode.
+1. Check if there is an active plan file in this conversation (host provides plan file paths in system messages).
+2. If not found, skip silently — not every review runs in plan mode.
 
 ### Generate the report
 
-Read the review log output you already have from the Review Readiness Dashboard step above.
-Parse each JSONL entry. Each skill logs different fields:
+Read the review log output from the Review Readiness Dashboard step. Parse each JSONL entry. Each skill logs different fields:
 
 - **plan-ceo-review**: \\\`status\\\`, \\\`unresolved\\\`, \\\`critical_gaps\\\`, \\\`mode\\\`, \\\`scope_proposed\\\`, \\\`scope_accepted\\\`, \\\`scope_deferred\\\`, \\\`commit\\\`
   → Findings: "{scope_proposed} proposals, {scope_accepted} accepted, {scope_deferred} deferred"
@@ -101,9 +98,7 @@ Parse each JSONL entry. Each skill logs different fields:
 - **codex-review**: \\\`status\\\`, \\\`gate\\\`, \\\`findings\\\`, \\\`findings_fixed\\\`
   → Findings: "{findings} findings, {findings_fixed}/{findings} fixed"
 
-All fields needed for the Findings column are now present in the JSONL entries.
-For the review you just completed, you may use richer details from your own Completion
-Summary. For prior reviews, use the JSONL fields directly — they contain all required data.
+All fields for the Findings column are present in JSONL entries. For the review just completed, use richer details from your Completion Summary. For prior reviews, use JSONL fields directly.
 
 Produce this markdown table:
 
@@ -124,88 +119,67 @@ Below the table, add these lines (omit any that are empty/not applicable):
 - **CODEX:** (only if codex-review ran) — one-line summary of codex fixes
 - **CROSS-MODEL:** (only if both Claude and Codex reviews exist) — overlap analysis
 - **UNRESOLVED:** total unresolved decisions across all reviews
-- **VERDICT:** list reviews that are CLEAR (e.g., "CEO + ENG CLEARED — ready to implement").
-  If Eng Review is not CLEAR and not skipped globally, append "eng review required".
+- **VERDICT:** list reviews that are CLEAR (e.g., "CEO + ENG CLEARED — ready to implement"). If Eng Review is not CLEAR and not skipped globally, append "eng review required".
 
 ### Write to the plan file
 
-**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, which is the one
-file you are allowed to edit in plan mode. The plan file review report is part of the
-plan's living status.
+**PLAN MODE EXCEPTION — ALWAYS RUN:** This writes to the plan file, the one file you may edit in plan mode.
 
-- Search the plan file for a \\\`## GSTACK REVIEW REPORT\\\` section **anywhere** in the file
-  (not just at the end — content may have been added after it).
-- If found, **replace it** entirely using the Edit tool. Match from \\\`## GSTACK REVIEW REPORT\\\`
-  through either the next \\\`## \\\` heading or end of file, whichever comes first. This ensures
-  content added after the report section is preserved, not eaten. If the Edit fails
-  (e.g., concurrent edit changed the content), re-read the plan file and retry once.
-- If no such section exists, **append it** to the end of the plan file.
-- Always place it as the very last section in the plan file. If it was found mid-file,
-  move it: delete the old location and append at the end.`;
+- Search for a \\\`## GSTACK REVIEW REPORT\\\` section **anywhere** in the plan file.
+- If found, **replace it** entirely using the Edit tool. Match from \\\`## GSTACK REVIEW REPORT\\\` through either the next \\\`## \\\` heading or end of file, whichever comes first. If Edit fails (concurrent edit), re-read and retry once.
+- If not found, **append it** to the end of the plan file.
+- Always place it as the very last section. If found mid-file, delete the old location and append at the end.`;
 }
 
 export function generateSpecReviewLoop(_ctx: TemplateContext): string {
   return `## Spec Review Loop
 
-Before presenting the document to the user for approval, run an adversarial review.
+Before presenting the document to the user, run an adversarial review.
 
 **Step 1: Dispatch reviewer subagent**
 
-Use the Agent tool to dispatch an independent reviewer. The reviewer has fresh context
-and cannot see the brainstorming conversation — only the document. This ensures genuine
-adversarial independence.
+Use the Agent tool to dispatch an independent reviewer. The reviewer has fresh context and cannot see the brainstorming conversation — only the document.
 
 Prompt the subagent with:
 - The file path of the document just written
-- "Read this document and review it on 5 dimensions. For each dimension, note PASS or
-  list specific issues with suggested fixes. At the end, output a quality score (1-10)
-  across all dimensions."
+- "Read this document and review it on 5 dimensions. For each dimension, note PASS or list specific issues with suggested fixes. At the end, output a quality score (1-10)."
 
 **Dimensions:**
-1. **Completeness** — Are all requirements addressed? Missing edge cases?
-2. **Consistency** — Do parts of the document agree with each other? Contradictions?
-3. **Clarity** — Could an engineer implement this without asking questions? Ambiguous language?
-4. **Scope** — Does the document creep beyond the original problem? YAGNI violations?
-5. **Feasibility** — Can this actually be built with the stated approach? Hidden complexity?
+1. **Completeness** — All requirements addressed? Missing edge cases?
+2. **Consistency** — Parts agree with each other? Contradictions?
+3. **Clarity** — Could an engineer implement this without questions? Ambiguous language?
+4. **Scope** — Creeps beyond the original problem? YAGNI violations?
+5. **Feasibility** — Can this be built with the stated approach? Hidden complexity?
 
-The subagent should return:
+The subagent returns:
 - A quality score (1-10)
-- PASS if no issues, or a numbered list of issues with dimension, description, and fix
+- PASS if no issues, or numbered list of issues with dimension, description, and fix
 
 **Step 2: Fix and re-dispatch**
 
 If the reviewer returns issues:
-1. Fix each issue in the document on disk (use Edit tool)
+1. Fix each issue in the document (Edit tool)
 2. Re-dispatch the reviewer subagent with the updated document
 3. Maximum 3 iterations total
 
-**Convergence guard:** If the reviewer returns the same issues on consecutive iterations
-(the fix didn't resolve them or the reviewer disagrees with the fix), stop the loop
-and persist those issues as "Reviewer Concerns" in the document rather than looping
-further.
+**Convergence guard:** If the reviewer returns the same issues on consecutive iterations, stop and persist those issues as "Reviewer Concerns" in the document.
 
-If the subagent fails, times out, or is unavailable — skip the review loop entirely.
-Tell the user: "Spec review unavailable — presenting unreviewed doc." The document is
-already written to disk; the review is a quality bonus, not a gate.
+If the subagent fails or times out: skip the review loop. Tell the user: "Spec review unavailable — presenting unreviewed doc."
 
 **Step 3: Report and persist metrics**
 
 After the loop completes (PASS, max iterations, or convergence guard):
 
-1. Tell the user the result — summary by default:
-   "Your doc survived N rounds of adversarial review. M issues caught and fixed.
-   Quality score: X/10."
-   If they ask "what did the reviewer find?", show the full reviewer output.
+1. Tell the user the result: "Your doc survived N rounds of adversarial review. M issues caught and fixed. Quality score: X/10." Show full reviewer output only if asked.
 
-2. If issues remain after max iterations or convergence, add a "## Reviewer Concerns"
-   section to the document listing each unresolved issue. Downstream skills will see this.
+2. If issues remain, add a "## Reviewer Concerns" section listing each unresolved issue.
 
 3. Append metrics:
 \`\`\`bash
 mkdir -p ~/.gstack/analytics
 echo '{"skill":"${_ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","iterations":ITERATIONS,"issues_found":FOUND,"issues_fixed":FIXED,"remaining":REMAINING,"quality_score":SCORE}' >> ~/.gstack/analytics/spec-review.jsonl 2>/dev/null || true
 \`\`\`
-Replace ITERATIONS, FOUND, FIXED, REMAINING, SCORE with actual values from the review.`;
+Replace ITERATIONS, FOUND, FIXED, REMAINING, SCORE with actual values.`;
 }
 
 export function generateBenefitsFrom(ctx: TemplateContext): string {
@@ -219,27 +193,21 @@ export function generateBenefitsFrom(ctx: TemplateContext): string {
 
   return `## Prerequisite Skill Offer
 
-When the design doc check above prints "No design doc found," offer the prerequisite
-skill before proceeding.
+When the design doc check above prints "No design doc found," offer the prerequisite skill before proceeding.
 
 Say to the user via AskUserQuestion:
 
-> "No design doc found for this branch. ${skillList} produces a structured problem
-> statement, premise challenge, and explored alternatives — it gives this review much
-> sharper input to work with. Takes about 10 minutes. The design doc is per-feature,
-> not per-product — it captures the thinking behind this specific change."
+> "No design doc found for this branch. ${skillList} produces a structured problem statement, premise challenge, and explored alternatives — sharper input for this review. Takes ~10 minutes. Per-feature, not per-product."
 
 Options:
-- A) Run /${first} now (we'll pick up the review right after)
+- A) Run /${first} now (review picks up after)
 - B) Skip — proceed with standard review
 
-If they skip: "No worries — standard review. If you ever want sharper input, try
-/${first} first next time." Then proceed normally. Do not re-offer later in the session.
+If they skip: "No worries — standard review. Try /${first} first next time." Proceed normally. Do not re-offer.
 
 If they choose A:
 
-Say: "Running /${first} inline. Once the design doc is ready, I'll pick up
-the review right where we left off."
+Say: "Running /${first} inline. I'll pick up the review once the design doc is ready."
 
 ${invokeBlock}
 
@@ -253,8 +221,7 @@ DESIGN=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 \`\`\`
 
-If a design doc is now found, read it and continue the review.
-If none was produced (user may have cancelled), proceed with standard review.`;
+If a design doc is found, read it and continue. If none (user may have cancelled), proceed with standard review.`;
 }
 
 export function generateCodexSecondOpinion(ctx: TemplateContext): string {
@@ -271,23 +238,23 @@ which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 
 Use AskUserQuestion (regardless of codex availability):
 
-> Want a second opinion from an independent AI perspective? It will review your problem statement, key answers, premises, and any landscape findings from this session without having seen this conversation — it gets a structured summary. Usually takes 2-5 minutes.
+> Want a second opinion from an independent AI? It reviews your problem statement, key answers, premises, and landscape findings — without seeing this conversation. Usually 2-5 minutes.
 > A) Yes, get a second opinion
 > B) No, proceed to alternatives
 
-If B: skip Phase 3.5 entirely. Remember that the second opinion did NOT run (affects design doc, founder signals, and Phase 4 below).
+If B: skip Phase 3.5. Remember that the second opinion did NOT run (affects design doc, founder signals, and Phase 4).
 
 **If A: Run the Codex cold read.**
 
 1. Assemble a structured context block from Phases 1-3:
    - Mode (Startup or Builder)
-   - Problem statement (from Phase 1)
-   - Key answers from Phase 2A/2B (summarize each Q&A in 1-2 sentences, include verbatim user quotes)
-   - Landscape findings (from Phase 2.75, if search was run)
-   - Agreed premises (from Phase 3)
+   - Problem statement (Phase 1)
+   - Key answers from Phase 2A/2B (1-2 sentences each, include verbatim user quotes)
+   - Landscape findings (Phase 2.75, if search was run)
+   - Agreed premises (Phase 3)
    - Codebase context (project name, languages, recent activity)
 
-2. **Write the assembled prompt to a temp file** (prevents shell injection from user-derived content):
+2. **Write the assembled prompt to a temp file** (prevents shell injection):
 
 \`\`\`bash
 CODEX_PROMPT_FILE=$(mktemp /tmp/gstack-codex-oh-XXXXXXXX.txt)
@@ -297,9 +264,9 @@ Write the full prompt to this file. **Always start with the filesystem boundary:
 "${CODEX_BOUNDARY}"
 Then add the context block and mode-appropriate instructions:
 
-**Startup mode instructions:** "You are an independent technical advisor reading a transcript of a startup brainstorming session. [CONTEXT BLOCK HERE]. Your job: 1) What is the STRONGEST version of what this person is trying to build? Steelman it in 2-3 sentences. 2) What is the ONE thing from their answers that reveals the most about what they should actually build? Quote it and explain why. 3) Name ONE agreed premise you think is wrong, and what evidence would prove you right. 4) If you had 48 hours and one engineer to build a prototype, what would you build? Be specific — tech stack, features, what you'd skip. Be direct. Be terse. No preamble."
+**Startup mode instructions:** "You are an independent technical advisor reading a startup brainstorming transcript. [CONTEXT BLOCK HERE]. Your job: 1) What is the STRONGEST version of what this person is trying to build? Steelman it in 2-3 sentences. 2) What ONE thing from their answers reveals what they should actually build? Quote it and explain why. 3) Name ONE agreed premise you think is wrong, and what evidence would prove you right. 4) If you had 48 hours and one engineer, what would you build? Be specific — tech stack, features, what you'd skip. Be direct. Be terse. No preamble."
 
-**Builder mode instructions:** "You are an independent technical advisor reading a transcript of a builder brainstorming session. [CONTEXT BLOCK HERE]. Your job: 1) What is the COOLEST version of this they haven't considered? 2) What's the ONE thing from their answers that reveals what excites them most? Quote it. 3) What existing open source project or tool gets them 50% of the way there — and what's the 50% they'd need to build? 4) If you had a weekend to build this, what would you build first? Be specific. Be direct. No preamble."
+**Builder mode instructions:** "You are an independent technical advisor reading a builder brainstorming transcript. [CONTEXT BLOCK HERE]. Your job: 1) What is the COOLEST version of this they haven't considered? 2) What ONE thing from their answers reveals what excites them most? Quote it. 3) What existing open source project gets them 50% there — and what's the 50% they'd build? 4) What would you build first in a weekend? Be specific. Be direct. No preamble."
 
 3. Run Codex:
 
@@ -309,26 +276,20 @@ _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo"
 codex exec "$(cat "$CODEX_PROMPT_FILE")" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_OH"
 \`\`\`
 
-Use a 5-minute timeout (\`timeout: 300000\`). After the command completes, read stderr:
+Use a 5-minute timeout (\`timeout: 300000\`). After completion, read stderr:
 \`\`\`bash
 cat "$TMPERR_OH"
 rm -f "$TMPERR_OH" "$CODEX_PROMPT_FILE"
 \`\`\`
 
-**Error handling:** All errors are non-blocking — second opinion is a quality enhancement, not a prerequisite.
-- **Auth failure:** If stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \\\`codex login\\\` to authenticate." Fall back to Claude subagent.
+**Error handling:** All errors are non-blocking — second opinion is a quality bonus.
+- **Auth failure:** stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \\\`codex login\\\`." Fall back to Claude subagent.
 - **Timeout:** "Codex timed out after 5 minutes." Fall back to Claude subagent.
 - **Empty response:** "Codex returned no response." Fall back to Claude subagent.
 
-On any Codex error, fall back to the Claude subagent below.
-
 **If CODEX_NOT_AVAILABLE (or Codex errored):**
 
-Dispatch via the Agent tool. The subagent has fresh context — genuine independence.
-
-Subagent prompt: same mode-appropriate prompt as above (Startup or Builder variant).
-
-Present findings under a \`SECOND OPINION (Claude subagent):\` header.
+Dispatch via the Agent tool (fresh context — genuine independence). Use the same mode-appropriate prompt. Present findings under \`SECOND OPINION (Claude subagent):\` header.
 
 If the subagent fails or times out: "Second opinion unavailable. Continuing to Phase 4."
 
@@ -350,7 +311,7 @@ SECOND OPINION (Claude subagent):
 ════════════════════════════════════════════════════════════
 \`\`\`
 
-5. **Cross-model synthesis:** After presenting the second opinion output, provide 3-5 bullet synthesis:
+5. **Cross-model synthesis:** After presenting the second opinion, provide 3-5 bullet synthesis:
    - Where Claude agrees with the second opinion
    - Where Claude disagrees and why
    - Whether the challenged premise changes Claude's recommendation
@@ -361,7 +322,7 @@ SECOND OPINION (Claude subagent):
 > A) Revise this premise based on Codex's input
 > B) Keep the original premise — proceed to alternatives
 
-If A: revise the premise and note the revision. If B: proceed (and note that the user defended this premise with reasoning — this is a founder signal if they articulate WHY they disagree, not just dismiss).`;
+If A: revise the premise and note the revision. If B: proceed (note the user defended this premise — a founder signal if they articulate WHY they disagree).`;
 }
 
 // ─── Scope Drift Detection (shared between /review and /ship) ────────
@@ -374,16 +335,15 @@ export function generateScopeDrift(ctx: TemplateContext): string {
 
 Before reviewing code quality, check: **did they build what was requested — nothing more, nothing less?**
 
-1. Read \`TODOS.md\` (if it exists). Read PR description (\`gh pr view --json body --jq .body 2>/dev/null || true\`).
-   Read commit messages (\`git log origin/<base>..HEAD --oneline\`).
-   **If no PR exists:** rely on commit messages and TODOS.md for stated intent — this is the common case since /review runs before /ship creates the PR.
+1. Read \`TODOS.md\` (if exists). Read PR description (\`gh pr view --json body --jq .body 2>/dev/null || true\`). Read commit messages (\`git log origin/<base>..HEAD --oneline\`).
+   **If no PR exists:** rely on commit messages and TODOS.md — common since /review runs before /ship creates the PR.
 2. Identify the **stated intent** — what was this branch supposed to accomplish?
-3. Run \`git diff origin/<base>...HEAD --stat\` and compare the files changed against the stated intent.
+3. Run \`git diff origin/<base>...HEAD --stat\` and compare files changed against stated intent.
 
-4. Evaluate with skepticism (incorporating plan completion results if available from an earlier step or adjacent section):
+4. Evaluate with skepticism (incorporating plan completion results if available):
 
    **SCOPE CREEP detection:**
-   - Files changed that are unrelated to the stated intent
+   - Files changed unrelated to the stated intent
    - New features or refactors not mentioned in the plan
    - "While I was in there..." changes that expand blast radius
 
@@ -401,7 +361,7 @@ Before reviewing code quality, check: **did they build what was requested — no
    [If missing: list each unaddressed requirement]
    \\\`\\\`\\\`
 
-6. This is **INFORMATIONAL** — does not block the review. Proceed to the next step.
+6. **INFORMATIONAL** — does not block the review. Proceed.
 
 ---`;
 }
@@ -432,20 +392,20 @@ echo "DIFF_SIZE: $DIFF_TOTAL"
 echo "OLD_CFG: \${OLD_CFG:-not_set}"
 \`\`\`
 
-If \`OLD_CFG\` is \`disabled\`: skip Codex passes only. Claude adversarial subagent still runs (it's free and fast). Jump to the "Claude adversarial subagent" section.
+If \`OLD_CFG\` is \`disabled\`: skip Codex passes only. Claude adversarial subagent still runs. Jump to "Claude adversarial subagent" section.
 
-**User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the Codex structured review regardless of diff size.
+**User override:** If the user requested "full review", "structured review", or "P1 gate", run Codex structured review regardless of diff size.
 
 ---
 
 ### Claude adversarial subagent (always runs)
 
-Dispatch via the Agent tool. The subagent has fresh context — no checklist bias from the structured review. This genuine independence catches things the primary reviewer is blind to.
+Dispatch via the Agent tool (fresh context — no checklist bias from the structured review).
 
 Subagent prompt:
-"Read the diff for this branch with \`git diff origin/<base>\`. Think like an attacker and a chaos engineer. Your job is to find ways this code will fail in production. Look for: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. Be adversarial. Be thorough. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment)."
+"Read the diff for this branch with \`git diff origin/<base>\`. Think like an attacker and a chaos engineer. Find ways this code will fail in production: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment)."
 
-Present findings under an \`ADVERSARIAL REVIEW (Claude subagent):\` header. **FIXABLE findings** flow into the same Fix-First pipeline as the structured review. **INVESTIGATE findings** are presented as informational.
+Present findings under \`ADVERSARIAL REVIEW (Claude subagent):\` header. **FIXABLE findings** flow into the Fix-First pipeline. **INVESTIGATE findings** are informational.
 
 If the subagent fails or times out: "Claude adversarial subagent unavailable. Continuing."
 
@@ -461,21 +421,21 @@ _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo"
 codex exec "${CODEX_BOUNDARY}Review the changes on this branch against the base branch. Run git diff origin/<base> to see the diff. Your job is to find ways this code will fail in production. Think like an attacker and a chaos engineer. Find edge cases, race conditions, security holes, resource leaks, failure modes, and silent data corruption paths. Be adversarial. Be thorough. No compliments — just the problems." -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_ADV"
 \`\`\`
 
-Set the Bash tool's \`timeout\` parameter to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. After the command completes, read stderr:
+Set Bash tool's \`timeout\` to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. After completion, read stderr:
 \`\`\`bash
 cat "$TMPERR_ADV"
 \`\`\`
 
-Present the full output verbatim. This is informational — it never blocks shipping.
+Present the full output verbatim. Informational — never blocks shipping.
 
-**Error handling:** All errors are non-blocking — adversarial review is a quality enhancement, not a prerequisite.
-- **Auth failure:** If stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \\\`codex login\\\` to authenticate."
+**Error handling:** All errors are non-blocking.
+- **Auth failure:** stderr contains "auth", "login", "unauthorized", or "API key": "Codex authentication failed. Run \\\`codex login\\\`."
 - **Timeout:** "Codex timed out after 5 minutes."
 - **Empty response:** "Codex returned no response. Stderr: <paste relevant error>."
 
 **Cleanup:** Run \`rm -f "$TMPERR_ADV"\` after processing.
 
-If Codex is NOT available: "Codex CLI not found — running Claude adversarial only. Install Codex for cross-model coverage: \`npm install -g @openai/codex\`"
+If Codex is NOT available: "Codex CLI not found — running Claude adversarial only. Install Codex: \`npm install -g @openai/codex\`"
 
 ---
 
@@ -490,7 +450,7 @@ cd "$_REPO_ROOT"
 codex review "${CODEX_BOUNDARY}Review the diff against the base branch." --base <base> -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR"
 \`\`\`
 
-Set the Bash tool's \`timeout\` parameter to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. Present output under \`CODEX SAYS (code review):\` header.
+Set Bash tool's \`timeout\` to \`300000\` (5 minutes). Do NOT use the \`timeout\` shell command — it doesn't exist on macOS. Present output under \`CODEX SAYS (code review):\` header.
 Check for \`[P1]\` markers: found → \`GATE: FAIL\`, not found → \`GATE: PASS\`.
 
 If GATE is FAIL, use AskUserQuestion:
@@ -503,11 +463,11 @@ B) Continue — review will still complete
 
 If A: address the findings${isShip ? '. After fixing, re-run tests (Step 3) since code has changed' : ''}. Re-run \`codex review\` to verify.
 
-Read stderr for errors (same error handling as Codex adversarial above).
+Read stderr for errors (same handling as Codex adversarial above).
 
 After stderr: \`rm -f "$TMPERR"\`
 
-If \`DIFF_TOTAL < 200\`: skip this section silently. The Claude + Codex adversarial passes provide sufficient coverage for smaller diffs.
+If \`DIFF_TOTAL < 200\`: skip silently. Claude + Codex adversarial passes provide sufficient coverage for smaller diffs.
 
 ---
 
@@ -517,13 +477,13 @@ After all passes complete, persist:
 \`\`\`bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"always","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 \`\`\`
-Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
+Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex unavailable. If all passes failed, do NOT persist.
 
 ---
 
 ### Cross-model synthesis
 
-After all passes complete, synthesize findings across all sources:
+After all passes complete:
 
 \`\`\`
 ADVERSARIAL REVIEW SYNTHESIS (always-on, N lines):
@@ -536,7 +496,7 @@ ADVERSARIAL REVIEW SYNTHESIS (always-on, N lines):
 ════════════════════════════════════════════════════════════
 \`\`\`
 
-High-confidence findings (agreed on by multiple sources) should be prioritized for fixes.
+High-confidence findings (agreed by multiple sources) should be prioritized for fixes.
 
 ---`;
 }
@@ -547,9 +507,7 @@ export function generateCodexPlanReview(ctx: TemplateContext): string {
 
   return `## Outside Voice — Independent Plan Challenge (optional, recommended)
 
-After all review sections are complete, offer an independent second opinion from a
-different AI system. Two models agreeing on a plan is stronger signal than one model's
-thorough review.
+After all review sections complete, offer an independent second opinion from a different AI system. Two models agreeing on a plan is stronger signal than one model's thorough review.
 
 **Check tool availability:**
 
@@ -559,37 +517,21 @@ which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
 
 Use AskUserQuestion:
 
-> "All review sections are complete. Want an outside voice? A different AI system can
-> give a brutally honest, independent challenge of this plan — logical gaps, feasibility
-> risks, and blind spots that are hard to catch from inside the review. Takes about 2
-> minutes."
+> "All review sections complete. Want an outside voice? A different AI can give a brutally honest, independent challenge — logical gaps, feasibility risks, and blind spots. Takes ~2 minutes."
 >
-> RECOMMENDATION: Choose A — an independent second opinion catches structural blind
-> spots. Two different AI models agreeing on a plan is stronger signal than one model's
-> thorough review. Completeness: A=9/10, B=7/10.
+> RECOMMENDATION: Choose A — independent second opinion catches structural blind spots. Two models agreeing is stronger signal than one thorough review. Completeness: A=9/10, B=7/10.
 
 Options:
 - A) Get the outside voice (recommended)
 - B) Skip — proceed to outputs
 
-**If B:** Print "Skipping outside voice." and continue to the next section.
+**If B:** Print "Skipping outside voice." and continue.
 
-**If A:** Construct the plan review prompt. Read the plan file being reviewed (the file
-the user pointed this review at, or the branch diff scope). If a CEO plan document
-was written in Step 0D-POST, read that too — it contains the scope decisions and vision.
+**If A:** Read the plan file being reviewed (the file the user pointed this review at, or the branch diff scope). If a CEO plan document was written in Step 0D-POST, read that too.
 
-Construct this prompt (substitute the actual plan content — if plan content exceeds 30KB,
-truncate to the first 30KB and note "Plan truncated for size"). **Always start with the
-filesystem boundary instruction:**
+Construct this prompt (substitute actual plan content — if plan content exceeds 30KB, truncate to first 30KB and note "Plan truncated for size"). **Always start with the filesystem boundary:**
 
-"${CODEX_BOUNDARY}You are a brutally honest technical reviewer examining a development plan that has
-already been through a multi-section review. Your job is NOT to repeat that review.
-Instead, find what it missed. Look for: logical gaps and unstated assumptions that
-survived the review scrutiny, overcomplexity (is there a fundamentally simpler
-approach the review was too deep in the weeds to see?), feasibility risks the review
-took for granted, missing dependencies or sequencing issues, and strategic
-miscalibration (is this the right thing to build at all?). Be direct. Be terse. No
-compliments. Just the problems.
+"${CODEX_BOUNDARY}You are a brutally honest technical reviewer examining a development plan that has already been through a multi-section review. Your job is NOT to repeat that review. Instead, find what it missed: logical gaps and unstated assumptions that survived scrutiny, overcomplexity (is there a fundamentally simpler approach?), feasibility risks taken for granted, missing dependencies or sequencing issues, and strategic miscalibration (is this the right thing to build?). Be direct. Be terse. No compliments. Just the problems.
 
 THE PLAN:
 <plan content>"
@@ -602,7 +544,7 @@ _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo"
 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' --enable web_search_cached 2>"$TMPERR_PV"
 \`\`\`
 
-Use a 5-minute timeout (\`timeout: 300000\`). After the command completes, read stderr:
+Use a 5-minute timeout (\`timeout: 300000\`). After completion, read stderr:
 \`\`\`bash
 cat "$TMPERR_PV"
 \`\`\`
@@ -616,8 +558,8 @@ CODEX SAYS (plan review — outside voice):
 ════════════════════════════════════════════════════════════
 \`\`\`
 
-**Error handling:** All errors are non-blocking — the outside voice is informational.
-- Auth failure (stderr contains "auth", "login", "unauthorized"): "Codex auth failed. Run \\\`codex login\\\` to authenticate."
+**Error handling:** All errors are non-blocking.
+- Auth failure (stderr contains "auth", "login", "unauthorized"): "Codex auth failed. Run \\\`codex login\\\`."
 - Timeout: "Codex timed out after 5 minutes."
 - Empty response: "Codex returned no response."
 
@@ -625,18 +567,13 @@ On any Codex error, fall back to the Claude adversarial subagent.
 
 **If CODEX_NOT_AVAILABLE (or Codex errored):**
 
-Dispatch via the Agent tool. The subagent has fresh context — genuine independence.
-
-Subagent prompt: same plan review prompt as above.
-
-Present findings under an \`OUTSIDE VOICE (Claude subagent):\` header.
+Dispatch via the Agent tool (fresh context — genuine independence). Use the same plan review prompt. Present findings under \`OUTSIDE VOICE (Claude subagent):\` header.
 
 If the subagent fails or times out: "Outside voice unavailable. Continuing to outputs."
 
 **Cross-model tension:**
 
-After presenting the outside voice findings, note any points where the outside voice
-disagrees with the review findings from earlier sections. Flag these as:
+After presenting the outside voice, note where it disagrees with earlier review sections. Flag each as:
 
 \`\`\`
 CROSS-MODEL TENSION:
@@ -644,19 +581,13 @@ CROSS-MODEL TENSION:
   State what context you might be missing that would change the answer.]
 \`\`\`
 
-**User Sovereignty:** Do NOT auto-incorporate outside voice recommendations into the plan.
-Present each tension point to the user. The user decides. Cross-model agreement is a
-strong signal — present it as such — but it is NOT permission to act. You may state
-which argument you find more compelling, but you MUST NOT apply the change without
-explicit user approval.
+**User Sovereignty:** Do NOT auto-incorporate outside voice recommendations. Present each tension point to the user. The user decides. You may state which argument you find more compelling, but MUST NOT apply changes without explicit user approval.
 
 For each substantive tension point, use AskUserQuestion:
 
-> "Cross-model disagreement on [topic]. The review found [X] but the outside voice
-> argues [Y]. [One sentence on what context you might be missing.]"
+> "Cross-model disagreement on [topic]. The review found [X] but the outside voice argues [Y]. [One sentence on missing context.]"
 >
-> RECOMMENDATION: Choose [A or B] because [one-line reason explaining which argument
-> is more compelling and why]. Completeness: A=X/10, B=Y/10.
+> RECOMMENDATION: Choose [A or B] because [one-line reason]. Completeness: A=X/10, B=Y/10.
 
 Options:
 - A) Accept the outside voice's recommendation (I'll apply this change)
@@ -664,18 +595,16 @@ Options:
 - C) Investigate further before deciding
 - D) Add to TODOS.md for later
 
-Wait for the user's response. Do NOT default to accepting because you agree with the
-outside voice. If the user chooses B, the current approach stands — do not re-argue.
+Wait for the user's response. If the user chooses B, the current approach stands — do not re-argue.
 
-If no tension points exist, note: "No cross-model tension — both reviewers agree."
+If no tension points exist: "No cross-model tension — both reviewers agree."
 
 **Persist the result:**
 \`\`\`bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"codex-plan-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 \`\`\`
 
-Substitute: STATUS = "clean" if no findings, "issues_found" if findings exist.
-SOURCE = "codex" if Codex ran, "claude" if subagent ran.
+Substitute: STATUS = "clean" if no findings, "issues_found" if findings exist. SOURCE = "codex" if Codex ran, "claude" if subagent ran.
 
 **Cleanup:** Run \`rm -f "$TMPERR_PV"\` after processing (if Codex was used).
 
@@ -687,9 +616,9 @@ SOURCE = "codex" if Codex ran, "claude" if subagent ran.
 function generatePlanFileDiscovery(): string {
   return `### Plan File Discovery
 
-1. **Conversation context (primary):** Check if there is an active plan file in this conversation. The host agent's system messages include plan file paths when in plan mode. If found, use it directly — this is the most reliable signal.
+1. **Conversation context (primary):** Check if there is an active plan file in this conversation. Host agent system messages include plan file paths when in plan mode. If found, use it directly.
 
-2. **Content-based search (fallback):** If no plan file is referenced in conversation context, search by content:
+2. **Content-based search (fallback):** If no plan file in conversation context:
 
 \`\`\`bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
@@ -709,11 +638,11 @@ done
 [ -n "$PLAN" ] && echo "PLAN_FILE: $PLAN" || echo "NO_PLAN_FILE"
 \`\`\`
 
-3. **Validation:** If a plan file was found via content-based search (not conversation context), read the first 20 lines and verify it is relevant to the current branch's work. If it appears to be from a different project or feature, treat as "no plan file found."
+3. **Validation:** If found via content-based search (not conversation context), read the first 20 lines and verify it's relevant to the current branch. If it appears to be from a different project or feature, treat as "no plan file found."
 
 **Error handling:**
 - No plan file found → skip with "No plan file detected — skipping."
-- Plan file found but unreadable (permissions, encoding) → skip with "Plan file found but unreadable — skipping."`;
+- Plan file found but unreadable → skip with "Plan file found but unreadable — skipping."`;
 }
 
 // ─── Plan Completion Audit ────────────────────────────────────────────
@@ -730,7 +659,7 @@ function generatePlanCompletionAuditInner(mode: PlanCompletionMode): string {
   sections.push(`
 ### Actionable Item Extraction
 
-Read the plan file. Extract every actionable item — anything that describes work to be done. Look for:
+Read the plan file. Extract every actionable item — anything describing work to be done. Look for:
 
 - **Checkbox items:** \`- [ ] ...\` or \`- [x] ...\`
 - **Numbered steps** under implementation headings: "1. Create ...", "2. Add ...", "3. Modify ..."
@@ -744,11 +673,11 @@ Read the plan file. Extract every actionable item — anything that describes wo
 - Questions and open items (marked with ?, "TBD", "TODO: decide")
 - Review report sections (\`## GSTACK REVIEW REPORT\`)
 - Explicitly deferred items ("Future:", "Out of scope:", "NOT in scope:", "P2:", "P3:", "P4:")
-- CEO Review Decisions sections (these record choices, not work items)
+- CEO Review Decisions sections (record choices, not work items)
 
-**Cap:** Extract at most 50 items. If the plan has more, note: "Showing top 50 of N plan items — full list in plan file."
+**Cap:** Extract at most 50 items. If more, note: "Showing top 50 of N plan items — full list in plan file."
 
-**No items found:** If the plan contains no extractable actionable items, skip with: "Plan file contains no actionable items — skipping completion audit."
+**No items found:** Skip with: "Plan file contains no actionable items — skipping completion audit."
 
 For each item, note:
 - The item text (verbatim or concise summary)
@@ -760,14 +689,14 @@ For each item, note:
 
 Run \`git diff origin/<base>...HEAD\` and \`git log origin/<base>..HEAD --oneline\` to understand what was implemented.
 
-For each extracted plan item, check the diff and classify:
+For each extracted plan item, classify:
 
-- **DONE** — Clear evidence in the diff that this item was implemented. Cite the specific file(s) changed.
-- **PARTIAL** — Some work toward this item exists in the diff but it's incomplete (e.g., model created but controller missing, function exists but edge cases not handled).
-- **NOT DONE** — No evidence in the diff that this item was addressed.
-- **CHANGED** — The item was implemented using a different approach than the plan described, but the same goal is achieved. Note the difference.
+- **DONE** — Clear evidence in the diff. Cite specific file(s) changed.
+- **PARTIAL** — Some work exists but incomplete (e.g., model created but controller missing).
+- **NOT DONE** — No evidence in the diff.
+- **CHANGED** — Implemented with a different approach but same goal achieved. Note the difference.
 
-**Be conservative with DONE** — require clear evidence in the diff. A file being touched is not enough; the specific functionality described must be present.
+**Be conservative with DONE** — require clear evidence. A file being touched is not enough; the specific functionality must be present.
 **Be generous with CHANGED** — if the goal is met by different means, that counts as addressed.`);
 
   // ── Output format ──
@@ -809,10 +738,10 @@ After producing the completion checklist:
 - **Any NOT DONE items:** Use AskUserQuestion:
   - Show the completion checklist above
   - "{N} items from the plan are NOT DONE. These were part of the original plan but are missing from the implementation."
-  - RECOMMENDATION: depends on item count and severity. If 1-2 minor items (docs, config), recommend B. If core functionality is missing, recommend A.
+  - RECOMMENDATION: depends on item count and severity. If 1-2 minor items (docs, config), recommend B. If core functionality missing, recommend A.
   - Options:
     A) Stop — implement the missing items before shipping
-    B) Ship anyway — defer these to a follow-up (will create P1 TODOs in Step 5.5)
+    B) Ship anyway — defer to a follow-up (will create P1 TODOs in Step 5.5)
     C) These items were intentionally dropped — remove from scope
   - If A: STOP. List the missing items for the user to implement.
   - If B: Continue. For each NOT DONE item, create a P1 TODO in Step 5.5 with "Deferred from plan: {plan file path}".
@@ -828,11 +757,11 @@ After producing the completion checklist:
 
 When no plan file is detected, use these secondary intent sources:
 
-1. **Commit messages:** Run \`git log origin/<base>..HEAD --oneline\`. Use judgment to extract real intent:
+1. **Commit messages:** Run \`git log origin/<base>..HEAD --oneline\`. Extract real intent:
    - Commits with actionable verbs ("add", "implement", "fix", "create", "remove", "update") are intent signals
    - Skip noise: "WIP", "tmp", "squash", "merge", "chore", "typo", "fixup"
    - Extract the intent behind the commit, not the literal message
-2. **TODOS.md:** If it exists, check for items related to this branch or recent dates
+2. **TODOS.md:** Check for items related to this branch or recent dates
 3. **PR description:** Run \`gh pr view --json body -q .body 2>/dev/null\` for intent context
 
 **With fallback sources:** Apply the same Cross-Reference classification (DONE/PARTIAL/NOT DONE/CHANGED) using best-effort matching. Note that fallback-sourced items are lower confidence than plan-file items.
@@ -841,13 +770,13 @@ When no plan file is detected, use these secondary intent sources:
 
 For each PARTIAL or NOT DONE item, investigate WHY:
 
-1. Check \`git log origin/<base>..HEAD --oneline\` for commits that suggest the work was started, attempted, or reverted
+1. Check \`git log origin/<base>..HEAD --oneline\` for commits suggesting work was started, attempted, or reverted
 2. Read the relevant code to understand what was built instead
-3. Determine the likely reason from this list:
+3. Determine the likely reason:
    - **Scope cut** — evidence of intentional removal (revert commit, removed TODO)
    - **Context exhaustion** — work started but stopped mid-way (partial implementation, no follow-up commits)
-   - **Misunderstood requirement** — something was built but it doesn't match what the plan described
-   - **Blocked by dependency** — plan item depends on something that isn't available
+   - **Misunderstood requirement** — something was built but doesn't match the plan
+   - **Blocked by dependency** — plan item depends on something unavailable
    - **Genuinely forgotten** — no evidence of any attempt
 
 Output for each discrepancy:
@@ -859,7 +788,7 @@ IMPACT: {HIGH|MEDIUM|LOW} — {what breaks or degrades if this stays undelivered
 
 ### Learnings Logging (plan-file discrepancies only)
 
-**Only for discrepancies sourced from plan files** (not commit messages or TODOS.md), log a learning so future sessions know this pattern occurred:
+**Only for discrepancies sourced from plan files** (not commit messages or TODOS.md):
 
 \`\`\`bash
 ~/.claude/skills/gstack/bin/gstack-learnings-log '{
@@ -872,21 +801,21 @@ IMPACT: {HIGH|MEDIUM|LOW} — {what breaks or degrades if this stays undelivered
 }'
 \`\`\`
 
-Replace KEBAB_SUMMARY with a kebab-case summary of the gap, and fill in the actual values.
+Replace KEBAB_SUMMARY with a kebab-case summary of the gap, and fill in actual values.
 
-**Do NOT log learnings from commit-message-derived or TODOS.md-derived discrepancies.** These are informational in the review output but too noisy for durable memory.
+**Do NOT log learnings from commit-message or TODOS.md discrepancies** — too noisy for durable memory.
 
 ### Integration with Scope Drift Detection
 
-The plan completion results augment the existing Scope Drift Detection. If a plan file is found:
+Plan completion results augment Scope Drift Detection. If a plan file is found:
 
 - **NOT DONE items** become additional evidence for **MISSING REQUIREMENTS** in the scope drift report.
-- **Items in the diff that don't match any plan item** become evidence for **SCOPE CREEP** detection.
+- **Diff items not matching any plan item** become evidence for **SCOPE CREEP**.
 - **HIGH-impact discrepancies** trigger AskUserQuestion:
   - Show the investigation findings
   - Options: A) Stop and implement missing items, B) Ship anyway + create P1 TODOs, C) Intentionally dropped
 
-This is **INFORMATIONAL** unless HIGH-impact discrepancies are found (then it gates via AskUserQuestion).
+**INFORMATIONAL** unless HIGH-impact discrepancies are found (then gates via AskUserQuestion).
 
 Update the scope drift output to include plan file context:
 
@@ -900,7 +829,7 @@ Plan items: N DONE, M PARTIAL, K NOT DONE
 [If scope creep: list each out-of-scope change not in the plan]
 \`\`\`
 
-**No plan file found:** Use commit messages and TODOS.md as fallback sources (see above). If no intent sources at all, skip with: "No intent sources detected — skipping completion audit."`);
+**No plan file found:** Use commit messages and TODOS.md as fallback sources. If no intent sources at all, skip with: "No intent sources detected — skipping completion audit."`);
   }
 
   return sections.join('\n');
@@ -923,14 +852,12 @@ Automatically verify the plan's testing/verification steps using the \`/qa-only\
 
 ### 1. Check for verification section
 
-Using the plan file already discovered in Step 3.45, look for a verification section. Match any of these headings: \`## Verification\`, \`## Test plan\`, \`## Testing\`, \`## How to test\`, \`## Manual testing\`, or any section with verification-flavored items (URLs to visit, things to check visually, interactions to test).
+Using the plan file from Step 3.45, look for a verification section. Match any of these headings: \`## Verification\`, \`## Test plan\`, \`## Testing\`, \`## How to test\`, \`## Manual testing\`, or any section with verification-flavored items (URLs to visit, visual checks, interactions to test).
 
 **If no verification section found:** Skip with "No verification steps found in plan — skipping auto-verification."
 **If no plan file was found in Step 3.45:** Skip (already handled).
 
 ### 2. Check for running dev server
-
-Before invoking browse-based verification, check if a dev server is reachable:
 
 \`\`\`bash
 curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || \\
@@ -955,25 +882,25 @@ Follow the /qa-only workflow with these modifications:
 - **Skip the preamble** (already handled by /ship)
 - **Use the plan's verification section as the primary test input** — treat each verification item as a test case
 - **Use the detected dev server URL** as the base URL
-- **Skip the fix loop** — this is report-only verification during /ship
-- **Cap at the verification items from the plan** — do not expand into general site QA
+- **Skip the fix loop** — report-only during /ship
+- **Cap at verification items from the plan** — do not expand into general site QA
 
 ### 4. Gate logic
 
-- **All verification items PASS:** Continue silently. "Plan verification: PASS."
+- **All PASS:** Continue silently. "Plan verification: PASS."
 - **Any FAIL:** Use AskUserQuestion:
-  - Show the failures with screenshot evidence
-  - RECOMMENDATION: Choose A if failures indicate broken functionality. Choose B if cosmetic only.
+  - Show failures with screenshot evidence
+  - RECOMMENDATION: Choose A if functional failures. Choose B if cosmetic only.
   - Options:
-    A) Fix the failures before shipping (recommended for functional issues)
-    B) Ship anyway — known issues (acceptable for cosmetic issues)
+    A) Fix before shipping (recommended for functional issues)
+    B) Ship anyway — known issues (acceptable for cosmetic)
 - **No verification section / no server / unreadable skill:** Skip (non-blocking).
 
 ### 5. Include in PR body
 
 Add a \`## Verification Results\` section to the PR body (Step 8):
-- If verification ran: summary of results (N PASS, M FAIL, K SKIPPED)
-- If skipped: reason for skipping (no plan, no server, no verification section)`;
+- If verification ran: summary (N PASS, M FAIL, K SKIPPED)
+- If skipped: reason (no plan, no server, no verification section)`;
 }
 
 // ─── Cross-Review Finding Dedup ──────────────────────────────────────
@@ -993,13 +920,13 @@ Before classifying findings, check if any were previously skipped by the user in
 ~/.claude/skills/gstack/bin/gstack-review-read
 \`\`\`
 
-Parse the output: only lines BEFORE \`---CONFIG---\` are JSONL entries (the output also contains \`---CONFIG---\` and \`---HEAD---\` footer sections that are not JSONL — ignore those).
+Parse the output: only lines BEFORE \`---CONFIG---\` are JSONL entries (the output also contains \`---CONFIG---\` and \`---HEAD---\` footer sections — ignore those).
 
-For each JSONL entry that has a \`findings\` array:
+For each JSONL entry with a \`findings\` array:
 1. Collect all fingerprints where \`action: "skipped"\`
 2. Note the \`commit\` field from that entry
 
-If skipped fingerprints exist, get the list of files changed since that review:
+If skipped fingerprints exist, get files changed since that review:
 
 \`\`\`bash
 git diff --name-only <prior-review-commit> HEAD
@@ -1009,7 +936,7 @@ For each current finding (from both ${findingsRef}), check:
 - Does its fingerprint match a previously skipped finding?
 - Is the finding's file path NOT in the changed-files set?
 
-If both conditions are true: suppress the finding. It was intentionally skipped and the relevant code hasn't changed.
+If both true: suppress the finding. It was intentionally skipped and the relevant code hasn't changed.
 
 Print: "Suppressed N findings from prior reviews (previously skipped by user)"
 
