@@ -804,3 +804,68 @@ If the user chooses A, copy the latest screenshots to the baselines directory an
 - **Baseline is king.** Without a baseline, canary is a health check. Encourage `--baseline` before deploying.
 - **Performance thresholds are relative.** 2x baseline is a regression. 1.5x might be normal variance.
 - **Read-only.** Observe and report. Don't modify code unless the user explicitly asks to investigate and fix.
+
+---
+
+## Mobile App Monitoring (Extension)
+
+When monitoring a mobile app (after `/store-ship`), extend the canary workflow with mobile-specific checks:
+
+### Phase M1: Post-Release Monitoring Setup
+
+After App Store or Play submission approval, configure monitoring:
+
+- **iOS:** Monitor TestFlight/Production crash rates via Firebase Crashlytics or Sentry
+- **Android:** Monitor Play Console crash and ANR rates
+- **Flutter/Expo:** Track both platform metrics through unified crash reporting
+
+### Phase M2: Store Listing Verification
+
+Verify the store listing matches expectations:
+
+- App name and icon correct
+- Description and screenshots updated
+- No regression in ratings or reviews
+
+### Phase M3: Crash and Stability Monitoring
+
+For 48 hours post-release, check daily:
+
+```bash
+# iOS - check Firebase Crashlytics or Sentry
+# Android - check Play Console Crashes & ANRs dashboard
+```
+
+Look for:
+- New crash signatures not seen in testing
+- Spike in ANR rate (Android)
+- Device-specific issues (certain models, OS versions)
+- Crash cluster analysis (same crash happening repeatedly)
+
+### Phase M4: Store Review Monitoring
+
+Track user reviews post-launch:
+
+- Respond to negative reviews within 24 hours
+- Track review sentiment trends
+- Note any new issues appearing in reviews
+
+### Phase M5: Rollback Decision
+
+If crash rate exceeds thresholds:
+- iOS: >1% crash-free session rate drop
+- Android: >0.5% ANR rate increase
+
+Recommend:
+- **A)** Hotfix and re-submit (24-48 hour process)
+- **B)** Pause rollout, investigate before full release
+- **C)** Continue monitoring (if within acceptable bounds)
+
+### Mobile-Specific Thresholds
+
+| Metric | Warning | Critical |
+|--------|---------|----------|
+| Crash-free sessions (iOS) | <99% | <95% |
+| ANR rate (Android) | >0.1% | >0.5% |
+| Store rating drop | >0.2 stars | >0.5 stars |
+| Negative review spike | 3+ in 24h | 10+ in 24h |
