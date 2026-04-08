@@ -10,7 +10,7 @@
 #   GSTACK_SKILLS_DIR  — override target skills directory
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
 GSTACK_CONFIG="${SCRIPT_DIR}/gstack-config"
 
 # Detect install dir
@@ -19,7 +19,7 @@ if [ -z "$INSTALL_DIR" ]; then
   if [ -d "$HOME/.claude/skills/gstack" ]; then
     INSTALL_DIR="$HOME/.claude/skills/gstack"
   elif [ -d "${SCRIPT_DIR}/.." ] && [ -f "${SCRIPT_DIR}/../setup" ]; then
-    INSTALL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+    INSTALL_DIR="$(cd "${SCRIPT_DIR}/.." >/dev/null 2>&1 && pwd)"
   fi
 fi
 

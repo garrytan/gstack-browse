@@ -7,7 +7,7 @@
 # Optional: branch, outcome, duration_s, session, ts.
 # Validation failure → skip silently (non-blocking).
 set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
 eval "$("$SCRIPT_DIR/gstack-slug" 2>/dev/null)"
 GSTACK_HOME="${GSTACK_HOME:-$HOME/.gstack}"
 mkdir -p "$GSTACK_HOME/projects/$SLUG"

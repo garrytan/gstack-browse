@@ -4,8 +4,8 @@ set -euo pipefail
 # gstack-platform-detect: show which AI coding agents are installed and gstack status
 # Config-driven: reads host definitions from hosts/*.ts via host-config-export.ts
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GSTACK_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" >/dev/null 2>&1 && pwd)"
+GSTACK_DIR="$(cd "$SCRIPT_DIR/.." >/dev/null 2>&1 && pwd)"
 
 printf "%-16s %-10s %-40s %s\n" "Agent" "Version" "Skill Path" "gstack"
 printf "%-16s %-10s %-40s %s\n" "-----" "-------" "----------" "------"
