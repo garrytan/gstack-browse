@@ -26,7 +26,59 @@ export interface ValidationResult {
   valid: BrowseCommand[];
   invalid: BrowseCommand[];
   snapshotFlagErrors: Array<{ command: BrowseCommand; error: string }>;
+  frontmatterErrors: string[];
   warnings: string[];
+}
+
+function extractFrontmatter(content: string): string | null {
+  if (!content.startsWith('---\n')) return null;
+
+  const fmEnd = content.indexOf('\n---\n', 4);
+  if (fmEnd === -1) return null;
+
+  return content.slice(4, fmEnd);
+}
+
+/**
+ * Lightweight YAML frontmatter validation for SKILL.md files.
+ *
+ * We only need to catch the class of errors that breaks host parsers in practice:
+ * top-level scalar values written without quotes even though they contain `: `,
+ * which YAML interprets as a nested mapping.
+ */
+export function validateFrontmatter(skillPath: string): string[] {
+  const content = fs.readFileSync(skillPath, 'utf-8');
+  const frontmatter = extractFrontmatter(content);
+  if (!frontmatter) return [];
+
+  const errors: string[] = [];
+  const lines = frontmatter.split('\n');
+
+  for (let index = 0; index < lines.length; index++) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (/^\s/.test(line)) continue;
+
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!match) {
+      errors.push(`line ${index + 2}: invalid frontmatter line`);
+      continue;
+    }
+
+    const [, key, value] = match;
+    if (!value) continue;
+
+    const firstChar = value[0];
+    if (['"', '\'', '{', '[', '|', '>'].includes(firstChar)) continue;
+
+    if (value.includes(': ')) {
+      errors.push(`line ${index + 2}: ${key} contains unquoted ": "`);
+    }
+  }
+
+  return errors;
 }
 
 /**
@@ -103,6 +155,7 @@ export function validateSkill(skillPath: string): ValidationResult {
     valid: [],
     invalid: [],
     snapshotFlagErrors: [],
+    frontmatterErrors: validateFrontmatter(skillPath),
     warnings: [],
   };
 
