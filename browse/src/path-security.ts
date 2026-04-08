@@ -33,7 +33,26 @@ const TEMP_ONLY = [TEMP_DIR].map(d => {
 export function validateOutputPath(filePath: string): void {
   const resolved = path.resolve(filePath);
 
-  // Resolve real path of the parent directory to catch symlinks.
+  // If the target already exists and is a symlink, resolve through it.
+  // Without this, a symlink at /tmp/evil.png → /etc/crontab passes the
+  // parent-directory check (parent is /tmp, which is safe) but the actual
+  // write follows the symlink to /etc/crontab.
+  try {
+    const stat = fs.lstatSync(resolved);
+    if (stat.isSymbolicLink()) {
+      const realTarget = fs.realpathSync(resolved);
+      const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(realTarget, dir));
+      if (!isSafe) {
+        throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
+      }
+      return; // symlink target verified, no need to check parent
+    }
+  } catch (e: any) {
+    // ENOENT = file doesn't exist yet, fall through to parent-dir check
+    if (e.code !== 'ENOENT') throw e;
+  }
+
+  // For new files (no existing symlink), verify the parent directory.
   // The file itself may not exist yet (e.g., screenshot output).
   // This also handles macOS /tmp → /private/tmp transparently.
   let dir = path.dirname(resolved);
