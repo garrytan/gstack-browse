@@ -225,6 +225,50 @@ export async function handleReadCommand(
         networkBuffer.clear();
         return 'Network buffer cleared.';
       }
+
+      // Network capture extensions
+      if (args[0] === '--capture') {
+        const {
+          startCapture, stopCapture, getCaptureListener, isCaptureActive,
+        } = await import('./network-capture');
+
+        if (args[1] === 'stop') {
+          // Detach listener from current page
+          const page = bm.getPage();
+          const listener = getCaptureListener();
+          if (listener) page.removeListener('response', listener);
+          const result = stopCapture();
+          return `Network capture stopped. ${result.count} responses captured (${result.sizeKB}KB).`;
+        }
+
+        // Start capture
+        if (isCaptureActive()) return 'Capture already active. Use --capture stop first.';
+        const filterIdx = args.indexOf('--filter');
+        const filterPattern = filterIdx >= 0 ? args[filterIdx + 1] : undefined;
+        const info = startCapture(filterPattern);
+        // Attach listener to current page
+        const page = bm.getPage();
+        const listener = getCaptureListener();
+        if (listener) page.on('response', listener);
+        return `Network capture started${info.filter ? ` (filter: ${info.filter})` : ''}. Use --capture stop to stop.`;
+      }
+
+      if (args[0] === '--export') {
+        const { exportCapture } = await import('./network-capture');
+        const { validateOutputPath: vop } = await import('./path-security');
+        const exportPath = args[1];
+        if (!exportPath) throw new Error('Usage: network --export <path>');
+        vop(exportPath);
+        const count = exportCapture(exportPath);
+        return `Exported ${count} captured responses to ${exportPath}`;
+      }
+
+      if (args[0] === '--bodies') {
+        const { getCaptureBuffer } = await import('./network-capture');
+        return getCaptureBuffer().summary();
+      }
+
+      // Default: show request metadata
       if (networkBuffer.length === 0) return '(no network requests)';
       return networkBuffer.toArray().map(e =>
         `${e.method} ${e.url} → ${e.status || 'pending'} (${e.duration || '?'}ms, ${e.size || '?'}B)`
