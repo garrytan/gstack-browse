@@ -272,6 +272,19 @@ When a command opens an interactive prompt (select list, checkbox list, yes/no
 confirm, wizard), run it through `clrun` so prompts can be controlled
 deterministically.
 
+If `clrun` is missing, install it first (Node.js):
+
+```bash
+if ! command -v clrun >/dev/null 2>&1; then
+  npm install -g clrun
+fi
+```
+
+No-global-install fallback:
+```bash
+npx clrun <command>
+```
+
 Use this flow:
 
 ```bash
