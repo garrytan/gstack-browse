@@ -13,14 +13,17 @@ DIST_DIR="$GSTACK_DIR/browse/dist"
 
 echo "Building Node-compatible server bundle..."
 
-# Step 1: Transpile server.ts to a single .mjs bundle (externalize runtime deps)
+# Step 1: Transpile server.ts to a bundle in DIST_DIR (externalize runtime deps).
+# Bun emits the entry as server.js plus any native assets (e.g. ngrok) alongside
+# it, so --outdir is required — --outfile rejects multi-output builds.
 bun build "$SRC_DIR/server.ts" \
   --target=node \
-  --outfile "$DIST_DIR/server-node.mjs" \
+  --outdir "$DIST_DIR" \
   --external playwright \
   --external playwright-core \
   --external diff \
   --external "bun:sqlite"
+mv "$DIST_DIR/server.js" "$DIST_DIR/server-node.mjs"
 
 # Step 2: Post-process
 # Replace import.meta.dir with a resolvable reference
