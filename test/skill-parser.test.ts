@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'bun:test';
-import { extractBrowseCommands, validateSkill } from './helpers/skill-parser';
+import { extractBrowseCommands, validateFrontmatter, validateSkill } from './helpers/skill-parser';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -175,5 +175,36 @@ describe('validateSkill', () => {
     const result = validateSkill(p);
     expect(result.valid).toHaveLength(4);
     expect(result.snapshotFlagErrors).toHaveLength(0);
+  });
+
+  test('invalid frontmatter plain scalars with colon are flagged', () => {
+    const p = writeFixture('bad-frontmatter.md', [
+      '---',
+      'name: bad-skill',
+      'description: Iron Law: no fixes without root cause.',
+      'version: 1.0.0',
+      '---',
+      '',
+      '# Skill',
+    ].join('\n'));
+    const result = validateSkill(p);
+    expect(result.frontmatterErrors).toEqual([
+      'line 3: description contains unquoted ": "',
+    ]);
+  });
+});
+
+describe('validateFrontmatter', () => {
+  test('quoted descriptions with colons pass validation', () => {
+    const p = writeFixture('quoted-frontmatter.md', [
+      '---',
+      'name: good-skill',
+      "description: 'Iron Law: no fixes without root cause.'",
+      'version: 1.0.0',
+      '---',
+      '',
+      '# Skill',
+    ].join('\n'));
+    expect(validateFrontmatter(p)).toEqual([]);
   });
 });

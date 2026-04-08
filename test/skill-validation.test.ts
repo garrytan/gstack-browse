@@ -2,12 +2,26 @@ import { describe, test, expect } from 'bun:test';
 import { validateSkill, extractRemoteSlugPatterns, extractWeightsFromTable } from './helpers/skill-parser';
 import { ALL_COMMANDS, COMMAND_DESCRIPTIONS, READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from '../browse/src/commands';
 import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
+import { discoverSkillFiles } from '../scripts/discover-skills';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
 describe('SKILL.md command validation', () => {
+  test('all discovered SKILL.md files have valid frontmatter', () => {
+    const failures: string[] = [];
+
+    for (const skillFile of discoverSkillFiles(ROOT)) {
+      const result = validateSkill(path.join(ROOT, skillFile));
+      if (result.frontmatterErrors.length > 0) {
+        failures.push(`${skillFile}: ${result.frontmatterErrors.join(', ')}`);
+      }
+    }
+
+    expect(failures).toEqual([]);
+  });
+
   test('all $B commands in SKILL.md are valid browse commands', () => {
     const result = validateSkill(path.join(ROOT, 'SKILL.md'));
     expect(result.invalid).toHaveLength(0);

@@ -1,7 +1,7 @@
-/**
- * Shared discovery for SKILL.md and .tmpl files.
- * Scans root + one level of subdirs, skipping node_modules/.git/dist.
- */
+// Shared discovery for SKILL.md and .tmpl files.
+// Template discovery scans root + one level of subdirs.
+// SKILL.md discovery walks nested directories so maintenance checks also cover
+// host-specific trees such as openclaw/skills/*/SKILL.md.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -27,13 +27,25 @@ export function discoverTemplates(root: string): Array<{ tmpl: string; output: s
 }
 
 export function discoverSkillFiles(root: string): string[] {
-  const dirs = ['', ...subdirs(root)];
   const results: string[] = [];
-  for (const dir of dirs) {
-    const rel = dir ? `${dir}/SKILL.md` : 'SKILL.md';
-    if (fs.existsSync(path.join(root, rel))) {
-      results.push(rel);
+
+  function walk(currentDir: string, relativeDir = ''): void {
+    const skillRel = relativeDir ? `${relativeDir}/SKILL.md` : 'SKILL.md';
+    if (fs.existsSync(path.join(currentDir, 'SKILL.md'))) {
+      results.push(skillRel);
+    }
+
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name.startsWith('.')) continue;
+      if (SKIP.has(entry.name)) continue;
+
+      const nextDir = path.join(currentDir, entry.name);
+      const nextRel = relativeDir ? `${relativeDir}/${entry.name}` : entry.name;
+      walk(nextDir, nextRel);
     }
   }
-  return results;
+
+  walk(root);
+  return results.sort();
 }

@@ -36,15 +36,19 @@ for (const file of SKILL_FILES) {
   const totalValid = result.valid.length;
   const totalInvalid = result.invalid.length;
   const totalSnapErrors = result.snapshotFlagErrors.length;
+  const totalFrontmatterErrors = result.frontmatterErrors.length;
 
-  if (totalInvalid > 0 || totalSnapErrors > 0) {
+  if (totalInvalid > 0 || totalSnapErrors > 0 || totalFrontmatterErrors > 0) {
     hasErrors = true;
-    console.log(`  \u274c ${file.padEnd(30)} — ${totalValid} valid, ${totalInvalid} invalid, ${totalSnapErrors} snapshot errors`);
+    console.log(`  \u274c ${file.padEnd(30)} — ${totalValid} valid, ${totalInvalid} invalid, ${totalSnapErrors} snapshot errors, ${totalFrontmatterErrors} frontmatter errors`);
     for (const inv of result.invalid) {
       console.log(`      line ${inv.line}: unknown command '${inv.command}'`);
     }
     for (const se of result.snapshotFlagErrors) {
       console.log(`      line ${se.command.line}: ${se.error}`);
+    }
+    for (const fe of result.frontmatterErrors) {
+      console.log(`      ${fe}`);
     }
   } else {
     console.log(`  \u2705 ${file.padEnd(30)} — ${totalValid} commands, all valid`);
