@@ -692,7 +692,7 @@ $B prettyscreenshot --cleanup --scroll-to ".pricing" --width 1440 ~/Desktop/hero
 | `ai-scrape <url> --schema {"field":"string"} [--json]` | AI structured extraction from any URL via Interfaze (bot-protected sites; requires Interfaze API key) |
 | `archive [path]` | Save complete page as MHTML via CDP |
 | `download <url|@ref> [path] [--base64]` | Download URL or media element to disk using browser cookies |
-| `ocr [path|@ref|selector] [--json]` | OCR via Interfaze: extract text from image file, @ref, CSS selector, or current viewport (requires Interfaze API key) |
+| `ocr [path|@ref|selector] [--json]` | OCR via Interfaze: extract text from image file, PDF document, @ref, CSS selector, or current viewport (requires Interfaze API key) |
 | `scrape <images|videos|media> [--selector sel] [--dir path] [--limit N]` | Bulk download all media from page. Writes manifest.json |
 | `search <query> [--limit N]` | Web search via Interfaze with citations (requires Interfaze API key) |
 

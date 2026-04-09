@@ -111,7 +111,7 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   // Data extraction
   'download': { category: 'Extraction', description: 'Download URL or media element to disk using browser cookies', usage: 'download <url|@ref> [path] [--base64]' },
   'scrape':   { category: 'Extraction', description: 'Bulk download all media from page. Writes manifest.json', usage: 'scrape <images|videos|media> [--selector sel] [--dir path] [--limit N]' },
-  'ocr':      { category: 'Extraction', description: 'OCR via Interfaze: extract text from image file, @ref, CSS selector, or current viewport (requires Interfaze API key)', usage: 'ocr [path|@ref|selector] [--json]' },
+  'ocr':      { category: 'Extraction', description: 'OCR via Interfaze: extract text from image file, PDF document, @ref, CSS selector, or current viewport (requires Interfaze API key)', usage: 'ocr [path|@ref|selector] [--json]' },
   'search':   { category: 'Extraction', description: 'Web search via Interfaze with citations (requires Interfaze API key)', usage: 'search <query> [--limit N]' },
   'ai-scrape': { category: 'Extraction', description: 'AI structured extraction from any URL via Interfaze (bot-protected sites; requires Interfaze API key)', usage: 'ai-scrape <url> --schema {"field":"string"} [--json]' },
   'archive':  { category: 'Extraction', description: 'Save complete page as MHTML via CDP', usage: 'archive [path]' },

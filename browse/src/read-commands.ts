@@ -505,23 +505,42 @@ export async function handleReadCommand(
       const { createInterfazeProvider, INTERFAZE_MODEL, getInterfazePrecontext } = await import('./interfaze-client');
       const { interfazeSetupHint } = await import('./interfaze-auth');
 
+      const IMAGE_EXT = /\.(png|jpe?g|webp|bmp|tiff?)$/i;
+      const DOC_EXT = /\.(pdf)$/i;
+      const MEDIA_TYPES: Record<string, string> = {
+        '.pdf': 'application/pdf',
+        '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+        '.webp': 'image/webp', '.bmp': 'image/bmp',
+        '.tif': 'image/tiff', '.tiff': 'image/tiff',
+      };
+
       const wantJson = args.includes('--json');
       const posArgs = args.filter(a => a !== '--json');
       const provider = createInterfazeProvider();
       if (!provider) throw new Error(interfazeSetupHint('ocr'));
 
-      let buffer: Buffer;
+      let contentPart: { type: 'image'; image: Buffer } | { type: 'file'; data: Buffer; mediaType: string; filename: string };
       const first = posArgs[0];
       if (!first) {
-        buffer = await page.screenshot({ fullPage: false });
-      } else if (fs.existsSync(path.resolve(first)) && /\.(png|jpe?g|webp)$/i.test(first)) {
+        contentPart = { type: 'image', image: await page.screenshot({ fullPage: false }) };
+      } else if (fs.existsSync(path.resolve(first)) && (IMAGE_EXT.test(first) || DOC_EXT.test(first))) {
         validateReadPath(first);
-        buffer = fs.readFileSync(path.resolve(first));
+        const buf = fs.readFileSync(path.resolve(first));
+        const ext = path.extname(first).toLowerCase();
+        if (DOC_EXT.test(first)) {
+          contentPart = { type: 'file', data: buf, mediaType: MEDIA_TYPES[ext] || 'application/octet-stream', filename: path.basename(first) };
+        } else {
+          contentPart = { type: 'image', image: buf };
+        }
       } else {
         const resolved = await session.resolveRef(first);
         const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
-        buffer = await locator.screenshot({ timeout: 5000 });
+        contentPart = { type: 'image', image: await locator.screenshot({ timeout: 5000 }) as Buffer };
       }
+
+      const prompt = contentPart.type === 'file'
+        ? 'Extract all text from this document. Preserve structure, headings, and line breaks.'
+        : 'Extract all visible text from this image. Preserve line breaks where helpful.';
 
       const model = provider(INTERFAZE_MODEL);
       const { text, providerMetadata } = await generateText({
@@ -530,8 +549,8 @@ export async function handleReadCommand(
           {
             role: 'user',
             content: [
-              { type: 'text', text: 'Extract all visible text from this image. Preserve line breaks where helpful.' },
-              { type: 'image', image: buffer },
+              { type: 'text', text: prompt },
+              contentPart as any,
             ],
           },
         ],
