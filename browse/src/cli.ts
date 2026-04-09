@@ -842,11 +842,11 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
         BROWSE_PORT: '34567',
         BROWSE_SIDEBAR_CHAT: '1',
       };
-      // If parent explicitly set BROWSE_PARENT_PID=0 (pair-agent disabling
-      // self-termination), pass it through so startServer doesn't override it.
-      if (process.env.BROWSE_PARENT_PID === '0') {
-        serverEnv.BROWSE_PARENT_PID = '0';
-      }
+      // Headed mode: disable parent-process watchdog. The browser is meant to
+      // outlive the CLI process — the user is looking at it. Without this, the
+      // server detects the CLI exit and shuts down Chromium within 15 seconds.
+      // Also honor explicit BROWSE_PARENT_PID=0 from pair-agent.
+      serverEnv.BROWSE_PARENT_PID = '0';
       const newState = await startServer(serverEnv);
 
       // Print connected status
