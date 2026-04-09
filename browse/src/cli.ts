@@ -232,7 +232,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     // when the CLI exits, the server dies with it. Use Node's child_process.spawn
     // with { detached: true } instead, which is the gold standard for Windows
     // process independence. Credit: PR #191 by @fqueiro.
-    const extraEnvStr = JSON.stringify({ BROWSE_STATE_FILE: config.stateFile, BROWSE_PARENT_PID: String(process.pid), ...(extraEnv || {}) });
+    const extraEnvStr = JSON.stringify({ BROWSE_STATE_FILE: config.stateFile, BROWSE_PARENT_PID: process.env.BROWSE_PARENT_PID === '0' ? '0' : String(process.pid), ...(extraEnv || {}) });
     const launcherCode =
       `const{spawn}=require('child_process');` +
       `spawn(process.execPath,[${JSON.stringify(NODE_SERVER_SCRIPT)}],` +
@@ -243,7 +243,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     // macOS/Linux: Bun.spawn + unref works correctly
     proc = Bun.spawn(['bun', 'run', SERVER_SCRIPT], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile, BROWSE_PARENT_PID: String(process.pid), ...extraEnv },
+      env: { ...process.env, BROWSE_STATE_FILE: config.stateFile, BROWSE_PARENT_PID: process.env.BROWSE_PARENT_PID === '0' ? '0' : String(process.pid), ...extraEnv },
     });
     proc.unref();
   }
