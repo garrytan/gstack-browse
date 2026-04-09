@@ -20,6 +20,11 @@ export function safeUnlink(filePath: string): void {
   }
 }
 
+/** Remove a file, ignoring ALL errors. Use only in best-effort cleanup (shutdown, emergency). */
+export function safeUnlinkQuiet(filePath: string): void {
+  try { fs.unlinkSync(filePath); } catch {}
+}
+
 // ─── Process ───────────────────────────────────────────────────
 
 /** Send a signal to a process, ignoring ESRCH (already dead). Rethrows other errors. */
@@ -31,33 +36,23 @@ export function safeKill(pid: number, signal: NodeJS.Signals | number): void {
   }
 }
 
-/** Check if a PID is alive. Returns false for ESRCH, rethrows EPERM and others. */
+/** Check if a PID is alive. Pure boolean probe — returns false for ALL errors. */
 export function isProcessAlive(pid: number): boolean {
   if (IS_WINDOWS) {
-    // Bun's compiled binary can't signal Windows PIDs (always throws ESRCH).
-    // Use tasklist as a fallback. Only for one-shot calls — too slow for polling loops.
-    // Bun.spawnSync may throw if tasklist binary is missing (ENOENT)
-    const result = Bun.spawnSync(
-      ['tasklist', '/FI', `PID eq ${pid}`, '/NH', '/FO', 'CSV'],
-      { stdout: 'pipe', stderr: 'pipe', timeout: 3000 }
-    );
-    return result.stdout.toString().includes(`"${pid}"`);
+    try {
+      const result = Bun.spawnSync(
+        ['tasklist', '/FI', `PID eq ${pid}`, '/NH', '/FO', 'CSV'],
+        { stdout: 'pipe', stderr: 'pipe', timeout: 3000 }
+      );
+      return result.stdout.toString().includes(`"${pid}"`);
+    } catch {
+      return false;
+    }
   }
   try {
     process.kill(pid, 0);
     return true;
-  } catch (err: any) {
-    if (err?.code === 'ESRCH') return false;
-    throw err;
+  } catch {
+    return false;
   }
-}
-
-// ─── HTTP ──────────────────────────────────────────────────────
-
-/** JSON Response constructor shorthand for Bun.serve routes. */
-export function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
 }

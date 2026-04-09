@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { safeUnlink, safeKill, isProcessAlive, json } from '../src/error-handling';
+import { safeUnlink, safeKill, isProcessAlive } from '../src/error-handling';
 
 describe('safeUnlink', () => {
   test('removes an existing file', () => {
@@ -43,22 +43,5 @@ describe('isProcessAlive', () => {
 
   test('returns false for non-existent process', () => {
     expect(isProcessAlive(99999999)).toBe(false);
-  });
-});
-
-describe('json', () => {
-  test('returns Response with JSON body and correct Content-Type', async () => {
-    const resp = json({ ok: true });
-    expect(resp.status).toBe(200);
-    expect(resp.headers.get('Content-Type')).toBe('application/json');
-    const body = await resp.json();
-    expect(body).toEqual({ ok: true });
-  });
-
-  test('uses custom status code', async () => {
-    const resp = json({ error: 'not found' }, 404);
-    expect(resp.status).toBe(404);
-    const body = await resp.json();
-    expect(body).toEqual({ error: 'not found' });
   });
 });
