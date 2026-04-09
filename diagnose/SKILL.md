@@ -1649,13 +1649,13 @@ NEXT STEPS
 
 After printing the report, suggest the most relevant next skill:
 
-- **ROOT_CAUSE_ESTABLISHED + fix is straightforward:** → `/investigate` to implement and test the fix
-- **ROOT_CAUSE_ESTABLISHED + fix is complex / risky / multi-system:** → Write a plan, then `/plan-eng-review` to lock in the architecture before implementing
-- **ROOT_CAUSE_ESTABLISHED + fix needs scope/strategy discussion:** → Write a plan, then `/plan-ceo-review` to decide scope (is this a quick patch or a redesign?)
+- **ROOT_CAUSE_ESTABLISHED + fix is straightforward:** → Ask the user to implement the fix (the diagnostic report has enough detail). Then `/review` before merging and `/ship` to land it.
+- **ROOT_CAUSE_ESTABLISHED + fix is complex / risky / multi-system:** → Write a plan, then `/plan-eng-review` to lock in the architecture before implementing.
+- **ROOT_CAUSE_ESTABLISHED + fix needs scope/strategy discussion:** → Write a plan, then `/plan-ceo-review` to decide scope (is this a quick patch or a redesign?).
 - **PROBABLE_CAUSE:** → Suggest what additional data/access would upgrade to ROOT_CAUSE. If browse is available and issue is UI-visible, suggest `/qa` to reproduce the exact flow.
-- **INSUFFICIENT_EVIDENCE:** → Suggest `/investigate` with specific instructions on what to look for, or suggest instrumenting the code (add logging) and waiting for recurrence.
-- **Security implications found:** → `/cso` for a security audit of the affected area
-- **Multiple systems affected:** → `/review` when the fix PR is ready, to catch cross-system issues
+- **INSUFFICIENT_EVIDENCE:** → Suggest instrumenting the code (add logging) and waiting for recurrence, or specific data/access that would unblock the diagnosis.
+- **Security implications found:** → `/cso` for a security audit of the affected area.
+- **Fix PR ready:** → `/review` before merging, then `/ship` to land it.
 
 ---
 
