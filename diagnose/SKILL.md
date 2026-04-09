@@ -630,9 +630,12 @@ If you cannot construct this chain, you do not have a root cause. You have a gue
 
 Before investigating anything, discover what tools and data sources are at your disposal. **Autodetect everything — ask the user only for what you can't find.**
 
-**Budget: Adaptive based on cached learnings.**
-- **If Phase 0-pre found usable cached env-profile + workflow maps:** Phase 0 completes in ≤ 3 tool calls (load learnings, quick validation, done). The saved budget carries forward — use it in Phase 3 for deeper hypothesis testing.
-- **If no cached learnings (first run):** Phase 0 must complete in ≤ 5 tool calls. Combine sub-phases 0a-0g into 1-2 Bash calls. Phase 0j (saving the env-profile learning) is MANDATORY — if you're running low on turns, skip optional sub-phases but NEVER skip 0j.
+**Budget: Adaptive — save turns early, spend them on thoroughness later.**
+
+The goal of /diagnose is NOT speed — it's exhaustive understanding. Cached learnings let you skip redundant discovery so you can invest MORE turns in hypothesis testing and exhaustive analysis (Phases 3-4). Every turn saved in Phase 0-1 is a turn gained for deeper investigation.
+
+- **If Phase 0-pre found usable cached env-profile + workflow maps:** Phase 0 completes in ≤ 3 tool calls. Phase 1 in ≤ 15 calls. The saved ~12 tool calls go to Phase 3-4: test more hypotheses, query more data, check more edge cases, verify blast radius more thoroughly.
+- **If no cached learnings (first run):** Phase 0 ≤ 5 tool calls, Phase 1 ≤ 25 tool calls. Combine sub-phases 0a-0g into 1-2 Bash calls. Phase 0j (saving the env-profile learning) is MANDATORY — if you're running low on turns, skip optional sub-phases but NEVER skip 0j.
 
 ### 0-env. CRITICAL: Environment verification — do this FIRST
 
@@ -649,17 +652,26 @@ Before running ANY database query or API call, verify which environment you're i
 
 Load workflow maps and environment knowledge from prior `/diagnose` sessions. These are the durable learnings that compound — root causes and dead-ends go stale after fixes, but system architecture and environment topology are stable.
 
-Run these two commands (combine into one Bash call):
+**Issue-aware loading:** Extract 2-3 keywords from the issue (e.g., "monitor", "wanted", "lens") and use them to load RELEVANT learnings first, then fall back to a broader load. This prevents irrelevant learnings from crowding out the useful ones as they accumulate over many sessions.
+
+Run these commands (combine into one Bash call):
 
 ```bash
-echo "=== ARCHITECTURE (workflow maps, system boundaries) ==="
-~/.claude/skills/gstack/bin/gstack-learnings-search --type architecture --limit 15 2>/dev/null || true
+echo "=== RELEVANT ARCHITECTURE (keyword-filtered) ==="
+~/.claude/skills/gstack/bin/gstack-learnings-search --type architecture --query "ISSUE_KEYWORD" --limit 5 2>/dev/null || true
 echo ""
-echo "=== OPERATIONAL (env-profile, env quirks, db mappings) ==="
+echo "=== ALL ENVIRONMENT (env-profile, quirks, db mappings) ==="
 ~/.claude/skills/gstack/bin/gstack-learnings-search --type operational --limit 10 2>/dev/null || true
+echo ""
+echo "=== BROADER ARCHITECTURE (remaining maps) ==="
+~/.claude/skills/gstack/bin/gstack-learnings-search --type architecture --limit 10 2>/dev/null || true
 ```
 
-This searches `~/.gstack/projects/{slug}/learnings.jsonl` (gstack's learnings system, NOT Claude's auto-memory). If both produce no output, no prior learnings exist — proceed to 0a.
+Replace `ISSUE_KEYWORD` with the most specific keyword from the issue (e.g., "monitor", "payment", "auth"). The keyword search matches against `key`, `insight`, and `files` fields.
+
+This searches `~/.gstack/projects/{slug}/learnings.jsonl` (gstack's learnings system, NOT Claude's auto-memory). If all produce no output, no prior learnings exist — proceed to 0a.
+
+**When many learnings load (>15):** Don't read them all in detail. Scan the `[key]` names and confidence scores. Print only the ones relevant to the current issue. The rest are there for future sessions on other code paths.
 
 **What to reuse from the output:**
 - `[env-profile]`: cached environment inventory — skip to 0h if confidence ≥ 7
@@ -1019,9 +1031,9 @@ From: [CACHED LEARNINGS + validation | FRESH SCAN]
 
 ## Phase 1: Symptom Collection (The Crime Scene)
 
-**Budget: Adaptive based on cached learnings.**
-- **If Phase 0-pre loaded a cached workflow map:** Phase 1 completes in ≤ 15 tool calls. Spot-check the cached map (2-3 file:line refs), gather symptom evidence, done. The saved ~10 tool calls carry forward to Phase 3 for deeper hypothesis testing.
-- **If no cached workflow map (first time tracing this code path):** Phase 1 must complete in ≤ 25 tool calls. If you're at 20 and haven't built the workflow map yet, STOP and build it NOW with what you have. The map is more important than any individual data point.
+**Budget: Adaptive — thoroughness comes in Phase 3-4, not here.**
+- **If Phase 0-pre loaded a cached workflow map:** Phase 1 ≤ 15 tool calls. Spot-check the cached map (2-3 file:line refs), gather symptom evidence, done. Saved turns go to Phase 3-4.
+- **If no cached workflow map:** Phase 1 ≤ 25 tool calls. If you're at 20 and haven't built the workflow map yet, STOP and build it NOW with what you have.
 
 Gather ALL available evidence before forming any hypothesis. This is the hardest part because your training pushes you to start solving immediately. **Resist.**
 
@@ -1242,7 +1254,9 @@ If all your hypotheses point to the same file or module, you're probably anchore
 
 ## Phase 3: Hypothesis Testing (The Experiments)
 
-Test each hypothesis systematically. Do NOT test them in order of "most likely" — test the **easiest to disprove** first. Eliminating hypotheses is faster than confirming them.
+**This is where thoroughness lives. Spend the majority of your remaining tool calls here.** Phases 0-2 were setup — Phase 3 is the actual investigation. If you saved turns by reusing cached learnings and workflow maps, THIS is where you spend them: test more hypotheses, query more data, verify more edge cases.
+
+**No budget cap on Phase 3.** Use as many tool calls as needed to reach confidence 9-10. Test each hypothesis systematically. Do NOT test them in order of "most likely" — test the **easiest to disprove** first. Eliminating hypotheses is faster than confirming them.
 
 ### 3a. Write ad-hoc diagnostic tests
 
@@ -1408,7 +1422,9 @@ If no hypothesis reaches 9-10, do NOT pick the highest-scoring one and call it "
 
 ## Phase 4: Exhaustive Analysis (The Completeness Check)
 
-**This phase is what separates /diagnose from /investigate.** Most debugging stops when a plausible cause is found. You don't.
+**This phase is what separates /diagnose from /investigate.** Most debugging stops when a plausible cause is found. You don't. A confirmed root cause is not the end — it's the beginning of the completeness check. The question is no longer "what caused this?" but "is this the ONLY cause, and what else does it break?"
+
+**Do NOT skip Phase 4 to save turns.** This is the whole point of /diagnose. If you only had time for Phases 0-3, you should have used /investigate instead.
 
 ### 4a. Multiple contributing causes
 
@@ -1656,6 +1672,17 @@ These are gold for ALL gstack skills — an architecture insight from `/diagnose
 ```
 
 **What NOT to log:** Root causes and dead-ends (`pitfall` type) go stale after the bug is fixed. The diagnostic report itself is the record of those findings — no need to duplicate them as learnings. Only log a pitfall if it represents a **recurring pattern** that will trap future debuggers even after this specific bug is fixed (e.g., "refreshMonitor always deletes non-matching leads" is a pattern; "ASPIRANET was missing from lens_leads" is a one-off).
+
+### Learnings hygiene — prevent accumulation bloat
+
+**Use stable key names.** The learnings system deduplicates by `key+type` (latest wins). If you use consistent key names, repeated runs naturally UPDATE rather than duplicate:
+- Workflow maps: `workflow-set-lead-status` (not `workflow-set-lead-status-v2` or `workflow-monitor-issue`)
+- Env quirks: `env-db-host-mapping` (not `env-db-hosts-april-2026`)
+- Env profile: `env-profile` (always this exact key)
+
+**When you update a workflow map,** use the SAME key as the existing one. The dedup ensures only the latest version persists. Don't create a new key — you'll just bloat the file.
+
+**If the learnings search returned >20 entries during Phase 0-pre,** the project has accumulated enough learnings that some are likely stale. At the end of the session, briefly note in your output: "Consider running `/learn` to prune stale learnings — N entries loaded, some may be outdated." Don't prune yourself — that's the user's decision via the `/learn` skill.
 
 ---
 
