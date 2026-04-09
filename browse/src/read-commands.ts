@@ -6,6 +6,7 @@
  */
 
 import type { TabSession } from './tab-session';
+import type { BrowserManager } from './browser-manager';
 import { consoleBuffer, networkBuffer, dialogBuffer } from './buffers';
 import type { Page, Frame } from 'playwright';
 import * as fs from 'fs';
@@ -65,8 +66,10 @@ export async function getCleanText(page: Page | Frame): Promise<string> {
 export async function handleReadCommand(
   command: string,
   args: string[],
-  session: TabSession
+  session: TabSession,
+  browserManager: BrowserManager,
 ): Promise<string> {
+  const bm = browserManager;
   const page = session.getPage();
   // Frame-aware target for content extraction
   const target = session.getActiveFrameOrPage();
@@ -495,6 +498,130 @@ export async function handleReadCommand(
       }, { wantJsonLd, wantOg, wantTwitter, wantMeta });
 
       return JSON.stringify(result, null, 2);
+    }
+
+    case 'ocr': {
+      const { generateText } = await import('ai');
+      const { createInterfazeProvider, INTERFAZE_MODEL, getInterfazePrecontext } = await import('./interfaze-client');
+      const { interfazeSetupHint } = await import('./interfaze-auth');
+
+      const wantJson = args.includes('--json');
+      const posArgs = args.filter(a => a !== '--json');
+      const provider = createInterfazeProvider();
+      if (!provider) throw new Error(interfazeSetupHint('ocr'));
+
+      let buffer: Buffer;
+      const first = posArgs[0];
+      if (!first) {
+        buffer = await page.screenshot({ fullPage: false });
+      } else if (fs.existsSync(path.resolve(first)) && /\.(png|jpe?g|webp)$/i.test(first)) {
+        validateReadPath(first);
+        buffer = fs.readFileSync(path.resolve(first));
+      } else {
+        const resolved = await session.resolveRef(first);
+        const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
+        buffer = await locator.screenshot({ timeout: 5000 });
+      }
+
+      const model = provider(INTERFAZE_MODEL);
+      const { text, providerMetadata } = await generateText({
+        model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Extract all visible text from this image. Preserve line breaks where helpful.' },
+              { type: 'image', image: buffer },
+            ],
+          },
+        ],
+      });
+
+      if (wantJson) {
+        const pre = getInterfazePrecontext(providerMetadata as Record<string, unknown> | undefined);
+        return JSON.stringify({ text, precontext: pre }, null, 2);
+      }
+      return text || '(no text extracted)';
+    }
+
+    case 'search': {
+      const { generateText } = await import('ai');
+      const { createInterfazeProvider, INTERFAZE_MODEL, getInterfazePrecontext } = await import('./interfaze-client');
+      const { interfazeSetupHint } = await import('./interfaze-auth');
+
+      let limit = 5;
+      const parts: string[] = [];
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--limit' && args[i + 1]) {
+          limit = Math.min(20, Math.max(1, parseInt(args[i + 1], 10) || 5));
+          i++;
+          continue;
+        }
+        parts.push(args[i]);
+      }
+      const query = parts.join(' ').trim();
+      if (!query) throw new Error('Usage: browse search <query> [--limit N]');
+
+      const provider = createInterfazeProvider();
+      if (!provider) throw new Error(interfazeSetupHint('search'));
+
+      const model = provider(INTERFAZE_MODEL);
+      const { text, providerMetadata } = await generateText({
+        model,
+        prompt:
+          `Answer using web search. Summarize the top ${limit} most relevant sources with title, URL, and a short snippet for each.\n\nQuery: ${query}`,
+      });
+
+      const pre = getInterfazePrecontext(providerMetadata as Record<string, unknown> | undefined);
+      const lines: string[] = [text || ''];
+      if (pre !== undefined) {
+        lines.push('');
+        lines.push('--- precontext (raw search metadata) ---');
+        lines.push(typeof pre === 'string' ? pre : JSON.stringify(pre, null, 2));
+      }
+      return lines.join('\n');
+    }
+
+    case 'ai-scrape': {
+      const { generateObject } = await import('ai');
+      const { createInterfazeProvider, INTERFAZE_MODEL, getInterfazePrecontext } = await import('./interfaze-client');
+      const { interfazeSetupHint } = await import('./interfaze-auth');
+      const { parseSchemaJson } = await import('./interfaze-schema');
+
+      const wantJson = args.includes('--json');
+      const filtered = args.filter(a => a !== '--json');
+      const schemaIdx = filtered.indexOf('--schema');
+      if (schemaIdx < 0 || !filtered[schemaIdx + 1]) {
+        throw new Error(
+          'Usage: browse ai-scrape <url> --schema {"field":"string"} [--json]',
+        );
+      }
+      const schemaStr = filtered[schemaIdx + 1];
+      const rest = filtered.filter((_, i) => i !== schemaIdx && i !== schemaIdx + 1);
+      const url = rest[0];
+      if (!url || !/^https?:\/\//i.test(url)) {
+        throw new Error('Usage: browse ai-scrape <url> --schema {"field":"string"} [--json]');
+      }
+
+      const provider = createInterfazeProvider();
+      if (!provider) throw new Error(interfazeSetupHint('ai-scrape'));
+
+      const schema = parseSchemaJson(schemaStr);
+      const model = provider(INTERFAZE_MODEL);
+      const prompt = `Extract structured data from this page URL: ${url}
+Follow the schema fields exactly. If a field is missing, use a reasonable empty value (empty string, 0, or false as appropriate).`;
+
+      const { object, providerMetadata } = await generateObject({
+        model,
+        schema,
+        prompt,
+      });
+
+      if (wantJson) {
+        const pre = getInterfazePrecontext(providerMetadata as Record<string, unknown> | undefined);
+        return JSON.stringify({ object, precontext: pre }, null, 2);
+      }
+      return JSON.stringify(object, null, 2);
     }
 
     default:
