@@ -630,7 +630,9 @@ If you cannot construct this chain, you do not have a root cause. You have a gue
 
 Before investigating anything, discover what tools and data sources are at your disposal. **Autodetect everything — ask the user only for what you can't find.**
 
-**Budget: Phase 0 must complete in ≤ 5 tool calls.** Combine sub-phases 0a-0g into 1-2 Bash calls. Phase 0j (saving the env-profile learning) is MANDATORY — if you're running low on turns, skip optional sub-phases but NEVER skip 0j.
+**Budget: Adaptive based on cached learnings.**
+- **If Phase 0-pre found usable cached env-profile + workflow maps:** Phase 0 completes in ≤ 3 tool calls (load learnings, quick validation, done). The saved budget carries forward — use it in Phase 3 for deeper hypothesis testing.
+- **If no cached learnings (first run):** Phase 0 must complete in ≤ 5 tool calls. Combine sub-phases 0a-0g into 1-2 Bash calls. Phase 0j (saving the env-profile learning) is MANDATORY — if you're running low on turns, skip optional sub-phases but NEVER skip 0j.
 
 ### 0-env. CRITICAL: Environment verification — do this FIRST
 
@@ -705,10 +707,24 @@ matches a past learning, display:
 This makes the compounding visible. The user should see that gstack is getting
 smarter on their codebase over time.
 
-**If an `env-profile` learning exists with confidence ≥ 7 and is < 30 days old:** use it as the baseline. Print the cached inventory, then skip directly to **0h (Connectivity validation)** to verify the tools are still reachable. Only re-run full detection (0a-0g) if:
+**If an `env-profile` learning exists with confidence ≥ 7 and is < 30 days old:** use it as the baseline. Print the cached inventory, then run a **quick smoke test** to verify it's still accurate:
+
+```bash
+# Smoke test: check if key env vars from the cached profile still exist
+# Adapt this to whatever the cached profile lists as tools
+env | grep -iE '^(DATABASE_URL|SENTRY_|POSTHOG_|DATADOG_)' 2>/dev/null | sed 's/=.*/=***/' || true
+ls package.json 2>/dev/null && echo "DEPS_FILE: present" || true
+```
+
+**Compare the smoke test output against the cached profile.** If you see:
+- A new env var that's NOT in the cached profile → environment changed, run full detection (0a-0g) and update the profile in 0j
+- A cached tool that's now missing → environment changed, run full detection
+- Everything matches → cache is valid, skip to Phase 1
+
+**Always re-run full detection (0a-0g) if:**
 - The user passes `--rescan`
 - The env-profile learning is older than 30 days or confidence has decayed below 7
-- Connectivity validation reveals tools that are no longer available or new env vars appear
+- The smoke test reveals mismatches (new tools appeared, old tools vanished)
 
 **If no env-profile learning exists or it's stale:** run the full detection below (0a-0g). This is expected on first run.
 
@@ -1003,7 +1019,9 @@ From: [CACHED LEARNINGS + validation | FRESH SCAN]
 
 ## Phase 1: Symptom Collection (The Crime Scene)
 
-**Budget: Phase 1 must complete in ≤ 25 tool calls total.** This includes all sub-phases (1a-1g) AND the workflow map. If you're at 20 tool calls and haven't built the workflow map yet, STOP everything else and build it NOW with what you have. The map is more important than any individual data point.
+**Budget: Adaptive based on cached learnings.**
+- **If Phase 0-pre loaded a cached workflow map:** Phase 1 completes in ≤ 15 tool calls. Spot-check the cached map (2-3 file:line refs), gather symptom evidence, done. The saved ~10 tool calls carry forward to Phase 3 for deeper hypothesis testing.
+- **If no cached workflow map (first time tracing this code path):** Phase 1 must complete in ≤ 25 tool calls. If you're at 20 and haven't built the workflow map yet, STOP and build it NOW with what you have. The map is more important than any individual data point.
 
 Gather ALL available evidence before forming any hypothesis. This is the hardest part because your training pushes you to start solving immediately. **Resist.**
 
