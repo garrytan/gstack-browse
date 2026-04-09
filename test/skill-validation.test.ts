@@ -1124,6 +1124,16 @@ describe('Step 3.4 test coverage audit', () => {
     expect(content).toContain('## Test Coverage');
   });
 
+  test('ship always creates a fresh PR branch instead of editing an existing PR', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('must always create a new PR/MR');
+    expect(content).toContain('FRESH_BRANCH="<branch-name>-pr-$(date +%Y%m%d-%H%M%S)"');
+    expect(content).toContain('gh pr create --base <base> --head <pr-branch>');
+    expect(content).toContain('glab mr create -b <base> -s <pr-branch>');
+    expect(content).not.toContain('gh pr edit --body');
+    expect(content).not.toContain('glab mr update -d');
+  });
+
   test('ship rules include test generation rule', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
     expect(content).toContain('Step 3.4 generates coverage tests');

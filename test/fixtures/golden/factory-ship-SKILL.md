@@ -82,6 +82,14 @@ fi
 _ROUTING_DECLINED=$($GSTACK_BIN/gstack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+# Vendoring deprecation: detect if CWD has a vendored gstack copy
+_VENDORED="no"
+if [ -d ".factory/skills/gstack" ] && [ ! -L ".factory/skills/gstack" ]; then
+  if [ -f ".factory/skills/gstack/VERSION" ] || [ -d ".factory/skills/gstack/.git" ]; then
+    _VENDORED="yes"
+  fi
+fi
+echo "VENDORED_GSTACK: $_VENDORED"
 # Detect spawned session (OpenClaw or other orchestrator)
 [ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
@@ -209,6 +217,38 @@ If B: run `$GSTACK_BIN/gstack-config set routing_declined true`
 Say "No problem. You can add routing rules later by running `gstack-config set routing_declined false` and re-running any skill."
 
 This only happens once per project. If `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`, skip this entirely.
+
+If `VENDORED_GSTACK` is `yes`: This project has a vendored copy of gstack at
+`.factory/skills/gstack/`. Vendoring is deprecated. We will not keep vendored copies
+up to date, so this project's gstack will fall behind.
+
+Use AskUserQuestion (one-time per project, check for `~/.gstack/.vendoring-warned-$SLUG` marker):
+
+> This project has gstack vendored in `.factory/skills/gstack/`. Vendoring is deprecated.
+> We won't keep this copy up to date, so you'll fall behind on new features and fixes.
+>
+> Want to migrate to team mode? It takes about 30 seconds.
+
+Options:
+- A) Yes, migrate to team mode now
+- B) No, I'll handle it myself
+
+If A:
+1. Run `git rm -r .factory/skills/gstack/`
+2. Run `echo '.factory/skills/gstack/' >> .gitignore`
+3. Run `$GSTACK_BIN/gstack-team-init required` (or `optional`)
+4. Run `git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate gstack from vendored to team mode"`
+5. Tell the user: "Done. Each developer now runs: `cd $GSTACK_ROOT && ./setup --team`"
+
+If B: say "OK, you're on your own to keep the vendored copy up to date."
+
+Always run (regardless of choice):
+```bash
+eval "$($GSTACK_BIN/gstack-slug 2>/dev/null)" 2>/dev/null || true
+touch ~/.gstack/.vendoring-warned-${SLUG:-unknown}
+```
+
+This only happens once per project. If the marker file exists, skip entirely.
 
 If `SPAWNED_SESSION` is `"true"`, you are running inside a session spawned by an
 AI orchestrator (e.g., OpenClaw). In spawned sessions:
@@ -2336,7 +2376,7 @@ git push -u origin <branch-name>
 
 ## Step 8: Create PR/MR
 
-**Idempotency check:** Check if a PR/MR already exists for this branch.
+**Fresh-PR check:** `/ship` must always create a new PR/MR for the work being shipped in this run. Never append to or rewrite an already-open PR/MR from an earlier `/ship` run.
 
 **If GitHub:**
 ```bash
@@ -2348,9 +2388,20 @@ gh pr view --json url,number,state -q 'if .state == "OPEN" then "PR #\(.number):
 glab mr view -F json 2>/dev/null | jq -r 'if .state == "opened" then "MR_EXISTS" else "NO_MR" end' 2>/dev/null || echo "NO_MR"
 ```
 
-If an **open** PR/MR already exists: **update** the PR body using `gh pr edit --body "..."` (GitHub) or `glab mr update -d "..."` (GitLab). Always regenerate the PR body from scratch using this run's fresh results (test output, coverage audit, review findings, adversarial review, TODOS summary). Never reuse stale PR body content from a prior run. Print the existing URL and continue to Step 8.5.
+If an **open** PR/MR already exists for the current branch:
 
-If no PR/MR exists: create a pull request (GitHub) or merge request (GitLab) using the platform detected in Step 0.
+1. Print the existing URL and say it is being left unchanged.
+2. Create a fresh branch from the current `HEAD` so this run gets its own PR/MR:
+   ```bash
+   FRESH_BRANCH="<branch-name>-pr-$(date +%Y%m%d-%H%M%S)"
+   git checkout -b "$FRESH_BRANCH"
+   git push -u origin "$FRESH_BRANCH"
+   ```
+3. Set `<pr-branch>` to `$FRESH_BRANCH`.
+4. Create a brand-new PR/MR from `<pr-branch>`.
+5. **Never** run `gh pr edit` or `glab mr update` against the older PR/MR.
+
+If no open PR/MR exists for the current branch: set `<pr-branch>` to `<branch-name>` and create a pull request (GitHub) or merge request (GitLab) using the platform detected in Step 0.
 
 The PR/MR body should contain these sections:
 
@@ -2412,7 +2463,7 @@ you missed it.>
 **If GitHub:**
 
 ```bash
-gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
+gh pr create --base <base> --head <pr-branch> --title "<type>: <summary>" --body "$(cat <<'EOF'
 <PR body from above>
 EOF
 )"
@@ -2421,7 +2472,7 @@ EOF
 **If GitLab:**
 
 ```bash
-glab mr create -b <base> -t "<type>: <summary>" -d "$(cat <<'EOF'
+glab mr create -b <base> -s <pr-branch> -t "<type>: <summary>" -d "$(cat <<'EOF'
 <MR body from above>
 EOF
 )"
@@ -2453,7 +2504,7 @@ execute its full workflow:
 This step is automatic. Do not ask the user for confirmation. The goal is zero-friction
 doc updates — the user runs `/ship` and documentation stays current without a separate command.
 
-If Step 8.5 created a docs commit, re-edit the PR/MR body to include the latest commit SHA in the summary. This ensures the PR body reflects the truly final state after document-release.
+If Step 8.5 created a docs commit, re-edit the PR/MR created in this run to include the latest commit SHA in the summary. This ensures the PR/MR body reflects the truly final state after document-release without touching any older PR/MR.
 
 ---
 

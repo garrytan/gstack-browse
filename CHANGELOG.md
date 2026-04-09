@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.15.15.2] - 2026-04-09
+
+### Fixed
+- `/ship` now always opens a fresh PR for the current run. If the current branch already has an open PR, GStack leaves that PR alone, creates a new timestamped branch from the current `HEAD`, pushes it, and opens a brand-new PR from that branch instead of editing the older PR.
+- Added a regression test covering the fresh-PR behavior and refreshed the generated ship skill snapshots for Claude, Codex, and Factory hosts.
+
 ## [0.15.15.1] - 2026-04-06
 
 ### Fixed
