@@ -37,6 +37,20 @@ The biggest failure mode of AI-assisted debugging is **premature convergence**: 
 
 Your job is to resist that. Every phase has an evidence gate. You cannot advance without clearing it.
 
+### The 5 Deadly Sins of Diagnosis
+
+These are the specific failure modes you MUST actively guard against. Each one has destroyed real diagnostic sessions:
+
+1. **Wrong database / wrong environment.** Before running ANY query, verify which database you are querying and which environment the bug was reported in. Print the connection details. If the issue says "prod" but screenshots show "staging" (or vice versa), STOP and clarify before querying anything. One wrong assumption here wastes the entire session.
+
+2. **Skipping the workflow map.** You will be tempted to jump from symptom → code search → "found it!" without understanding how the system works end-to-end. This is how you find a suspicious-looking thing and declare it the root cause when it's actually irrelevant. Phase 1f (workflow map) is MANDATORY. Build it BEFORE Phase 2.
+
+3. **Hypothesis by narrative, not by evidence.** You will construct a plausible story ("the account is suspended, so the API must be failing") and then seek confirming evidence while ignoring contradictions. STOP. For every hypothesis, write the specific evidence AGAINST it. If you can't think of contradicting evidence, you haven't looked.
+
+4. **Declaring root cause at confidence 6-8.** "Probable cause" is NOT "root cause." If you cannot reproduce the issue or verify the exact failure path, say so. A honest PROBABLE_CAUSE report is infinitely more useful than a false ROOT_CAUSE_ESTABLISHED. The user will trust your confidence score — don't inflate it.
+
+5. **Testing one hypothesis at a time.** You find H1 looks plausible, spend 15 turns investigating it, then discover it's wrong. Meanwhile H2 (which you could have tested with one query) was the answer. Test the EASIEST TO DISPROVE first. Elimination is faster than confirmation.
+
 ## User-invocable
 When the user types `/diagnose`, run this skill.
 
@@ -69,6 +83,17 @@ If you cannot construct this chain, you do not have a root cause. You have a gue
 Before investigating anything, discover what tools and data sources are at your disposal. **Autodetect everything — ask the user only for what you can't find.**
 
 **Budget: Phase 0 must complete in ≤ 5 tool calls.** Combine sub-phases 0a-0g into 1-2 Bash calls. Phase 0j (saving the env-profile learning) is MANDATORY — if you're running low on turns, skip optional sub-phases but NEVER skip 0j.
+
+### 0-env. CRITICAL: Environment verification — do this FIRST
+
+Before running ANY database query or API call, verify which environment you're investigating:
+
+1. **Read the issue carefully.** Does it say "prod", "staging", "dev"? Check screenshots for URLs (e.g., `staging.example.com` vs `app.example.com`).
+2. **If the issue mentions one environment but screenshots show another**, STOP and note the discrepancy. You may need to investigate BOTH.
+3. **Print the connection you're about to use.** Before your first DB query, echo the hostname and database name. Verify it matches the environment where the bug was reported.
+4. **If the project has multiple databases** (e.g., per-region, per-environment), read CLAUDE.md or .env files to build a map of which connection string goes where. Print this map.
+
+**This is not optional.** Querying the wrong database wastes the entire diagnostic session — every observation becomes misleading evidence that sends you down wrong paths. A 30-second verification saves hours of circular debugging.
 
 ### 0-pre. Learnings fast-path — skip redundant discovery
 
@@ -428,9 +453,13 @@ If read-only DB access is available:
 - Read the code paths involved in the failing flow
 - Check for **recent dependency updates** that might have changed behavior
 
-### 1f. End-to-end workflow trace
+### 1f. End-to-end workflow trace — MANDATORY BEFORE ANY HYPOTHESIS
 
-**This is the most important evidence-gathering step and where most debugging fails.** Before you can diagnose what's broken, you must understand how the system works when it's NOT broken. A user clicks a button — what happens? Trace the full chain:
+**This is the most important evidence-gathering step and where most debugging fails.** Before you can diagnose what's broken, you must understand how the system works when it's NOT broken. A user clicks a button — what happens? Trace the full chain.
+
+**YOU MUST BUILD THE WORKFLOW MAP BEFORE PROCEEDING TO PHASE 2.** If you skip this step and jump to hypotheses, you WILL anchor on the first suspicious thing you find and waste the entire session. This has happened repeatedly. The workflow map protects you from yourself.
+
+**The map must be COMPLETE before you hypothesize.** Not "I'll fill in the details later" — the map must show every system boundary, every database table touched, every background job triggered, every cache read/written. If you don't know a step, READ THE CODE until you do. This upfront investment saves 10x the time later.
 
 **Step 1: Map the happy path.** Starting from the user action that triggers the bug, trace the entire request lifecycle:
 
@@ -513,13 +542,27 @@ $B text
 
 **Save screenshots as evidence.** Name them descriptively: `/tmp/diag-evidence-<what>.png`. These become attachments to the diagnostic report.
 
-**Evidence Gate 1:** Before proceeding, you must have:
-- [ ] Complete symptom description (what, when, who, where, how often)
-- [ ] Error tracker data (if available) with first occurrence date
-- [ ] At least ONE concrete data point from outside the codebase (DB state, error frequency, analytics metric, browser screenshot) — OR explicit note that no external tools are available
-- [ ] Timeline of relevant code changes
+**Evidence Gate 1 — PRINT THIS CHECKLIST before proceeding:**
 
-If you cannot check all boxes, go back and gather more. Do NOT proceed on partial evidence.
+```
+EVIDENCE GATE 1 — Phase 1 Complete?
+════════════════════════════════════
+[ ] Environment verified: querying [ENVIRONMENT] database at [HOST/DB]
+    — matches the environment where the bug was reported
+[ ] Complete symptom description (what, when, who, where, how often)
+[ ] Error tracker data (if available) with first occurrence date
+[ ] At least ONE concrete data point from outside the codebase
+    (DB state, error frequency, analytics metric, browser screenshot)
+    — OR explicit note that no external tools are available
+[ ] Timeline of relevant code changes
+[ ] WORKFLOW MAP built (Phase 1f) — complete e2e chain documented
+    — every system boundary identified
+    — every database table in the flow identified
+    — every background job / side effect identified
+════════════════════════════════════
+```
+
+**ACTUALLY PRINT this checklist with your answers filled in.** Do not skip it. Do not say "I've checked these mentally." Print it, check each box, and if ANY box fails — especially the workflow map — go back and complete it. Proceeding without a workflow map is the #1 cause of wasted diagnostic sessions.
 
 ---
 
@@ -531,11 +574,15 @@ Now — and ONLY now — form hypotheses. Generate **multiple** hypotheses, not 
 
 **You MUST generate at least 3 hypotheses.** This is not optional. The human mind (and AI training) converges on the first plausible explanation. The first plausible explanation is often wrong, or incomplete.
 
+**Each hypothesis MUST reference a specific step in the workflow map from Phase 1f.** If a hypothesis can't point to a numbered step in the map, it's too vague. "The API is failing" is not a hypothesis. "The upsert at step 3 silently fails when the account has no lens_leads entry" is a hypothesis.
+
+**The anti-narrative rule:** After writing each hypothesis, ask yourself: "Am I constructing a story that sounds plausible, or do I have evidence that specifically supports this over alternatives?" If you catch yourself writing "so the API must be..." or "which means..." or "this would explain why..." — STOP. Those are narrative bridges, not evidence. Go get actual evidence.
+
 For each hypothesis, write:
-1. **Claim:** "The root cause is [specific, testable claim]"
+1. **Claim:** "The root cause is [specific, testable claim at step N in the workflow map]"
 2. **Evidence for:** What evidence from Phase 1 supports this?
 3. **Evidence against:** What evidence from Phase 1 contradicts this? (If you can't think of any, you haven't looked hard enough.)
-4. **Test:** How would you prove or disprove this with certainty?
+4. **Test:** How would you prove or disprove this with ONE query or ONE tool call? (If the test takes 5+ tool calls, it's too vague.)
 5. **Scope:** If this is the root cause, what's the full blast radius? What else would be affected?
 
 ```
@@ -965,11 +1012,18 @@ Replace with: what the symptom looked like, the wrong hypothesis, the real cause
 ## Important Rules
 
 ### Anti-bias-for-action rules
-- **Never say "the root cause is X" without a confidence score.** If you're below 9, it's a hypothesis, not a root cause.
+- **Never say "the root cause is X" without a confidence score.** If you're below 9, it's a hypothesis, not a root cause. Use PROBABLE_CAUSE status, not ROOT_CAUSE_ESTABLISHED.
 - **Never test only one hypothesis.** Minimum 3. The first one you think of is usually the most obvious, not the most correct.
 - **Never stop at the first confirmed cause.** Always run Phase 4 (Exhaustive Analysis) to check for additional causes and blast radius.
 - **Never assume the fix belongs in the current repo.** Always map the end-to-end workflow and identify where the fix actually needs to go.
 - **Never skip external evidence.** If you have database access, use it. If you have error tracking, query it. Code-only diagnosis misses data-level issues.
+
+### Anti-premature-convergence rules
+- **Never query a database without printing which environment/host you're connecting to FIRST.** Querying the wrong database is the #1 time-wasting mistake.
+- **Never skip the workflow map (Phase 1f).** If you don't have one, you don't understand the system. If you don't understand the system, your hypothesis is a guess.
+- **Never adopt a hypothesis mid-investigation.** You will notice yourself writing "so the root cause is..." during Phase 1. That is premature convergence. Write it down as H1 and keep gathering evidence. You need H2 and H3 too.
+- **Never declare confidence 8+ without reproducing the issue.** If you can't access the environment where the bug was reported, your max confidence is 7 (PROBABLE_CAUSE). Say so.
+- **When you find something suspicious, ask: "What ELSE could explain this?"** If you can't think of an alternative explanation, you're anchored. Step back and consider: wrong environment, stale data, race condition, cache, different code version, user error.
 
 ### Completeness rules
 - **Every hypothesis gets tested.** No "I'll skip H3 because H1 already confirmed." H3 might reveal a second contributing cause.
