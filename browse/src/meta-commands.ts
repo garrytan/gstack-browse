@@ -8,47 +8,15 @@ import { getCleanText } from './read-commands';
 import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS, PAGE_CONTENT_COMMANDS, wrapUntrustedContent } from './commands';
 import { validateNavigationUrl } from './url-validation';
 import { checkScope, type TokenInfo } from './token-registry';
+import { validateOutputPath, escapeRegExp } from './path-security';
+// Re-export for backward compatibility (tests import from meta-commands)
+export { validateOutputPath, escapeRegExp } from './path-security';
 import * as Diff from 'diff';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TEMP_DIR, isPathWithin } from './platform';
+import { TEMP_DIR } from './platform';
 import { resolveConfig } from './config';
 import type { Frame } from 'playwright';
-
-// Security: Path validation to prevent path traversal attacks
-// Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp → /private/tmp)
-const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()].map(d => {
-  try { return fs.realpathSync(d); } catch { return d; }
-});
-
-export function validateOutputPath(filePath: string): void {
-  const resolved = path.resolve(filePath);
-
-  // Resolve real path of the parent directory to catch symlinks.
-  // The file itself may not exist yet (e.g., screenshot output).
-  let dir = path.dirname(resolved);
-  let realDir: string;
-  try {
-    realDir = fs.realpathSync(dir);
-  } catch {
-    try {
-      realDir = fs.realpathSync(path.dirname(dir));
-    } catch {
-      throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
-    }
-  }
-
-  const realResolved = path.join(realDir, path.basename(resolved));
-  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(realResolved, dir));
-  if (!isSafe) {
-    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
-  }
-}
-
-/** Escape special regex metacharacters in a user-supplied string to prevent ReDoS. */
-export function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 /** Tokenize a pipe segment respecting double-quoted strings. */
 function tokenizePipeSegment(segment: string): string[] {
@@ -84,6 +52,9 @@ export async function handleMetaCommand(
   tokenInfo?: TokenInfo | null,
   opts?: MetaCommandOpts,
 ): Promise<string> {
+  // Per-tab operations use the active session; global operations use bm directly
+  const session = bm.getActiveSession();
+
   switch (command) {
     // ─── Tabs ──────────────────────────────────────────
     case 'tabs': {
@@ -144,17 +115,20 @@ export async function handleMetaCommand(
 
     // ─── Visual ────────────────────────────────────────
     case 'screenshot': {
-      // Parse priority: flags (--viewport, --clip) → selector (@ref, CSS) → output path
+      // Parse priority: flags (--viewport, --clip, --base64) → selector (@ref, CSS) → output path
       const page = bm.getPage();
       let outputPath = `${TEMP_DIR}/browse-screenshot.png`;
       let clipRect: { x: number; y: number; width: number; height: number } | undefined;
       let targetSelector: string | undefined;
       let viewportOnly = false;
+      let base64Mode = false;
 
       const remaining: string[] = [];
       for (let i = 0; i < args.length; i++) {
         if (args[i] === '--viewport') {
           viewportOnly = true;
+        } else if (args[i] === '--base64') {
+          base64Mode = true;
         } else if (args[i] === '--clip') {
           const coords = args[++i];
           if (!coords) throw new Error('Usage: screenshot --clip x,y,w,h [path]');
@@ -189,6 +163,24 @@ export async function handleMetaCommand(
       }
       if (viewportOnly && clipRect) {
         throw new Error('Cannot use --viewport with --clip — choose one');
+      }
+
+      // --base64 mode: capture to buffer instead of disk
+      if (base64Mode) {
+        let buffer: Buffer;
+        if (targetSelector) {
+          const resolved = await bm.resolveRef(targetSelector);
+          const locator = 'locator' in resolved ? resolved.locator : page.locator(resolved.selector);
+          buffer = await locator.screenshot({ timeout: 5000 });
+        } else if (clipRect) {
+          buffer = await page.screenshot({ clip: clipRect });
+        } else {
+          buffer = await page.screenshot({ fullPage: !viewportOnly });
+        }
+        if (buffer.length > 10 * 1024 * 1024) {
+          throw new Error('Screenshot too large for --base64 (>10MB). Use disk path instead.');
+        }
+        return `data:image/png;base64,${buffer.toString('base64')}`;
       }
 
       if (targetSelector) {
@@ -317,11 +309,11 @@ export async function handleMetaCommand(
               if (bm.isWatching()) {
                 result = 'BLOCKED: write commands disabled in watch mode';
               } else {
-                result = await handleWriteCommand(name, cmdArgs, bm);
+                result = await handleWriteCommand(name, cmdArgs, session, bm);
               }
               lastWasWrite = true;
             } else if (READ_COMMANDS.has(name)) {
-              result = await handleReadCommand(name, cmdArgs, bm);
+              result = await handleReadCommand(name, cmdArgs, session);
               if (PAGE_CONTENT_COMMANDS.has(name)) {
                 result = wrapUntrustedContent(result, bm.getCurrentUrl());
               }
@@ -378,7 +370,7 @@ export async function handleMetaCommand(
     // ─── Snapshot ─────────────────────────────────────
     case 'snapshot': {
       const isScoped = tokenInfo && tokenInfo.clientId !== 'root';
-      const snapshotResult = await handleSnapshot(args, bm, {
+      const snapshotResult = await handleSnapshot(args, session, {
         splitForScoped: !!isScoped,
       });
       // Scoped tokens get split format (refs outside envelope); root gets basic wrapping
@@ -398,7 +390,7 @@ export async function handleMetaCommand(
       bm.resume();
       // Re-snapshot to capture current page state after human interaction
       const isScoped2 = tokenInfo && tokenInfo.clientId !== 'root';
-      const snapshot = await handleSnapshot(['-i'], bm, { splitForScoped: !!isScoped2 });
+      const snapshot = await handleSnapshot(['-i'], session, { splitForScoped: !!isScoped2 });
       if (isScoped2) {
         return `RESUMED\n${snapshot}`;
       }

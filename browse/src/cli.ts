@@ -566,7 +566,7 @@ COMMAND REFERENCE:
   New tab:     {"command": "newtab", "args": ["URL"]}
 
 SCOPES: ${scopeDesc}.
-${scopes.includes('admin') ? '' : `To get admin access (JS, cookies, storage), ask the user to re-pair with --admin.\n`}
+${scopes.includes('control') ? '' : `To get browser control access (stop, restart, disconnect), ask the user to re-pair with --control.\n`}
 TOKEN: Expires ${expiresAt}. Revoke: ask the user to run
   $B tunnel revoke <your-name>
 
@@ -591,10 +591,13 @@ function hasFlag(args: string[], flag: string): boolean {
 async function handlePairAgent(state: ServerState, args: string[]): Promise<void> {
   const clientName = parseFlag(args, '--client') || `remote-${Date.now()}`;
   const domains = parseFlag(args, '--domain')?.split(',').map(d => d.trim());
-  const admin = hasFlag(args, '--admin');
+  const control = hasFlag(args, '--control') || hasFlag(args, '--admin');
+  const restrict = parseFlag(args, '--restrict');
   const localHost = parseFlag(args, '--local');
 
   // Call POST /pair to create a setup key
+  // Default: full access (read+write+admin+meta). --control adds browser-wide ops.
+  // --restrict limits: --restrict read (read-only), --restrict "read,write" (no admin)
   const pairResp = await fetch(`http://127.0.0.1:${state.port}/pair`, {
     method: 'POST',
     headers: {
@@ -603,9 +606,9 @@ async function handlePairAgent(state: ServerState, args: string[]): Promise<void
     },
     body: JSON.stringify({
       domains,
-
       clientId: clientName,
-      admin,
+      control,
+      ...(restrict ? { scopes: restrict.split(',').map(s => s.trim()) } : {}),
     }),
     signal: AbortSignal.timeout(5000),
   });

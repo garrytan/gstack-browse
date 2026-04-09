@@ -5,56 +5,16 @@
  * press, scroll, wait, viewport, cookie, header, useragent
  */
 
+import type { TabSession } from './tab-session';
 import type { BrowserManager } from './browser-manager';
 import { findInstalledBrowsers, importCookies, listSupportedBrowserNames } from './cookie-import-browser';
+import { generatePickerCode } from './cookie-picker-routes';
 import { validateNavigationUrl } from './url-validation';
+import { validateOutputPath } from './path-security';
 import * as fs from 'fs';
 import * as path from 'path';
-import { TEMP_DIR, isPathWithin } from './platform';
+import { TEMP_DIR } from './platform';
 import { modifyStyle, undoModification, resetModifications, getModificationHistory } from './cdp-inspector';
-
-// Security: Path validation for screenshot output
-// Resolve safe directories through realpathSync to handle symlinks (e.g., macOS /tmp -> /private/tmp)
-const SAFE_DIRECTORIES = [TEMP_DIR, process.cwd()].map(d => {
-  try { return fs.realpathSync(d); } catch { return d; }
-});
-
-function validateOutputPath(filePath: string): void {
-  const resolved = path.resolve(filePath);
-
-  // Basic containment check using lexical resolution only.
-  // This catches obvious traversal (../../../etc/passwd) but NOT symlinks.
-  const isSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(resolved, dir));
-  if (!isSafe) {
-    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
-  }
-
-  // Symlink check: resolve the real path of the nearest existing ancestor
-  // directory and re-validate. This closes the symlink bypass where a
-  // symlink inside /tmp or cwd points outside the safe zone.
-  //
-  // We resolve the parent dir (not the file itself — it may not exist yet).
-  // If the parent doesn't exist either we fall back up the tree.
-  let dir = path.dirname(resolved);
-  let realDir: string;
-  try {
-    realDir = fs.realpathSync(dir);
-  } catch {
-    // Parent doesn't exist — check the grandparent, or skip if inaccessible
-    try {
-      realDir = fs.realpathSync(path.dirname(dir));
-    } catch {
-      // Can't resolve — fail safe
-      throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')}`);
-    }
-  }
-
-  const realResolved = path.join(realDir, path.basename(resolved));
-  const isRealSafe = SAFE_DIRECTORIES.some(dir => isPathWithin(realResolved, dir));
-  if (!isRealSafe) {
-    throw new Error(`Path must be within: ${SAFE_DIRECTORIES.join(', ')} (symlink target blocked)`);
-  }
-}
 
 /**
  * Aggressive page cleanup selectors and heuristics.
@@ -168,12 +128,13 @@ const CLEANUP_SELECTORS = {
 export async function handleWriteCommand(
   command: string,
   args: string[],
+  session: TabSession,
   bm: BrowserManager
 ): Promise<string> {
-  const page = bm.getPage();
+  const page = session.getPage();
   // Frame-aware target for locator-based operations (click, fill, etc.)
-  const target = bm.getActiveFrameOrPage();
-  const inFrame = bm.getFrame() !== null;
+  const target = session.getActiveFrameOrPage();
+  const inFrame = session.getFrame() !== null;
 
   switch (command) {
     case 'goto': {
@@ -209,9 +170,9 @@ export async function handleWriteCommand(
       if (!selector) throw new Error('Usage: browse click <selector>');
 
       // Auto-route: if ref points to a real <option> inside a <select>, use selectOption
-      const role = bm.getRefRole(selector);
+      const role = session.getRefRole(selector);
       if (role === 'option') {
-        const resolved = await bm.resolveRef(selector);
+        const resolved = await session.resolveRef(selector);
         if ('locator' in resolved) {
           const optionInfo = await resolved.locator.evaluate(el => {
             if (el.tagName !== 'OPTION') return null; // custom [role=option], not real <option>
@@ -228,7 +189,7 @@ export async function handleWriteCommand(
         }
       }
 
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       try {
         if ('locator' in resolved) {
           await resolved.locator.click({ timeout: 5000 });
@@ -258,7 +219,7 @@ export async function handleWriteCommand(
       const [selector, ...valueParts] = args;
       const value = valueParts.join(' ');
       if (!selector || !value) throw new Error('Usage: browse fill <selector> <value>');
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.fill(value, { timeout: 5000 });
       } else {
@@ -273,7 +234,7 @@ export async function handleWriteCommand(
       const [selector, ...valueParts] = args;
       const value = valueParts.join(' ');
       if (!selector || !value) throw new Error('Usage: browse select <selector> <value>');
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.selectOption(value, { timeout: 5000 });
       } else {
@@ -287,7 +248,7 @@ export async function handleWriteCommand(
     case 'hover': {
       const selector = args[0];
       if (!selector) throw new Error('Usage: browse hover <selector>');
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.hover({ timeout: 5000 });
       } else {
@@ -311,9 +272,34 @@ export async function handleWriteCommand(
     }
 
     case 'scroll': {
-      const selector = args[0];
+      // Parse --times N and --wait ms flags
+      const timesIdx = args.indexOf('--times');
+      const times = timesIdx >= 0 ? parseInt(args[timesIdx + 1], 10) || 1 : 0;
+      const waitIdx = args.indexOf('--wait');
+      const waitMs = waitIdx >= 0 ? parseInt(args[waitIdx + 1], 10) || 1000 : 1000;
+      const selector = args.find(a => !a.startsWith('--') && args.indexOf(a) !== timesIdx + 1 && args.indexOf(a) !== waitIdx + 1);
+
+      if (times > 0) {
+        // Repeated scroll mode
+        for (let i = 0; i < times; i++) {
+          if (selector) {
+            const resolved = await bm.resolveRef(selector);
+            if ('locator' in resolved) {
+              await resolved.locator.scrollIntoViewIfNeeded({ timeout: 5000 });
+            } else {
+              await target.locator(resolved.selector).scrollIntoViewIfNeeded({ timeout: 5000 });
+            }
+          } else {
+            await target.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+          }
+          if (i < times - 1) await new Promise(r => setTimeout(r, waitMs));
+        }
+        return `Scrolled ${times} times${selector ? ` (${selector})` : ''} with ${waitMs}ms delay`;
+      }
+
+      // Single scroll (original behavior)
       if (selector) {
-        const resolved = await bm.resolveRef(selector);
+        const resolved = await session.resolveRef(selector);
         if ('locator' in resolved) {
           await resolved.locator.scrollIntoViewIfNeeded({ timeout: 5000 });
         } else {
@@ -346,7 +332,7 @@ export async function handleWriteCommand(
       const MAX_WAIT_MS = 300_000;
       const MIN_WAIT_MS = 1_000;
       const timeout = Math.min(Math.max(args[1] ? parseInt(args[1], 10) || MIN_WAIT_MS : 15000, MIN_WAIT_MS), MAX_WAIT_MS);
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.waitFor({ state: 'visible', timeout });
       } else {
@@ -423,7 +409,7 @@ export async function handleWriteCommand(
         }
       }
 
-      const resolved = await bm.resolveRef(selector);
+      const resolved = await session.resolveRef(selector);
       if ('locator' in resolved) {
         await resolved.locator.setInputFiles(filePaths);
       } else {
@@ -530,14 +516,15 @@ export async function handleWriteCommand(
         throw new Error(`No Chromium browsers found. Supported: ${listSupportedBrowserNames().join(', ')}`);
       }
 
-      const pickerUrl = `http://127.0.0.1:${port}/cookie-picker`;
+      const code = generatePickerCode();
+      const pickerUrl = `http://127.0.0.1:${port}/cookie-picker?code=${code}`;
       try {
         Bun.spawn(['open', pickerUrl], { stdout: 'ignore', stderr: 'ignore' });
       } catch {
         // open may fail silently — URL is in the message below
       }
 
-      return `Cookie picker opened at ${pickerUrl}\nDetected browsers: ${browsers.map(b => b.name).join(', ')}\nSelect domains to import, then close the picker when done.`;
+      return `Cookie picker opened at http://127.0.0.1:${port}/cookie-picker\nDetected browsers: ${browsers.map(b => b.name).join(', ')}\nSelect domains to import, then close the picker when done.`;
     }
 
     case 'style': {
@@ -911,7 +898,230 @@ export async function handleWriteCommand(
       return parts.join(' ');
     }
 
+    case 'download': {
+      if (args.length === 0) throw new Error('Usage: download <url|@ref> [path] [--base64]');
+      const isBase64 = args.includes('--base64');
+      const filteredArgs = args.filter(a => a !== '--base64');
+      let url = filteredArgs[0];
+      const outputPath = filteredArgs[1];
+
+      // Resolve @ref to element src
+      if (url.startsWith('@')) {
+        const resolved = await bm.resolveRef(url);
+        if (!('locator' in resolved)) throw new Error(`Expected @ref, got CSS selector: ${url}`);
+        const locator = resolved.locator;
+        const tagName = await locator.evaluate(el => el.tagName.toLowerCase());
+        if (tagName === 'img') {
+          url = await locator.evaluate(el => {
+            const img = el as HTMLImageElement;
+            return img.currentSrc || img.src || img.getAttribute('data-src') || '';
+          });
+        } else if (tagName === 'video') {
+          url = await locator.evaluate(el => (el as HTMLVideoElement).currentSrc || (el as HTMLVideoElement).src || '');
+        } else if (tagName === 'audio') {
+          url = await locator.evaluate(el => (el as HTMLAudioElement).currentSrc || (el as HTMLAudioElement).src || '');
+        } else {
+          // Try src attribute on any element
+          url = await locator.evaluate(el => el.getAttribute('src') || '');
+        }
+        if (!url) throw new Error(`Could not extract URL from ${filteredArgs[0]} (${tagName})`);
+      }
+
+      // Check for HLS/DASH
+      if (url.includes('.m3u8') || url.includes('.mpd')) {
+        throw new Error('This is an HLS/DASH stream. Use yt-dlp or ffmpeg for adaptive stream downloads.');
+      }
+
+      // Determine output path and extension
+      const page = bm.getPage();
+      let contentType = 'application/octet-stream';
+      let buffer: Buffer;
+
+      if (url.startsWith('blob:')) {
+        // Strategy 3: Blob URL -- in-page fetch + base64
+        const dataUrl = await page.evaluate(async (blobUrl) => {
+          try {
+            const resp = await fetch(blobUrl);
+            const blob = await resp.blob();
+            if (blob.size > 100 * 1024 * 1024) return 'ERROR:TOO_LARGE';
+            return new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.onerror = () => reject('Failed to read blob');
+              reader.readAsDataURL(blob);
+            });
+          } catch {
+            return 'ERROR:EXPIRED';
+          }
+        }, url);
+
+        if (dataUrl === 'ERROR:TOO_LARGE') throw new Error('Blob too large (>100MB). Use a different approach.');
+        if (dataUrl === 'ERROR:EXPIRED') throw new Error('Blob URL expired or inaccessible.');
+
+        const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+        if (!match) throw new Error('Failed to decode blob data');
+        contentType = match[1];
+        buffer = Buffer.from(match[2], 'base64');
+      } else {
+        // Strategy 1: Direct URL via page.request.fetch()
+        const response = await page.request.fetch(url, { timeout: 30000 });
+        const status = response.status();
+        if (status >= 400) {
+          throw new Error(`Download failed: HTTP ${status} ${response.statusText()}`);
+        }
+        contentType = response.headers()['content-type'] || 'application/octet-stream';
+        buffer = Buffer.from(await response.body());
+        if (buffer.length > 200 * 1024 * 1024) {
+          throw new Error('File too large (>200MB).');
+        }
+      }
+
+      // --base64 mode: return inline
+      if (isBase64) {
+        if (buffer.length > 10 * 1024 * 1024) {
+          throw new Error('File too large for --base64 (>10MB). Use disk download + GET /file instead.');
+        }
+        const mimeType = contentType.split(';')[0].trim();
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+      }
+
+      // Write to disk
+      const ext = contentType.split(';')[0].includes('/')
+        ? mimeToExt(contentType.split(';')[0].trim())
+        : '.bin';
+      const destPath = outputPath || path.join(TEMP_DIR, `browse-download-${Date.now()}${ext}`);
+      validateOutputPath(destPath);
+      fs.writeFileSync(destPath, buffer);
+      const sizeKB = Math.round(buffer.length / 1024);
+      return `Downloaded: ${destPath} (${sizeKB}KB, ${contentType.split(';')[0].trim()})`;
+    }
+
+    case 'scrape': {
+      if (args.length === 0) throw new Error('Usage: scrape <images|videos|media> [--selector sel] [--dir path] [--limit N]');
+      const mediaType = args[0];
+      if (!['images', 'videos', 'media'].includes(mediaType)) {
+        throw new Error(`Invalid type: ${mediaType}. Use: images, videos, or media`);
+      }
+
+      // Parse flags
+      const selectorIdx = args.indexOf('--selector');
+      const selector = selectorIdx >= 0 ? args[selectorIdx + 1] : undefined;
+      const dirIdx = args.indexOf('--dir');
+      const dir = dirIdx >= 0 ? args[dirIdx + 1] : path.join(TEMP_DIR, `browse-scrape-${Date.now()}`);
+      const limitIdx = args.indexOf('--limit');
+      const limit = Math.min(limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) || 50 : 50, 200);
+
+      validateOutputPath(dir);
+      fs.mkdirSync(dir, { recursive: true });
+
+      const { extractMedia } = await import('./media-extract');
+      const target = bm.getActiveFrameOrPage();
+      const filter = mediaType === 'images' ? 'images' as const
+        : mediaType === 'videos' ? 'videos' as const
+        : undefined;
+      const mediaResult = await extractMedia(target, { selector, filter });
+
+      // Collect URLs to download
+      const urls: Array<{ url: string; type: string }> = [];
+      const seen = new Set<string>();
+
+      for (const img of mediaResult.images) {
+        const url = img.currentSrc || img.src || img.dataSrc;
+        if (url && !seen.has(url) && !url.startsWith('data:')) {
+          seen.add(url);
+          urls.push({ url, type: 'image' });
+        }
+      }
+      for (const vid of mediaResult.videos) {
+        const url = vid.currentSrc || vid.src;
+        if (url && !seen.has(url) && !url.startsWith('blob:') && !vid.isHLS && !vid.isDASH) {
+          seen.add(url);
+          urls.push({ url, type: 'video' });
+        }
+      }
+      for (const bg of mediaResult.backgroundImages) {
+        if (bg.url && !seen.has(bg.url)) {
+          seen.add(bg.url);
+          urls.push({ url: bg.url, type: 'image' });
+        }
+      }
+
+      const toDownload = urls.slice(0, limit);
+      const page = bm.getPage();
+      const manifest: any = {
+        url: page.url(),
+        scraped_at: new Date().toISOString(),
+        files: [] as any[],
+        total_size: 0,
+        succeeded: 0,
+        failed: 0,
+      };
+
+      const lines: string[] = [];
+      for (let i = 0; i < toDownload.length; i++) {
+        const { url, type } = toDownload[i];
+        try {
+          const response = await page.request.fetch(url, { timeout: 30000 });
+          if (response.status() >= 400) throw new Error(`HTTP ${response.status()}`);
+          const ct = response.headers()['content-type'] || 'application/octet-stream';
+          const ext = mimeToExt(ct.split(';')[0].trim());
+          const filename = `${type}-${String(i + 1).padStart(3, '0')}${ext}`;
+          const filePath = path.join(dir, filename);
+          const body = Buffer.from(await response.body());
+          try {
+            fs.writeFileSync(filePath, body);
+          } catch (writeErr: any) {
+            throw new Error(`Disk write failed: ${writeErr.message}`);
+          }
+          manifest.files.push({ path: filename, src: url, size: body.length, type: ct.split(';')[0].trim() });
+          manifest.total_size += body.length;
+          manifest.succeeded++;
+          lines.push(`  [${i + 1}/${toDownload.length}] ${filename} (${Math.round(body.length / 1024)}KB)`);
+        } catch (err: any) {
+          manifest.files.push({ path: null, src: url, size: 0, type: '', error: err.message });
+          manifest.failed++;
+          lines.push(`  [${i + 1}/${toDownload.length}] FAILED: ${err.message}`);
+        }
+        // 100ms delay between downloads
+        if (i < toDownload.length - 1) await new Promise(r => setTimeout(r, 100));
+      }
+
+      // Write manifest
+      fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify(manifest, null, 2));
+
+      return `Scraped ${toDownload.length} items to ${dir}/\n${lines.join('\n')}\n\nSummary: ${manifest.succeeded} succeeded, ${manifest.failed} failed, ${Math.round(manifest.total_size / 1024)}KB total`;
+    }
+
+    case 'archive': {
+      const page = bm.getPage();
+      const outputPath = args[0] || path.join(TEMP_DIR, `browse-archive-${Date.now()}.mhtml`);
+      validateOutputPath(outputPath);
+
+      try {
+        const cdp = await page.context().newCDPSession(page);
+        const { data } = await cdp.send('Page.captureSnapshot', { format: 'mhtml' });
+        await cdp.detach();
+        fs.writeFileSync(outputPath, data);
+        return `Archive saved: ${outputPath} (${Math.round(data.length / 1024)}KB, MHTML)`;
+      } catch (err: any) {
+        throw new Error(`MHTML archive requires Chromium CDP. Use 'text' or 'html' for raw page content. (${err.message})`);
+      }
+    }
+
     default:
       throw new Error(`Unknown write command: ${command}`);
   }
+}
+
+/** Map MIME type to file extension. */
+function mimeToExt(mime: string): string {
+  const map: Record<string, string> = {
+    'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif',
+    'image/webp': '.webp', 'image/svg+xml': '.svg', 'image/avif': '.avif',
+    'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov',
+    'audio/mpeg': '.mp3', 'audio/wav': '.wav', 'audio/ogg': '.ogg',
+    'application/pdf': '.pdf', 'application/json': '.json',
+    'text/html': '.html', 'text/plain': '.txt',
+  };
+  return map[mime] || '.bin';
 }
