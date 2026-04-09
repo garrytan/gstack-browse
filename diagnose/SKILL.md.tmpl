@@ -97,13 +97,23 @@ Before running ANY database query or API call, verify which environment you're i
 
 ### 0-pre. Learnings fast-path — skip redundant discovery
 
-Check if a prior `/diagnose` session cached this project's environment. Use Grep to search for `env-profile` in learnings files. Spend **at most 1 tool call** — if anything fails or returns nothing, proceed to 0a immediately.
+Check if prior sessions cached useful knowledge. Use Grep to search learnings. Spend **at most 2 tool calls total** on this step — then move on.
 
-Use the Grep tool: search for pattern `env-profile` in path `~/.gstack/projects/` with glob `*/learnings.jsonl`.
+**Search 1:** Run this Bash command to load all prior learnings for this project:
 
-- If no match: proceed to 0a (full detection). This is normal on first run.
-- If a match with `"confidence":7` or higher: read the `insight` value, print it as cached inventory, skip to **0h**.
-- **Do NOT retry. Do NOT run Bash for this step. 1 Grep call, then move on.**
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-search --limit 20 2>/dev/null || true
+```
+
+This searches `~/.gstack/projects/{slug}/learnings.jsonl` (gstack's learnings system, NOT Claude's auto-memory). If it outputs nothing, no prior learnings exist — proceed to 0a.
+
+**What to look for in the output:**
+- `[env-profile]` (operational, confidence ≥ 7): cached environment inventory — skip to 0h
+- `[workflow-*]` (architecture type): cached e2e workflow maps — print them and reuse in Phase 1f instead of re-tracing the code from scratch
+- `[env-*]` (operational type): environment quirks (database host mappings, staging/prod gotchas) — print them as warnings before you query anything
+- Pitfall learnings mentioning code areas related to the current issue — use as prior hypotheses in Phase 2
+
+**Do NOT retry.** Run the command once. If it returns nothing, proceed to 0a.
 
 {{LEARNINGS_SEARCH}}
 
@@ -459,9 +469,11 @@ If read-only DB access is available:
 
 **This is the most important evidence-gathering step and where most debugging fails.** Before you can diagnose what's broken, you must understand how the system works when it's NOT broken. A user clicks a button — what happens? Trace the full chain.
 
-**YOU MUST BUILD THE WORKFLOW MAP BEFORE PROCEEDING TO PHASE 2.** If you skip this step and jump to hypotheses, you WILL anchor on the first suspicious thing you find and waste the entire session. This has happened repeatedly. The workflow map protects you from yourself.
+**Check for cached workflow maps FIRST.** If Phase 0-pre found a `workflow-*` architecture learning that covers the same code path as the current issue, START from that cached map. Print it, then verify it's still accurate by spot-checking 2-3 key file:line references. Update if the code has changed. This can save 10-15 tool calls.
 
-**The map must be COMPLETE before you hypothesize.** Not "I'll fill in the details later" — the map must show every system boundary, every database table touched, every background job triggered, every cache read/written. If you don't know a step, READ THE CODE until you do. This upfront investment saves 10x the time later.
+**If no cached map exists, build one from scratch.** The map must be COMPLETE before you hypothesize. Not "I'll fill in the details later" — the map must show every system boundary, every database table touched, every background job triggered, every cache read/written. If you don't know a step, READ THE CODE until you do. This upfront investment saves 10x the time later.
+
+**YOU MUST BUILD THE WORKFLOW MAP BEFORE PROCEEDING TO PHASE 2.** If you skip this step and jump to hypotheses, you WILL anchor on the first suspicious thing you find and waste the entire session. This has happened repeatedly. The workflow map protects you from yourself.
 
 **Step 1: Map the happy path.** Starting from the user action that triggers the bug, trace the entire request lifecycle:
 
@@ -1010,6 +1022,24 @@ Replace with: what the symptom looked like, the wrong hypothesis, the real cause
 ```bash
 ~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"diagnose","type":"architecture","key":"BOUNDARY_NAME","insight":"YOUR_PATTERN_HERE","confidence":8,"source":"observed","files":["INTERFACE_FILES"]}'
 ```
+
+**Always log the workflow map** (if Phase 1f built one):
+
+The workflow map is the most expensive artifact to build — it takes 10-15 tool calls to trace the e2e flow through code. Save it so future sessions can skip Phase 1f entirely for the same code path:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"diagnose","type":"architecture","key":"workflow-FLOW_NAME","insight":"YOUR_WORKFLOW_MAP_HERE","confidence":9,"source":"observed","files":["KEY_FILES_IN_THE_FLOW"]}'
+```
+
+Replace `FLOW_NAME` with a short name for the workflow (e.g., `set-lead-status`, `user-registration`, `payment-checkout`). Replace `YOUR_WORKFLOW_MAP_HERE` with the compact workflow chain using arrow notation: `User action → Frontend component → API endpoint (file:line) → Service method → DB tables → Background jobs → Response path`. Include file:line references for the key steps. This format lets future sessions reconstruct the full picture from one learning entry.
+
+**Log environment-specific quirks** (wrong-database traps, staging/prod differences):
+
+```bash
+~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"diagnose","type":"operational","key":"env-QUIRK_NAME","insight":"YOUR_FINDING_HERE","confidence":9,"source":"observed","files":[]}'
+```
+
+Examples: "10.2.0.4/us_staging is US PROD despite the db name. 10.1.10.4/us_staging is actual US staging. staging.leadbay.app hits 10.1.10.4." — this saves future sessions from the wrong-database trap.
 
 **Quality bar:** Only log learnings that would save at least 5 minutes in a future session. The goal is a growing knowledge base of "what broke, why, and how we proved it" for this project. These learnings are readable by ALL gstack skills — an architecture insight logged by `/diagnose` helps `/ship`, `/investigate`, and `/qa` in future sessions.
 
