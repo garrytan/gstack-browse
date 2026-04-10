@@ -1,12 +1,12 @@
-# Contributing to gstack
+# Contributing to gemini-gstack
 
-Thanks for wanting to make gstack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
+Thanks for wanting to make gemini-gstack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
 
 ## Quick start
 
-gstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/gstack/` (your global install). But when you're developing gstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+gstack skills are Markdown files that Gemini CLI discovers from an extensions directory. Normally they live at `~/.gemini/extensions/gstack/` (your global install). But when you're developing gstack itself, you want Gemini CLI to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
-That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
+That's what dev mode does. It symlinks your repo into the local `.gemini/extensions/` directory so Gemini CLI reads skills straight from your checkout.
 
 ```bash
 git clone <repo> && cd gstack
@@ -14,7 +14,7 @@ bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
 ```
 
-Now edit any `SKILL.md`, invoke it in Claude Code (e.g. `/review`), and see your changes live. When you're done developing:
+Now edit any `SKILL.md`, invoke it in Gemini CLI (e.g. `/review`), and see your changes live. When you're done developing:
 
 ```bash
 bin/dev-teardown               # deactivate — back to your global install
@@ -37,8 +37,8 @@ No setup needed. Learnings are logged automatically. View them with `/learn`.
 4. **Symlink your fork into the project where you hit the bug:**
    ```bash
    # In your core project (the one where gstack annoyed you)
-   ln -sfn /path/to/your/gstack-fork .claude/skills/gstack
-   cd .claude/skills/gstack && bun install && bun run build && ./setup
+   ln -sfn /path/to/your/gstack-fork .gemini/extensions/gstack
+   cd .gemini/extensions/gstack && bun install && bun run build && ./setup
    ```
    Setup creates per-skill directories with SKILL.md symlinks inside (`qa/SKILL.md -> gstack/qa/SKILL.md`)
    and asks your prefix preference. Pass `--no-prefix` to skip the prompt and use short names.
@@ -56,13 +56,13 @@ When you have 3+ gstack sessions open simultaneously, every question tells you w
 ## Working on gstack inside the gstack repo
 
 When you're editing gstack skills and want to test them by actually using gstack
-in the same repo, `bin/dev-setup` wires this up. It creates `.claude/skills/`
-symlinks (gitignored) pointing back to your working tree, so Claude Code uses
+in the same repo, `bin/dev-setup` wires this up. It creates `.gemini/extensions/`
+symlinks (gitignored) pointing back to your working tree, so Gemini CLI uses
 your local edits instead of the global install.
 
 ```
 gstack/                          <- your working tree
-├── .claude/skills/              <- created by dev-setup (gitignored)
+├── .gemini/extensions/          <- created by dev-setup (gitignored)
 │   ├── gstack -> ../../         <- symlink back to repo root
 │   ├── review/                  <- real directory (short name, default)
 │   │   └── SKILL.md -> gstack/review/SKILL.md
@@ -80,7 +80,7 @@ gstack/                          <- your working tree
 ```
 
 Setup creates real directories (not symlinks) at the top level with a SKILL.md
-symlink inside. This ensures Claude discovers them as top-level skills, not nested
+symlink inside. This ensures Gemini CLI discovers them as top-level skills, not nested
 under `gstack/`. Names depend on your prefix setting (`~/.gstack/config.yaml`).
 Short names (`/review`, `/ship`) are the default. Run `./setup --prefix` if you
 prefer namespaced names (`/gstack-review`, `/gstack-ship`).
@@ -94,7 +94,7 @@ bin/dev-setup
 # 2. Edit a skill
 vim review/SKILL.md
 
-# 3. Test it in Claude Code — changes are live
+# 3. Test it in Gemini CLI — changes are live
 #    > /review
 
 # 4. Editing browse source? Rebuild the binary
@@ -124,13 +124,13 @@ Bun auto-loads `.env` — no extra config. Conductor workspaces inherit `.env` f
 | Tier | Command | Cost | What it tests |
 |------|---------|------|---------------|
 | 1 — Static | `bun test` | Free | Command validation, snapshot flags, SKILL.md correctness, TODOS-format.md refs, observability unit tests |
-| 2 — E2E | `bun run test:e2e` | ~$3.85 | Full skill execution via `claude -p` subprocess |
+| 2 — E2E | `bun run test:e2e` | ~$3.85 | Full skill execution via subprocess |
 | 3 — LLM eval | `bun run test:evals` | ~$0.15 standalone | LLM-as-judge scoring of generated SKILL.md docs |
 | 2+3 | `bun run test:evals` | ~$4 combined | E2E + LLM-as-judge (runs both) |
 
 ```bash
 bun test                     # Tier 1 only (runs on every commit, <5s)
-bun run test:e2e             # Tier 2: E2E only (needs EVALS=1, can't run inside Claude Code)
+bun run test:e2e             # Tier 2: E2E only (needs EVALS=1, can't run inside Gemini CLI)
 bun run test:evals           # Tier 2 + 3 combined (~$4/run)
 ```
 
@@ -142,17 +142,17 @@ Runs automatically with `bun test`. No API keys needed.
 - **Skill validation tests** (`test/skill-validation.test.ts`) — Validates that SKILL.md files reference only real commands and flags, and that command descriptions meet quality thresholds.
 - **Generator tests** (`test/gen-skill-docs.test.ts`) — Tests the template system: verifies placeholders resolve correctly, output includes value hints for flags (e.g. `-d <N>` not just `-d`), enriched descriptions for key commands (e.g. `is` lists valid states, `press` lists key examples).
 
-### Tier 2: E2E via `claude -p` (~$3.85/run)
+### Tier 2: E2E (~$3.85/run)
 
-Spawns `claude -p` as a subprocess with `--output-format stream-json --verbose`, streams NDJSON for real-time progress, and scans for browse errors. This is the closest thing to "does this skill actually work end-to-end?"
+Spawns the AI agent as a subprocess, streams NDJSON for real-time progress, and scans for browse errors. This is the closest thing to "does this skill actually work end-to-end?"
 
 ```bash
-# Must run from a plain terminal — can't nest inside Claude Code or Conductor
+# Must run from a plain terminal — can't nest inside Gemini CLI or Conductor
 EVALS=1 bun test test/skill-e2e-*.test.ts
 ```
 
 - Gated by `EVALS=1` env var (prevents accidental expensive runs)
-- Auto-skips if running inside Claude Code (`claude -p` can't nest)
+- Auto-skips if running inside Gemini CLI (can't nest)
 - API connectivity pre-check — fails fast on ConnectionRefused before burning budget
 - Real-time progress to stderr: `[Ns] turn T tool #C: Name(...)`
 - Saves full NDJSON transcripts and failure JSON for debugging
@@ -167,7 +167,7 @@ When E2E tests run, they produce machine-readable artifacts in `~/.gstack-dev/`:
 | Heartbeat | `e2e-live.json` | Current test status (updated per tool call) |
 | Partial results | `evals/_partial-e2e.json` | Completed tests (survives kills) |
 | Progress log | `e2e-runs/{runId}/progress.log` | Append-only text log |
-| NDJSON transcripts | `e2e-runs/{runId}/{test}.ndjson` | Raw `claude -p` output per test |
+| NDJSON transcripts | `e2e-runs/{runId}/{test}.ndjson` | Raw agent output per test |
 | Failure JSON | `e2e-runs/{runId}/{test}-failure.json` | Diagnostic data on failure |
 
 **Live dashboard:** Run `bun run eval:watch` in a second terminal to see a live dashboard showing completed tests, the currently running test, and cost. Use `--tail` to also show the last 10 lines of progress.log.
@@ -186,7 +186,7 @@ Artifacts are never cleaned up — they accumulate in `~/.gstack-dev/` for post-
 
 ### Tier 3: LLM-as-judge (~$0.15/run)
 
-Uses Claude Sonnet to score generated SKILL.md docs on three dimensions:
+Uses an LLM judge to score generated SKILL.md docs on three dimensions:
 
 - **Clarity** — Can an AI agent understand the instructions without ambiguity?
 - **Completeness** — Are all commands, flags, and usage patterns documented?
@@ -198,9 +198,9 @@ Each dimension is scored 1-5. Threshold: every dimension must score **≥ 4**. T
 # Needs ANTHROPIC_API_KEY in .env — included in bun run test:evals
 ```
 
-- Uses `claude-sonnet-4-6` for scoring stability
+- Uses `claude-sonnet-4-6` for scoring stability (requires ANTHROPIC_API_KEY)
 - Tests live in `test/skill-llm-eval.test.ts`
-- Calls the Anthropic API directly (not `claude -p`), so it works from anywhere including inside Claude Code
+- Calls the Anthropic API directly for scoring, so it works from anywhere
 
 ### CI
 
@@ -226,7 +226,7 @@ bun run skill:check
 bun run dev:skill
 ```
 
-For template authoring best practices (natural language over bash-isms, dynamic branch detection, `{{BASE_BRANCH_DETECT}}` usage), see CLAUDE.md's "Writing SKILL templates" section.
+For template authoring best practices (natural language over bash-isms, dynamic branch detection, `{{BASE_BRANCH_DETECT}}` usage), see the "Writing SKILL templates" section in the project instructions.
 
 To add a browse command, add it to `browse/src/commands.ts`. To add a snapshot flag, add it to `SNAPSHOT_FLAGS` in `browse/src/snapshot.ts`. Then rebuild.
 
@@ -236,16 +236,16 @@ gstack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.
 Each host is a typed config in `hosts/*.ts`. The generator reads these configs
 to produce host-appropriate output (different frontmatter, paths, tool names).
 
-**Supported hosts:** Claude (primary), Codex, Factory, Kiro, OpenCode, Slate, Cursor, OpenClaw.
+**Supported hosts:** Gemini (primary), Codex, Factory, Kiro, OpenCode, Slate, Cursor.
 
 ### Generating for all hosts
 
 ```bash
 # Generate for a specific host
-bun run gen:skill-docs                    # Claude (default)
+bun run gen:skill-docs                    # Gemini (default)
 bun run gen:skill-docs --host codex       # Codex
 bun run gen:skill-docs --host opencode    # OpenCode
-bun run gen:skill-docs --host all         # All 8 hosts
+bun run gen:skill-docs --host all         # All 7 hosts
 
 # Or use build, which does all hosts + compiles binaries
 bun run build
@@ -255,13 +255,12 @@ bun run build
 
 Each host config (`hosts/*.ts`) controls:
 
-| Aspect | Example (Claude vs Codex) |
+| Aspect | Example (Gemini vs Codex) |
 |--------|---------------------------|
 | Output directory | `{skill}/SKILL.md` vs `.agents/skills/gstack-{skill}/SKILL.md` |
-| Frontmatter | Full (name, description, hooks, version) vs minimal (name + description) |
-| Paths | `~/.claude/skills/gstack` vs `$GSTACK_ROOT` |
-| Tool names | "use the Bash tool" vs same (Factory rewrites to "run this command") |
-| Hook skills | `hooks:` frontmatter vs inline safety advisory prose |
+| Frontmatter | Full (name, description) vs minimal (name + description) |
+| Paths | `~/.gemini/extensions/gstack` vs `$GSTACK_ROOT` |
+| Tool names | Gemini-native vs same (Factory rewrites to "run this command") |
 | Suppressed sections | None vs Codex self-invocation sections stripped |
 
 See `scripts/host-config.ts` for the full `HostConfig` interface.
@@ -301,12 +300,12 @@ When you add a new skill template, all hosts get it automatically:
 
 ## Conductor workspaces
 
-If you're using [Conductor](https://conductor.build) to run multiple Claude Code sessions in parallel, `conductor.json` wires up workspace lifecycle automatically:
+If you're using [Conductor](https://conductor.build) to run multiple sessions in parallel, `conductor.json` wires up workspace lifecycle automatically:
 
 | Hook | Script | What it does |
 |------|--------|-------------|
 | `setup` | `bin/dev-setup` | Copies `.env` from main worktree, installs deps, symlinks skills |
-| `archive` | `bin/dev-teardown` | Removes skill symlinks, cleans up `.claude/` directory |
+| `archive` | `bin/dev-teardown` | Removes skill symlinks, cleans up extensions directory |
 
 When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It detects the main worktree (via `git worktree list`), copies your `.env` so API keys carry over, and sets up dev mode — no manual steps needed.
 
@@ -317,10 +316,10 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
 - **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
-- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/gstack`. `bin/dev-teardown` restores the global one.
+- **Dev mode shadows your global install.** Project-local skills take priority over `~/.gemini/extensions/gstack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
 - **`.env` propagates across worktrees.** Set it once in the main repo, all Conductor workspaces get it.
-- **`.claude/skills/` is gitignored.** The symlinks never get committed.
+- **`.gemini/extensions/` is gitignored.** The symlinks never get committed.
 
 ## Testing your changes in a real project
 
@@ -332,17 +331,17 @@ do real work.
 
 ```bash
 # In your core project (not the gstack repo)
-ln -sfn /path/to/your/gstack-checkout .claude/skills/gstack
+ln -sfn /path/to/your/gstack-checkout .gemini/extensions/gstack
 ```
 
 ### Step 2: Run setup to create per-skill symlinks
 
-The `gstack` symlink alone isn't enough. Claude Code discovers skills through
+The `gstack` symlink alone isn't enough. Gemini CLI discovers skills through
 individual top-level directories (`qa/SKILL.md`, `ship/SKILL.md`, etc.), not through
-the `gstack/` directory itself. Run `./setup` to create them:
+the `gstack/` directory itself. Run setup to create them:
 
 ```bash
-cd .claude/skills/gstack && bun install && bun run build && ./setup
+cd .gemini/extensions/gstack && bun install && bun run build && ./setup
 ```
 
 Setup will ask whether you want short names (`/qa`) or namespaced (`/gstack-qa`).
@@ -356,10 +355,10 @@ call picks it up immediately. No restart needed.
 
 ### Going back to the stable global install
 
-Remove the project-local symlink. Claude Code falls back to `~/.claude/skills/gstack/`:
+Remove the project-local symlink. Gemini CLI falls back to the global install at `~/.gemini/extensions/gstack/`:
 
 ```bash
-rm .claude/skills/gstack
+rm .gemini/extensions/gstack
 ```
 
 The per-skill directories (`qa/`, `ship/`, etc.) contain SKILL.md symlinks that point
@@ -370,8 +369,8 @@ to `gstack/...`, so they'll resolve to the global install automatically.
 If you installed gstack with one prefix setting and want to switch:
 
 ```bash
-cd .claude/skills/gstack && ./setup --no-prefix   # switch to /qa, /ship
-cd .claude/skills/gstack && ./setup --prefix       # switch to /gstack-qa, /gstack-ship
+cd .gemini/extensions/gstack && ./setup --no-prefix   # switch to /qa, /ship
+cd .gemini/extensions/gstack && ./setup --prefix       # switch to /gstack-qa, /gstack-ship
 ```
 
 Setup cleans up the old symlinks automatically. No manual cleanup needed.
@@ -381,7 +380,7 @@ Setup cleans up the old symlinks automatically. No manual cleanup needed.
 If you don't want per-project symlinks, you can switch the global install:
 
 ```bash
-cd ~/.claude/skills/gstack
+cd ~/.gemini/extensions/gstack
 git fetch origin
 git checkout origin/<branch>
 bun install && bun run build && ./setup
