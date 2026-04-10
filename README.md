@@ -4,27 +4,31 @@ A Gemini CLI fork of [gstack](https://github.com/garrytan/gstack) — the AI eng
 
 **What this is:** All of gstack's workflow skills (CEO review, eng review, QA, ship, etc.) and the headless browser, adapted to run natively on [Gemini CLI](https://github.com/google-gemini/gemini-cli). No Claude Code dependency. No Anthropic API key required.
 
-**What this is not:** A drop-in replacement for gstack. Claude-specific features (sidebar agent model routing, design binary GPT Image API, Codex cross-model review) are removed or stubbed. The core workflow — think, plan, build, review, test, ship — works identically.
+**What this is not:** A drop-in replacement for gstack. Claude-specific features (design binary GPT Image API, Codex cross-model review) are removed. The core workflow — think, plan, build, review, test, ship — works identically.
 
-## Why this fork exists
+## Table of Contents
 
-gstack is excellent. But if your team has a Gemini subscription and not a Claude subscription, the original gstack doesn't help you. This fork makes every skill available through Gemini CLI as a native extension.
+- [Quick Start](#quick-start)
+- [How It Works](#how-it-works)
+- [Skills Reference](#skills-reference)
+  - [The Sprint](#the-sprint)
+  - [Power Tools](#power-tools)
+  - [Voice Input](#voice-input)
+- [Compatibility with Claude Code](#compatibility-with-claude-code)
+  - [What Works](#what-works)
+  - [What's Degraded](#whats-degraded)
+  - [What's Removed](#whats-removed)
+  - [Head-to-Head Test Results](#head-to-head-test-results)
+- [Other AI Agents](#other-ai-agents)
+- [Documentation](#documentation)
+- [Uninstall](#uninstall)
+- [Privacy & Telemetry](#privacy--telemetry)
+- [Troubleshooting](#troubleshooting)
+- [Upstream & License](#upstream--license)
 
-**What works:**
-- All 23+ workflow skills (office-hours, review, qa, ship, etc.)
-- Headless browser (`/browse`) — real Chromium, real clicks, ~100ms per command
-- Safety guardrails (careful, freeze, guard)
-- Multi-host generation for Codex, Factory, Kiro, and other agents
-- Full test suite
+---
 
-**What's removed:**
-- Claude Code as a host (no `hosts/claude.ts`, no Claude install path)
-- OpenClaw integration
-- Design binary (GPT Image API — would need Gemini Imagen equivalent)
-- Sidebar agent model routing (was Sonnet/Opus specific)
-- Codex cross-model second opinion skill
-
-## Quick start
+## Quick Start
 
 **Requirements:** [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+
 
@@ -47,26 +51,9 @@ Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-desig
 /devex-review, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn.
 ```
 
-### Other AI agents
+---
 
-gstack also generates skills for other AI coding agents:
-
-```bash
-./setup --host <name>
-```
-
-| Agent | Flag | Skills install to |
-|-------|------|-------------------|
-| OpenAI Codex CLI | `--host codex` | `~/.codex/skills/gstack-*/` |
-| OpenCode | `--host opencode` | `~/.config/opencode/skills/gstack-*/` |
-| Cursor | `--host cursor` | `~/.cursor/skills/gstack-*/` |
-| Factory Droid | `--host factory` | `~/.factory/skills/gstack-*/` |
-| Slate | `--host slate` | `~/.slate/skills/gstack-*/` |
-| Kiro | `--host kiro` | `~/.kiro/skills/gstack-*/` |
-
-**Want to add support for another agent?** See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
-
-## See it work
+## How It Works
 
 ```
 You:    I want to build a daily briefing app for my calendar.
@@ -104,11 +91,15 @@ You:    /ship
 
 Eight commands, end to end. That is not a copilot. That is a team.
 
-## The sprint
+---
+
+## Skills Reference
+
+### The Sprint
 
 gstack is a process, not a collection of tools. The skills run in the order a sprint runs:
 
-**Think → Plan → Build → Review → Test → Ship → Reflect**
+**Think &rarr; Plan &rarr; Build &rarr; Review &rarr; Test &rarr; Ship &rarr; Reflect**
 
 Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-ceo-review` reads. `/plan-eng-review` writes a test plan that `/qa` picks up. `/review` catches bugs that `/ship` verifies are fixed.
 
@@ -137,10 +128,10 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/document-release` | **Technical Writer** | Update all project docs to match what you just shipped. |
 | `/retro` | **Eng Manager** | Team-aware weekly retro with per-person breakdowns and shipping streaks. |
 | `/browse` | **QA Engineer** | Real Chromium browser, real clicks, real screenshots. ~100ms per command. |
-| `/autoplan` | **Review Pipeline** | One command: CEO → design → eng review automatically. |
+| `/autoplan` | **Review Pipeline** | One command: CEO &rarr; design &rarr; eng review automatically. |
 | `/learn` | **Memory** | Manage what gstack learned across sessions. Learnings compound over time. |
 
-### Power tools
+### Power Tools
 
 | Skill | What it does |
 |-------|-------------|
@@ -151,13 +142,127 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/setup-deploy` | **Deploy Configurator** — one-time setup for `/land-and-deploy`. |
 | `/gstack-upgrade` | **Self-Updater** — upgrade gstack to latest. |
 
-**[Deep dives with examples and philosophy for every skill →](docs/skills.md)**
+**[Deep dives with examples and philosophy for every skill &rarr;](docs/skills.md)**
 
-### Voice input (AquaVoice, Whisper, etc.)
+### Voice Input
 
 gstack skills have voice-friendly trigger phrases. Say what you want naturally —
 "run a security check", "test the website", "do an engineering review" — and the
-right skill activates.
+right skill activates. Works with AquaVoice, Whisper, or any voice input tool.
+
+---
+
+## Compatibility with Claude Code
+
+This fork translates all Claude Code concepts to Gemini CLI equivalents. The
+generator automatically rewrites tool names, file paths, and invocation patterns.
+Full details in **[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)**.
+
+### What Works
+
+All 36 workflow skills, the headless browser, git/GitHub operations, web search,
+file operations, plan mode, skill invocation, task tracking, and safety guardrails
+work at full parity. Every Claude Code tool has a direct Gemini CLI equivalent:
+
+| Claude Code | Gemini CLI | Status |
+|-------------|------------|--------|
+| `Bash` | `run_shell_command` | Full parity |
+| `Read` | `read_file` | Full parity |
+| `Write` | `write_file` | Full parity |
+| `Edit` | `replace` | Full parity |
+| `Grep` | `grep_search` | Full parity |
+| `Glob` | `glob` | Full parity |
+| `AskUserQuestion` | `ask_user` | Full parity |
+| `WebSearch` | `google_web_search` | Full parity |
+| `WebFetch` | `web_fetch` | Full parity |
+| `Skill` | `activate_skill` | Full parity |
+| `TodoWrite` | `write_todos` | Full parity |
+| `ExitPlanMode` | `exit_plan_mode` | Full parity |
+
+### What's Degraded
+
+| Feature | Impact |
+|---------|--------|
+| **Parallel subagents** | Gemini CLI has no `Agent` tool. Multi-specialist workflows (design-shotgun, autoplan) run sequentially instead of in parallel. Same results, more wall-clock time. |
+| **Tool execution hooks** | Claude Code's `PreToolUse`/`PostToolUse` hooks don't exist in Gemini. Safety skills (`/careful`, `/freeze`, `/guard`) use advisory prose instead of hard blocks. |
+| **Cross-project learnings** | Gemini gets project-scoped learnings only (no "I learned X in project Y" suggestions). |
+
+### What's Removed
+
+| Feature | Why |
+|---------|-----|
+| Codex second opinion (`/codex`) | Claude-specific cross-model integration |
+| Design binary (GPT Image API) | Uses OpenAI's image generation API |
+| Sidebar agent routing | Sonnet/Opus model-specific |
+| Chrome MCP tools | Use the `$B` browse binary instead |
+
+### Head-to-Head Test Results
+
+We run identical prompts through both CLIs and compare results. Latest run (2026-04-10):
+
+| Test | Claude | Gemini | Behavior |
+|------|--------|--------|----------|
+| File read | PASS (6s) | PASS (16s) | Equivalent |
+| File search | PASS (8s) | PASS (15s) | Equivalent |
+| Grep search | PASS (6s) | PASS (14s) | Equivalent |
+| Shell command | PASS (5s) | PASS (13s) | Equivalent |
+| Skill discovery | PASS (16s) | PASS (8s) | Equivalent |
+| Code analysis | PASS (5s) | PASS (26s) | Equivalent |
+| Multi-file comparison | PASS (10s) | PASS (48s) | Equivalent |
+| Web search | PASS (13s) | PASS (27s) | Equivalent |
+| Safety refusal | PASS (4s) | PASS (17s) | Equivalent |
+
+**8/9 both passed.** Gemini produces equivalent results on every test. It tends to be
+more thorough (reads more files for context) at the cost of more wall-clock time.
+Claude is faster per-operation. Gemini was faster on skill discovery (8s vs 16s).
+
+Run the comparison yourself:
+
+```bash
+EVALS=1 bun test test/head-to-head.test.ts
+```
+
+See **[docs/COMPATIBILITY.md](docs/COMPATIBILITY.md)** for the full compatibility
+matrix, skill-by-skill status, and how the translation system works.
+
+---
+
+## Other AI Agents
+
+gstack also generates skills for other AI coding agents:
+
+```bash
+./setup --host <name>
+```
+
+| Agent | Flag | Skills install to |
+|-------|------|-------------------|
+| OpenAI Codex CLI | `--host codex` | `~/.codex/skills/gstack-*/` |
+| OpenCode | `--host opencode` | `~/.config/opencode/skills/gstack-*/` |
+| Cursor | `--host cursor` | `~/.cursor/skills/gstack-*/` |
+| Factory Droid | `--host factory` | `~/.factory/skills/gstack-*/` |
+| Slate | `--host slate` | `~/.slate/skills/gstack-*/` |
+| Kiro | `--host kiro` | `~/.kiro/skills/gstack-*/` |
+
+**Want to add support for another agent?** See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
+
+---
+
+## Documentation
+
+| Doc | What it covers |
+|-----|---------------|
+| **[Compatibility Matrix](docs/COMPATIBILITY.md)** | Claude vs Gemini: tool mapping, feature parity, skill status, head-to-head test results |
+| **[Skill Deep Dives](docs/skills.md)** | Philosophy, examples, and workflow for every skill |
+| **[Builder Ethos](ETHOS.md)** | Builder philosophy: Boil the Lake, Search Before Building |
+| **[Architecture](ARCHITECTURE.md)** | Design decisions and system internals |
+| **[Browser Reference](BROWSER.md)** | Full command reference for `/browse` |
+| **[Adding a Host](docs/ADDING_A_HOST.md)** | How to add support for a new AI agent |
+| **[Remote Browser Access](docs/REMOTE_BROWSER_ACCESS.md)** | Expose `/browse` over the network |
+| **[Contributing](CONTRIBUTING.md)** | Dev setup, testing, and contributing |
+| **[Changelog](CHANGELOG.md)** | What's new in every version |
+
+---
 
 ## Uninstall
 
@@ -204,23 +309,6 @@ The uninstall script does not edit GEMINI.md. In each project where gstack was a
 
 ---
 
-## Upstream
-
-This is a fork of [garrytan/gstack](https://github.com/garrytan/gstack). The original supports Claude Code as the primary host. This fork replaces Claude with Gemini CLI. All credit for gstack's design, philosophy, and workflow skills goes to [Garry Tan](https://x.com/garrytan) and the gstack contributors.
-
-Free, MIT licensed, open source.
-
-## Docs
-
-| Doc | What it covers |
-|-----|---------------|
-| [Skill Deep Dives](docs/skills.md) | Philosophy, examples, and workflow for every skill |
-| [Builder Ethos](ETHOS.md) | Builder philosophy: Boil the Lake, Search Before Building |
-| [Architecture](ARCHITECTURE.md) | Design decisions and system internals |
-| [Browser Reference](BROWSER.md) | Full command reference for `/browse` |
-| [Contributing](CONTRIBUTING.md) | Dev setup, testing, and contributing |
-| [Changelog](CHANGELOG.md) | What's new in every version |
-
 ## Privacy & Telemetry
 
 gstack includes **opt-in** usage telemetry to help improve the project. Here's exactly what happens:
@@ -233,22 +321,24 @@ gstack includes **opt-in** usage telemetry to help improve the project. Here's e
 
 **Local analytics are always available.** Run `gstack-analytics` to see your personal usage dashboard from the local JSONL file — no remote data needed.
 
+---
+
 ## Troubleshooting
 
-**Skill not showing up?** `cd ~/.gemini/extensions/gstack && ./setup`
+| Problem | Fix |
+|---------|-----|
+| Skill not showing up | `cd ~/.gemini/extensions/gstack && ./setup` |
+| `/browse` fails | `cd ~/.gemini/extensions/gstack && bun install && bun run build` |
+| Stale install | Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml` |
+| Want shorter commands | `cd ~/.gemini/extensions/gstack && ./setup --no-prefix` |
+| Want namespaced commands | `cd ~/.gemini/extensions/gstack && ./setup --prefix` |
+| Gemini can't see skills | Make sure your project's `GEMINI.md` has a gstack section (see [Quick Start](#quick-start)) |
+| Windows | Works on Windows 11 via Git Bash or WSL. Node.js required alongside Bun ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). |
 
-**`/browse` fails?** `cd ~/.gemini/extensions/gstack && bun install && bun run build`
+---
 
-**Stale install?** Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml`
+## Upstream & License
 
-**Want shorter commands?** `cd ~/.gemini/extensions/gstack && ./setup --no-prefix`
+This is a fork of [garrytan/gstack](https://github.com/garrytan/gstack). The original supports Claude Code as the primary host. This fork replaces Claude with Gemini CLI. All credit for gstack's design, philosophy, and workflow skills goes to [Garry Tan](https://x.com/garrytan) and the gstack contributors.
 
-**Want namespaced commands?** `cd ~/.gemini/extensions/gstack && ./setup --prefix`
-
-**Windows users:** gstack works on Windows 11 via Git Bash or WSL. Node.js is required in addition to Bun — Bun has a known bug with Playwright's pipe transport on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). The browse server automatically falls back to Node.js. Make sure both `bun` and `node` are on your PATH.
-
-**Gemini can't see the skills?** Make sure your project's `GEMINI.md` has a gstack section listing the available skills (see Quick Start above).
-
-## License
-
-MIT. Free forever. Go build something.
+MIT licensed. Free forever. Go build something.
