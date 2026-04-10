@@ -1,19 +1,5 @@
 # TODOS
 
-## Documentation
-
-### Add /checkpoint and /health to README
-
-**What:** Add `/checkpoint` and `/health` to the README in three places: (1) the install command block (line ~49), (2) the CLAUDE.md example "Available skills" block (line ~396), and (3) the big skill table (around line ~164). Two new table rows describing what each does, using the existing skill table voice.
-
-**Why:** Both skills are real, user-facing, live on disk at `checkpoint/SKILL.md` and `health/SKILL.md`, and are registered by `./setup` on every install (they show up in `~/.claude/skills/`). But the README doesn't mention either of them anywhere — so users who paste the install blurb into their CLAUDE.md end up with a skill list that's missing two working skills. New users never discover them.
-
-**Context:** Found while aligning the two README skill list blocks in branch `fix/ngrok-external-in-node-bundle`. That branch fixed the drift between the two lists (added `/pair-agent`, `/plan-devex-review`, `/devex-review`, dropped legacy `/connect-chrome`) but kept scope narrow by NOT adding `/checkpoint` and `/health` because they need table rows too, not just list entries. Frontmatter is already good — descriptions at `checkpoint/SKILL.md:1-13` and `health/SKILL.md:1-10` explain trigger phrases and what each skill does.
-
-**Effort:** S (human: ~30 min / CC: ~5 min)
-**Priority:** P2
-**Depends on:** —
-
 ## Sidebar Security
 
 ### ML Prompt Injection Classifier
@@ -837,6 +823,12 @@ Shipped in v0.6.5. TemplateContext in gen-skill-docs.ts bakes skill name into pr
 **Depends on:** CDP patches proving the value of anti-bot stealth first
 
 ## Completed
+
+### Add /checkpoint and /health to README (v0.16.2.2)
+- Added two rows to the big skill table: `/health` as "Quality Engineer" (right after `/benchmark`), `/checkpoint` as "Session Bookmark" (right after `/learn`).
+- Updated both skill-list blocks (install command + CLAUDE.md example) to include `/health` and `/checkpoint`. Both blocks now list the same 36 skills in the same order.
+- Both skills were already on disk and registered by `./setup` — the gap was purely documentation. New users can now discover them via the README.
+**Completed:** v0.16.2.2
 
 ### CI eval pipeline (v0.9.9.0)
 - GitHub Actions eval upload on Ubicloud runners ($0.006/run)
