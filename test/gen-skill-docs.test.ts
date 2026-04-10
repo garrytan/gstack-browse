@@ -186,10 +186,14 @@ describe('gen-skill-docs', () => {
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
     // Every skill should be FRESH (except skipped skills like codex)
+    // Gemini is an external host, so paths are .gemini/skills/gstack-*/SKILL.md
     const SKIPPED_SKILLS = ['codex'];
     for (const skill of ALL_SKILLS) {
       if (SKIPPED_SKILLS.includes(skill.dir)) continue;
-      const file = skill.dir === '.' ? 'SKILL.md' : `${skill.dir}/SKILL.md`;
+      const name = skill.dir === '.' ? 'gstack'
+        : skill.dir.startsWith('gstack-') ? skill.dir
+        : `gstack-${skill.dir}`;
+      const file = `.gemini/skills/${name}/SKILL.md`;
       expect(output).toContain(`FRESH: ${file}`);
     }
     expect(output).not.toContain('STALE');
@@ -1927,9 +1931,9 @@ describe('--host all', () => {
     });
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
-    // All hosts should appear in output
-    expect(output).toContain('FRESH: SKILL.md');           // gemini (primary)
-    for (const hostConfig of getExternalHosts()) {
+    // All hosts should appear in output (all are external hosts with prefixed paths)
+    for (const hostConfig of ALL_HOST_CONFIGS) {
+      if (hostConfig.name === 'claude') continue;  // claude outputs to skill dirs directly
       expect(output).toContain(`FRESH: ${hostConfig.hostSubdir}/skills/`);
     }
   });

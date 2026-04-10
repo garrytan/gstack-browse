@@ -465,12 +465,9 @@ function processTemplate(tmplPath: string, host: Host = 'gemini'): { outputPath:
   // metadata gets the updated description with voice triggers included.
   const postProcessDescription = extractNameAndDescription(content).description;
 
-  // For Gemini: strip sensitive: field (only Factory uses it)
-  // For external hosts: route output, transform frontmatter, rewrite paths
+  // For all non-claude hosts: route output, transform frontmatter, rewrite paths/tools
   let symlinkLoop = false;
-  if (host === 'gemini') {
-    content = transformFrontmatter(content, host);
-  } else {
+  if (host !== 'claude') {
     const result = processExternalHost(content, tmplContent, host, skillDir, postProcessDescription, ctx, extractedName || undefined);
     content = result.content;
     outputPath = result.outputPath;

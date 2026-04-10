@@ -54,11 +54,11 @@ export function resolveHostArg(arg: string): string {
 }
 
 /**
- * Get hosts that are NOT the primary host (Gemini).
- * These are the hosts that need generated skill docs.
+ * Get all hosts that need generated skill docs with path/tool rewrites.
+ * In this Gemini fork, all hosts are external (no claude source host).
  */
 export function getExternalHosts(): HostConfig[] {
-  return ALL_HOST_CONFIGS.filter(c => c.name !== 'gemini');
+  return ALL_HOST_CONFIGS;
 }
 
 // Re-export individual configs for direct import

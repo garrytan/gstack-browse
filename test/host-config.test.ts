@@ -78,10 +78,10 @@ describe('hosts/index.ts', () => {
     expect(() => resolveHostArg('nonexistent')).toThrow('Unknown host');
   });
 
-  test('getExternalHosts excludes gemini', () => {
+  test('getExternalHosts includes all hosts (no claude source host in this fork)', () => {
     const external = getExternalHosts();
-    expect(external.find(c => c.name === 'gemini')).toBeUndefined();
-    expect(external.length).toBe(ALL_HOST_CONFIGS.length - 1);
+    expect(external.length).toBe(ALL_HOST_CONFIGS.length);
+    expect(external.find(c => c.name === 'gemini')).toBeDefined();
   });
 
   test('every host has a unique name', () => {
