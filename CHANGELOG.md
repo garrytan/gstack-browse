@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.16.2.2] - 2026-04-10
+
+### Added
+- **`/health` and `/checkpoint` are now in the README.** Both skills have been working for a while, but new users had no way to discover them — they were missing from the install command skill list, the CLAUDE.md example skill list, and the big skill table. Now all three places mention them. `/health` is "Quality Engineer": it wraps your project's type checker, linter, test runner, dead code detector, and shell linter into one weighted 0-10 composite score and tracks trends over time. Say "how healthy is the codebase" and you get a number plus a per-tool breakdown. `/checkpoint` is "Session Bookmark": it saves and resumes working state mid-sprint by capturing git state, decisions made, and what's left to do. Say "where was I" or "pick up where I left off" and it reads the latest checkpoint — even across Conductor workspace handoffs or after a long break.
+
 ## [0.16.2.1] - 2026-04-10
 
 ### Fixed
