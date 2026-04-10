@@ -30,7 +30,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const HOST_ARG = process.argv.find(a => a.startsWith('--host'));
 type HostArg = Host | 'all';
 const HOST_ARG_VAL: HostArg = (() => {
-  if (!HOST_ARG) return 'claude';
+  if (!HOST_ARG) return 'gemini';
   const val = HOST_ARG.includes('=') ? HOST_ARG.split('=')[1] : process.argv[process.argv.indexOf(HOST_ARG) + 1];
   if (val === 'all') return 'all';
   try {
@@ -41,7 +41,7 @@ const HOST_ARG_VAL: HostArg = (() => {
 })();
 
 // For single-host mode, HOST is the host. For --host all, it's set per iteration below.
-let HOST: Host = HOST_ARG_VAL === 'all' ? 'claude' : HOST_ARG_VAL;
+let HOST: Host = HOST_ARG_VAL === 'all' ? 'gemini' : HOST_ARG_VAL;
 
 // HostPaths, HOST_PATHS, and TemplateContext imported from ./resolvers/types (line 7-8)
 
@@ -217,7 +217,7 @@ policy:
 
 /**
  * Transform frontmatter for external hosts.
- * Claude: strips `sensitive:` field (only Factory uses it).
+ * Gemini: strips `sensitive:` field (only Factory uses it).
  * Codex: keeps name + description only, enforces 1024-char limit.
  * Factory: keeps name + description + user-invocable, conditionally adds disable-model-invocation.
  */
@@ -409,7 +409,7 @@ function processExternalHost(
   return { content: result, outputPath, outputDir, symlinkLoop };
 }
 
-function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath: string; content: string; symlinkLoop?: boolean } {
+function processTemplate(tmplPath: string, host: Host = 'gemini'): { outputPath: string; content: string; symlinkLoop?: boolean } {
   const tmplContent = fs.readFileSync(tmplPath, 'utf-8');
   const relTmplPath = path.relative(ROOT, tmplPath);
   let outputPath = tmplPath.replace(/\.tmpl$/, '');
@@ -465,10 +465,10 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
   // metadata gets the updated description with voice triggers included.
   const postProcessDescription = extractNameAndDescription(content).description;
 
-  // For Claude: strip sensitive: field (only Factory uses it)
+  // For Gemini: strip sensitive: field (only Factory uses it)
   // For external hosts: route output, transform frontmatter, rewrite paths
   let symlinkLoop = false;
-  if (host === 'claude') {
+  if (host === 'gemini') {
     content = transformFrontmatter(content, host);
   } else {
     const result = processExternalHost(content, tmplContent, host, skillDir, postProcessDescription, ctx, extractedName || undefined);
@@ -551,7 +551,7 @@ for (const currentHost of hostsToRun) {
 
       const gstackLite = `# gstack-lite Planning Discipline
 
-Injected by the orchestrator into spawned Claude Code sessions. Append to existing CLAUDE.md.
+Injected by the orchestrator into spawned Gemini CLI sessions. Append to existing GEMINI.md.
 
 ## Planning Discipline
 1. Read every file you will modify. Understand existing patterns first.
@@ -562,15 +562,15 @@ Injected by the orchestrator into spawned Claude Code sessions. Append to existi
    imports, untested paths, style inconsistencies.
 5. Report when done: what shipped, what decisions you made, anything uncertain.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'gstack-lite-CLAUDE.md'), gstackLite);
-      console.log('GENERATED: openclaw/gstack-lite-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'gstack-lite-GEMINI.md'), gstackLite);
+      console.log('GENERATED: openclaw/gstack-lite-GEMINI.md');
 
       const gstackFull = `# gstack-full Pipeline
 
-Injected by the orchestrator for complete feature builds. Append to existing CLAUDE.md.
+Injected by the orchestrator for complete feature builds. Append to existing GEMINI.md.
 
 ## Full Pipeline
-1. Read CLAUDE.md and understand the project context.
+1. Read GEMINI.md and understand the project context.
 2. Run /autoplan to review your approach (CEO + eng + design review pipeline).
 3. Implement the approved plan. Follow the planning discipline above.
 4. Run /ship to create a PR with tests, changelog, and version bump.
@@ -578,16 +578,16 @@ Injected by the orchestrator for complete feature builds. Append to existing CLA
 
 Do not ask for human input until the PR is ready for review.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'gstack-full-CLAUDE.md'), gstackFull);
-      console.log('GENERATED: openclaw/gstack-full-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'gstack-full-GEMINI.md'), gstackFull);
+      console.log('GENERATED: openclaw/gstack-full-GEMINI.md');
 
       const gstackPlan = `# gstack-plan: Full Review Gauntlet
 
-Injected by the orchestrator when the user wants to plan a Claude Code project.
-Append to existing CLAUDE.md.
+Injected by the orchestrator when the user wants to plan a Gemini CLI project.
+Append to existing GEMINI.md.
 
 ## Planning Pipeline
-1. Read CLAUDE.md and understand the project context.
+1. Read GEMINI.md and understand the project context.
 2. Run /office-hours to produce a design doc (problem statement, premises, alternatives).
 3. Run /autoplan to review the design (CEO + eng + design + DX reviews + codex adversarial).
 4. Save the final reviewed plan to a file the orchestrator can reference later.
@@ -602,8 +602,8 @@ Append to existing CLAUDE.md.
 Do not implement anything. This is planning only.
 The orchestrator will persist the plan link to its own memory/knowledge store.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'gstack-plan-CLAUDE.md'), gstackPlan);
-      console.log('GENERATED: openclaw/gstack-plan-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'gstack-plan-GEMINI.md'), gstackPlan);
+      console.log('GENERATED: openclaw/gstack-plan-GEMINI.md');
     }
 
     if (DRY_RUN && hasChanges) {
@@ -636,10 +636,10 @@ The orchestrator will persist the plan link to its own memory/knowledge store.
   }
 }
 
-// --host all: report failures. Only exit(1) if claude failed.
+// --host all: report failures. Only exit(1) if gemini failed.
 if (failures.length > 0 && HOST_ARG_VAL === 'all') {
   console.error(`\n${failures.length} host(s) failed: ${failures.map(f => f.host).join(', ')}`);
-  if (failures.some(f => f.host === 'claude')) process.exit(1);
+  if (failures.some(f => f.host === 'gemini')) process.exit(1);
 }
 // Single host dry-run failure already handled above
 

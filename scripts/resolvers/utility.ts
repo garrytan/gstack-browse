@@ -51,8 +51,8 @@ branch name wherever the instructions say "the base branch" or \`<default>\`.
 
 export function generateDeployBootstrap(_ctx: TemplateContext): string {
   return `\`\`\`bash
-# Check for persisted deploy config in CLAUDE.md
-DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" CLAUDE.md 2>/dev/null || echo "NO_CONFIG")
+# Check for persisted deploy config in GEMINI.md
+DEPLOY_CONFIG=$(grep -A 20 "## Deploy Configuration" GEMINI.md 2>/dev/null || echo "NO_CONFIG")
 echo "$DEPLOY_CONFIG"
 
 # If config exists, parse it
@@ -78,7 +78,7 @@ for f in $(find .github/workflows -maxdepth 1 \\( -name '*.yml' -o -name '*.yaml
 done
 \`\`\`
 
-If \`PERSISTED_PLATFORM\` and \`PERSISTED_URL\` were found in CLAUDE.md, use them directly
+If \`PERSISTED_PLATFORM\` and \`PERSISTED_URL\` were found in GEMINI.md, use them directly
 and skip manual detection. If no persisted config exists, use the auto-detected platform
 to guide deploy verification. If nothing is detected, ask the user via AskUserQuestion
 in the decision tree below.
@@ -369,7 +369,7 @@ Minimum 0 per category.
 export function generateCoAuthorTrailer(ctx: TemplateContext): string {
   const { getHostConfig } = require('../../hosts/index');
   const hostConfig = getHostConfig(ctx.host);
-  return hostConfig.coAuthorTrailer || 'Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>';
+  return hostConfig.coAuthorTrailer || 'Co-Authored-By: Gemini CLI <noreply@google.com>';
 }
 
 export function generateChangelogWorkflow(_ctx: TemplateContext): string {

@@ -1,7 +1,7 @@
 /**
  * Declarative host config system.
  *
- * Each supported host (Claude, Codex, Factory, OpenCode, OpenClaw, etc.) is
+ * Each supported host (Gemini, Codex, Factory, OpenCode, OpenClaw, etc.) is
  * defined as a typed HostConfig object in hosts/*.ts. This module provides
  * the interface, loader, and validator.
  *
@@ -31,7 +31,7 @@ export interface HostConfig {
   localSkillRoot: string;
   /** Gitignored directory under repo root for generated docs (e.g., '.opencode'). */
   hostSubdir: string;
-  /** Whether preamble generates $GSTACK_ROOT env vars (true for non-Claude hosts). */
+  /** Whether preamble generates $GSTACK_ROOT env vars (true for non-Gemini hosts). */
   usesEnvVars: boolean;
 
   // --- Frontmatter Transformation ---
@@ -91,7 +91,7 @@ export interface HostConfig {
 
   // --- Install Behavior ---
   install: {
-    /** Whether gstack-config skill_prefix applies (Claude only). */
+    /** Whether gstack-config skill_prefix applies (Gemini only). */
     prefixable: boolean;
     /** How skills are linked into the host dir. */
     linkingStrategy: 'real-dir-symlink' | 'symlink-generated';

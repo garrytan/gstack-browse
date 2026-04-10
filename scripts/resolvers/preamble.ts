@@ -4,7 +4,7 @@ import { getHostConfig } from '../../hosts/index';
 /**
  * Preamble architecture — why every skill needs this
  *
- * Each skill runs independently via `claude -p`. There is no shared loader.
+ * Each skill runs independently via `gemini -p`. There is no shared loader.
  * The preamble provides: update checks, session tracking, user preferences,
  * repo mode detection, and telemetry.
  *
@@ -81,9 +81,9 @@ else
 fi
 # Session timeline: record skill start (local-only, never sent anywhere)
 ${ctx.paths.binDir}/gstack-timeline-log '{"skill":"${ctx.skillName}","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
-# Check if CLAUDE.md has routing rules
+# Check if GEMINI.md has routing rules
 _HAS_ROUTING="no"
-if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
+if [ -f GEMINI.md ] && grep -q "## Skill routing" GEMINI.md 2>/dev/null; then
   _HAS_ROUTING="yes"
 fi
 _ROUTING_DECLINED=$(${ctx.paths.binDir}/gstack-config get routing_declined 2>/dev/null || echo "false")
@@ -91,8 +91,8 @@ echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
 # Vendoring deprecation: detect if CWD has a vendored gstack copy
 _VENDORED="no"
-if [ -d ".claude/skills/gstack" ] && [ ! -L ".claude/skills/gstack" ]; then
-  if [ -f ".claude/skills/gstack/VERSION" ] || [ -d ".claude/skills/gstack/.git" ]; then
+if [ -d ".gemini/extensions/gstack" ] && [ ! -L ".gemini/extensions/gstack" ]; then
+  if [ -f ".gemini/extensions/gstack/VERSION" ] || [ -d ".gemini/extensions/gstack/.git" ]; then
     _VENDORED="yes"
   fi
 fi
@@ -191,19 +191,19 @@ This only happens once. If \`PROACTIVE_PROMPTED\` is \`yes\`, skip this entirely
 
 function generateRoutingInjection(ctx: TemplateContext): string {
   return `If \`HAS_ROUTING\` is \`no\` AND \`ROUTING_DECLINED\` is \`false\` AND \`PROACTIVE_PROMPTED\` is \`yes\`:
-Check if a CLAUDE.md file exists in the project root. If it does not exist, create it.
+Check if a GEMINI.md file exists in the project root. If it does not exist, create it.
 
 Use AskUserQuestion:
 
-> gstack works best when your project's CLAUDE.md includes skill routing rules.
-> This tells Claude to use specialized workflows (like /ship, /investigate, /qa)
+> gstack works best when your project's GEMINI.md includes skill routing rules.
+> This tells Gemini to use specialized workflows (like /ship, /investigate, /qa)
 > instead of answering directly. It's a one-time addition, about 15 lines.
 
 Options:
-- A) Add routing rules to CLAUDE.md (recommended)
+- A) Add routing rules to GEMINI.md (recommended)
 - B) No thanks, I'll invoke skills manually
 
-If A: Append this section to the end of CLAUDE.md:
+If A: Append this section to the end of GEMINI.md:
 
 \`\`\`markdown
 
@@ -228,7 +228,7 @@ Key routing rules:
 - Code quality, health check → invoke health
 \`\`\`
 
-Then commit the change: \`git add CLAUDE.md && git commit -m "chore: add gstack skill routing rules to CLAUDE.md"\`
+Then commit the change: \`git add GEMINI.md && git commit -m "chore: add gstack skill routing rules to GEMINI.md"\`
 
 If B: run \`${ctx.paths.binDir}/gstack-config set routing_declined true\`
 Say "No problem. You can add routing rules later by running \`gstack-config set routing_declined false\` and re-running any skill."
@@ -238,12 +238,12 @@ This only happens once per project. If \`HAS_ROUTING\` is \`yes\` or \`ROUTING_D
 
 function generateVendoringDeprecation(ctx: TemplateContext): string {
   return `If \`VENDORED_GSTACK\` is \`yes\`: This project has a vendored copy of gstack at
-\`.claude/skills/gstack/\`. Vendoring is deprecated. We will not keep vendored copies
+\`.gemini/extensions/gstack/\`. Vendoring is deprecated. We will not keep vendored copies
 up to date, so this project's gstack will fall behind.
 
 Use AskUserQuestion (one-time per project, check for \`~/.gstack/.vendoring-warned-$SLUG\` marker):
 
-> This project has gstack vendored in \`.claude/skills/gstack/\`. Vendoring is deprecated.
+> This project has gstack vendored in \`.gemini/extensions/gstack/\`. Vendoring is deprecated.
 > We won't keep this copy up to date, so you'll fall behind on new features and fixes.
 >
 > Want to migrate to team mode? It takes about 30 seconds.
@@ -253,11 +253,11 @@ Options:
 - B) No, I'll handle it myself
 
 If A:
-1. Run \`git rm -r .claude/skills/gstack/\`
-2. Run \`echo '.claude/skills/gstack/' >> .gitignore\`
+1. Run \`git rm -r .gemini/extensions/gstack/\`
+2. Run \`echo '.gemini/extensions/gstack/' >> .gitignore\`
 3. Run \`${ctx.paths.binDir}/gstack-team-init required\` (or \`optional\`)
-4. Run \`git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate gstack from vendored to team mode"\`
-5. Tell the user: "Done. Each developer now runs: \`cd ~/.claude/skills/gstack && ./setup --team\`"
+4. Run \`git add .gemini/ .gitignore GEMINI.md && git commit -m "chore: migrate gstack from vendored to team mode"\`
+5. Tell the user: "Done. Each developer now runs: \`cd ~/.gemini/extensions/gstack && ./setup --team\`"
 
 If B: say "OK, you're on your own to keep the vendored copy up to date."
 
@@ -389,7 +389,7 @@ Use AskUserQuestion:
 - Continue with the workflow.
 
 **If "Add as P0 TODO":**
-- If \`TODOS.md\` exists, add the entry following the format in \`review/TODOS-format.md\` (or \`.claude/skills/review/TODOS-format.md\`).
+- If \`TODOS.md\` exists, add the entry following the format in \`review/TODOS-format.md\` (or \`.gemini/extensions/review/TODOS-format.md\`).
 - If \`TODOS.md\` does not exist, create it with the standard header and add the entry.
 - Entry should include: title, the error output, which branch it was noticed on, and priority P0.
 - Continue with the workflow — treat the pre-existing failure as non-blocking.
@@ -501,14 +501,14 @@ _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
 rm -f ~/.gstack/analytics/.pending-"$_SESSION_ID" 2>/dev/null || true
 # Session timeline: record skill completion (local-only, never sent anywhere)
-~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"SKILL_NAME","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
+~/.gemini/extensions/gstack/bin/gstack-timeline-log '{"skill":"SKILL_NAME","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
 # Local analytics (gated on telemetry setting)
 if [ "$_TEL" != "off" ]; then
 echo '{"skill":"SKILL_NAME","duration_s":"'"$_TEL_DUR"'","outcome":"OUTCOME","browse":"USED_BROWSE","session":"'"$_SESSION_ID"'","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # Remote telemetry (opt-in, requires binary)
-if [ "$_TEL" != "off" ] && [ -x ~/.claude/skills/gstack/bin/gstack-telemetry-log ]; then
-  ~/.claude/skills/gstack/bin/gstack-telemetry-log \\
+if [ "$_TEL" != "off" ] && [ -x ~/.gemini/extensions/gstack/bin/gstack-telemetry-log ]; then
+  ~/.gemini/extensions/gstack/bin/gstack-telemetry-log \\
     --skill "SKILL_NAME" --duration "$_TEL_DUR" --outcome "OUTCOME" \\
     --used-browse "USED_BROWSE" --session-id "$_SESSION_ID" 2>/dev/null &
 fi
@@ -568,7 +568,7 @@ When you are in plan mode and about to call ExitPlanMode:
 3. If it does NOT — run this command:
 
 \\\`\\\`\\\`bash
-~/.claude/skills/gstack/bin/gstack-review-read
+~/.gemini/extensions/gstack/bin/gstack-review-read
 \\\`\\\`\\\`
 
 Then write a \`## GSTACK REVIEW REPORT\` section to the end of the plan file:
