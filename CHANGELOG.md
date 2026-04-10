@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.3.0] - 2026-04-10
+
+### Changed
+
+- **`/research-peer-review` now reviews any research artifact.** Point it at a paper, poster, extended abstract, or literature review (PDF, markdown, JSON, YAML) and get back a structured review in OpenReview format. Auto-detects what you gave it and picks the right rubric.
+- **Panel mode: two independent reviewers + area chair.** Claude does the primary review, Codex does an independent second review (completely isolated, no cross-contamination), then Claude synthesizes as area chair. Resolves disagreements with explicit reasoning. Falls back to Claude subagent if Codex is unavailable.
+- **Anti-sycophancy calibration.** Every reviewer must produce at least 3 concrete weaknesses tied to specific text spans. Score calibration matches real conference distributions (5/10 = borderline, 7 = strong accept). Area chair flags suspiciously positive reviews.
+- **Experimental citation verification.** With your consent, spot-checks up to 5 load-bearing citations via web search. Catches phantom citations and misattributions. Best-effort, abstract-level verification.
+- **Backwards compatible.** If you point it at a `/research-synthesis` output directory, it still runs the original 6-dimension review. No changes needed to existing workflows.
+
 ## [0.16.2.0] - 2026-04-10
 
 ### Added
