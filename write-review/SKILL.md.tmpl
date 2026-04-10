@@ -50,6 +50,7 @@ Resolve the input using this priority order:
    If files are found, use the most recent. If none found, check the current directory
    for recent markdown files:
    ```bash
+   setopt +o nomatch 2>/dev/null || true  # zsh compat
    ls -t *.md 2>/dev/null | head -5
    ```
 3. **Pasted content:** If the user pastes text directly, write it to a temp file first
