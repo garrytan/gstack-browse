@@ -5,7 +5,7 @@ browse/dist/
 design/dist/
 bin/gstack-global-discover
 .gstack/
-.claude/skills/
+.claude/
 .agents/
 .factory/
 .kiro/
