@@ -1509,7 +1509,7 @@ curl -s -o /dev/null -w '%{http_code}' http://localhost:4000 2>/dev/null || echo
 Read the `/qa-only` skill from disk:
 
 ```bash
-cat ${CLAUDE_SKILL_DIR}/../qa-only/SKILL.md
+cat ${CLAUDE_PLUGIN_ROOT}/../qa-only/SKILL.md
 ```
 
 **If unreadable:** Skip with "Could not load /qa-only — skipping plan verification."
@@ -2484,7 +2484,7 @@ After the PR is created, automatically sync project documentation. Read the
 `document-release/SKILL.md` skill file (adjacent to this skill's directory) and
 execute its full workflow:
 
-1. Read the `/document-release` skill: `cat ${CLAUDE_SKILL_DIR}/../document-release/SKILL.md`
+1. Read the `/document-release` skill: `cat ${CLAUDE_PLUGIN_ROOT}/../document-release/SKILL.md`
 2. Follow its instructions — it reads all .md files in the project, cross-references
    the diff, and updates anything that drifted (README, ARCHITECTURE, CONTRIBUTING,
    CLAUDE.md, TODOS, etc.)
