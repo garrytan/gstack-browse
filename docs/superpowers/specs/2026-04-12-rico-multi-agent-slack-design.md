@@ -1,122 +1,122 @@
-# Rico Multi-Agent Slack Orchestration Design
+# Rico 멀티 에이전트 Slack 오케스트레이션 설계
 
-- Date: 2026-04-12
-- Status: Approved for planning
-- Owner: petnow
-- Context: `rico` currently operates as a single Slack app. The goal is to evolve it into a multi-agent system that can coordinate product work across multiple active projects such as `mypetroutine`, `sherpalabs`, and `pet_memorial_moltdog`.
+- 날짜: 2026-04-12
+- 상태: 구현 계획 수립 가능
+- 작성자: petnow
+- 배경: `rico`는 현재 단일 Slack 앱으로 동작한다. 목표는 이를 `mypetroutine`, `sherpalabs`, `pet_memorial_moltdog` 같은 여러 활성 프로젝트를 동시에 조율할 수 있는 멀티 에이전트 시스템으로 확장하는 것이다.
 
-## Problem
+## 문제 정의
 
-One app with one conversational role does not scale well across multiple concurrent projects. The missing pieces are:
+하나의 앱이 하나의 대화 역할만 가지는 구조로는 여러 프로젝트를 동시에 운영하기 어렵다. 지금 부족한 것은 아래 다섯 가지다.
 
-- project-level delegation
-- role-based specialist work
-- portfolio-level prioritization
-- clear approval boundaries
-- observable execution inside Slack without turning Slack into the actual state store
+- 프로젝트 단위 위임
+- 역할 기반 전문 에이전트 작업
+- 포트폴리오 단위 우선순위 조정
+- 명확한 승인 경계
+- Slack을 상태 저장소로 쓰지 않으면서도 실행 상황을 눈에 보이게 만드는 운영 방식
 
-The desired system should take a development goal, split the work across product, design, engineering, QA, and customer viewpoints, run the full delivery cycle, and report progress with minimal human intervention.
+원하는 시스템은 개발 목표 하나를 입력받으면, 기획, 디자인, 엔지니어링, QA, 고객 관점으로 일을 분배하고, 전주기를 돌린 뒤, 사람 개입을 최소화한 상태로 결과를 보고하는 구조다.
 
-## Goals
+## 목표
 
-- Use a single Slack app, `rico`, as the user-facing shell.
-- Support multiple active projects with a shared operating model.
-- Allow project-level autonomy while keeping portfolio-level policy centralized.
-- Let specialist agents work in parallel where safe.
-- Show meaningful progress from parallel agents inside Slack.
-- Require human approval for:
-  - external customer communication
-  - cost-incurring actions
-  - destructive data deletion
-  - deployments
-- Keep Slack as the conversation UI, not the system of record.
+- 사용자에게 보이는 껍데기는 단일 Slack 앱 `rico` 하나로 유지한다.
+- 여러 프로젝트를 하나의 공통 운영 모델 위에서 관리한다.
+- 프로젝트 단위 자율성은 높이되, 포트폴리오 차원의 정책은 중앙에서 통제한다.
+- 안전한 범위에서는 전문 에이전트가 병렬로 일하게 한다.
+- 병렬 에이전트의 진짜 진행 상황이 Slack에서 보이도록 한다.
+- 아래 액션은 반드시 사람 승인을 거치게 한다.
+  - 외부 고객 커뮤니케이션
+  - 비용이 발생하는 액션
+  - 파괴적 데이터 삭제
+  - 배포
+- Slack은 대화 UI로 쓰고, 시스템의 정본 상태 저장은 Slack 바깥에 둔다.
 
-## Non-Goals
+## 비목표
 
-- Separate Slack apps per role.
-- Fully independent project organizations with unlimited autonomy.
-- Slack threads as the only workflow state store.
-- Removing the human from all high-risk decisions.
-- Building the implementation plan in this document.
+- 역할별로 Slack 앱을 따로 만드는 것
+- 프로젝트마다 무제한 자율권을 가진 독립 조직을 만드는 것
+- Slack thread를 유일한 워크플로 상태 저장소로 쓰는 것
+- 고위험 의사결정에서 사람을 완전히 제거하는 것
+- 이 문서 안에서 구현 계획까지 확정하는 것
 
-## Considered Approaches
+## 검토한 구조
 
-### A. Central Hub
+### A. 중앙 허브형
 
-One top-level orchestrator directly controls most project work.
+하나의 상위 오케스트레이터가 대부분의 프로젝트 실무를 직접 조정하는 구조다.
 
-Why not:
+채택하지 않은 이유:
 
-- central bottleneck appears early
-- weak project ownership
-- poor path to later customer-facing multi-tenant expansion
+- 중앙 병목이 너무 빨리 생긴다
+- 프로젝트 책임이 약해진다
+- 나중에 고객-facing 멀티테넌트 구조로 확장할 때 재설계 가능성이 높다
 
-### B. Project Captain Model
+### B. 프로젝트 Captain형
 
-A central policy layer controls priorities and approvals, while each project has its own execution captain that runs a specialist squad.
+중앙 정책 레이어가 우선순위와 승인 경계를 통제하고, 각 프로젝트는 자기 Captain이 전문 에이전트 스쿼드를 운영하는 구조다.
 
-Why this wins:
+이 구조를 택한 이유:
 
-- strong project ownership
-- controllable parallelism
-- clear user interaction model
-- good bridge from internal ops to future productization
+- 프로젝트 책임이 선명하다
+- 병렬성을 통제 가능한 수준으로 유지할 수 있다
+- 사용자 인터랙션 모델이 명확하다
+- 내부 운영에서 시작해 나중에 제품화하기 좋은 다리 역할을 한다
 
-### C. Independent Mini Startups
+### C. 독립 스타트업형
 
-Each project behaves like a nearly independent autonomous team.
+각 프로젝트가 거의 독립적인 자율 조직처럼 움직이는 구조다.
 
-Why not yet:
+지금 바로 택하지 않는 이유:
 
-- operational complexity rises too fast
-- Slack noise and cost likely spike early
-- approval and exception handling become too fragmented
+- 운영 복잡도가 너무 빨리 커진다
+- Slack 소음과 비용이 초기에 급증할 가능성이 높다
+- 승인과 예외 처리 규칙이 지나치게 분산된다
 
-## Chosen Architecture
+## 선택한 아키텍처
 
-The system uses a `Governor + Project Captain + Specialist Agents` model.
+시스템은 `Governor + Project Captain + Specialist Agents` 구조를 사용한다.
 
 ### Governor
 
-The Governor is a policy and exceptions engine, not a conversational micromanager.
+Governor는 상시 대화형 보스가 아니라 정책 및 예외 처리 엔진이다.
 
-Responsibilities:
+책임:
 
-- portfolio priority management
-- project slot allocation
-- approval gating
-- tool, budget, and risk policy enforcement
-- cross-project conflict resolution
+- 포트폴리오 우선순위 관리
+- 프로젝트 실행 슬롯 배정
+- 승인 게이트 판정
+- 도구, 예산, 리스크 정책 집행
+- 프로젝트 간 충돌 조정
 
-Non-responsibilities:
+하지 않는 일:
 
-- decomposing individual implementation tasks
-- reviewing detailed code or design output
-- responding in every project thread
-- overriding specialist judgment on discipline-specific matters
+- 개별 구현 태스크 분해
+- 세부 코드나 디자인 결과 리뷰
+- 모든 프로젝트 thread에 직접 응답
+- 각 분야 전문 에이전트의 판단 뒤집기
 
 ### Project Captain
 
-Each project has one Captain. The Captain is the execution orchestrator for that project.
+각 프로젝트는 Captain을 하나씩 가진다. Captain은 해당 프로젝트의 실행 오케스트레이터다.
 
-Responsibilities:
+책임:
 
-- turn a goal into a task graph
-- assign specialist agents
-- manage dependencies and sequencing
-- decide what can run in parallel
-- collect outputs and move the state machine forward
-- produce concise thread updates and end-of-cycle reports
+- 목표를 작업 그래프로 바꾸기
+- 전문 에이전트 배정
+- 의존성과 순서 조정
+- 병렬 가능 여부 판단
+- 결과 수집과 상태 전이
+- thread 업데이트와 사이클 종료 리포트 작성
 
-Non-responsibilities:
+하지 않는 일:
 
-- acting as the final authority for design quality, QA, or customer value
-- replacing specialist judgment with one blended opinion
-- endlessly re-planning or over-decomposing work
+- 디자인 품질, QA, 고객 가치의 최종 권위자 역할
+- 전문 에이전트 판단을 하나의 뭉툭한 의견으로 대체하기
+- 끝없는 재계획이나 과도한 작업 분해
 
 ### Specialist Agents
 
-Initial specialist roles:
+초기 전문 에이전트 역할은 아래와 같다.
 
 - Planner
 - Designer
@@ -125,114 +125,161 @@ Initial specialist roles:
 - Backend Engineer
 - QA
 
-Each specialist owns a specific judgment domain and returns structured outputs. They do not behave as always-on public Slack personas.
+각 전문 에이전트는 자기 분야의 판단을 책임지고, 구조화된 산출물을 반환한다. 이들은 항상 공개적으로 떠드는 Slack 화자가 아니다.
 
-## User Interaction Model
+## 사용자 인터랙션 모델
 
-The user talks to both the Governor and Captains, but in different places.
+사용자는 Governor와 Captain 모두와 소통하지만, 소통 장소와 목적이 다르다.
 
 ### `#ai-ops`
 
-Primary persona: Governor
+주요 화자: Governor
 
-Used for:
+용도:
 
-- new goal intake
-- portfolio prioritization
-- pausing or resuming projects
-- approval requests
-- portfolio summaries
-- exception handling
+- 새 목표 접수
+- 포트폴리오 우선순위 조정
+- 프로젝트 일시정지 및 재개
+- 승인 요청
+- 포트폴리오 요약
+- 예외 처리
 
-### Project Channels
+### 프로젝트 채널
 
-Examples:
+예시:
 
 - `#mypetroutine`
 - `#sherpalabs`
 - `#pet-memorial-moltdog`
 
-Primary persona: the project Captain
+주요 화자: 해당 프로젝트의 Captain
 
-Used for:
+용도:
 
-- project-specific goal execution
-- day-to-day thread updates
-- specialist impact reporting
-- artifact review
-- project-level blocking issues
+- 프로젝트 목표 실행
+- 일상적인 진행 thread 운영
+- 전문 에이전트 영향 보고
+- 산출물 검토
+- 프로젝트 단위 차단 이슈 처리
 
-Thread contract:
+thread 규칙:
 
-- each goal creates one root Slack message
-- all execution for that goal stays in that thread
-- Captain owns the thread narrative
-- specialists may add impact-mode messages into the same thread when warranted
+- 목표 하나당 루트 Slack 메시지 하나를 만든다
+- 해당 목표의 실행은 모두 그 thread 안에서 진행한다
+- thread 서사는 Captain이 관리한다
+- 전문 에이전트는 필요할 때만 같은 thread에 영향 보고 메시지를 남긴다
 
-Routing rule:
+라우팅 원칙:
 
-- start at Governor for portfolio decisions
-- work with Captain for project execution
-- escalate back to Governor only for policy, priorities, or approvals
+- 포트폴리오 의사결정은 Governor에서 시작한다
+- 프로젝트 실행은 Captain과 진행한다
+- 정책, 우선순위, 승인 이슈만 다시 Governor로 올린다
 
-## Execution Model
+## 실행 모델
 
-### Parallelism Rules
+### 병렬성 규칙
 
-- The portfolio may have up to 2 active execution projects at once.
-- Each project has exactly 1 execution lane.
-- A project may run specialist analysis in parallel, but only one write-oriented implementation flow may mutate state at a time inside that project.
-- Initial specialist concurrency limit per project: 4.
+- 포트폴리오 전체에서 동시에 활성화되는 실행 프로젝트는 최대 2개다
+- 각 프로젝트는 정확히 1개의 실행 레인을 가진다
+- 한 프로젝트 안에서는 전문 에이전트 분석은 병렬로 돌릴 수 있지만, 실제 상태를 바꾸는 쓰기 중심 구현 흐름은 한 번에 하나만 허용한다
+- 프로젝트당 초기 전문 에이전트 동시성 한도는 4로 둔다
 
-### Task Decomposition Limits
+### 작업 분해 상한
 
-To avoid Captain-induced coordination loops:
+Captain이 조정 루프에 빠지지 않도록 아래 제한을 둔다.
 
-- max child tasks per goal: 8
-- max re-plans per goal: 2
-- max automatic retries for the same failure mode: 2
+- 목표당 하위 작업 최대 8개
+- 목표당 재계획 최대 2회
+- 동일 실패 모드에 대한 자동 재시도 최대 2회
 
-## Slack Visibility Model
+여기서 `하위 작업 최대 8개`는 제품 범위 전체의 상한이 아니라, **한 번의 실행 사이클에서 Captain이 직접 관리하는 단일 목표 실행 단위의 상한**이다.
 
-Slack should show proof of progress without becoming a firehose.
+즉, 이 숫자의 의미는 아래와 같다.
 
-### Default Visibility
+- 하나의 Goal은 Captain이 한 번의 실행 흐름으로 끝까지 추적 가능한 크기여야 한다
+- Goal 하나가 너무 커져서 task graph가 8개를 넘기 시작하면, 그건 더 이상 단일 Goal이 아니라 여러 Goal로 나눠야 하는 상위 범위다
+- 이 제한은 기능 범위 제한이 아니라 coordination cost 상한이다
 
-- Governor is visible in `#ai-ops`
-- Captains are visible in project channels
-- specialists work mostly in the background
-- not every internal handoff becomes a public Slack message
+### 과대 목표 처리 규칙
 
-### Specialist Impact Mode
+아래 중 하나라도 해당하면 Captain은 더 이상 같은 Goal 안에서 작업을 쪼개지 않고, 상위 범위로 재정의해야 한다.
 
-Specialists surface only when their output materially changes the project direction, risk, or release decision.
+- 하위 작업이 8개를 초과할 것으로 예상됨
+- 독립적인 QA 게이트가 여러 번 필요함
+- 배포 또는 승인 이벤트가 여러 번 끼어야 함
+- 하나의 execution lane으로 추적하기 어려울 정도로 범위가 넓음
 
-Examples:
+대응 방식:
 
-- `[QA Impact] Regression found in onboarding. Release blocked.`
-- `[Customer Voice Impact] Current copy explains features but not user value.`
-- `[BE Impact] Goal is feasible, but schema migration introduces release approval risk.`
+- 원래 입력은 `Initiative` 또는 상위 에픽 성격의 범위로 승격한다
+- Captain은 이를 순차 실행 가능한 여러 `Goal`로 나눈다
+- Governor와 사람은 이 분해안을 보고 우선순위를 정한다
+- 활성 실행 레인에는 언제나 그중 하나의 Goal만 들어간다
 
-Impact messages must answer:
+즉, 범위가 큰 요청이 들어오면 시스템이 실패하는 것이 아니라, `하나의 Goal`로 억지 실행하지 않고 `여러 Goal이 있는 Initiative`로 바꾸는 것이 기본 대응이다.
 
-- what was found
-- why it matters
-- what changes because of it
-- whether it blocks or informs
-- where the supporting artifact lives
+## Slack 가시성 모델
 
-Limits:
+Slack은 진행의 증거를 보여줘야 하지만, firehose가 되면 안 된다.
 
-- no chatter-style status spam from specialists
-- default max of 1 to 2 public impact messages per specialist per task
-- long artifacts stay outside Slack, linked from Slack
+### 기본 가시성
 
-## State Model
+- Governor는 `#ai-ops`에 보인다
+- Captain은 프로젝트 채널에 보인다
+- 전문 에이전트는 기본적으로 백그라운드에서 동작한다
+- 모든 내부 handoff가 공개 Slack 메시지가 되지는 않는다
 
-Slack is a UI layer only. The system of record must exist outside Slack.
+### 전문 에이전트 영향 보고 모드
 
-Required entities:
+전문 에이전트는 자기 결과가 프로젝트 방향, 리스크, 릴리즈 판단을 실제로 바꾸는 순간에만 공개적으로 드러난다.
 
+예시:
+
+- `[QA Impact] 온보딩 회귀 발견. 출시 불가.`
+- `[Customer Voice Impact] 현재 카피는 기능 설명은 되지만 사용자 가치가 안 보임.`
+- `[BE Impact] 목표 달성 가능. 다만 스키마 마이그레이션 때문에 배포 전 승인 필요.`
+
+영향 보고 메시지는 아래를 반드시 담아야 한다.
+
+- 무엇을 발견했는지
+- 왜 중요한지
+- 그래서 무엇이 바뀌는지
+- 막는 사안인지 참고 사안인지
+- 근거 artifact가 어디 있는지
+
+제한:
+
+- 전문 에이전트가 잡담형 상태 메시지를 계속 올리면 안 된다
+- 기본적으로 전문 에이전트당 작업 하나에 공개 영향 메시지는 1~2개 이내로 제한한다
+- 긴 산출물은 Slack에 본문으로 넣지 않고 링크로 연결한다
+
+### 긴 산출물 전달 규칙
+
+여기서 말하는 `긴 산출물`은 아래 같은 것을 뜻한다.
+
+- 긴 기획 문서
+- QA 리포트
+- 디자인 비교 문서
+- 코드 diff 설명 문서
+- 조사 메모나 고객 관점 분석 문서
+
+중요한 점은, **Slack에서 로컬 파일 경로를 직접 링크하는 방식은 허용하지 않는다**는 것이다. 예를 들어 로컬의 `.md` 파일 경로를 Slack에 붙이는 것은 전달 방식으로 성립하지 않는다.
+
+V1의 전달 방식은 아래 셋 중 하나여야 한다.
+
+- Slack 본문에는 짧은 요약만 넣고, 원문은 Slack thread에 파일로 첨부한다
+- 원문을 PDF, Markdown, TXT, PNG 같은 형태로 변환해 Slack에서 열 수 있는 첨부물로 전달한다
+- 별도 artifact 저장소나 내부 웹 뷰어가 있으면 Slack에서 접근 가능한 URL을 붙인다
+
+즉, 로컬 작업 디렉터리의 문서는 내부 미러일 수는 있지만, Slack 전달 매체는 아니다. Slack에 노출되는 모든 artifact는 **Slack에서 바로 열리거나 다운로드 가능한 형태**여야 한다.
+
+## 상태 모델
+
+Slack은 UI일 뿐이고, 정본 상태 저장은 Slack 바깥에 있어야 한다.
+
+필수 엔터티:
+
+- `Initiative`
 - `Project`
 - `Goal`
 - `Run`
@@ -241,7 +288,7 @@ Required entities:
 - `Approval`
 - `StateTransition`
 
-Initial goal/run state machine:
+초기 goal/run 상태 머신:
 
 - `intake`
 - `triaged`
@@ -254,138 +301,232 @@ Initial goal/run state machine:
 - `released`
 - `archived`
 
-Slack threads may reference these states, but may not define them.
+Slack thread는 이 상태를 참조할 수는 있지만, 상태 자체를 정의해서는 안 된다.
 
-## Approval and Guardrail Rules
+## 역할별 메모리와 스킬 모델
 
-### Human Approval Required
+V1에서 역할별 별도 bot identity를 두지 않는 이유는, **Slack identity와 내부 인지 구조는 분리할 수 있기 때문**이다.
 
-- external customer communication
-- any action that incurs spend
-- destructive deletion or irreversible data changes
-- deployment
+별도 bot identity를 늘리면 아래 복잡도가 즉시 커진다.
 
-### Automatic Stop Conditions
+- OAuth 설치와 권한 관리
+- 채널 초대와 멘션 라우팅
+- 메시지 노이즈와 rate limit 부담
+- 장애 추적과 감사 로그 복잡도
 
-- approval-required action encountered
-- project slot limit exceeded
-- retry limit exceeded
-- QA failure
-- policy violation
-- security or permission conflict
+반면 역할 전문성은 별도 bot identity 없이도 내부적으로 충분히 분리할 수 있다.
+
+따라서 V1은 `하나의 Slack 앱 + 여러 내부 역할 프로필` 구조로 간다.
+
+### 역할 프로필 구성 요소
+
+각 역할 프로필은 아래를 가진다.
+
+- 역할 헌장, 즉 system prompt 수준의 책임 정의
+- 허용 도구와 금지 도구 정책
+- 역할별 체크리스트 또는 skill pack
+- 역할별 artifact 템플릿
+- 역할별 메모리 네임스페이스
+
+예를 들어:
+
+- Planner는 범위, 요구사항, 리스크 정리용 체크리스트와 메모리
+- QA는 회귀, 릴리즈 차단, 재현 조건 중심 체크리스트와 메모리
+- Customer Voice는 사용자 가치, 카피, JTBD 관점 메모리
+
+즉, Slack에서는 하나의 앱처럼 보이지만, 내부 런타임에서는 역할별로 **다른 프롬프트, 다른 메모리, 다른 스킬 묶음**을 쓰게 된다.
+
+### 메모리 계층
+
+역할별 메모리는 아래 네 층으로 나누는 것이 맞다.
+
+- 공용 프로젝트 메모리
+  - 프로젝트 목표, 제약, 결정사항, 승인 이력
+- 역할별 프로젝트 메모리
+  - 예: `mypetroutine/qa`, `sherpalabs/customer-voice`
+- 실행 단위 메모리
+  - 현재 Goal과 Run에만 유효한 작업 메모리
+- 장기 역할 플레이북
+  - 프로젝트를 초월해 재사용되는 역할 공통 규칙
+
+중요한 점은, 모든 메모리를 무조건 장기 저장하지 않는다는 것이다. 사람 승인이나 명시적 결정으로 승격된 사실만 지속 메모리에 올린다.
+
+## 에이전트별 컨텍스트 윈도우 관리
+
+컨텍스트 윈도우는 에이전트별로 반드시 관리해야 한다. 하나의 앱이라고 해서 하나의 거대한 컨텍스트를 공유하면 안 된다.
+
+### Governor 컨텍스트
+
+- 포트폴리오 상태
+- 우선순위 정책
+- 승인 대기 항목
+- 슬롯 사용 현황
+
+Governor는 프로젝트 세부 구현 맥락을 오래 들고 있지 않는다.
+
+### Captain 컨텍스트
+
+- 현재 Goal
+- 현재 task graph
+- 최신 specialist 영향 신호
+- 프로젝트 요약 상태
+- 다음 의사결정에 필요한 artifact 요약
+
+Captain은 프로젝트 실행에 필요한 중간 수준 요약을 들고 있어야 하지만, 모든 원문 artifact를 항상 컨텍스트에 넣지는 않는다.
+
+### Specialist 컨텍스트
+
+- 자기 역할 헌장
+- 현재 task
+- 관련 artifact 일부
+- 필요한 프로젝트 요약
+
+specialist는 전체 Slack thread나 다른 역할의 긴 맥락을 다 읽지 않는다. 자기 역할에 필요한 부분만 받는다.
+
+### 컨텍스트 압축 규칙
+
+- thread 전체를 raw context로 다시 주입하지 않는다
+- 단계가 끝날 때마다 요약본을 만든다
+- 승인된 사실만 장기 메모리에 올린다
+- 원문은 artifact 저장소에 두고 필요할 때만 가져온다
+
+즉, `하나의 앱`이어도 `하나의 컨텍스트`가 아니라, **역할별로 분리된 컨텍스트와 메모리**를 가져야 한다.
+
+## 승인 및 가드레일 규칙
+
+### 사람 승인 필요
+
+- 외부 고객 커뮤니케이션
+- 비용이 발생하는 액션
+- 파괴적 삭제 또는 되돌릴 수 없는 데이터 변경
+- 배포
+
+### 자동 중단 조건
+
+- 승인 필요 액션에 도달함
+- 프로젝트 슬롯 한도를 넘김
+- 재시도 한도를 넘김
+- QA 실패
+- 정책 위반
+- 보안 또는 권한 충돌
 
 ### Risk Acceptance
 
-If the human wants to proceed despite a flagged issue, the system records an explicit `risk_accepted` approval event with actor, time, target action, and rationale.
+플래그가 걸린 상태에서도 사람이 진행을 원하면, 시스템은 `risk_accepted` 승인 이벤트를 기록해야 한다. 이 이벤트에는 행위자, 시각, 대상 액션, 근거가 포함된다.
 
-## Specialist Independence Rules
+## Specialist 독립성 규칙
 
-To prevent the Captain or Governor from collapsing specialist roles into one generic opinion:
+Captain이나 Governor가 전문 에이전트 판단을 하나의 일반화된 의견으로 뭉개지 않도록 아래 원칙을 둔다.
 
-- QA is an independent gate. QA may fail a release candidate and return it for rework.
-- Governor may not silently override QA. Governor can only escalate to human approval.
-- Customer Voice is a counterweight role, not a helper role. It may object when user value is being traded away for internal efficiency.
-- Captain must preserve specialist impact signals instead of rewriting them out of existence.
+- QA는 독립 게이트다. QA는 릴리즈 후보를 실패 처리하고 재작업으로 돌려보낼 수 있다.
+- Governor는 QA 결과를 조용히 뒤집을 수 없다. Governor는 오직 사람 승인 단계로 올릴 수만 있다.
+- Customer Voice는 보조 역할이 아니라 견제축이다. 내부 효율을 위해 사용자 가치가 희생될 때 이의를 제기할 수 있어야 한다.
+- Captain은 전문 에이전트 영향 신호를 지우지 말고 그대로 보존해야 한다.
 
-## RACI-Style Decision Ownership
+## RACI 스타일 책임 분장
 
-### Portfolio Priority
+### 포트폴리오 우선순위
 
-- Responsible: Governor
-- Accountable: Human
-- Consulted: relevant Captains
-- Informed: affected project channels
+- 실행 책임: Governor
+- 최종 책임: Human
+- 협의 대상: 관련 Captains
+- 공유 대상: 영향받는 프로젝트 채널
 
-### Goal Decomposition and Scheduling
+### 목표 분해 및 스케줄링
 
-- Responsible: Captain
-- Accountable: Captain
-- Consulted: Planner, FE, BE, Designer as needed
-- Informed: Governor, project thread
+- 실행 책임: Captain
+- 최종 책임: Captain
+- 협의 대상: Planner, FE, BE, Designer
+- 공유 대상: Governor, 프로젝트 thread
 
-### Product Scope and Requirements Shape
+### 제품 범위와 요구사항 구조화
 
-- Responsible: Planner
-- Accountable: Captain
-- Consulted: Customer Voice, Designer
-- Informed: project thread
+- 실행 책임: Planner
+- 최종 책임: Captain
+- 협의 대상: Customer Voice, Designer
+- 공유 대상: 프로젝트 thread
 
-### UX and Experience Direction
+### UX 및 경험 방향
 
-- Responsible: Designer
-- Accountable: Captain
-- Consulted: Customer Voice
-- Informed: project thread
+- 실행 책임: Designer
+- 최종 책임: Captain
+- 협의 대상: Customer Voice
+- 공유 대상: 프로젝트 thread
 
-### Implementation
+### 구현
 
-- Responsible: FE and BE
-- Accountable: Captain
-- Consulted: Planner, Designer
-- Informed: project thread
+- 실행 책임: FE, BE
+- 최종 책임: Captain
+- 협의 대상: Planner, Designer
+- 공유 대상: 프로젝트 thread
 
-### Release Validation
+### 릴리즈 검증
 
-- Responsible: QA
-- Accountable: QA
-- Consulted: FE, BE, Captain
-- Informed: Governor, project thread
+- 실행 책임: QA
+- 최종 책임: QA
+- 협의 대상: FE, BE, Captain
+- 공유 대상: Governor, 프로젝트 thread
 
-### Deployment / External Send / Spend / Deletion
+### 배포 / 외부 발송 / 비용 발생 / 삭제
 
-- Responsible: Captain prepares request
-- Accountable: Human
-- Consulted: Governor, QA, relevant specialists
-- Informed: project thread, `#ai-ops`
+- 실행 책임: Captain이 요청 준비
+- 최종 책임: Human
+- 협의 대상: Governor, QA, 관련 전문 에이전트
+- 공유 대상: 프로젝트 thread, `#ai-ops`
 
-## Operational Anti-Patterns to Avoid
+## 피해야 할 운영 안티패턴
 
-- Governor reading and commenting in every project thread
-- Captain rewriting every specialist conclusion in its own voice
-- QA being subordinated under Governor or Captain release desire
-- unlimited task splitting or re-planning loops
-- Slack threads treated as the only durable state store
+- Governor가 모든 프로젝트 thread를 읽고 직접 코멘트하기
+- Captain이 모든 전문 에이전트 결론을 자기 말로 다시 써버리기
+- QA가 Governor나 Captain의 출시 의지 아래 종속되기
+- 무제한 작업 분해나 재계획 루프 허용하기
+- Slack thread를 유일한 영속 상태 저장소로 취급하기
 
-## Initial Delivery Scope
+## 초기 제공 범위
 
-Version 1 should prove this operating model, not solve everything.
+V1은 모든 문제를 푸는 것이 아니라, 이 운영 모델이 실제로 작동한다는 것을 증명하는 데 집중한다.
 
-V1 should include:
+V1에 포함할 것:
 
-- one Slack app identity
-- Governor surface in `#ai-ops`
-- one Captain per project channel
-- structured specialist invocation behind the Captain
-- external state store for project/run/task/approval history
-- human approval gating for the four protected action classes
-- impact-mode specialist reporting
-- concurrency enforcement for 2 active projects max
+- 단일 Slack 앱 identity
+- `#ai-ops`의 Governor 표면
+- 프로젝트 채널별 Captain 하나
+- Captain 뒤에서 동작하는 구조화된 전문 에이전트 호출
+- 프로젝트, run, task, approval 이력을 저장하는 외부 상태 저장소
+- 보호된 4가지 액션에 대한 사람 승인 게이팅
+- 영향 보고 모드 기반 전문 에이전트 보고
+- 동시 활성 프로젝트 최대 2개 제한
 
-V1 does not need:
+V1에서 굳이 하지 않을 것:
 
-- separate bot identities per role
-- unrestricted project autonomy
-- arbitrary parallel write execution inside one project
-- a fully customer-facing product shell
+- 역할별 별도 bot identity
+- 무제한 프로젝트 자율권
+- 프로젝트 내부의 임의 병렬 write 실행
+- 완전한 고객-facing 제품 쉘
 
-## Open Questions
+## 남아 있는 질문
 
-These do not block planning, but will matter during implementation planning:
+이 문서의 구현 계획 수립을 막지는 않지만, planning 단계에서는 반드시 정해야 하는 것들이다.
 
-- what storage backend should hold workflow state and artifacts
-- how approvals should be represented in Slack UX
-- how Captain-to-specialist invocation is implemented under the `rico` runtime
-- what the minimal artifact schema should be for specialist outputs
+- workflow 상태와 artifact를 어떤 저장소에 둘 것인가
+- 승인 요청을 Slack UX에서 어떻게 표현할 것인가
+- `rico` 런타임에서 Captain이 전문 에이전트를 어떤 방식으로 호출할 것인가
+- 전문 에이전트 산출물의 최소 artifact 스키마를 어떻게 잡을 것인가
 
-## Planning Readiness
+## 계획 수립 준비 상태
 
-This spec is ready for implementation planning because it fixes:
+이 스펙은 아래를 고정했기 때문에 구현 계획 수립에 들어갈 수 있다.
 
-- the operating model
-- the user interaction model
-- the role boundaries
-- the approval boundaries
-- the visibility rules
-- the initial scope limits
+- 운영 모델
+- 사용자 인터랙션 모델
+- 역할 경계
+- 승인 경계
+- 가시성 규칙
+- 초기 범위 제한
 
-It intentionally leaves implementation details, stack choices, and storage mechanics for the planning phase.
+반대로 아래는 의도적으로 planning 단계에 남겨둔다.
+
+- 구체적인 스택 선택
+- 저장소 구현 방식
+- 세부 orchestration 메커니즘
+- 런타임 내부 호출 구조
