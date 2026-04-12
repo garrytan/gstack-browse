@@ -1,0 +1,219 @@
+import { expect, test } from "bun:test";
+import { Captain } from "../src/orchestrator/captain";
+import { runSpecialist } from "../src/orchestrator/specialists";
+import { MemoryStore } from "../src/memory/store";
+import { QA_ROLE_PROFILE } from "../src/roles/qa";
+import { validateSpecialistResult } from "../src/roles/contracts";
+import { openStore } from "../src/state/store";
+
+test("validateSpecialistResult requires role, summary, impact, and artifacts", () => {
+  const result = validateSpecialistResult({
+    role: "qa",
+    summary: "Regression found",
+    impact: "blocking",
+    artifacts: [{ kind: "report", title: "qa-report.md" }],
+  });
+
+  expect(result.ok).toBe(true);
+});
+
+test("runSpecialist validates, persists, and returns qa impact", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+
+  const result = await runSpecialist({
+    role: "qa",
+    input: {
+      goalId: "goal-1",
+      projectId: "mypetroutine",
+      runId: "run-1",
+      summary: "verify onboarding",
+    },
+    memoryStore,
+  });
+
+  expect(result.role).toBe("qa");
+  expect(result.impact).toBe("blocking");
+  expect(memoryStore.getRunMemory("run-1")["specialist.qa.impact"]).toBe(
+    "blocking",
+  );
+  expect(
+    memoryStore.getRunMemory("run-1")["specialist.qa.result_json"],
+  ).toContain('"artifacts"');
+  expect(
+    memoryStore.getProjectMemory("mypetroutine")[
+      "specialist.qa.last_result_json"
+    ],
+  ).toContain('"rawFindings"');
+
+  db.db.close();
+});
+
+test("QA role profile stops on regression and keeps protected actions behind human sign-off", () => {
+  expect(QA_ROLE_PROFILE.guardrails).toContain("stop_on_regression");
+  expect(QA_ROLE_PROFILE.guardrails).toContain(
+    "do_not_approve_release_when_human_signoff_required",
+  );
+});
+
+test("Captain stores validated specialist results without rewriting impact", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  const captain = new Captain(memoryStore);
+
+  captain.handleAiOpsIntake({
+    projectId: "mypetroutine",
+    aiOpsChannelId: "C_AI_OPS",
+    projectChannelId: "C_PROJECT",
+    intakeThreadTs: "1710000000.000100",
+    title: "improve onboarding conversion",
+  });
+
+  const results = [
+    await runSpecialist({
+      role: "qa",
+      input: {
+        goalId: "goal-1",
+        projectId: "mypetroutine",
+        runId: "run-qa",
+        summary: "verify onboarding",
+      },
+      memoryStore: new MemoryStore(db.db),
+    }),
+  ];
+
+  captain.captureSpecialistResults("mypetroutine", results);
+
+  expect(captain.getStoredSpecialistResults("mypetroutine")).toEqual(results);
+  expect(captain.getStoredSpecialistResults("mypetroutine")[0]?.impact).toBe(
+    "blocking",
+  );
+  expect(
+    memoryStore.getProjectMemory("mypetroutine")[
+      "captain.specialist.qa.result_json"
+    ],
+  ).toContain('"impact":"blocking"');
+
+  db.db.close();
+});
+
+test("Captain rehydrates intake and specialist results from durable project memory after restart", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  const firstCaptain = new Captain(memoryStore);
+
+  firstCaptain.handleAiOpsIntake({
+    projectId: "mypetroutine",
+    aiOpsChannelId: "C_AI_OPS",
+    projectChannelId: "C_PROJECT",
+    intakeThreadTs: "1710000000.000100",
+    title: "improve onboarding conversion",
+  });
+
+  const results = [
+    await runSpecialist({
+      role: "qa",
+      input: {
+        goalId: "goal-1",
+        projectId: "mypetroutine",
+        runId: "run-qa",
+        summary: "verify onboarding",
+      },
+      memoryStore,
+    }),
+  ];
+  firstCaptain.captureSpecialistResults("mypetroutine", results);
+
+  const restartedCaptain = new Captain(memoryStore);
+  expect(restartedCaptain.getPortfolioRecord("mypetroutine")).toMatchObject({
+    projectId: "mypetroutine",
+    aiOpsChannelId: "C_AI_OPS",
+    projectChannelId: "C_PROJECT",
+  });
+  expect(restartedCaptain.getStoredSpecialistResults("mypetroutine")).toEqual(
+    results,
+  );
+
+  const narration = restartedCaptain.composeProjectSummary({
+    projectId: "mypetroutine",
+    projectThreadTs: "1710000000.000300",
+    summary: "Recovered after restart",
+    impacts: [{ role: "qa", level: "blocking", message: "Regression found" }],
+  });
+  expect(narration.channelId).toBe("C_PROJECT");
+
+  db.db.close();
+});
+
+test("Captain can promote run-scoped specialist results after a restart before project capture ran", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  const firstCaptain = new Captain(memoryStore);
+
+  firstCaptain.handleAiOpsIntake({
+    projectId: "mypetroutine",
+    aiOpsChannelId: "C_AI_OPS",
+    projectChannelId: "C_PROJECT",
+    intakeThreadTs: "1710000000.000100",
+    title: "improve onboarding conversion",
+  });
+
+  const result = await runSpecialist({
+    role: "qa",
+    input: {
+      goalId: "goal-1",
+      projectId: "mypetroutine",
+      runId: "run-recovery",
+      summary: "verify onboarding",
+    },
+    memoryStore,
+  });
+
+  const restartedCaptain = new Captain(memoryStore);
+  expect(
+    restartedCaptain.promoteRunResultsToProject(
+      "mypetroutine",
+      "run-recovery",
+    ),
+  ).toEqual([result]);
+  expect(restartedCaptain.getStoredSpecialistResults("mypetroutine")).toEqual([
+    result,
+  ]);
+
+  db.db.close();
+});
+
+test("planner, designer, customer voice, frontend, backend, and qa all flow through the same specialist path", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  const roles = [
+    "planner",
+    "designer",
+    "customer-voice",
+    "frontend",
+    "backend",
+    "qa",
+  ] as const;
+
+  const results = await Promise.all(
+    roles.map((role) =>
+      runSpecialist({
+        role,
+        input: {
+          goalId: `goal-${role}`,
+          projectId: "mypetroutine",
+          runId: `run-${role}`,
+          summary: `execute ${role}`,
+        },
+        memoryStore,
+      }),
+    ),
+  );
+
+  expect(results.map((result) => result.role)).toEqual(roles);
+  for (const role of roles) {
+    expect(memoryStore.getRunMemory(`run-${role}`)[`specialist.${role}.impact`]).toBeDefined();
+  }
+
+  db.db.close();
+});

@@ -1,3 +1,5 @@
+import { MemoryStore } from "../memory/store";
+import type { SpecialistResult } from "../roles/contracts";
 import {
   preserveSpecialistImpacts,
   type SpecialistImpact,
@@ -13,6 +15,9 @@ interface PortfolioRecord {
 
 export class Captain {
   private readonly portfolio = new Map<string, PortfolioRecord>();
+  private readonly specialistResults = new Map<string, SpecialistResult[]>();
+
+  constructor(private readonly memoryStore?: MemoryStore) {}
 
   handleAiOpsIntake(input: {
     projectId: string;
@@ -30,6 +35,13 @@ export class Captain {
     };
 
     this.portfolio.set(input.projectId, record);
+    if (this.memoryStore) {
+      this.memoryStore.putProjectFact(
+        input.projectId,
+        "captain.portfolio_json",
+        JSON.stringify(record),
+      );
+    }
     return {
       portfolioRecord: { ...record },
     };
@@ -41,7 +53,7 @@ export class Captain {
     summary: string;
     impacts: SpecialistImpact[];
   }) {
-    const record = this.portfolio.get(input.projectId);
+    const record = this.getPortfolioRecord(input.projectId);
     if (!record) {
       throw new Error(`unknown project: ${input.projectId}`);
     }
@@ -55,7 +67,98 @@ export class Captain {
   }
 
   getPortfolioRecord(projectId: string) {
-    const record = this.portfolio.get(projectId);
-    return record ? { ...record } : null;
+    const inMemory = this.portfolio.get(projectId);
+    if (inMemory) {
+      return { ...inMemory };
+    }
+
+    const persisted = this.readPersistedPortfolio(projectId);
+    if (!persisted) return null;
+
+    this.portfolio.set(projectId, persisted);
+    return { ...persisted };
+  }
+
+  captureSpecialistResults(projectId: string, results: SpecialistResult[]) {
+    if (!this.getPortfolioRecord(projectId)) {
+      throw new Error(`unknown project: ${projectId}`);
+    }
+    const cloned = results.map((result) => ({
+      ...result,
+      artifacts: result.artifacts.map((artifact) => ({ ...artifact })),
+      rawFindings: result.rawFindings ? [...result.rawFindings] : undefined,
+    }));
+    this.specialistResults.set(projectId, cloned);
+
+    if (this.memoryStore) {
+      for (const result of cloned) {
+        this.memoryStore.putProjectFact(
+          projectId,
+          `captain.specialist.${result.role}.result_json`,
+          JSON.stringify(result),
+        );
+      }
+    }
+  }
+
+  getStoredSpecialistResults(projectId: string) {
+    const inMemory = this.specialistResults.get(projectId);
+    if (inMemory) {
+      return inMemory.map((result) => ({
+        ...result,
+        artifacts: result.artifacts.map((artifact) => ({ ...artifact })),
+        rawFindings: result.rawFindings ? [...result.rawFindings] : undefined,
+      }));
+    }
+
+    const persisted = this.readPersistedSpecialistResults(projectId);
+    this.specialistResults.set(projectId, persisted);
+    return persisted.map((result) => ({
+      ...result,
+      artifacts: result.artifacts.map((artifact) => ({ ...artifact })),
+      rawFindings: result.rawFindings ? [...result.rawFindings] : undefined,
+    }));
+  }
+
+  promoteRunResultsToProject(projectId: string, runId: string) {
+    if (!this.getPortfolioRecord(projectId)) {
+      throw new Error(`unknown project: ${projectId}`);
+    }
+
+    const runResults = this.readPersistedRunSpecialistResults(runId);
+    if (runResults.length === 0) return [];
+
+    this.captureSpecialistResults(projectId, runResults);
+    return this.getStoredSpecialistResults(projectId);
+  }
+
+  private readPersistedPortfolio(projectId: string) {
+    if (!this.memoryStore) return null;
+
+    const memory = this.memoryStore.getProjectMemory(projectId);
+    const raw = memory["captain.portfolio_json"];
+    if (!raw) return null;
+
+    return JSON.parse(raw) as PortfolioRecord;
+  }
+
+  private readPersistedSpecialistResults(projectId: string) {
+    if (!this.memoryStore) return [];
+
+    const memory = this.memoryStore.getProjectMemory(projectId);
+    return Object.entries(memory)
+      .filter(([key]) => key.startsWith("captain.specialist.") && key.endsWith(".result_json"))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, value]) => JSON.parse(value) as SpecialistResult);
+  }
+
+  private readPersistedRunSpecialistResults(runId: string) {
+    if (!this.memoryStore) return [];
+
+    const memory = this.memoryStore.getRunMemory(runId);
+    return Object.entries(memory)
+      .filter(([key]) => key.startsWith("specialist.") && key.endsWith(".result_json"))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([, value]) => JSON.parse(value) as SpecialistResult);
   }
 }
