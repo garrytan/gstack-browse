@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { roleMemoryKey } from "./namespaces";
 
 function rowsToRecord(rows: Array<{ key: string; value: string }>) {
   return Object.fromEntries(rows.map((row) => [row.key, row.value]));
@@ -31,11 +32,34 @@ export class MemoryStore {
     ).run(role, key, value);
   }
 
+  putRoleProjectFact(projectId: string, role: string, key: string, value: string) {
+    const prefix = roleMemoryKey(projectId, role);
+    this.putProjectFact(projectId, `${prefix}:${key}`, value);
+  }
+
   getProjectMemory(projectId: string) {
     return rowsToRecord(
       this.db
         .query("select key, value from project_memory where project_id = ?")
         .all(projectId) as Array<{ key: string; value: string }>,
+    );
+  }
+
+  getSharedProjectMemory(projectId: string) {
+    const prefix = `${roleMemoryKey(projectId, "")}`;
+    return Object.fromEntries(
+      Object.entries(this.getProjectMemory(projectId)).filter(
+        ([key]) => !key.startsWith(prefix),
+      ),
+    );
+  }
+
+  getRoleProjectMemory(projectId: string, role: string) {
+    const prefix = `${roleMemoryKey(projectId, role)}:`;
+    return Object.fromEntries(
+      Object.entries(this.getProjectMemory(projectId))
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([key, value]) => [key.slice(prefix.length), value]),
     );
   }
 

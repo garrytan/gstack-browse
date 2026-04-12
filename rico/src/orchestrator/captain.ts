@@ -1,4 +1,5 @@
 import { MemoryStore } from "../memory/store";
+import type { CaptainPlan } from "./captain-plan";
 import type { SpecialistResult } from "../roles/contracts";
 import {
   preserveSpecialistImpacts,
@@ -16,6 +17,7 @@ interface PortfolioRecord {
 export class Captain {
   private readonly portfolio = new Map<string, PortfolioRecord>();
   private readonly specialistResults = new Map<string, SpecialistResult[]>();
+  private readonly plans = new Map<string, CaptainPlan>();
 
   constructor(private readonly memoryStore?: MemoryStore) {}
 
@@ -63,6 +65,42 @@ export class Captain {
       threadTs: input.projectThreadTs,
       summary: input.summary,
       impacts: preserveSpecialistImpacts(input.impacts),
+    };
+  }
+
+  capturePlan(projectId: string, runId: string | null, plan: CaptainPlan) {
+    if (!this.getPortfolioRecord(projectId)) {
+      throw new Error(`unknown project: ${projectId}`);
+    }
+    const cloned = {
+      ...plan,
+      selectedRoles: [...plan.selectedRoles],
+      taskGraph: plan.taskGraph.map((task) => ({
+        ...task,
+        dependsOn: [...task.dependsOn],
+      })),
+    };
+    this.plans.set(projectId, cloned);
+
+    if (this.memoryStore) {
+      this.memoryStore.putProjectFact(
+        projectId,
+        "captain.plan_json",
+        JSON.stringify(cloned),
+      );
+      this.memoryStore.putProjectFact(projectId, "captain.next_action", cloned.nextAction);
+      if (cloned.blockedReason) {
+        this.memoryStore.putProjectFact(projectId, "captain.blocked_reason", cloned.blockedReason);
+      }
+      if (runId) {
+        this.memoryStore.putRunFact(runId, "captain.plan_json", JSON.stringify(cloned));
+      }
+    }
+
+    return {
+      ...cloned,
+      selectedRoles: [...cloned.selectedRoles],
+      taskGraph: cloned.taskGraph.map((task) => ({ ...task, dependsOn: [...task.dependsOn] })),
     };
   }
 
@@ -120,6 +158,26 @@ export class Captain {
     }));
   }
 
+  getStoredPlan(projectId: string) {
+    const inMemory = this.plans.get(projectId);
+    if (inMemory) {
+      return {
+        ...inMemory,
+        selectedRoles: [...inMemory.selectedRoles],
+        taskGraph: inMemory.taskGraph.map((task) => ({ ...task, dependsOn: [...task.dependsOn] })),
+      };
+    }
+
+    const persisted = this.readPersistedPlan(projectId);
+    if (!persisted) return null;
+    this.plans.set(projectId, persisted);
+    return {
+      ...persisted,
+      selectedRoles: [...persisted.selectedRoles],
+      taskGraph: persisted.taskGraph.map((task) => ({ ...task, dependsOn: [...task.dependsOn] })),
+    };
+  }
+
   promoteRunResultsToProject(projectId: string, runId: string) {
     if (!this.getPortfolioRecord(projectId)) {
       throw new Error(`unknown project: ${projectId}`);
@@ -150,6 +208,14 @@ export class Captain {
       .filter(([key]) => key.startsWith("captain.specialist.") && key.endsWith(".result_json"))
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, value]) => JSON.parse(value) as SpecialistResult);
+  }
+
+  private readPersistedPlan(projectId: string) {
+    if (!this.memoryStore) return null;
+    const memory = this.memoryStore.getProjectMemory(projectId);
+    const raw = memory["captain.plan_json"];
+    if (!raw) return null;
+    return JSON.parse(raw) as CaptainPlan;
   }
 
   private readPersistedRunSpecialistResults(runId: string) {

@@ -2,9 +2,13 @@ import type { Database } from "bun:sqlite";
 import { MemoryStore } from "../memory/store";
 import { evaluateAction } from "../orchestrator/approvals";
 import { Captain } from "../orchestrator/captain";
+import {
+  buildFallbackCaptainPlan,
+  type CaptainPlan,
+} from "../orchestrator/captain-plan";
 import { Governor } from "../orchestrator/governor";
-import { selectSpecialistRoles } from "../orchestrator/role-selection";
 import { runSpecialist, type SpecialistExecutor } from "../orchestrator/specialists";
+import { ensureDefaultRolePlaybooks } from "../roles/playbooks";
 import { buildApprovalRequest, type SlackMessageClient } from "../slack/publish";
 import {
   buildCaptainProgressText,
@@ -104,8 +108,15 @@ export function createRuntimeDispatcher(input: {
   slackClient: SlackMessageClient;
   maxActiveProjects: number;
   specialistExecutor?: SpecialistExecutor;
+  captainExecutor?: (input: {
+    projectId: string;
+    goalTitle: string;
+    runId?: string | null;
+    memoryStore?: MemoryStore;
+  }) => Promise<CaptainPlan>;
 }) {
   const memoryStore = new MemoryStore(input.db);
+  ensureDefaultRolePlaybooks(memoryStore);
   const captain = new Captain(memoryStore);
   const governor = new Governor({ maxActiveProjects: input.maxActiveProjects });
 
@@ -139,11 +150,41 @@ export function createRuntimeDispatcher(input: {
       ).run(payload.goalId);
 
       let projectThreadTs = payload.projectThreadTs;
-      const specialistRoles = selectSpecialistRoles(context.goal.title);
+      const captainPlan = input.captainExecutor
+        ? await input.captainExecutor({
+            projectId: payload.projectId,
+            goalTitle: context.goal.title,
+            runId: context.run.id,
+            memoryStore,
+          })
+        : buildFallbackCaptainPlan(context.goal.title);
+      const specialistRoles = captainPlan.selectedRoles.length > 0
+        ? captainPlan.selectedRoles
+        : buildFallbackCaptainPlan(context.goal.title).selectedRoles;
+      captain.capturePlan(payload.projectId, context.run.id, captainPlan);
+      for (const task of captainPlan.taskGraph) {
+        input.db.query(
+          `insert into tasks (id, goal_id, run_id, role, state, payload_json)
+           values (?, ?, ?, ?, ?, ?)
+           on conflict(id) do update set
+             goal_id = excluded.goal_id,
+             run_id = excluded.run_id,
+             role = excluded.role,
+             state = excluded.state,
+             payload_json = excluded.payload_json`,
+        ).run(
+          `${context.run.id}:${task.id}`,
+          payload.goalId,
+          context.run.id,
+          task.role,
+          "planned",
+          JSON.stringify(task),
+        );
+      }
       if (!projectThreadTs) {
         const root = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
-          text: buildCaptainStartText(context.goal.title, specialistRoles),
+          text: buildCaptainStartText(context.goal.title, specialistRoles, captainPlan),
         });
         if (!root.ok || !root.ts) {
           throw new Error("Slack rejected project thread root");
@@ -153,7 +194,7 @@ export function createRuntimeDispatcher(input: {
         const ack = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
           thread_ts: projectThreadTs,
-          text: buildCaptainStartText(context.goal.title, specialistRoles),
+          text: buildCaptainStartText(context.goal.title, specialistRoles, captainPlan),
         });
         if (!ack.ok) {
           throw new Error("Slack rejected project thread acknowledgement");
@@ -197,6 +238,7 @@ export function createRuntimeDispatcher(input: {
             level: result.impact,
             message: result.summary,
           })),
+          captainPlan,
         ),
         impacts: specialistResults.map((result) => ({
           role: result.role,

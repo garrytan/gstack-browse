@@ -63,7 +63,10 @@ function buildPrompt(input: {
   runId?: string | null;
 }) {
   const projectMemory = input.memoryStore
-    ? pruneMemory(input.memoryStore.getProjectMemory(input.projectId))
+    ? pruneMemory(input.memoryStore.getSharedProjectMemory(input.projectId))
+    : {};
+  const roleProjectMemory = input.memoryStore
+    ? pruneMemory(input.memoryStore.getRoleProjectMemory(input.projectId, input.role))
     : {};
   const runMemory = input.memoryStore && input.runId
     ? pruneMemory(input.memoryStore.getRunMemory(input.runId))
@@ -83,6 +86,10 @@ function buildPrompt(input: {
       {
         title: "project-memory.json",
         body: JSON.stringify(projectMemory, null, 2),
+      },
+      {
+        title: "role-project-memory.json",
+        body: JSON.stringify(roleProjectMemory, null, 2),
       },
       {
         title: "run-memory.json",

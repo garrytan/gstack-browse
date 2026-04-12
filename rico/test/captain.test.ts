@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { Captain } from "../src/orchestrator/captain";
+import { MemoryStore } from "../src/memory/store";
 import { splitOversizedGoal } from "../src/orchestrator/initiative";
+import { openStore } from "../src/state/store";
 
 test("splitOversizedGoal converts more than eight tasks into initiative phases", () => {
   const plan = splitOversizedGoal({
@@ -64,4 +66,50 @@ test("Captain stores ai-ops intake in the portfolio and narrates project work in
   expect(narration.channelId).toBe("C_PROJECT");
   expect(narration.channelId).not.toBe("C_AI_OPS");
   expect(narration.threadTs).toBe("1710000000.000200");
+});
+
+test("Captain persists a structured plan with next action and blocked reason", () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  const firstCaptain = new Captain(memoryStore);
+
+  firstCaptain.handleAiOpsIntake({
+    projectId: "mypetroutine",
+    aiOpsChannelId: "C_AI_OPS",
+    projectChannelId: "C_PROJECT",
+    intakeThreadTs: "1710000000.000100",
+    title: "improve onboarding conversion",
+  });
+  firstCaptain.capturePlan("mypetroutine", "run-1", {
+    selectedRoles: ["planner", "customer-voice"],
+    nextAction: "핵심 목표 문장을 먼저 고정한다.",
+    blockedReason: "사용자 약속 문장이 아직 흐리다.",
+    status: "needs_decision",
+    taskGraph: [
+      {
+        id: "task-1",
+        role: "planner",
+        title: "목표 문장 정리",
+        dependsOn: [],
+      },
+    ],
+  });
+
+  const restartedCaptain = new Captain(memoryStore);
+  expect(restartedCaptain.getStoredPlan("mypetroutine")).toEqual({
+    selectedRoles: ["planner", "customer-voice"],
+    nextAction: "핵심 목표 문장을 먼저 고정한다.",
+    blockedReason: "사용자 약속 문장이 아직 흐리다.",
+    status: "needs_decision",
+    taskGraph: [
+      {
+        id: "task-1",
+        role: "planner",
+        title: "목표 문장 정리",
+        dependsOn: [],
+      },
+    ],
+  });
+
+  db.db.close();
 });

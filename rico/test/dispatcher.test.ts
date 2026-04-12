@@ -270,3 +270,55 @@ test("dispatcher keeps ideation prompts focused on planner and customer voice", 
 
   store.db.close();
 });
+
+test("dispatcher follows captain-selected roles instead of keyword fallback when a captain planner is provided", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    captainExecutor: async () => ({
+      selectedRoles: ["planner", "customer-voice"],
+      nextAction: "먼저 사용자 약속 문장부터 고정한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        {
+          id: "task-1",
+          role: "planner",
+          title: "목표 문장 정리",
+          dependsOn: [],
+        },
+      ],
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000003${posted.length}.000100` };
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "pet-memorial",
+    projectChannelId: "C_PET_MEMORIAL",
+    goalId: "goal-captain-selection",
+    goalTitle: "지금 원격 깃이 연결되어있나?",
+    runId: "run-captain-selection",
+    payload: {
+      sourceChannelId: "C_PET_MEMORIAL",
+      intakeThreadTs: "1710003999.000100",
+    },
+  });
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  const joined = posted.map((message) => message.text).join("\n");
+  expect(joined.includes("기획:")).toBe(true);
+  expect(joined.includes("고객 관점:")).toBe(true);
+  expect(joined.includes("백엔드:")).toBe(false);
+  expect(joined.includes("먼저 사용자 약속 문장부터 고정한다.")).toBe(true);
+
+  store.db.close();
+});

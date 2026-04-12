@@ -188,6 +188,18 @@ export async function runSpecialist(input: {
       `specialist.${input.role}.last_result_json`,
       JSON.stringify(result),
     );
+    input.memoryStore.putRoleProjectFact(
+      projectId,
+      input.role,
+      "last_summary",
+      result.summary,
+    );
+    input.memoryStore.putRoleProjectFact(
+      projectId,
+      input.role,
+      "last_result_json",
+      JSON.stringify(result),
+    );
   }
   if (input.memoryStore && runId) {
     input.memoryStore.putRunFact(

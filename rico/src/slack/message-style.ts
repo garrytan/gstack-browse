@@ -1,4 +1,5 @@
 import type { ImpactLevel } from "../roles/contracts";
+import type { CaptainPlan } from "../orchestrator/captain-plan";
 import type { RoleName } from "../roles";
 
 const CHATGPT_FOOTER_PATTERN =
@@ -87,20 +88,34 @@ function impactPriority(impact: ImpactLevel) {
   return 2;
 }
 
-export function buildCaptainStartText(_title: string, roles: RoleName[] = []) {
+export function buildCaptainStartText(
+  _title: string,
+  roles: RoleName[] = [],
+  plan?: CaptainPlan,
+) {
   const firstPass = joinRoleLabels(roles);
-  if (roles.length === 0) {
-    return "캡틴: 요청 확인했어요. 먼저 범위와 리스크를 빠르게 정리하고, 바로 다음 액션을 제안할게요.";
+  const nextAction = plan?.nextAction ? ` 다음 액션은 ${plan.nextAction}` : "";
+  if (plan?.status === "blocked" && plan.blockedReason) {
+    return `캡틴: 먼저 막힌 조건부터 푸는 게 맞아요. ${plan.blockedReason}${nextAction}`;
   }
-  return `캡틴: 요청 확인했어요. 먼저 ${firstPass}에서 봐야 할 핵심 전제와 리스크를 빠르게 확인한 뒤, 실행 순서를 제안할게요.`;
+  if (plan?.status === "needs_decision" && plan.blockedReason) {
+    return `캡틴: 먼저 결정이 필요한 쟁점을 좁히고 갈게요. ${plan.blockedReason}${nextAction}`;
+  }
+  if (roles.length === 0) {
+    return `캡틴: 요청 확인했어요. 먼저 범위와 리스크를 빠르게 정리하고, 바로 다음 액션을 제안할게요.${nextAction}`;
+  }
+  return `캡틴: 요청 확인했어요. 먼저 ${firstPass}에서 봐야 할 핵심 전제와 리스크를 빠르게 확인한 뒤, 실행 순서를 제안할게요.${nextAction}`;
 }
 
 export function buildCaptainProgressText(
   _title: string,
   impacts: Array<{ role: string; level: ImpactLevel; message: string }> = [],
+  plan?: CaptainPlan,
 ) {
   if (impacts.length === 0) {
-    return "캡틴: 지금은 검토 결과를 한 줄 계획으로 묶고 있어요. 바로 다음 액션이 보이게 정리해서 넘길게요.";
+    return plan?.nextAction
+      ? `캡틴: 지금은 계획을 실행 가능한 순서로 다듬고 있어요. 다음 액션은 ${plan.nextAction}`
+      : "캡틴: 지금은 검토 결과를 한 줄 계획으로 묶고 있어요. 바로 다음 액션이 보이게 정리해서 넘길게요.";
   }
 
   const sorted = [...impacts].sort(
@@ -115,14 +130,19 @@ export function buildCaptainProgressText(
   );
 
   if (lead.level === "blocking") {
-    return `캡틴: 지금은 ${roleLabel(lead.role)}에서 막히는 조건이 보여서 그 이슈부터 정리하고 있어요.${supportingText} ${leadSummary}`;
+    const nextAction = plan?.nextAction ? ` 다음 액션은 ${plan.nextAction}` : "";
+    return `캡틴: 지금은 ${roleLabel(lead.role)}에서 막히는 조건이 보여서 그 이슈부터 정리하고 있어요.${supportingText} ${leadSummary}${nextAction}`;
   }
 
   if (lead.level === "approval_needed") {
-    return `캡틴: 지금은 ${roleLabel(lead.role)} 기준으로 먼저 결정이 필요한 지점을 모으고 있어요.${supportingText} ${leadSummary}`;
+    const nextAction = plan?.nextAction ? ` 다음 액션은 ${plan.nextAction}` : "";
+    return `캡틴: 지금은 ${roleLabel(lead.role)} 기준으로 먼저 결정이 필요한 지점을 모으고 있어요.${supportingText} ${leadSummary}${nextAction}`;
   }
 
-  return `캡틴: 지금까지는 ${roleLabel(lead.role)} 중심으로 실행 순서를 좁혔어요.${supportingText} 다음 단계는 여기서 바로 이어갈게요. ${leadSummary}`;
+  const nextAction = plan?.nextAction
+    ? ` 다음 액션은 ${plan.nextAction}`
+    : " 다음 단계는 여기서 바로 이어갈게요.";
+  return `캡틴: 지금까지는 ${roleLabel(lead.role)} 중심으로 실행 순서를 좁혔어요.${supportingText}${nextAction} ${leadSummary}`;
 }
 
 export function buildApprovalText(actionType: string, blockingReason: string) {
