@@ -12,5 +12,7 @@ export function resolveConfig(input: ResolveConfigInput = {}): RicoConfig {
     dbPath: join(stateDir, "rico.sqlite"),
     artifactDir: join(stateDir, "artifacts"),
     maxActiveProjects: Number(env.RICO_MAX_ACTIVE_PROJECTS ?? "2"),
+    slackSigningSecret: env.SLACK_SIGNING_SECRET ?? null,
+    slackBotToken: env.SLACK_BOT_TOKEN ?? null,
   };
 }
