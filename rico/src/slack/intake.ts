@@ -3,11 +3,24 @@ import type { Database } from "bun:sqlite";
 import { splitOversizedGoal } from "../orchestrator/initiative";
 import { enqueueQueuedRun, type QueueJob } from "../runtime/queue";
 import { createRepositories } from "../state/repositories";
-import { sanitizeIncomingSlackText } from "./message-style";
+import {
+  buildAiOpsGreetingText,
+  buildAiOpsStatusText,
+  buildProjectGreetingText,
+  buildProjectStatusText,
+  detectConversationalIntent,
+  sanitizeIncomingSlackText,
+} from "./message-style";
 
 interface SlackIntakeOptions {
   aiOpsChannelId: string;
   runIdFactory: () => string;
+}
+
+export interface SlackConversationReply {
+  channelId: string;
+  threadTs: string;
+  text: string;
 }
 
 export type SlackIntakeResult = "handled" | "ignored" | null;
@@ -264,4 +277,53 @@ export function bootstrapSlackIntake(
   options: SlackIntakeOptions,
 ) {
   return bootstrapAiOpsIntake(db, payload, options);
+}
+
+export function maybeBuildConversationReply(
+  db: Database,
+  payload: Record<string, unknown>,
+  options: { aiOpsChannelId: string },
+) {
+  const event = resolveEvent(payload);
+  const channelId = resolveChannelId(payload, event);
+  if (!isUserMessageEvent(payload, event)) {
+    return null;
+  }
+
+  const repositories = createRepositories(db);
+  const text = sanitizeIncomingSlackText(event.text as string);
+  const intent = detectConversationalIntent(text);
+  if (!intent) return null;
+
+  const threadTs =
+    typeof event.thread_ts === "string"
+      ? event.thread_ts
+      : typeof event.ts === "string"
+        ? event.ts
+        : `slack-${Date.now()}`;
+
+  if (options.aiOpsChannelId && channelId === options.aiOpsChannelId) {
+    if (normalizeEventText(text)) return null;
+    const projectIds = repositories.projects.list().map((project) => project.id);
+    return {
+      channelId,
+      threadTs,
+      text:
+        intent === "status"
+          ? buildAiOpsStatusText(projectIds)
+          : buildAiOpsGreetingText(projectIds),
+    } satisfies SlackConversationReply;
+  }
+
+  const project = repositories.projects.getBySlackChannelId(channelId);
+  if (!project) return null;
+
+  return {
+    channelId,
+    threadTs,
+    text:
+      intent === "status"
+        ? buildProjectStatusText(project.id)
+        : buildProjectGreetingText(project.id),
+  } satisfies SlackConversationReply;
 }

@@ -1,5 +1,7 @@
 const CHATGPT_FOOTER_PATTERN =
   /\*?(?:다음을\s+사용하여\s+보냄|Sent using)\*?\s*ChatGPT/gi;
+const GREETING_PATTERN = /^(안녕+|안녕하세요|ㅎㅇ|hello|hi|hey|반가워)([!.?\s~]*)$/i;
+const STATUS_PATTERN = /^(상태|status|지금 상태|뭐하고 있어|무슨 일 하고 있어|도움말|help)([!.?\s~]*)$/i;
 
 function cleanWhitespace(text: string) {
   return text
@@ -14,8 +16,35 @@ export function sanitizeIncomingSlackText(text: string) {
   return cleanWhitespace(text.replace(CHATGPT_FOOTER_PATTERN, ""));
 }
 
+export type ConversationalIntent = "greeting" | "status" | null;
+
+export function detectConversationalIntent(text: string): ConversationalIntent {
+  const normalized = sanitizeIncomingSlackText(text);
+  if (GREETING_PATTERN.test(normalized)) return "greeting";
+  if (STATUS_PATTERN.test(normalized)) return "status";
+  return null;
+}
+
 export function buildRoutingText(projectId: string) {
   return `이 건은 #${projectId} 채널에서 이어갈게요.`;
+}
+
+export function buildAiOpsGreetingText(projectIds: string[]) {
+  const knownProjects = projectIds.length > 0 ? projectIds.join(", ") : "등록된 프로젝트";
+  return `안녕하세요. 여기서는 \`프로젝트명: 목표\` 형식으로 말해주시면 바로 넘길게요. 지금 연결된 프로젝트는 ${knownProjects}예요.`;
+}
+
+export function buildAiOpsStatusText(projectIds: string[]) {
+  const knownProjects = projectIds.length > 0 ? projectIds.join(", ") : "아직 등록된 프로젝트가 없어요";
+  return `지금 연결된 프로젝트는 ${knownProjects}예요. 여기서는 \`프로젝트명: 목표\` 형식으로 요청해주시면 바로 진행할게요.`;
+}
+
+export function buildProjectGreetingText(projectId: string) {
+  return `안녕하세요. 이 채널은 ${projectId} 프로젝트 전용이에요. 목표를 한 문장으로 남겨주시면 바로 이어서 볼게요.`;
+}
+
+export function buildProjectStatusText(projectId: string) {
+  return `여기는 ${projectId} 프로젝트 채널이에요. 작업 요청을 남겨주시면 바로 이어서 진행할게요.`;
 }
 
 export function buildCaptainStartText(title: string) {

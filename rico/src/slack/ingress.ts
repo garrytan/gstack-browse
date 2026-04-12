@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { enqueueQueuedRun, type QueueJob } from "../runtime/queue";
 import { handleApprovalInteraction } from "./interactions";
-import { bootstrapSlackIntake } from "./intake";
+import { bootstrapSlackIntake, maybeBuildConversationReply } from "./intake";
 import type { SlackMessageClient } from "./publish";
 
 export interface SlackIngressOptions {
@@ -29,6 +29,18 @@ export async function processSlackPayload(
     if (handledInteraction) {
       return { queued: false, handled: true } as const;
     }
+  }
+
+  const conversationReply = maybeBuildConversationReply(options.db, payload, {
+    aiOpsChannelId: options.aiOpsChannelId,
+  });
+  if (conversationReply && options.slackClient) {
+    await options.slackClient.postMessage({
+      channel: conversationReply.channelId,
+      thread_ts: conversationReply.threadTs,
+      text: conversationReply.text,
+    });
+    return { queued: false, handled: true } as const;
   }
 
   const intakeResult = bootstrapSlackIntake(
