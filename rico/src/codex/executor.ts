@@ -10,6 +10,7 @@ import { ROLE_REGISTRY, type RoleName } from "../roles";
 export interface CodexSpecialistMeta {
   workspacePath: string | null;
   tokensUsed: number;
+  inspectedWorkspace: boolean;
 }
 
 export interface CodexSpecialistExecutorInput {
@@ -174,6 +175,7 @@ async function runCodexPrompt(input: {
 
   let agentText = "";
   let tokensUsed = 0;
+  let inspectedWorkspace = false;
 
   for (const line of stdout.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -184,6 +186,9 @@ async function runCodexPrompt(input: {
         const item = event.item as Record<string, unknown>;
         if (item.type === "agent_message" && typeof item.text === "string") {
           agentText += `${item.text}\n`;
+        }
+        if (item.type === "command_execution" && item.exit_code === 0) {
+          inspectedWorkspace = true;
         }
       }
       if (event.type === "turn.completed" && event.usage && typeof event.usage === "object") {
@@ -204,6 +209,7 @@ async function runCodexPrompt(input: {
   return {
     text: agentText.trim(),
     tokensUsed,
+    inspectedWorkspace,
   };
 }
 
@@ -254,6 +260,24 @@ export function parseCodexSpecialistResponse(text: string) {
   } satisfies Omit<SpecialistResult, "role">;
 }
 
+export function sanitizeCodexSpecialistResponse(input: {
+  parsed: Omit<SpecialistResult, "role">;
+  inspectedWorkspace: boolean;
+}) {
+  if (!input.inspectedWorkspace) {
+    return input.parsed;
+  }
+
+  const misleadingWorkspaceLimit = /(샌드박스|탐색이 제한|읽기.*막|실사 없이|수행하지 못|repo-grounded inspection is missing)/i;
+
+  return {
+    ...input.parsed,
+    rawFindings: input.parsed.rawFindings?.filter(
+      (finding) => !misleadingWorkspaceLimit.test(finding),
+    ) ?? [],
+  };
+}
+
 export function createCodexSpecialistExecutor(input: {
   timeoutMs?: number;
 } = {}) {
@@ -278,7 +302,10 @@ export function createCodexSpecialistExecutor(input: {
       prompt,
       timeoutMs: input.timeoutMs,
     });
-    const parsed = parseCodexSpecialistResponse(response.text);
+    const parsed = sanitizeCodexSpecialistResponse({
+      parsed: parseCodexSpecialistResponse(response.text),
+      inspectedWorkspace: response.inspectedWorkspace,
+    });
 
     return {
       result: {
@@ -293,6 +320,7 @@ export function createCodexSpecialistExecutor(input: {
       meta: {
         workspacePath,
         tokensUsed: response.tokensUsed,
+        inspectedWorkspace: response.inspectedWorkspace,
       },
     };
   };

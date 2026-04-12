@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import { parseCodexSpecialistResponse } from "../src/codex/executor";
+import {
+  parseCodexSpecialistResponse,
+  sanitizeCodexSpecialistResponse,
+} from "../src/codex/executor";
 
 test("parseCodexSpecialistResponse accepts raw JSON", () => {
   const parsed = parseCodexSpecialistResponse(
@@ -29,4 +32,21 @@ test("parseCodexSpecialistResponse rejects non-json output", () => {
   expect(() => parseCodexSpecialistResponse("not-json")).toThrow(
     "Codex specialist response was not valid JSON",
   );
+});
+
+test("sanitizeCodexSpecialistResponse drops fake sandbox-limit findings after successful inspection", () => {
+  const sanitized = sanitizeCodexSpecialistResponse({
+    inspectedWorkspace: true,
+    parsed: {
+      summary: "실제 코드 기준으로 우선순위를 정리했어요.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [
+        "src/app/routes.ts를 확인했다.",
+        "현재 런타임에서는 저장소 실제 파일 탐색이 제한되어 추가 근거 수집이 막혀 있다.",
+      ],
+    },
+  });
+
+  expect(sanitized.rawFindings).toEqual(["src/app/routes.ts를 확인했다."]);
 });
