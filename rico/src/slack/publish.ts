@@ -16,6 +16,8 @@ export interface SlackMessageClient {
     channel: string;
     thread_ts?: string;
     text: string;
+    blocks?: Array<Record<string, unknown>>;
+    metadata?: Record<string, unknown>;
   }): Promise<{ ok: boolean; ts?: string }>;
 }
 
@@ -33,6 +35,26 @@ export interface PublishImpactUpdateInput {
   };
 }
 
+export interface BuildApprovalRequestInput {
+  approvalId: string;
+  goalId: string;
+  actionType: string;
+  blockingReason: string;
+  channelId: string;
+  threadTs: string;
+}
+
+export interface ApprovalRequestMessage {
+  text: string;
+  blocks: Array<Record<string, unknown>>;
+  metadata: {
+    approvalId: string;
+    goalId: string;
+    channelId: string;
+    threadTs: string;
+  };
+}
+
 function roleLabel(role: string) {
   return role.toUpperCase();
 }
@@ -43,6 +65,52 @@ function artifactLinkText(artifact: SlackArtifactReference) {
 
 export function buildImpactMessage(input: ImpactMessageInput) {
   return `[${roleLabel(input.role)} Impact] ${input.summary} (${input.impact}) -> ${input.artifactLabel}`;
+}
+
+export function buildApprovalRequest(input: BuildApprovalRequestInput): ApprovalRequestMessage {
+  return {
+    text: `Approval required for ${input.actionType}: ${input.blockingReason}`,
+    blocks: [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Approval required:* \`${input.actionType}\`\n${input.blockingReason}`,
+        },
+      },
+      {
+        type: "actions",
+        elements: [
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Approve",
+            },
+            style: "primary",
+            action_id: "approval:approve",
+            value: input.approvalId,
+          },
+          {
+            type: "button",
+            text: {
+              type: "plain_text",
+              text: "Reject",
+            },
+            style: "danger",
+            action_id: "approval:reject",
+            value: input.approvalId,
+          },
+        ],
+      },
+    ],
+    metadata: {
+      approvalId: input.approvalId,
+      goalId: input.goalId,
+      channelId: input.channelId,
+      threadTs: input.threadTs,
+    },
+  };
 }
 
 export async function publishImpactUpdate(input: PublishImpactUpdateInput) {
