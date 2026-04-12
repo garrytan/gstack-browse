@@ -42,6 +42,9 @@ export async function processSlackPayload(
 
   let queued = false;
   if (intakeResult === null) {
+    if (!hasGoalId(payload)) {
+      return { queued: false, handled: false } as const;
+    }
     const job: QueueJob = {
       kind,
       payload,
@@ -58,6 +61,13 @@ export async function processSlackPayload(
   }
 
   return { queued, handled: intakeResult !== "ignored" } as const;
+}
+
+function hasGoalId(payload: Record<string, unknown>) {
+  return (
+    (typeof payload.goalId === "string" && payload.goalId.length > 0)
+    || (typeof payload.goal_id === "string" && payload.goal_id.length > 0)
+  );
 }
 
 async function tryHandleApprovalInteraction(
