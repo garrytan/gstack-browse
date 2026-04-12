@@ -220,7 +220,14 @@ export async function createHarness() {
       const summary = captain.composeProjectSummary({
         projectId: input.projectId,
         projectThreadTs: threadTs,
-        summary: buildCaptainProgressText(goalPlan.title),
+        summary: buildCaptainProgressText(
+          goalPlan.title,
+          specialistResults.map((result) => ({
+            role: result.role,
+            level: result.impact,
+            message: result.summary,
+          })),
+        ),
         impacts: specialistResults.map((result) => ({
           role: result.role,
           level: result.impact,

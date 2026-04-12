@@ -190,7 +190,14 @@ export function createRuntimeDispatcher(input: {
       const summary = captain.composeProjectSummary({
         projectId: payload.projectId,
         projectThreadTs: projectThreadTs,
-        summary: buildCaptainProgressText(context.goal.title),
+        summary: buildCaptainProgressText(
+          context.goal.title,
+          specialistResults.map((result) => ({
+            role: result.role,
+            level: result.impact,
+            message: result.summary,
+          })),
+        ),
         impacts: specialistResults.map((result) => ({
           role: result.role,
           level: result.impact,

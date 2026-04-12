@@ -1,3 +1,4 @@
+import type { ImpactLevel } from "../roles/contracts";
 import type { RoleName } from "../roles";
 
 const CHATGPT_FOOTER_PATTERN =
@@ -67,12 +68,61 @@ function joinRoleLabels(roles: Array<RoleName | string>) {
   return `${labels.slice(0, -1).join(", ")}, ${labels.at(-1)}`;
 }
 
-export function buildCaptainStartText(title: string, roles: RoleName[] = []) {
-  return `캡틴: 이번 목표는 "${title}" 기준으로 바로 진행해볼게요. 이번 라운드에서는 ${joinRoleLabels(roles)}으로 먼저 볼게요.`;
+function firstSentence(text: string, fallback: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return fallback;
+  const match = trimmed.match(/^(.+?[.!?]|.+?$)/);
+  return match?.[1]?.trim() ?? fallback;
 }
 
-export function buildCaptainProgressText(title: string) {
-  return `캡틴: 지금은 "${title}" 기준으로 정리하면서 진행 중이에요.`;
+function trimMessage(text: string, limit = 90) {
+  const trimmed = text.trim();
+  if (trimmed.length <= limit) return trimmed;
+  return `${trimmed.slice(0, limit - 1).trimEnd()}…`;
+}
+
+function impactPriority(impact: ImpactLevel) {
+  if (impact === "blocking") return 0;
+  if (impact === "approval_needed") return 1;
+  return 2;
+}
+
+export function buildCaptainStartText(_title: string, roles: RoleName[] = []) {
+  const firstPass = joinRoleLabels(roles);
+  if (roles.length === 0) {
+    return "캡틴: 요청 확인했어요. 먼저 범위와 리스크를 빠르게 정리하고, 바로 다음 액션을 제안할게요.";
+  }
+  return `캡틴: 요청 확인했어요. 먼저 ${firstPass}에서 봐야 할 핵심 전제와 리스크를 빠르게 확인한 뒤, 실행 순서를 제안할게요.`;
+}
+
+export function buildCaptainProgressText(
+  _title: string,
+  impacts: Array<{ role: string; level: ImpactLevel; message: string }> = [],
+) {
+  if (impacts.length === 0) {
+    return "캡틴: 지금은 검토 결과를 한 줄 계획으로 묶고 있어요. 바로 다음 액션이 보이게 정리해서 넘길게요.";
+  }
+
+  const sorted = [...impacts].sort(
+    (left, right) => impactPriority(left.level) - impactPriority(right.level),
+  );
+  const lead = sorted[0]!;
+  const supportingRoles = sorted.slice(1, 3).map((impact) => roleLabel(impact.role));
+  const supportingText =
+    supportingRoles.length > 0 ? ` ${supportingRoles.join(", ")} 의견까지 묶어서.` : "";
+  const leadSummary = trimMessage(
+    firstSentence(lead.message, "핵심 쟁점을 먼저 정리하고 있어요."),
+  );
+
+  if (lead.level === "blocking") {
+    return `캡틴: 지금은 ${roleLabel(lead.role)}에서 막히는 조건이 보여서 그 이슈부터 정리하고 있어요.${supportingText} ${leadSummary}`;
+  }
+
+  if (lead.level === "approval_needed") {
+    return `캡틴: 지금은 ${roleLabel(lead.role)} 기준으로 먼저 결정이 필요한 지점을 모으고 있어요.${supportingText} ${leadSummary}`;
+  }
+
+  return `캡틴: 지금까지는 ${roleLabel(lead.role)} 중심으로 실행 순서를 좁혔어요.${supportingText} 다음 단계는 여기서 바로 이어갈게요. ${leadSummary}`;
 }
 
 export function buildApprovalText(actionType: string, blockingReason: string) {
