@@ -211,7 +211,7 @@ export function createRepositories(db: Database) {
           `select * from runs
            where goal_id = ?
            order by
-             case status when 'in_progress' then 0 when 'queued' then 1 else 2 end asc,
+             case status when 'running' then 0 when 'in_progress' then 0 when 'queued' then 1 else 2 end asc,
              coalesce(started_at, queued_at, finished_at) desc,
              id desc
            limit 1`,
