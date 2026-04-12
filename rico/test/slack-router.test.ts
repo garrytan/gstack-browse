@@ -40,6 +40,7 @@ test("url_verification echoes the challenge", async () => {
   const store = openStore(":memory:");
   const router = createSlackRouter({
     db: store.db,
+    aiOpsChannelId: "C_AI_OPS",
     signingSecret: "secret",
   });
 
@@ -68,6 +69,7 @@ test("event callback returns 200 and enqueues a queued run", async () => {
   let drainCalls = 0;
   const router = createSlackRouter({
     db: store.db,
+    aiOpsChannelId: "C_AI_OPS",
     signingSecret: "secret",
     runIdFactory: () => "run-1",
     triggerDrain: () => {
@@ -117,6 +119,7 @@ test("interactive payloads are verified and enqueued", async () => {
 
   const router = createSlackRouter({
     db: store.db,
+    aiOpsChannelId: "C_AI_OPS",
     signingSecret: "secret",
     runIdFactory: () => "run-2",
   });
@@ -145,5 +148,44 @@ test("interactive payloads are verified and enqueued", async () => {
     goalId: "goal-2",
     status: "queued",
   });
+  store.db.close();
+});
+
+test("non app-mention traffic in the ai-ops channel is ignored", async () => {
+  const store = openStore(":memory:");
+  let drainCalls = 0;
+  const router = createSlackRouter({
+    db: store.db,
+    aiOpsChannelId: "C_AI_OPS",
+    signingSecret: "secret",
+    triggerDrain: () => {
+      drainCalls += 1;
+    },
+  });
+
+  const rawBody = JSON.stringify({
+    type: "event_callback",
+    event: {
+      type: "message",
+      channel: "C_AI_OPS",
+      text: "project-1: accidental chatter",
+    },
+  });
+  const timestamp = `${Math.floor(Date.now() / 1000)}`;
+  const response = await router(
+    new Request("http://localhost/slack/events", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-slack-request-timestamp": timestamp,
+        "x-slack-signature": signSlackPayload("secret", timestamp, rawBody),
+      },
+      body: rawBody,
+    }),
+  );
+
+  expect(response.status).toBe(200);
+  expect(drainCalls).toBe(0);
+  expect(store.db.query("select count(*) as count from runs").get()).toEqual({ count: 0 });
   store.db.close();
 });

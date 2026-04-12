@@ -1,22 +1,31 @@
 import { resolveConfig } from "./config";
-import { routeQueuedRun, startJobRunner } from "./runtime/job-runner";
+import { createRuntimeDispatcher } from "./runtime/dispatcher";
+import { startJobRunner } from "./runtime/job-runner";
+import { createSlackWebClient } from "./slack/client";
 import { createSlackRouter } from "./slack/router";
+import type { SlackMessageClient } from "./slack/publish";
 import { openStore } from "./state/store";
 
 export function createRicoRuntime(input: {
   config?: ReturnType<typeof resolveConfig>;
   port?: number;
+  slackClient?: SlackMessageClient;
 } = {}) {
   const config = input.config ?? resolveConfig();
   const store = openStore(config.dbPath);
+  const slackClient = input.slackClient ?? createSlackWebClient(config.slackBotToken);
+  const dispatch = createRuntimeDispatcher({
+    db: store.db,
+    slackClient,
+    maxActiveProjects: config.maxActiveProjects,
+  });
   const runner = startJobRunner({
     db: store.db,
-    dispatch: async (context) => {
-      routeQueuedRun(context.job);
-    },
+    dispatch,
   });
   const fetch = createSlackRouter({
     db: store.db,
+    aiOpsChannelId: config.aiOpsChannelId,
     signingSecret: config.slackSigningSecret,
     triggerDrain: () => runner.kick(),
   });

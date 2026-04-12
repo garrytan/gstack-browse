@@ -3,6 +3,7 @@ export interface RicoConfig {
   dbPath: string;
   artifactDir: string;
   maxActiveProjects: number;
+  aiOpsChannelId: string;
   slackSigningSecret: string;
   slackBotToken: string;
 }

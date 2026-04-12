@@ -15,11 +15,13 @@ test("resolveConfig reads slack env fields when present", () => {
   const cfg = resolveConfig({
     cwd: "/tmp/demo-repo",
     env: {
+      RICO_AI_OPS_CHANNEL_ID: "C_AI_OPS",
       SLACK_SIGNING_SECRET: "signing-secret",
       SLACK_BOT_TOKEN: "bot-token",
     },
   });
 
+  expect(cfg.aiOpsChannelId).toBe("C_AI_OPS");
   expect(cfg.slackSigningSecret).toBe("signing-secret");
   expect(cfg.slackBotToken).toBe("bot-token");
 });

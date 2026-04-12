@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { enqueueQueuedRun, type QueueJob } from "../runtime/queue";
+import { bootstrapSlackIntake } from "./intake";
 import { verifySlackRequest } from "./signing";
 
 interface SlackRouterOptions {
   db: Database;
+  aiOpsChannelId: string;
   signingSecret: string;
   runIdFactory?: () => string;
   nowSeconds?: () => number;
@@ -70,14 +72,27 @@ export function createSlackRouter(options: SlackRouterOptions) {
     }
 
     const { kind, payload } = parseSlackPayload(request, rawBody);
-    const job: QueueJob = {
-      kind,
-      payload,
-      runId: runIdFactory(),
-    };
-
-    enqueueQueuedRun(options.db, job);
-    if (options.triggerDrain) {
+    const intakeResult = bootstrapSlackIntake(
+      options.db,
+      payload as Record<string, unknown>,
+      {
+        aiOpsChannelId: options.aiOpsChannelId,
+        runIdFactory,
+      },
+    );
+    let queued = false;
+    if (intakeResult === null) {
+      const job: QueueJob = {
+        kind,
+        payload,
+        runId: runIdFactory(),
+      };
+      enqueueQueuedRun(options.db, job);
+      queued = true;
+    } else if (intakeResult === "handled") {
+      queued = true;
+    }
+    if (queued && options.triggerDrain) {
       void options.triggerDrain();
     }
 
