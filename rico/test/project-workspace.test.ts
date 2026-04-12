@@ -14,7 +14,7 @@ test("resolveProjectWorkspace uses stored override before scanning", () => {
   const resolved = resolveProjectWorkspace({
     projectId: "mypetroutine",
     memoryStore,
-    pathExists: (path) => path === "/tmp/override-root",
+    pathExists: (path) => path.startsWith("/tmp/override-root"),
     listDirectories: () => [],
   });
 
@@ -61,4 +61,31 @@ test("resolveProjectWorkspace prefers repo-shaped candidates over empty name mat
   expect(resolved).toBe(richMatch);
 
   rmSync(root, { recursive: true, force: true });
+});
+
+test("resolveProjectWorkspace replaces a stale override when a richer candidate exists", () => {
+  const root = mkdtempSync(join(tmpdir(), "rico-workspaces-stale-"));
+  const richMatch = join(root, "mypetroutine-workspace");
+  mkdirSync(richMatch);
+  mkdirSync(join(richMatch, "src"));
+  mkdirSync(join(richMatch, ".git"));
+  writeFileSync(join(richMatch, "package.json"), "{}");
+
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+  memoryStore.putProjectFact("mypetroutine", "project.repo_root", "/tmp/stale-worktree");
+
+  const resolved = resolveProjectWorkspace({
+    projectId: "mypetroutine",
+    memoryStore,
+    candidateRoots: [root],
+    pathExists: (path) =>
+      path === "/tmp/stale-worktree" || path === root || path.startsWith(richMatch),
+  });
+
+  expect(resolved).toBe(richMatch);
+  expect(memoryStore.getProjectMemory("mypetroutine")["project.repo_root"]).toBe(richMatch);
+
+  rmSync(root, { recursive: true, force: true });
+  db.db.close();
 });

@@ -84,7 +84,10 @@ export function resolveProjectWorkspace(input: {
   const listDirectories = input.listDirectories ?? defaultListDirectories;
 
   const override = input.memoryStore?.getProjectMemory(input.projectId)?.["project.repo_root"];
-  if (override && pathExists(override)) {
+  const overrideLooksLikeRepo = override
+    && pathExists(override)
+    && scoreWorkspaceContents(override, pathExists) >= 40;
+  if (overrideLooksLikeRepo) {
     return override;
   }
 
@@ -108,6 +111,10 @@ export function resolveProjectWorkspace(input: {
   if (bestPath && bestScore >= 20) {
     input.memoryStore?.putProjectFact(input.projectId, "project.repo_root", bestPath);
     return bestPath;
+  }
+
+  if (override && pathExists(override)) {
+    return override;
   }
 
   return null;
