@@ -347,17 +347,18 @@ async function bootstrapAiOpsIntake(
     slackClient: options.slackClient,
   });
   const explicitProject = normalizeEventText(text);
-  const project = explicitProject
+  const explicitProjectMatch = explicitProject
     ? await resolveProjectByIdentifier({
         repositories,
         projectId: explicitProject.projectId,
         slackClient: options.slackClient,
-      }) ?? sourceProject
-    : sourceProject;
+      })
+    : null;
+  const project = explicitProjectMatch ?? sourceProject;
   if (!project) {
     return null;
   }
-  const goalText = explicitProject && project
+  const goalText = explicitProject && explicitProjectMatch
     ? explicitProject.goalText
     : text;
   if (!goalText.trim()) {

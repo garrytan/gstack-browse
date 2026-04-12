@@ -142,6 +142,54 @@ test("processSlackPayload routes explicit project prefixes in a project channel 
   );
 });
 
+test("processSlackPayload does not truncate a project-channel goal just because the text contains ':'", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "test",
+    slackChannelId: "C_TEST",
+  });
+
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage() {
+          return { ok: true, ts: "1710000000.000100" };
+        },
+        async getConversationInfo() {
+          return {
+            ok: true,
+            channel: {
+              id: "C_TEST",
+              name: "test",
+              is_channel: true,
+              is_archived: false,
+            },
+          };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TEST",
+        user: "U_TONY",
+        text: "이 채널 목표 제안해봐 live 검증 2026-04-12 21:28",
+        ts: "1712900000.000350",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: true, handled: true });
+  expect(store.repositories.goals.listByProject("test")).toHaveLength(1);
+  expect(store.repositories.goals.listByProject("test")[0]?.title).toBe(
+    "이 채널 목표 제안해봐 live 검증 2026-04-12 21:28",
+  );
+});
+
 test("processSlackPayload auto-registers an eligible project channel on first task message", async () => {
   const store = openStore(":memory:");
 
