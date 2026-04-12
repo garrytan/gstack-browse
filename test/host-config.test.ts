@@ -354,6 +354,21 @@ describe('host-config-export.ts CLI', () => {
     expect(lines).toContain('review/checklist.md');
   });
 
+  test('opencode symlinks returns nested runtime assets', () => {
+    const { stdout, exitCode } = run('symlinks', 'opencode');
+    expect(exitCode).toBe(0);
+    const lines = stdout.split('\n');
+    expect(lines).toContain('bin');
+    expect(lines).toContain('browse/dist');
+    expect(lines).toContain('browse/bin');
+    expect(lines).toContain('review/design-checklist.md');
+    expect(lines).toContain('review/greptile-triage.md');
+    expect(lines).toContain('review/specialists');
+    expect(lines).toContain('qa/templates');
+    expect(lines).toContain('qa/references');
+    expect(lines).toContain('plan-devex-review/dx-hall-of-fame.md');
+  });
+
   test('symlinks with missing host exits 1', () => {
     const { exitCode } = run('symlinks');
     expect(exitCode).toBe(1);
