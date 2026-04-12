@@ -222,6 +222,12 @@ test("dispatcher uses goal-sensitive specialist narration instead of a fixed onb
   const joined = posted.map((message) => message.text).join("\n");
   expect(joined.includes("온보딩 흐름")).toBe(false);
   expect(joined.includes("원격") || joined.includes("저장소") || joined.includes("깃")).toBe(true);
+  expect(joined.includes("기획:")).toBe(true);
+  expect(joined.includes("디자인:")).toBe(true);
+  expect(joined.includes("프론트엔드:")).toBe(true);
+  expect(joined.includes("백엔드:")).toBe(true);
+  expect(joined.includes("QA:")).toBe(true);
+  expect(joined.includes("고객 관점:")).toBe(true);
 
   store.db.close();
 });

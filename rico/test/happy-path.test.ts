@@ -28,7 +28,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.includes("QA에서 확인해보니"),
+          message.text.startsWith("QA:"),
       ),
     ).toBe(true);
     expect(
@@ -37,7 +37,43 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.includes("고객 관점에서는"),
+          message.text.startsWith("고객 관점:"),
+      ),
+    ).toBe(true);
+    expect(
+      harness.messages.some(
+        (message) =>
+          message.channelId === "C_MYPETROUTINE" &&
+          message.kind === "impact" &&
+          message.threadTs === threadTs &&
+          message.text.startsWith("기획:"),
+      ),
+    ).toBe(true);
+    expect(
+      harness.messages.some(
+        (message) =>
+          message.channelId === "C_MYPETROUTINE" &&
+          message.kind === "impact" &&
+          message.threadTs === threadTs &&
+          message.text.startsWith("디자인:"),
+      ),
+    ).toBe(true);
+    expect(
+      harness.messages.some(
+        (message) =>
+          message.channelId === "C_MYPETROUTINE" &&
+          message.kind === "impact" &&
+          message.threadTs === threadTs &&
+          message.text.startsWith("프론트엔드:"),
+      ),
+    ).toBe(true);
+    expect(
+      harness.messages.some(
+        (message) =>
+          message.channelId === "C_MYPETROUTINE" &&
+          message.kind === "impact" &&
+          message.threadTs === threadTs &&
+          message.text.startsWith("백엔드:"),
       ),
     ).toBe(true);
     expect(

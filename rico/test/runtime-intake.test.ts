@@ -104,14 +104,42 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_MYPETROUTINE" &&
-        message.text.includes("QA에서 확인해보니"),
+        message.text.startsWith("QA:"),
     ),
   ).toBe(true);
   expect(
     postedMessages.some(
       (message) =>
         message.channel === "C_MYPETROUTINE" &&
-        message.text.includes("고객 관점에서는"),
+        message.text.startsWith("고객 관점:"),
+    ),
+  ).toBe(true);
+  expect(
+    postedMessages.some(
+      (message) =>
+        message.channel === "C_MYPETROUTINE" &&
+        message.text.startsWith("기획:"),
+    ),
+  ).toBe(true);
+  expect(
+    postedMessages.some(
+      (message) =>
+        message.channel === "C_MYPETROUTINE" &&
+        message.text.startsWith("디자인:"),
+    ),
+  ).toBe(true);
+  expect(
+    postedMessages.some(
+      (message) =>
+        message.channel === "C_MYPETROUTINE" &&
+        message.text.startsWith("프론트엔드:"),
+    ),
+  ).toBe(true);
+  expect(
+    postedMessages.some(
+      (message) =>
+        message.channel === "C_MYPETROUTINE" &&
+        message.text.startsWith("백엔드:"),
     ),
   ).toBe(true);
   expect(
@@ -128,7 +156,7 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_AI_OPS" &&
-        message.text.includes("#mypetroutine 채널에서 이어갈게요"),
+        message.text.includes("총괄: 이 건은 #mypetroutine 채널에서 이어갈게요."),
     ),
   ).toBe(true);
 
@@ -136,7 +164,7 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_MYPETROUTINE" &&
-        message.text.includes("이번 목표는") &&
+        message.text.includes("캡틴:") &&
         !message.text.includes("다음을 사용하여 보냄") &&
         !message.text.includes("ChatGPT"),
     ),

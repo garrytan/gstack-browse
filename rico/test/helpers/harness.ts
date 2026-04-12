@@ -40,6 +40,14 @@ export async function createHarness() {
   const memoryStore = new MemoryStore(store.db);
   const governor = new Governor({ maxActiveProjects: 2 });
   const captain = new Captain(memoryStore);
+  const specialistRoles = [
+    "planner",
+    "designer",
+    "frontend",
+    "backend",
+    "qa",
+    "customer-voice",
+  ] as const;
   const messages: HarnessMessage[] = [];
   let activeProjectId: string | null = null;
   let messageCounter = 0;
@@ -191,26 +199,21 @@ export async function createHarness() {
         finishedAt: null,
       });
 
-      const qaResult = await runSpecialist({
-        role: "qa",
-        input: {
-          projectId: input.projectId,
-          runId,
-          summary: "Regression found in onboarding",
-        },
-        memoryStore,
-      });
-      const customerVoiceResult = await runSpecialist({
-        role: "customer-voice",
-        input: {
-          projectId: input.projectId,
-          runId,
-          summary: "지금 왜 중요한지 조금 더 분명하게 보여줄 필요가 있어요.",
-        },
-        memoryStore,
-      });
+      const specialistResults = await Promise.all(
+        specialistRoles.map((role) =>
+          runSpecialist({
+            role,
+            input: {
+              projectId: input.projectId,
+              runId,
+              goalTitle: goalPlan.title,
+            },
+            memoryStore,
+          }),
+        ),
+      );
 
-      for (const result of [qaResult, customerVoiceResult]) {
+      for (const result of specialistResults) {
         await recordMessage({
           channelId: mappedProjectChannelId,
           threadTs,
@@ -219,23 +222,16 @@ export async function createHarness() {
         });
       }
 
-      captain.captureSpecialistResults(input.projectId, [qaResult, customerVoiceResult]);
+      captain.captureSpecialistResults(input.projectId, specialistResults);
       const summary = captain.composeProjectSummary({
         projectId: input.projectId,
         projectThreadTs: threadTs,
         summary: buildCaptainProgressText(goalPlan.title),
-        impacts: [
-          {
-            role: qaResult.role,
-            level: qaResult.impact,
-            message: qaResult.summary,
-          },
-          {
-            role: customerVoiceResult.role,
-            level: customerVoiceResult.impact,
-            message: customerVoiceResult.summary,
-          },
-        ],
+        impacts: specialistResults.map((result) => ({
+          role: result.role,
+          level: result.impact,
+          message: result.summary,
+        })),
       });
       await recordMessage({
         channelId: summary.channelId,

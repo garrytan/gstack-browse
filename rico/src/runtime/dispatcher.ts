@@ -106,6 +106,14 @@ export function createRuntimeDispatcher(input: {
   const memoryStore = new MemoryStore(input.db);
   const captain = new Captain(memoryStore);
   const governor = new Governor({ maxActiveProjects: input.maxActiveProjects });
+  const specialistRoles = [
+    "planner",
+    "designer",
+    "frontend",
+    "backend",
+    "qa",
+    "customer-voice",
+  ] as const;
 
   return async function dispatch(context: LoadedRunContext) {
     const payload = asGoalIntakePayload(context.job.payload);
@@ -157,27 +165,22 @@ export function createRuntimeDispatcher(input: {
         }
       }
 
-      const qaResult = await runSpecialist({
-        role: "qa",
-        input: {
-          projectId: payload.projectId,
-          runId: context.run.id,
-          goalTitle: context.goal.title,
-        },
-        memoryStore,
-      });
-      const customerVoiceResult = await runSpecialist({
-        role: "customer-voice",
-        input: {
-          projectId: payload.projectId,
-          runId: context.run.id,
-          goalTitle: context.goal.title,
-        },
-        memoryStore,
-      });
-      captain.captureSpecialistResults(payload.projectId, [qaResult, customerVoiceResult]);
+      const specialistResults = await Promise.all(
+        specialistRoles.map((role) =>
+          runSpecialist({
+            role,
+            input: {
+              projectId: payload.projectId,
+              runId: context.run.id,
+              goalTitle: context.goal.title,
+            },
+            memoryStore,
+          }),
+        ),
+      );
+      captain.captureSpecialistResults(payload.projectId, specialistResults);
 
-      for (const result of [qaResult, customerVoiceResult]) {
+      for (const result of specialistResults) {
         const message = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
           thread_ts: projectThreadTs,
@@ -192,18 +195,11 @@ export function createRuntimeDispatcher(input: {
         projectId: payload.projectId,
         projectThreadTs: projectThreadTs,
         summary: buildCaptainProgressText(context.goal.title),
-        impacts: [
-          {
-            role: qaResult.role,
-            level: qaResult.impact,
-            message: qaResult.summary,
-          },
-          {
-            role: customerVoiceResult.role,
-            level: customerVoiceResult.impact,
-            message: customerVoiceResult.summary,
-          },
-        ],
+        impacts: specialistResults.map((result) => ({
+          role: result.role,
+          level: result.impact,
+          message: result.summary,
+        })),
       });
       const summaryResponse = await input.slackClient.postMessage({
         channel: summary.channelId,

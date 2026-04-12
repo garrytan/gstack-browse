@@ -26,7 +26,7 @@ export function detectConversationalIntent(text: string): ConversationalIntent {
 }
 
 export function buildRoutingText(projectId: string) {
-  return `이 건은 #${projectId} 채널에서 이어갈게요.`;
+  return `총괄: 이 건은 #${projectId} 채널에서 이어갈게요.`;
 }
 
 export function buildAiOpsGreetingText(projectIds: string[]) {
@@ -48,11 +48,11 @@ export function buildProjectStatusText(projectId: string) {
 }
 
 export function buildCaptainStartText(title: string) {
-  return `이번 목표는 "${title}" 기준으로 바로 진행해볼게요.`;
+  return `캡틴: 이번 목표는 "${title}" 기준으로 바로 진행해볼게요. 이번 라운드에서는 기획, 디자인, 프론트엔드, 백엔드, QA, 고객 관점 순서로 볼게요.`;
 }
 
 export function buildCaptainProgressText(title: string) {
-  return `지금은 "${title}" 기준으로 정리하면서 진행 중이에요.`;
+  return `캡틴: 지금은 "${title}" 기준으로 정리하면서 진행 중이에요.`;
 }
 
 export function buildApprovalText(actionType: string, blockingReason: string) {
@@ -71,22 +71,22 @@ export function buildApprovalResolutionText(input: {
 
 export function buildImpactNarration(role: string, summary: string) {
   if (role === "qa") {
-    return `QA에서 확인해보니 ${summary}`;
+    return `QA: ${summary}`;
   }
   if (role === "customer-voice") {
-    return `고객 관점에서는 ${summary}`;
+    return `고객 관점: ${summary}`;
   }
   if (role === "planner") {
-    return `기획 쪽에서는 ${summary}`;
+    return `기획: ${summary}`;
   }
   if (role === "designer") {
-    return `디자인 관점에서는 ${summary}`;
+    return `디자인: ${summary}`;
   }
   if (role === "frontend") {
-    return `프론트엔드 쪽에서는 ${summary}`;
+    return `프론트엔드: ${summary}`;
   }
   if (role === "backend") {
-    return `백엔드 쪽에서는 ${summary}`;
+    return `백엔드: ${summary}`;
   }
   return summary;
 }
