@@ -23,3 +23,27 @@ test("resolveConfig reads slack env fields when present", () => {
   expect(cfg.slackSigningSecret).toBe("signing-secret");
   expect(cfg.slackBotToken).toBe("bot-token");
 });
+
+test("resolveConfig accepts a valid positive integer override", () => {
+  const cfg = resolveConfig({
+    cwd: "/tmp/demo-repo",
+    env: {
+      RICO_MAX_ACTIVE_PROJECTS: "5",
+    },
+  });
+
+  expect(cfg.maxActiveProjects).toBe(5);
+});
+
+for (const value of ["", "abc", "0", "-1", "1.5", "Infinity"]) {
+  test(`resolveConfig rejects malformed max active projects: ${JSON.stringify(value)}`, () => {
+    expect(() =>
+      resolveConfig({
+        cwd: "/tmp/demo-repo",
+        env: {
+          RICO_MAX_ACTIVE_PROJECTS: value,
+        },
+      }),
+    ).toThrow(/Invalid RICO_MAX_ACTIVE_PROJECTS/);
+  });
+}
