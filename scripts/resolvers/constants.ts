@@ -48,3 +48,55 @@ export function codexErrorHandling(feature: string): string {
 - Empty response: note and skip
 On any error: continue — ${feature} is informational, not a gate.`;
 }
+
+/**
+ * Generate a second-opinion CLI invocation block.
+ * Used by hosts that have a secondOpinionCLI configured (e.g., Windsurf → Gemini).
+ * Falls back to inline review if the CLI is not installed.
+ */
+export interface SecondOpinionCLIConfig {
+  binary: string;
+  displayName: string;
+  execTemplate: string;
+  boundaryInstruction?: string;
+}
+
+export function secondOpinionBlock(
+  cli: SecondOpinionCLIConfig,
+  prompt: string,
+  feature: string,
+  headerLabel: string,
+): string {
+  const boundary = cli.boundaryInstruction || '';
+  return `**Check ${cli.displayName} CLI availability:**
+
+\`\`\`bash
+which ${cli.binary} 2>/dev/null && echo "${cli.binary.toUpperCase()}_AVAILABLE" || echo "${cli.binary.toUpperCase()}_NOT_AVAILABLE"
+\`\`\`
+
+**If ${cli.displayName} is available**, run the ${feature}:
+
+\`\`\`bash
+TMPERR_SO=$(mktemp /tmp/gstack-so-XXXXXXXX)
+_REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
+${cli.execTemplate.replace('${PROMPT}', `${boundary}${prompt}`).replace('${REPO_ROOT}', '$_REPO_ROOT')} 2>"$TMPERR_SO"
+\`\`\`
+
+Set the Bash tool's \`timeout\` parameter to \`300000\` (5 minutes). After the command completes, read stderr:
+\`\`\`bash
+cat "$TMPERR_SO"
+rm -f "$TMPERR_SO"
+\`\`\`
+
+Present the full output verbatim under a \`${headerLabel} (${cli.displayName}):\` header.
+
+**Error handling:** All errors are non-blocking — the ${feature} is informational.
+- **CLI not found:** "${cli.displayName} CLI not installed — performing inline review instead."
+- **Auth failure:** If stderr contains "auth", "login", "unauthorized": "${cli.displayName} authentication failed." Fall back to inline review.
+- **Timeout:** "${cli.displayName} timed out after 5 minutes." Fall back to inline review.
+- **Empty response:** "${cli.displayName} returned no response." Fall back to inline review.
+
+**If ${cli.binary.toUpperCase()}_NOT_AVAILABLE (or ${cli.displayName} errored):**
+
+`;
+}

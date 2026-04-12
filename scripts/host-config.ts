@@ -109,6 +109,42 @@ export interface HostConfig {
   staticFiles?: Record<string, string>;
   /** Optional path to host-adapter module for complex transformations. */
   adapter?: string;
+
+  // --- Upstream & Telemetry ---
+  /**
+   * Override the upstream repo URL for update checks and upgrades.
+   * If set, gstack-update-check and gstack-upgrade clone from this repo
+   * instead of the default garrytan/gstack.
+   */
+  upstreamRepo?: string;
+  /**
+   * If true, strip remote telemetry calls (gstack-telemetry-log) from generated output.
+   * Local analytics (~/.gstack/analytics/) are always kept — they never leave the machine.
+   */
+  disableRemoteTelemetry?: boolean;
+  /**
+   * If true, skip the update check in the preamble.
+   * Skills won't check for new versions on startup.
+   */
+  disableUpdateCheck?: boolean;
+
+  // --- Cross-Model Second Opinion ---
+  /**
+   * External CLI to call for cross-model second opinions.
+   * If set, resolvers use this instead of hardcoded `codex exec`.
+   * If omitted, falls back to Codex (the historical default).
+   */
+  secondOpinionCLI?: {
+    /** Binary name (e.g., 'gemini', 'claude', 'codex'). */
+    binary: string;
+    /** Display name for headers (e.g., 'Gemini', 'Claude Code'). */
+    displayName: string;
+    /** Command template. Use ${PROMPT} for the prompt text, ${REPO_ROOT} for repo path.
+     *  e.g., 'gemini -p "${PROMPT}"' or 'claude -p "${PROMPT}" --no-session-persistence' */
+    execTemplate: string;
+    /** Boundary instruction prepended to all prompts (prevents reading skill files). */
+    boundaryInstruction?: string;
+  };
 }
 
 // --- Validation ---

@@ -1,4 +1,5 @@
 import { ALL_HOST_CONFIGS } from '../../hosts/index';
+import type { HostConfig } from '../host-config';
 
 /**
  * Host type — derived from host configs in hosts/*.ts.
@@ -52,6 +53,7 @@ export interface TemplateContext {
   tmplPath: string;
   benefitsFrom?: string[];
   host: Host;
+  hostConfig?: HostConfig;
   paths: HostPaths;
   preambleTier?: number;  // 1-4, controls which preamble sections are included
 }
