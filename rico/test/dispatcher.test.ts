@@ -304,7 +304,7 @@ test("dispatcher follows captain-selected roles instead of keyword fallback when
     projectId: "pet-memorial",
     projectChannelId: "C_PET_MEMORIAL",
     goalId: "goal-captain-selection",
-    goalTitle: "지금 원격 깃이 연결되어있나?",
+    goalTitle: "배포 전에 사용자 약속 문구를 먼저 정리할까?",
     runId: "run-captain-selection",
     payload: {
       sourceChannelId: "C_PET_MEMORIAL",

@@ -6,6 +6,7 @@ import { MemoryStore } from "../memory/store";
 import { resolveProjectWorkspace } from "../orchestrator/project-workspace";
 import {
   buildFallbackCaptainPlan,
+  normalizeCaptainPlanForGoal,
   type CaptainPlan,
   type CaptainPlanStatus,
 } from "../orchestrator/captain-plan";
@@ -274,11 +275,17 @@ export function createCodexCaptainExecutor(input: {
       });
       const parsed = parseCodexCaptainPlanResponse(text);
       if (parsed.selectedRoles.length === 0) {
-        return buildFallbackCaptainPlan(captainInput.goalTitle);
+        return normalizeCaptainPlanForGoal(
+          captainInput.goalTitle,
+          buildFallbackCaptainPlan(captainInput.goalTitle),
+        );
       }
-      return parsed;
+      return normalizeCaptainPlanForGoal(captainInput.goalTitle, parsed);
     } catch {
-      return buildFallbackCaptainPlan(captainInput.goalTitle);
+      return normalizeCaptainPlanForGoal(
+        captainInput.goalTitle,
+        buildFallbackCaptainPlan(captainInput.goalTitle),
+      );
     }
   };
 }

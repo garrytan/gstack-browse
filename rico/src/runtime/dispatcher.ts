@@ -4,6 +4,7 @@ import { evaluateAction } from "../orchestrator/approvals";
 import { Captain } from "../orchestrator/captain";
 import {
   buildFallbackCaptainPlan,
+  normalizeCaptainPlanForGoal,
   type CaptainPlan,
 } from "../orchestrator/captain-plan";
 import { Governor } from "../orchestrator/governor";
@@ -150,14 +151,17 @@ export function createRuntimeDispatcher(input: {
       ).run(payload.goalId);
 
       let projectThreadTs = payload.projectThreadTs;
-      const captainPlan = input.captainExecutor
+      const captainPlan = normalizeCaptainPlanForGoal(
+        context.goal.title,
+        input.captainExecutor
         ? await input.captainExecutor({
             projectId: payload.projectId,
             goalTitle: context.goal.title,
             runId: context.run.id,
             memoryStore,
           })
-        : buildFallbackCaptainPlan(context.goal.title);
+        : buildFallbackCaptainPlan(context.goal.title),
+      );
       const specialistRoles = captainPlan.selectedRoles.length > 0
         ? captainPlan.selectedRoles
         : buildFallbackCaptainPlan(context.goal.title).selectedRoles;
