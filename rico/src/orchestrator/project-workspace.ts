@@ -36,6 +36,19 @@ function scoreCandidate(projectId: string, candidateName: string) {
   return overlap.length * 20;
 }
 
+function scoreWorkspaceContents(
+  candidatePath: string,
+  pathExists: (path: string) => boolean,
+) {
+  let score = 0;
+  if (pathExists(join(candidatePath, "package.json"))) score += 40;
+  if (pathExists(join(candidatePath, "src"))) score += 25;
+  if (pathExists(join(candidatePath, "AGENTS.md"))) score += 20;
+  if (pathExists(join(candidatePath, ".git"))) score += 15;
+  if (pathExists(join(candidatePath, "docs"))) score += 10;
+  return score;
+}
+
 function defaultCandidateRoots() {
   const home = process.env.HOME ?? "";
   const envRoots = (process.env.RICO_PROJECT_ROOTS ?? "")
@@ -84,7 +97,8 @@ export function resolveProjectWorkspace(input: {
 
   for (const candidate of candidates) {
     const name = candidate.split("/").at(-1) ?? candidate;
-    const score = scoreCandidate(input.projectId, name);
+    const score = scoreCandidate(input.projectId, name)
+      + scoreWorkspaceContents(candidate, pathExists);
     if (score > bestScore) {
       bestScore = score;
       bestPath = candidate;

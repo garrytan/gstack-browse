@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "bun:test";
@@ -41,4 +41,24 @@ test("resolveProjectWorkspace finds fuzzy project matches and persists them", ()
 
   rmSync(root, { recursive: true, force: true });
   db.db.close();
+});
+
+test("resolveProjectWorkspace prefers repo-shaped candidates over empty name matches", () => {
+  const root = mkdtempSync(join(tmpdir(), "rico-workspaces-priority-"));
+  const emptyMatch = join(root, "mypetroutine");
+  const richMatch = join(root, "mypetroutine-workspace");
+  mkdirSync(emptyMatch);
+  mkdirSync(richMatch);
+  mkdirSync(join(richMatch, "src"));
+  mkdirSync(join(richMatch, ".git"));
+  writeFileSync(join(richMatch, "package.json"), "{}");
+
+  const resolved = resolveProjectWorkspace({
+    projectId: "mypetroutine",
+    candidateRoots: [root],
+  });
+
+  expect(resolved).toBe(richMatch);
+
+  rmSync(root, { recursive: true, force: true });
 });
