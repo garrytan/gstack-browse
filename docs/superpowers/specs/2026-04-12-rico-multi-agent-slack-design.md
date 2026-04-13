@@ -518,6 +518,17 @@ V1에서 굳이 하지 않을 것:
 이 스펙은 아래를 고정했기 때문에 구현 계획 수립에 들어갈 수 있다.
 
 - 운영 모델
+
+## 후속 설계 문서
+
+2026-04-14 기준으로 아래 follow-up spec이 추가되었다.
+
+- `2026-04-14-rico-spec-progress-review.md`
+- `2026-04-14-rico-workflow-state-machine-v2.md`
+- `2026-04-14-rico-governor-control-plane.md`
+- `2026-04-14-rico-specialist-contracts.md`
+
+이 문서들은 초기 철학을 실제 운영 규칙으로 잠그기 위한 보완 스펙이며, 이후 구현은 이 follow-up spec을 기준으로 진행한다.
 - 사용자 인터랙션 모델
 - 역할 경계
 - 승인 경계
