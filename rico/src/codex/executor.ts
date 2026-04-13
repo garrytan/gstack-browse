@@ -185,6 +185,28 @@ const DESIGNER_WRITE_KEYWORDS = [
   "문서",
 ];
 
+const CUSTOMER_VOICE_WRITE_KEYWORDS = [
+  "고객 관점",
+  "customer voice",
+  "customer-voice",
+  "페르소나",
+  "persona",
+  "jtbd",
+  "objection",
+  "가치 제안",
+  "value proposition",
+  "메시지 맵",
+  "시뮬레이션",
+  "simulation",
+  "체험",
+  "dogfood",
+  "evidence",
+  "증적",
+  "증거",
+  "정리해줘",
+  "문서",
+];
+
 const HANGUL_PATTERN = /[가-힣]/;
 const QA_ROUTE_BLOCK_PATTERN =
   /(not a registered route|broken link|등록된\s*라우트가\s*아니|라우트가\s*없|깨진\s*링크)/i;
@@ -247,6 +269,10 @@ export function determineSpecialistExecutionMode(input: {
     if (includesAny(normalized, QA_WRITE_KEYWORDS)) return "write";
     return "analyze";
   }
+  if (input.role === "customer-voice") {
+    if (includesAny(normalized, CUSTOMER_VOICE_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
   return "analyze";
 }
 
@@ -304,6 +330,16 @@ function buildExecutionInstruction(input: {
       "If a route exists, treat mismatched labeling or destination choice as a follow-up issue, not an automatic release blocker.",
       "Do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
       "If verification cannot be completed, return blocking with the missing condition and the exact failed command or gap.",
+    ].join(" ");
+  }
+
+  if (input.role === "customer-voice") {
+    return [
+      "This is write-mode execution for the customer-voice specialist.",
+      "You may create or update narrowly scoped persona, JTBD, objection, or simulation-evidence artifacts inside the workspace.",
+      "Prefer markdown, json, txt, or QA evidence artifacts over product code changes.",
+      "Do not modify application code, backend contracts, schema, or deploy state.",
+      "If the goal needs product changes, raise the recommendation through summary and artifacts instead of editing code directly.",
     ].join(" ");
   }
 
@@ -563,6 +599,86 @@ async function listGitChangedFiles(cwd: string) {
 
 function mergeChangedFiles(...groups: Array<string[] | undefined>) {
   return [...new Set(groups.flatMap((group) => group ?? []).filter(Boolean))];
+}
+
+function normalizePathForScopeChecks(path: string) {
+  return path.replaceAll("\\", "/").replace(/^\.\//, "").trim();
+}
+
+function isArtifactScopedPath(path: string) {
+  const normalized = normalizePathForScopeChecks(path).toLowerCase();
+  return (
+    /\.(md|txt|json)$/i.test(normalized)
+    || /(^|\/)(docs|planning|plans|specs|qa|artifacts|reviews|notes|evidence)(\/|$)/.test(normalized)
+    || /(^|\/)(__snapshots__|test-results|playwright-report)(\/|$)/.test(normalized)
+  );
+}
+
+function isFrontendScopedPath(path: string) {
+  const normalized = normalizePathForScopeChecks(path).toLowerCase();
+  return (
+    isArtifactScopedPath(normalized)
+    || /(^|\/)(src\/app|src\/components|src\/pages|src\/routes|src\/features|app\/|components\/|pages\/|routes\/)/.test(normalized)
+    || /\.(tsx|jsx|css|scss|sass|less)$/.test(normalized)
+  );
+}
+
+function isBackendScopedPath(path: string) {
+  const normalized = normalizePathForScopeChecks(path).toLowerCase();
+  return (
+    isArtifactScopedPath(normalized)
+    || /(^|\/)(src\/api|src\/server|src\/services|src\/repositories|src\/lib\/server|supabase\/functions|api\/|server\/|backend\/|db\/|migrations\/)/.test(normalized)
+    || /\.(sql|prisma)$/.test(normalized)
+  );
+}
+
+function isQaScopedPath(path: string) {
+  const normalized = normalizePathForScopeChecks(path).toLowerCase();
+  return (
+    isArtifactScopedPath(normalized)
+    || /(^|\/)(test|tests|__tests__|e2e|playwright|cypress|qa)(\/|$)/.test(normalized)
+  );
+}
+
+function writeScopeViolationSummary(role: RoleName) {
+  if (role === "planner") {
+    return "기획 역할에서 문서 범위를 벗어난 코드 수정이 감지돼 이번 라운드는 brief/spec artifact 범위로 다시 제한해야 해요.";
+  }
+  if (role === "designer") {
+    return "디자인 역할에서 UX/copy 범위를 벗어난 서버 측 수정이 감지돼 이번 라운드는 UX artifact 또는 프론트 카피 범위로 다시 제한해야 해요.";
+  }
+  if (role === "frontend") {
+    return "프론트엔드 역할에서 서버 측 파일 변경이 감지돼 이번 라운드는 UI/route/component 범위로 다시 제한해야 해요.";
+  }
+  if (role === "backend") {
+    return "백엔드 역할에서 화면 중심 파일 변경이 감지돼 이번 라운드는 API/contract/server 범위로 다시 제한해야 해요.";
+  }
+  if (role === "qa") {
+    return "QA 역할에서 검증 범위를 벗어난 제품 코드 수정이 감지돼 이번 라운드는 evidence/test 범위로 다시 제한해야 해요.";
+  }
+  return "고객 관점 역할에서 artifact 범위를 벗어난 제품 코드 수정이 감지돼 이번 라운드는 persona/simulation evidence 범위로 다시 제한해야 해요.";
+}
+
+function findWriteScopeViolations(role: RoleName, changedFiles: string[]) {
+  const unique = [...new Set(changedFiles.map((path) => normalizePathForScopeChecks(path)).filter(Boolean))];
+  if (unique.length === 0) return [];
+
+  if (role === "planner" || role === "customer-voice") {
+    return unique.filter((path) => !isArtifactScopedPath(path));
+  }
+  if (role === "designer") {
+    return unique.filter((path) => !isFrontendScopedPath(path));
+  }
+  if (role === "frontend") {
+    return unique.filter((path) => !isFrontendScopedPath(path));
+  }
+  if (role === "backend") {
+    return unique.filter((path) => !isBackendScopedPath(path));
+  }
+  if (role === "qa") {
+    return unique.filter((path) => !isQaScopedPath(path));
+  }
+  return [];
 }
 
 async function readText(stream: ReadableStream<Uint8Array> | null | undefined) {
@@ -887,6 +1003,25 @@ export async function normalizeSpecialistResult(input: {
         "차단 판단을 뒷받침하는 실행된 검증 명령이나 실패 로그가 결과에 포함되지 않았습니다.",
       ],
     };
+  }
+
+  if (input.executionMode === "write") {
+    const violations = findWriteScopeViolations(input.role, parsed.changedFiles);
+    if (violations.length > 0) {
+      parsed = {
+        ...parsed,
+        impact: "blocking",
+        summary: writeScopeViolationSummary(input.role),
+        rawFindings: [
+          ...parsed.rawFindings,
+          `write scope violation: ${violations.join(", ")}`,
+        ],
+        verificationNotes: [
+          ...parsed.verificationNotes,
+          `runtime contract blocked out-of-scope writes: ${violations.join(", ")}`,
+        ],
+      };
+    }
   }
 
   return parsed;

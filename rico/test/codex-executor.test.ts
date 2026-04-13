@@ -194,6 +194,15 @@ test("determineSpecialistExecutionMode promotes designer doc-writing goals to wr
   ).toBe("write");
 });
 
+test("determineSpecialistExecutionMode promotes customer voice simulation goals to write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "customer-voice",
+      goalTitle: "고객 관점 페르소나 시뮬레이션 증적을 문서로 정리해줘",
+    }),
+  ).toBe("write");
+});
+
 test("normalizeSpecialistResult downgrades false QA blockers when the route is declared", async () => {
   const workspace = mkdtempSync(join(tmpdir(), "rico-qa-route-"));
   mkdirSync(join(workspace, "src", "app"), { recursive: true });
@@ -273,6 +282,95 @@ test("normalizeSpecialistResult downgrades QA blockers without verification trai
 
   expect(normalized.impact).toBe("approval_needed");
   expect(normalized.rawFindings.at(-1)).toContain("실행된 검증 명령");
+});
+
+test("normalizeSpecialistResult blocks planner writes outside artifact scope", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "planner",
+    executionMode: "write",
+    originalText: '{"summary":"기획 문서를 정리했다고 보고했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["src/app/App.tsx"],"verificationNotes":[]}',
+    workspacePath: null,
+    observedChangedFiles: ["src/app/App.tsx"],
+    parsed: {
+      summary: "기획 문서를 정리했다고 보고했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["src/app/App.tsx"],
+      verificationNotes: [],
+    },
+  });
+
+  expect(normalized.impact).toBe("blocking");
+  expect(normalized.summary).toContain("기획 역할");
+  expect(normalized.rawFindings.at(-1)).toContain("write scope violation");
+});
+
+test("normalizeSpecialistResult blocks customer voice product code writes", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "customer-voice",
+    executionMode: "write",
+    originalText: '{"summary":"고객 관점 문서를 정리했다고 보고했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["src/app/App.tsx"],"verificationNotes":[]}',
+    workspacePath: null,
+    observedChangedFiles: ["src/app/App.tsx"],
+    parsed: {
+      summary: "고객 관점 문서를 정리했다고 보고했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["src/app/App.tsx"],
+      verificationNotes: [],
+    },
+  });
+
+  expect(normalized.impact).toBe("blocking");
+  expect(normalized.summary).toContain("고객 관점 역할");
+});
+
+test("normalizeSpecialistResult blocks frontend writes outside frontend scope", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "frontend",
+    executionMode: "write",
+    originalText: '{"summary":"프론트 수정이라고 보고했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["supabase/functions/make-server/index.ts"],"verificationNotes":[]}',
+    workspacePath: null,
+    observedChangedFiles: ["supabase/functions/make-server/index.ts"],
+    parsed: {
+      summary: "프론트 수정이라고 보고했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["supabase/functions/make-server/index.ts"],
+      verificationNotes: [],
+    },
+  });
+
+  expect(normalized.impact).toBe("blocking");
+  expect(normalized.summary).toContain("프론트엔드 역할");
+});
+
+test("normalizeSpecialistResult blocks QA product code writes outside evidence scope", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "qa",
+    executionMode: "write",
+    originalText: '{"summary":"QA 검증이라고 보고했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["src/api/client.ts"],"verificationNotes":["bun test"]}',
+    workspacePath: null,
+    observedChangedFiles: ["src/api/client.ts"],
+    parsed: {
+      summary: "QA 검증이라고 보고했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["src/api/client.ts"],
+      verificationNotes: ["bun test"],
+    },
+  });
+
+  expect(normalized.impact).toBe("blocking");
+  expect(normalized.summary).toContain("QA 역할");
 });
 
 test("buildSpecialistPromptForTest injects customer voice persona and simulation context", () => {
