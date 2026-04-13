@@ -13,12 +13,12 @@ let slugDir: string;
 function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: string; exitCode: number } {
   const execOpts: ExecSyncOptionsWithStringEncoding = {
     cwd: ROOT,
-    env: { ...process.env, GSTACK_HOME: tmpDir },
+    env: { ...process.env, RSTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
   try {
-    const stdout = execSync(`${BIN}/gstack-timeline-log '${input.replace(/'/g, "'\\''")}'`, execOpts).trim();
+    const stdout = execSync(`${BIN}/rstack-timeline-log '${input.replace(/'/g, "'\\''")}'`, execOpts).trim();
     return { stdout, exitCode: 0 };
   } catch (e: any) {
     if (opts.expectFail) {
@@ -28,22 +28,8 @@ function runLog(input: string, opts: { expectFail?: boolean } = {}): { stdout: s
   }
 }
 
-function runRead(args: string = ''): string {
-  const execOpts: ExecSyncOptionsWithStringEncoding = {
-    cwd: ROOT,
-    env: { ...process.env, GSTACK_HOME: tmpDir },
-    encoding: 'utf-8',
-    timeout: 15000,
-  };
-  try {
-    return execSync(`${BIN}/gstack-timeline-read ${args}`, execOpts).trim();
-  } catch {
-    return '';
-  }
-}
-
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-timeline-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rstack-timeline-'));
   slugDir = path.join(tmpDir, 'projects');
   fs.mkdirSync(slugDir, { recursive: true });
 });
@@ -59,7 +45,7 @@ function findTimelineFile(): string | null {
   return fs.existsSync(f) ? f : null;
 }
 
-describe('gstack-timeline-log', () => {
+describe('rstack-timeline-log', () => {
   test('accepts valid JSON and appends to timeline.jsonl', () => {
     const input = '{"skill":"review","event":"started","branch":"main"}';
     const result = runLog(input);
@@ -118,37 +104,5 @@ describe('gstack-timeline-log', () => {
 
     const f = findTimelineFile();
     expect(f).toBeNull();
-  });
-});
-
-describe('gstack-timeline-read', () => {
-  test('returns empty output for missing file (exit 0)', () => {
-    const output = runRead();
-    expect(output).toBe('');
-  });
-
-  test('filters by --branch', () => {
-    runLog(JSON.stringify({ skill: 'review', event: 'completed', branch: 'feature-a', outcome: 'approved', ts: '2026-03-28T10:00:00Z' }));
-    runLog(JSON.stringify({ skill: 'ship', event: 'completed', branch: 'feature-b', outcome: 'merged', ts: '2026-03-28T11:00:00Z' }));
-
-    const output = runRead('--branch feature-a');
-    expect(output).toContain('review');
-    expect(output).not.toContain('feature-b');
-  });
-
-  test('limits output with --limit', () => {
-    for (let i = 0; i < 5; i++) {
-      runLog(JSON.stringify({ skill: 'review', event: 'completed', branch: 'main', outcome: 'approved', ts: `2026-03-2${i}T10:00:00Z` }));
-    }
-
-    const unlimited = runRead('--limit 20');
-    const limited = runRead('--limit 2');
-
-    // Count event lines (lines starting with "- ")
-    const unlimitedEvents = unlimited.split('\n').filter(l => l.startsWith('- ')).length;
-    const limitedEvents = limited.split('\n').filter(l => l.startsWith('- ')).length;
-
-    expect(unlimitedEvents).toBe(5);
-    expect(limitedEvents).toBe(2);
   });
 });

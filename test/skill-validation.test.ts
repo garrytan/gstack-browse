@@ -204,7 +204,7 @@ describe('Cross-skill data chain', () => {
 
   test('discuss includes learnings search for context', () => {
     const content = fs.readFileSync(path.join(ROOT, 'discuss', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('gstack-learnings-search');
+    expect(content).toContain('rstack-learnings-search');
   });
 
   test('hypothesis has interactive dead-end detection', () => {

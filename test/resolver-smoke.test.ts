@@ -105,8 +105,8 @@ describe('EXPERIMENT_STRUCTURE resolver', () => {
 describe('LEARNINGS_SEARCH resolver', () => {
   const output = generateLearningsSearch(mockCtx);
 
-  test('calls gstack-learnings-search', () => {
-    expect(output).toContain('gstack-learnings-search');
+  test('calls rstack-learnings-search', () => {
+    expect(output).toContain('rstack-learnings-search');
   });
 
   test('supports cross-project learnings', () => {
@@ -121,7 +121,7 @@ describe('LEARNINGS_SEARCH resolver', () => {
   test('codex host has simpler version', () => {
     const codexCtx = { ...mockCtx, host: 'codex' as const, paths: HOST_PATHS.codex };
     const codexOutput = generateLearningsSearch(codexCtx);
-    expect(codexOutput).toContain('$GSTACK_BIN/gstack-learnings-search');
+    expect(codexOutput).toContain('$RSTACK_BIN/rstack-learnings-search');
     expect(codexOutput).not.toContain('cross_project_learnings');
   });
 });
@@ -129,8 +129,8 @@ describe('LEARNINGS_SEARCH resolver', () => {
 describe('LEARNINGS_LOG resolver', () => {
   const output = generateLearningsLog(mockCtx);
 
-  test('calls gstack-learnings-log', () => {
-    expect(output).toContain('gstack-learnings-log');
+  test('calls rstack-learnings-log', () => {
+    expect(output).toContain('rstack-learnings-log');
   });
 
   test('documents all learning types', () => {
@@ -157,9 +157,9 @@ describe('LEARNINGS_LOG resolver', () => {
 describe('SLUG_EVAL resolver', () => {
   const output = generateSlugEval(mockCtx);
 
-  test('calls gstack-slug via eval', () => {
+  test('calls rstack-slug via eval', () => {
     expect(output).toContain('eval');
-    expect(output).toContain('gstack-slug');
+    expect(output).toContain('rstack-slug');
   });
 
   test('uses correct bin path', () => {
