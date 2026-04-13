@@ -116,6 +116,41 @@ test("runSpecialist persists backend write-mode metadata from the specialist exe
   db.db.close();
 });
 
+test("runSpecialist persists frontend write-mode metadata from the specialist executor", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+
+  const result = await runSpecialist({
+    role: "frontend",
+    input: {
+      goalId: "goal-2",
+      projectId: "mypetroutine",
+      runId: "run-frontend-write",
+      goalTitle: "로그인 버튼 카피를 시작하기로 바꿔줘",
+    },
+    memoryStore,
+    executor: async () => ({
+      role: "frontend",
+      summary: "로그인 버튼 카피를 시작하기로 정리했어요.",
+      impact: "info",
+      artifacts: [{ kind: "report", title: "frontend-write-report.md" }],
+      rawFindings: ["src/components/LoginButton.tsx를 수정했다."],
+      executionMode: "write",
+      changedFiles: ["src/components/LoginButton.tsx"],
+      verificationNotes: ["button copy snapshot updated"],
+    }),
+  });
+
+  expect(result.executionMode).toBe("write");
+  expect(result.changedFiles).toEqual(["src/components/LoginButton.tsx"]);
+  expect(result.verificationNotes).toEqual(["button copy snapshot updated"]);
+  expect(
+    memoryStore.getRunMemory("run-frontend-write")["specialist.frontend.result_json"],
+  ).toContain('"executionMode":"write"');
+
+  db.db.close();
+});
+
 test("runSpecialist falls back to heuristic output when the executor fails", async () => {
   const db = openStore(":memory:");
   const memoryStore = new MemoryStore(db.db);

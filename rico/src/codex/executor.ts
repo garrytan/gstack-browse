@@ -83,6 +83,41 @@ const BACKEND_WRITE_KEYWORDS = [
   "migration",
 ];
 
+const FRONTEND_ANALYZE_KEYWORDS = [
+  "분석",
+  "점검",
+  "검토",
+  "문제",
+  "흐름",
+  "구조",
+  "왜",
+  "원인",
+  "상태",
+  "리뷰",
+];
+
+const FRONTEND_WRITE_KEYWORDS = [
+  "구현",
+  "수정",
+  "고쳐",
+  "고치",
+  "바꿔",
+  "변경",
+  "추가",
+  "만들",
+  "작성",
+  "반영",
+  "붙여",
+  "카피",
+  "버튼",
+  "화면",
+  "컴포넌트",
+  "ui",
+  "ux",
+  "스타일",
+  "레이아웃",
+];
+
 function emptyCodexSandbox() {
   const sandbox = join(tmpdir(), "rico-codex-sandbox");
   mkdirSync(sandbox, { recursive: true });
@@ -101,11 +136,18 @@ export function determineSpecialistExecutionMode(input: {
   role: RoleName;
   goalTitle: string;
 }): SpecialistExecutionMode {
-  if (input.role !== "backend") return "analyze";
   const normalized = input.goalTitle.trim().toLowerCase();
   if (!normalized) return "analyze";
-  if (includesAny(normalized, BACKEND_ANALYZE_KEYWORDS)) return "analyze";
-  if (includesAny(normalized, BACKEND_WRITE_KEYWORDS)) return "write";
+  if (input.role === "backend") {
+    if (includesAny(normalized, BACKEND_ANALYZE_KEYWORDS)) return "analyze";
+    if (includesAny(normalized, BACKEND_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
+  if (input.role === "frontend") {
+    if (includesAny(normalized, FRONTEND_ANALYZE_KEYWORDS)) return "analyze";
+    if (includesAny(normalized, FRONTEND_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
   return "analyze";
 }
 
@@ -114,6 +156,34 @@ function buildJsonSchema(executionMode: SpecialistExecutionMode) {
     return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"write","changedFiles":["path/from/repo/root"],"verificationNotes":["string"]}';
   }
   return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"analyze"}';
+}
+
+function buildExecutionInstruction(input: {
+  role: RoleName;
+  executionMode: SpecialistExecutionMode;
+}) {
+  if (input.executionMode !== "write") {
+    return "This is read-only analysis. Never modify files, create files, install packages, or change git state.";
+  }
+
+  if (input.role === "frontend") {
+    return [
+      "This is write-mode execution for the frontend specialist.",
+      "Make the smallest UI-facing code change that satisfies the goal.",
+      "You may edit files inside the resolved workspace root, run focused verification, and inspect git status.",
+      "Prefer component, route, style, or copy changes over backend or schema changes.",
+      "Do not modify server-side data contracts, do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
+      "If the goal is ambiguous or unsafe to execute, do not write code; return approval_needed or blocking with a concrete reason.",
+    ].join(" ");
+  }
+
+  return [
+    "This is write-mode execution for the backend specialist.",
+    "Make the smallest backend-only code change that satisfies the goal.",
+    "You may edit files inside the resolved workspace root, run focused verification, and inspect git status.",
+    "Do not modify files outside the workspace root, do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
+    "If the goal is ambiguous or unsafe to execute, do not write code; return approval_needed or blocking with a concrete reason.",
+  ].join(" ");
 }
 
 function buildPrompt(input: {
@@ -174,15 +244,10 @@ function buildPrompt(input: {
   const workspaceInstruction = input.workspacePath
     ? `Inspect the workspace and ground your answer in the codebase when possible. Workspace root: ${input.workspacePath}`
     : "No project workspace was resolved. Be explicit that repo-grounded inspection is missing, and reason only from the goal and saved state.";
-  const executionInstruction = input.executionMode === "write"
-    ? [
-        "This is write-mode execution for the backend specialist.",
-        "Make the smallest backend-only code change that satisfies the goal.",
-        "You may edit files inside the resolved workspace root, run focused verification, and inspect git status.",
-        "Do not modify files outside the workspace root, do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
-        "If the goal is ambiguous or unsafe to execute, do not write code; return approval_needed or blocking with a concrete reason.",
-      ].join(" ")
-    : "This is read-only analysis. Never modify files, create files, install packages, or change git state.";
+  const executionInstruction = buildExecutionInstruction({
+    role: input.role,
+    executionMode: input.executionMode,
+  });
 
   return [
     FILESYSTEM_BOUNDARY,

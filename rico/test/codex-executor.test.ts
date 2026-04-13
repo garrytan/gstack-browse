@@ -83,3 +83,21 @@ test("determineSpecialistExecutionMode promotes concrete backend implementation 
     }),
   ).toBe("write");
 });
+
+test("determineSpecialistExecutionMode keeps frontend UX analysis in analyze mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "frontend",
+      goalTitle: "온보딩 화면 흐름 문제를 분석해줘",
+    }),
+  ).toBe("analyze");
+});
+
+test("determineSpecialistExecutionMode promotes concrete frontend UI changes to write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "frontend",
+      goalTitle: "로그인 버튼 카피를 시작하기로 바꿔줘",
+    }),
+  ).toBe("write");
+});
