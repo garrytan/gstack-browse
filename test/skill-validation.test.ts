@@ -175,6 +175,51 @@ describe('Cross-skill data chain', () => {
     expect(review).toContain('Reproducibility');
     expect(review).toContain('provenance');
   });
+
+  test('run-experiment creates latest symlink for reliable handoff', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'run-experiment', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('ln -sfn');
+    expect(content).toContain('latest');
+  });
+
+  test('report uses latest symlink with ls -t fallback', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'report', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('latest');
+    expect(content).toContain('ls -t');
+  });
+
+  test('all skills guide to the next workflow step', () => {
+    const hypothesis = fs.readFileSync(path.join(ROOT, 'hypothesis', 'SKILL.md'), 'utf-8');
+    const runExp = fs.readFileSync(path.join(ROOT, 'run-experiment', 'SKILL.md'), 'utf-8');
+    const report = fs.readFileSync(path.join(ROOT, 'report', 'SKILL.md'), 'utf-8');
+    const discuss = fs.readFileSync(path.join(ROOT, 'discuss', 'SKILL.md'), 'utf-8');
+    const review = fs.readFileSync(path.join(ROOT, 'peer-review', 'SKILL.md'), 'utf-8');
+
+    expect(hypothesis).toContain('/run-experiment');
+    expect(runExp).toContain('/report');
+    expect(report).toContain('/discuss');
+    expect(discuss).toContain('/peer-review');
+    expect(review).toContain('/hypothesis');
+  });
+
+  test('discuss includes learnings search for context', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'discuss', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('gstack-learnings-search');
+  });
+
+  test('hypothesis has interactive dead-end detection', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'hypothesis', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('dead-end');
+    expect(content).toContain('AskUserQuestion');
+    expect(content).toContain('Skip this hypothesis');
+  });
+
+  test('root SKILL.md has skill decision tree', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
+    expect(content).toContain('Which Skill Do I Need?');
+    expect(content).toContain('Starting fresh');
+    expect(content).toContain('Starting a new cycle');
+  });
 });
 
 describe('Template freshness', () => {
