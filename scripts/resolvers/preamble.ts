@@ -4,8 +4,7 @@ import type { TemplateContext } from './types';
  * Preamble for research-stack skills.
  *
  * Provides: session tracking, learnings count, branch detection,
- * and context recovery. Stripped of gstack-specific features
- * (telemetry, upgrade checks, proactive routing, browse/design).
+ * and context recovery. Focused on research workflow needs.
  */
 
 function generatePreambleBash(ctx: TemplateContext): string {
@@ -15,13 +14,13 @@ function generatePreambleBash(ctx: TemplateContext): string {
 _BRANCH=$(git branch --show-current 2>/dev/null || echo "unknown")
 echo "BRANCH: $_BRANCH"
 # Learnings count
-eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)" 2>/dev/null || true
-_LEARN_FILE="\${GSTACK_HOME:-$HOME/.gstack}/projects/\${SLUG:-unknown}/learnings.jsonl"
+eval "$(${ctx.paths.binDir}/rstack-slug 2>/dev/null)" 2>/dev/null || true
+_LEARN_FILE="\${RSTACK_HOME:-$HOME/.research-stack}/projects/\${SLUG:-unknown}/learnings.jsonl"
 if [ -f "$_LEARN_FILE" ]; then
   _LEARN_COUNT=$(wc -l < "$_LEARN_FILE" 2>/dev/null | tr -d ' ')
   echo "LEARNINGS: $_LEARN_COUNT entries loaded"
   if [ "$_LEARN_COUNT" -gt 5 ] 2>/dev/null; then
-    ${ctx.paths.binDir}/gstack-learnings-search --limit 3 2>/dev/null || true
+    ${ctx.paths.binDir}/rstack-learnings-search --limit 3 2>/dev/null || true
   fi
 else
   echo "LEARNINGS: 0"
@@ -29,7 +28,7 @@ fi
 # Session timeline
 _SESSION_ID="$$-$(date +%s)"
 _TEL_START=$(date +%s)
-${ctx.paths.binDir}/gstack-timeline-log '{"skill":"${ctx.skillName}","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
+${ctx.paths.binDir}/rstack-timeline-log '{"skill":"${ctx.skillName}","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
 \`\`\``;
 }
 
@@ -105,7 +104,7 @@ Before completing, reflect:
 If yes, log an operational learning:
 
 \`\`\`bash
-${ctx.paths.binDir}/gstack-learnings-log '{"skill":"${ctx.skillName}","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
+${ctx.paths.binDir}/rstack-learnings-log '{"skill":"${ctx.skillName}","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
 \`\`\`
 
 ### Telemetry (run last)
@@ -113,7 +112,7 @@ ${ctx.paths.binDir}/gstack-learnings-log '{"skill":"${ctx.skillName}","type":"op
 \`\`\`bash
 _TEL_END=$(date +%s)
 _TEL_DUR=$(( _TEL_END - _TEL_START ))
-${ctx.paths.binDir}/gstack-timeline-log '{"skill":"${ctx.skillName}","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
+${ctx.paths.binDir}/rstack-timeline-log '{"skill":"${ctx.skillName}","event":"completed","branch":"'$(git branch --show-current 2>/dev/null || echo unknown)'","outcome":"OUTCOME","duration_s":"'"$_TEL_DUR"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null || true
 \`\`\`
 
 Replace \`OUTCOME\` with success/error/abort.`;
@@ -125,8 +124,8 @@ function generateContextRecovery(ctx: TemplateContext): string {
 After compaction or at session start, check for recent project artifacts:
 
 \`\`\`bash
-eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)"
-_PROJ="\${GSTACK_HOME:-$HOME/.gstack}/projects/\${SLUG:-unknown}"
+eval "$(${ctx.paths.binDir}/rstack-slug 2>/dev/null)"
+_PROJ="\${RSTACK_HOME:-$HOME/.research-stack}/projects/\${SLUG:-unknown}"
 if [ -d "$_PROJ" ]; then
   echo "--- RECENT ARTIFACTS ---"
   [ -f "$_PROJ/timeline.jsonl" ] && tail -5 "$_PROJ/timeline.jsonl"
