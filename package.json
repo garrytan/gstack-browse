@@ -53,6 +53,5 @@
     "devtools"
   ],
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0"
   }
 }

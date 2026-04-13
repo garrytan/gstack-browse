@@ -113,8 +113,7 @@ jobs:
 
       - name: Run ${{ matrix.suite.name }}
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}  # kept for head-to-head tests
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EVALS_CONCURRENCY: "40"
           PLAYWRIGHT_BROWSERS_PATH: /opt/playwright-browsers
