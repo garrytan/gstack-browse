@@ -434,6 +434,14 @@ mkdir -p "$(dirname "$_LEARN_FILE")"
 echo '{"type":"result","slug":"<slug>","success":true,"summary":"<brief_summary>","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' >> "$_LEARN_FILE"
 ```
 
+### Step B5: Create latest symlink
+
+Create a `latest` symlink so other skills can reliably find the most recent run:
+
+```bash
+ln -sfn <timestamp> research/results/<slug>/latest
+```
+
 ## Output
 
 After completion, tell the researcher:
@@ -443,9 +451,10 @@ Experiment complete:
   Code:       research/experiments/<slug>/run_<slug>.py
   Results:    research/results/<slug>/<timestamp>/metrics.json
   Provenance: research/results/<slug>/<timestamp>/provenance.json
+  Latest:     research/results/<slug>/latest → <timestamp>
   Duration:   <N> seconds
 
-Next step: /report research/results/<slug>/<timestamp>
+Next step: /report <slug>
 ```
 
 ## Provenance Bundle
