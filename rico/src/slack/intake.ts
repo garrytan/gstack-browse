@@ -23,6 +23,7 @@ import {
   buildGovernorStatusSnapshotText,
   markProjectGoalReleased,
   parseGovernorCommand,
+  recordGovernorPolicyChange,
   repairProjectGoals,
 } from "./governor-commands";
 import {
@@ -569,6 +570,14 @@ export async function maybeBuildConversationReply(
           priority: governorCommand.priority,
         });
       }
+      recordGovernorPolicyChange({
+        repositories,
+        projectId: project.id,
+        action: governorCommand.type,
+        priority: governorCommand.type === "reprioritize"
+          ? governorCommand.priority
+          : undefined,
+      });
 
       return {
         channelId,

@@ -37,6 +37,8 @@ export interface GovernorSnapshot {
   pendingApprovals: GovernorApprovalSnapshot[];
 }
 
+let governorEventSequence = 0;
+
 function normalizeProjectKey(value: string) {
   return value
     .trim()
@@ -137,6 +139,27 @@ function appendGoalTransition(input: {
   });
 }
 
+function appendGovernorEvent(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  projectId: string;
+  eventType: string;
+  actor: string;
+  goalId?: string | null;
+  payload: Record<string, unknown>;
+}) {
+  governorEventSequence += 1;
+  const sequence = String(governorEventSequence).padStart(6, "0");
+  input.repositories.governorEvents.create({
+    id: `governor-event-${Date.now()}-${sequence}-${input.eventType}`,
+    projectId: input.projectId,
+    goalId: input.goalId ?? null,
+    eventType: input.eventType,
+    payloadJson: JSON.stringify(input.payload),
+    createdAt: new Date().toISOString(),
+    actor: input.actor,
+  });
+}
+
 function repairGoalState(input: {
   repositories: ReturnType<typeof createRepositories>;
   goalId: string;
@@ -206,6 +229,18 @@ export function markProjectGoalReleased(input: {
     toState: "released",
     actor: "governor",
   });
+  appendGovernorEvent({
+    repositories: input.repositories,
+    projectId: input.projectId,
+    goalId: goal.id,
+    eventType: "goal_released",
+    actor: "governor",
+    payload: {
+      goalTitle: goal.title,
+      fromState: goal.state,
+      toState: "released",
+    },
+  });
   return { goalId: goal.id, goalTitle: goal.title, changed: true };
 }
 
@@ -224,6 +259,18 @@ export function archiveProjectGoal(input: {
     fromState: goal.state,
     toState: "archived",
     actor: "governor",
+  });
+  appendGovernorEvent({
+    repositories: input.repositories,
+    projectId: input.projectId,
+    goalId: goal.id,
+    eventType: "goal_archived",
+    actor: "governor",
+    payload: {
+      goalTitle: goal.title,
+      fromState: goal.state,
+      toState: "archived",
+    },
   });
   return { goalId: goal.id, goalTitle: goal.title, changed: true };
 }
@@ -247,9 +294,44 @@ export function repairProjectGoals(input: {
       toState: repairedState,
       actor: "repair-script",
     });
+    appendGovernorEvent({
+      repositories: input.repositories,
+      projectId: input.projectId,
+      goalId: goal.id,
+      eventType: "stale_state_repaired",
+      actor: "repair-script",
+      payload: {
+        goalTitle: goal.title,
+        fromState: goal.state,
+        toState: repairedState,
+      },
+    });
     repaired += 1;
   }
   return { repaired };
+}
+
+export function recordGovernorPolicyChange(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  projectId: string;
+  action: "pause" | "resume" | "reprioritize";
+  priority?: number;
+}) {
+  appendGovernorEvent({
+    repositories: input.repositories,
+    projectId: input.projectId,
+    eventType:
+      input.action === "pause"
+        ? "project_paused"
+        : input.action === "resume"
+          ? "project_resumed"
+          : "project_reprioritized",
+    actor: "governor",
+    payload: {
+      action: input.action,
+      priority: input.priority ?? null,
+    },
+  });
 }
 
 export function buildGovernorSnapshot(

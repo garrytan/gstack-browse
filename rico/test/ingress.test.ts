@@ -520,6 +520,9 @@ test("processSlackPayload applies governor pause, resume, and reprioritize comma
     priority: 9,
     paused: false,
   });
+  expect(
+    store.repositories.governorEvents.listByProject("mypetroutine").map((event) => event.eventType),
+  ).toEqual(["project_reprioritized", "project_paused", "project_resumed"]);
   expect(posted).toHaveLength(3);
   expect(posted[0]?.text).toContain("총괄 정책 변경");
   expect(posted[0]?.text).toContain("우선순위: 9");
@@ -672,6 +675,9 @@ test("processSlackPayload marks the latest approved deployment goal as released 
   expect(result).toEqual({ queued: false, handled: true });
   expect(store.repositories.goals.get("goal-release")?.state).toBe("released");
   expect(
+    store.repositories.governorEvents.listByProject("sherpalabs").map((event) => event.eventType),
+  ).toContain("goal_released");
+  expect(
     store.repositories.stateTransitions.listByGoal("goal-release").some((transition) =>
       transition.fromState === "approved"
       && transition.toState === "released"
@@ -731,6 +737,9 @@ test("processSlackPayload archives the latest released goal from ai-ops", async 
 
   expect(result).toEqual({ queued: false, handled: true });
   expect(store.repositories.goals.get("goal-archive")?.state).toBe("archived");
+  expect(
+    store.repositories.governorEvents.listByProject("sherpalabs").map((event) => event.eventType),
+  ).toContain("goal_archived");
   expect(
     store.repositories.stateTransitions.listByGoal("goal-archive").some((transition) =>
       transition.fromState === "released"
@@ -812,6 +821,9 @@ test("processSlackPayload repairs stale in-progress goals from ai-ops", async ()
   );
 
   expect(result).toEqual({ queued: false, handled: true });
+  expect(
+    store.repositories.governorEvents.listByProject("sherpalabs").map((event) => event.eventType),
+  ).toEqual(["stale_state_repaired"]);
   expect(store.repositories.goals.get("goal-stale")?.state).toBe("approved");
   expect(store.repositories.stateTransitions.listByGoal("goal-stale").at(-1)).toMatchObject({
     fromState: "in_progress",

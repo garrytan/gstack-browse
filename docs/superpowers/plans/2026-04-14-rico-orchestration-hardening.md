@@ -1,5 +1,8 @@
 # Rico Orchestration Hardening Plan
 
+- 상태: 대부분 구현 완료
+- 마지막 업데이트: 2026-04-14
+
 > 목적: `2026-04-14` follow-up spec 세 개를 구현 가능한 작업 묶음으로 바꾼다.
 
 - 기준 문서:
@@ -21,6 +24,10 @@
 ## 작업 순서
 
 ### Track 1. Workflow State Machine V2
+
+상태:
+
+- 구현 완료
 
 목표:
 
@@ -45,6 +52,10 @@
 - store / dispatcher / happy-path test 확장
 
 ### Track 2. Governor Control Plane
+
+상태:
+
+- 구현 완료
 
 목표:
 
@@ -72,6 +83,10 @@
 
 ### Track 3. Specialist Visibility Gate
 
+상태:
+
+- 구현 완료
+
 목표:
 
 - specialist가 필요한 순간에만 개별 메시지를 남기게 함
@@ -95,6 +110,10 @@
 
 ### Track 4. Specialist Contract Enforcement
 
+상태:
+
+- 구현 완료
+
 목표:
 
 - role playbook을 prompt 관습이 아니라 런타임 규칙으로 강화
@@ -116,6 +135,10 @@
 - contract / executor / customer-voice / QA 테스트 추가
 
 ### Track 5. Release Lifecycle
+
+상태:
+
+- 구현 완료
 
 목표:
 
@@ -163,3 +186,20 @@
 - `#total`에서 포트폴리오 제어 명령이 실제로 먹힌다
 - QA와 Customer Voice가 근거 없이 `blocking`을 남길 수 없다
 - planner/designer/customer-voice write-mode가 문서/artifact 범위로 제한된다
+
+## 현재 남은 후속 과제
+
+이번 하드닝 라운드로 아래는 닫혔다.
+
+- Goal/Run/Task 상태 전이 정교화
+- `#total` Governor 제어 명령
+- specialist visibility gate
+- write-scope / artifact contract enforcement
+- `approved -> released -> archived` 운영 상태
+- stale state repair
+
+아직 다음 라운드에서 다룰 만한 항목은 아래 정도다.
+
+- QA evidence를 더 구조화된 artifact schema로 고정
+- Governor 감사 로그를 별도 이벤트 스트림으로 분리할지 결정
+- specialist capability enforcement를 prompt 수준이 아니라 더 강한 런타임 capability gate로 올릴지 결정

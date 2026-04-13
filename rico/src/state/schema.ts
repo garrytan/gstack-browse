@@ -70,6 +70,16 @@ create table if not exists state_transitions (
   actor text not null
 );
 
+create table if not exists governor_events (
+  id text primary key,
+  project_id text not null,
+  goal_id text,
+  event_type text not null,
+  payload_json text not null,
+  created_at text not null,
+  actor text not null
+);
+
 create table if not exists project_memory (
   project_id text not null,
   key text not null,

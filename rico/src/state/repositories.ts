@@ -68,6 +68,16 @@ export interface StateTransitionRecord {
   actor: string;
 }
 
+export interface GovernorEventRecord {
+  id: string;
+  projectId: string;
+  goalId: string | null;
+  eventType: string;
+  payloadJson: string;
+  createdAt: string;
+  actor: string;
+}
+
 export interface ExecutionSnapshot {
   goal: GoalRecord | null;
   run: RunRecord | null;
@@ -500,6 +510,58 @@ export function createRepositories(db: Database) {
     },
   };
 
+  const governorEvents = {
+    create(input: GovernorEventRecord) {
+      db.query(
+        `insert into governor_events (id, project_id, goal_id, event_type, payload_json, created_at, actor)
+         values (?, ?, ?, ?, ?, ?, ?)
+         on conflict(id) do update set
+           project_id = excluded.project_id,
+           goal_id = excluded.goal_id,
+           event_type = excluded.event_type,
+           payload_json = excluded.payload_json,
+           created_at = excluded.created_at,
+           actor = excluded.actor`,
+      ).run(
+        input.id,
+        input.projectId,
+        input.goalId,
+        input.eventType,
+        input.payloadJson,
+        input.createdAt,
+        input.actor,
+      );
+    },
+    list(): GovernorEventRecord[] {
+      return db
+        .query("select * from governor_events order by created_at asc, id asc")
+        .all()
+        .map((row: any) => ({
+          id: row.id,
+          projectId: row.project_id,
+          goalId: row.goal_id ?? null,
+          eventType: row.event_type,
+          payloadJson: row.payload_json,
+          createdAt: row.created_at,
+          actor: row.actor,
+        }));
+    },
+    listByProject(projectId: string): GovernorEventRecord[] {
+      return db
+        .query("select * from governor_events where project_id = ? order by created_at asc, id asc")
+        .all(projectId)
+        .map((row: any) => ({
+          id: row.id,
+          projectId: row.project_id,
+          goalId: row.goal_id ?? null,
+          eventType: row.event_type,
+          payloadJson: row.payload_json,
+          createdAt: row.created_at,
+          actor: row.actor,
+        }));
+    },
+  };
+
   const artifacts = {
     create(input: {
       id: string;
@@ -560,6 +622,7 @@ export function createRepositories(db: Database) {
     runs,
     tasks,
     approvals,
+    governorEvents,
     artifacts,
     stateTransitions,
   };

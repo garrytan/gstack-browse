@@ -29,6 +29,7 @@ test("bootstrap creates the workflow tables", () => {
       "approvals",
       "artifacts",
       "state_transitions",
+      "governor_events",
       "project_memory",
       "run_memory",
       "role_playbooks",
