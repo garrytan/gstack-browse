@@ -84,6 +84,15 @@ test("determineSpecialistExecutionMode promotes concrete backend implementation 
   ).toBe("write");
 });
 
+test("determineSpecialistExecutionMode keeps backend mixed inspect-and-fix goals in write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "backend",
+      goalTitle: "백엔드 엔드포인트 점검해서 보완할 부분이 있으면 직접 수정해줘",
+    }),
+  ).toBe("write");
+});
+
 test("determineSpecialistExecutionMode keeps frontend UX analysis in analyze mode", () => {
   expect(
     determineSpecialistExecutionMode({
@@ -98,6 +107,15 @@ test("determineSpecialistExecutionMode promotes concrete frontend UI changes to 
     determineSpecialistExecutionMode({
       role: "frontend",
       goalTitle: "로그인 버튼 카피를 시작하기로 바꿔줘",
+    }),
+  ).toBe("write");
+});
+
+test("determineSpecialistExecutionMode keeps frontend navigation connection goals in write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "frontend",
+      goalTitle: "메인 랜딩페이지와 ai-employee 서브 페이지 네비게이션을 이어줘",
     }),
   ).toBe("write");
 });

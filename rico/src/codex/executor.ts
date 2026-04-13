@@ -72,7 +72,12 @@ const BACKEND_WRITE_KEYWORDS = [
   "작성",
   "반영",
   "연결해줘",
+  "이어줘",
   "붙여",
+  "보완",
+  "엔드포인트",
+  "endpoint",
+  "계약",
   "리팩토링",
   "패치",
   "fix",
@@ -108,9 +113,18 @@ const FRONTEND_WRITE_KEYWORDS = [
   "작성",
   "반영",
   "붙여",
+  "이어줘",
+  "연결해줘",
+  "연결",
+  "네비게이션",
+  "navigation",
+  "링크",
+  "link",
+  "라우트",
+  "route",
+  "cta",
   "카피",
   "버튼",
-  "화면",
   "컴포넌트",
   "ui",
   "ux",
@@ -139,13 +153,13 @@ export function determineSpecialistExecutionMode(input: {
   const normalized = input.goalTitle.trim().toLowerCase();
   if (!normalized) return "analyze";
   if (input.role === "backend") {
-    if (includesAny(normalized, BACKEND_ANALYZE_KEYWORDS)) return "analyze";
     if (includesAny(normalized, BACKEND_WRITE_KEYWORDS)) return "write";
+    if (includesAny(normalized, BACKEND_ANALYZE_KEYWORDS)) return "analyze";
     return "analyze";
   }
   if (input.role === "frontend") {
-    if (includesAny(normalized, FRONTEND_ANALYZE_KEYWORDS)) return "analyze";
     if (includesAny(normalized, FRONTEND_WRITE_KEYWORDS)) return "write";
+    if (includesAny(normalized, FRONTEND_ANALYZE_KEYWORDS)) return "analyze";
     return "analyze";
   }
   return "analyze";
