@@ -28,7 +28,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("QA:"),
+          message.text.startsWith("🧪 QA"),
       ),
     ).toBe(true);
     expect(
@@ -37,7 +37,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("고객 관점:"),
+          message.text.startsWith("🗣️ 고객 관점"),
       ),
     ).toBe(true);
     expect(
@@ -46,7 +46,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("기획:"),
+          message.text.startsWith("🧠 기획"),
       ),
     ).toBe(true);
     expect(
@@ -55,7 +55,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("디자인:"),
+          message.text.startsWith("🎨 디자인"),
       ),
     ).toBe(true);
     expect(
@@ -64,7 +64,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("프론트엔드:"),
+          message.text.startsWith("🖥️ 프론트엔드"),
       ),
     ).toBe(true);
     expect(
@@ -73,7 +73,7 @@ test("goal intake creates goal threads, splits oversized work, and requests depl
           message.channelId === "C_MYPETROUTINE" &&
           message.kind === "impact" &&
           message.threadTs === threadTs &&
-          message.text.startsWith("백엔드:"),
+          message.text.startsWith("🧱 백엔드"),
       ),
     ).toBe(true);
     expect(

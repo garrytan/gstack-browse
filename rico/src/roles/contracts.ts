@@ -15,6 +15,7 @@ export interface SpecialistResult {
   executionMode?: SpecialistExecutionMode;
   changedFiles?: string[];
   verificationNotes?: string[];
+  personaLabel?: string;
 }
 
 export function validateSpecialistResult(input: SpecialistResult) {
@@ -47,6 +48,9 @@ export function validateSpecialistResult(input: SpecialistResult) {
       || input.verificationNotes.some((note) => !note)
     )
   ) {
+    return { ok: false as const };
+  }
+  if (input.personaLabel != null && !input.personaLabel) {
     return { ok: false as const };
   }
 

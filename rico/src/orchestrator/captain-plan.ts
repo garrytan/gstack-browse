@@ -22,6 +22,48 @@ function includesAny(text: string, needles: string[]) {
   return needles.some((needle) => text.includes(needle));
 }
 
+function isImplementationGoal(text: string) {
+  return includesAny(text, [
+    "실제 수정",
+    "직접 수정",
+    "진행해줘",
+    "이어줘",
+    "연결해줘",
+    "연결",
+    "보완",
+    "수정",
+    "변경",
+    "반영",
+    "패치",
+    "fix",
+    "write-mode",
+  ]);
+}
+
+function wantsPlanningDoc(text: string) {
+  return includesAny(text, [
+    "기획안",
+    "기획 문서",
+    "브리프",
+    "로드맵",
+    "전략 문서",
+    "plan doc",
+    "prd",
+    "spec",
+  ]);
+}
+
+function wantsDesignerInImplementationLoop(text: string) {
+  return includesAny(text, [
+    "ux writing",
+    "ux-writing",
+    "카피",
+    "문구",
+    "메시지",
+    "카피라이팅",
+  ]);
+}
+
 function buildTaskTitle(goalTitle: string, role: RoleName) {
   const normalized = goalTitle.toLowerCase();
 
@@ -117,6 +159,46 @@ export function normalizeCaptainPlanForGoal(goalTitle: string, plan: CaptainPlan
     normalizedPlan.taskGraph = buildDefaultTaskGraph(goalTitle, ["backend"]);
     normalizedPlan.nextAction = buildDefaultNextAction(goalTitle, ["backend"]);
     return normalizedPlan;
+  }
+
+  if (isImplementationGoal(normalizedGoal) && !wantsPlanningDoc(normalizedGoal)) {
+    const removedTaskIds = new Set(
+      normalizedPlan.taskGraph
+        .filter((task) => task.role === "planner")
+        .map((task) => task.id),
+    );
+    normalizedPlan.selectedRoles = normalizedPlan.selectedRoles.filter((role) => role !== "planner");
+    normalizedPlan.taskGraph = normalizedPlan.taskGraph
+      .filter((task) => task.role !== "planner")
+      .map((task) => ({
+        ...task,
+        dependsOn: task.dependsOn.filter((dependency) => !removedTaskIds.has(dependency)),
+      }));
+  }
+
+  if (
+    isImplementationGoal(normalizedGoal)
+    && wantsDesignerInImplementationLoop(normalizedGoal)
+    && normalizedPlan.selectedRoles.includes("frontend")
+    && !normalizedPlan.selectedRoles.includes("designer")
+  ) {
+    normalizedPlan.selectedRoles = ["designer", ...normalizedPlan.selectedRoles];
+    normalizedPlan.taskGraph = [
+      {
+        id: "task-design",
+        role: "designer",
+        title: "UX writing과 핵심 문구 초안 정리",
+        dependsOn: [],
+      },
+      ...normalizedPlan.taskGraph.map((task) =>
+        task.role === "frontend"
+          ? {
+              ...task,
+              dependsOn: [...new Set(["task-design", ...task.dependsOn])],
+            }
+          : task
+      ),
+    ];
   }
 
   if (normalizedPlan.taskGraph.length === 0) {

@@ -1,12 +1,21 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildRoleContext } from "../memory/context-loader";
 import { loadOpenClawContextArtifacts } from "../memory/openclaw-context";
 import { MemoryStore } from "../memory/store";
+import type {
+  CustomerVoiceDelegationDecision,
+  CustomerVoicePersona,
+} from "../orchestrator/customer-voice-director";
+import { readProjectCustomerVoiceProfile } from "../orchestrator/customer-voice-director";
 import { resolveProjectWorkspace } from "../orchestrator/project-workspace";
 import type { SpecialistExecutionMode, SpecialistResult } from "../roles/contracts";
 import { ROLE_REGISTRY, type RoleName } from "../roles";
+import {
+  runBrowserSimulation,
+  summarizeBrowserSimulation,
+} from "../simulation/browser";
 
 export interface CodexSpecialistMeta {
   workspacePath: string | null;
@@ -20,6 +29,9 @@ export interface CodexSpecialistExecutorInput {
   goalTitle: string;
   runId?: string | null;
   memoryStore?: MemoryStore;
+  personaLabel?: string;
+  customerVoiceDecision?: CustomerVoiceDelegationDecision;
+  customerVoicePersona?: CustomerVoicePersona;
 }
 
 export interface CodexSpecialistExecution {
@@ -132,6 +144,51 @@ const FRONTEND_WRITE_KEYWORDS = [
   "레이아웃",
 ];
 
+const QA_WRITE_KEYWORDS = [
+  "qa",
+  "검증",
+  "테스트",
+  "회귀",
+  "리그레션",
+  "증거",
+  "결과",
+  "로그",
+  "변경 파일",
+  "남겨줘",
+  "정리해줘",
+  "검수",
+];
+
+const PLANNER_WRITE_KEYWORDS = [
+  "기획",
+  "계획",
+  "플랜",
+  "초안",
+  "정리",
+  "문서",
+  "브리프",
+  "로드맵",
+  "spec",
+  "prd",
+];
+
+const DESIGNER_WRITE_KEYWORDS = [
+  "디자인",
+  "ux writing",
+  "ux-writing",
+  "카피",
+  "문구",
+  "메시지",
+  "와이어",
+  "wire",
+  "흐름도",
+  "문서",
+];
+
+const HANGUL_PATTERN = /[가-힣]/;
+const QA_ROUTE_BLOCK_PATTERN =
+  /(not a registered route|broken link|등록된\s*라우트가\s*아니|라우트가\s*없|깨진\s*링크)/i;
+
 function emptyCodexSandbox() {
   const sandbox = join(tmpdir(), "rico-codex-sandbox");
   mkdirSync(sandbox, { recursive: true });
@@ -142,8 +199,24 @@ function pruneMemory(memory: Record<string, string>, limit = 12) {
   return Object.fromEntries(Object.entries(memory).slice(0, limit));
 }
 
+function parseJsonStringArray(value: string | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function includesAny(text: string, needles: string[]) {
   return needles.some((needle) => text.includes(needle));
+}
+
+function containsHangul(text: string) {
+  return HANGUL_PATTERN.test(text);
 }
 
 export function determineSpecialistExecutionMode(input: {
@@ -152,6 +225,14 @@ export function determineSpecialistExecutionMode(input: {
 }): SpecialistExecutionMode {
   const normalized = input.goalTitle.trim().toLowerCase();
   if (!normalized) return "analyze";
+  if (input.role === "planner") {
+    if (includesAny(normalized, PLANNER_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
+  if (input.role === "designer") {
+    if (includesAny(normalized, DESIGNER_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
   if (input.role === "backend") {
     if (includesAny(normalized, BACKEND_WRITE_KEYWORDS)) return "write";
     if (includesAny(normalized, BACKEND_ANALYZE_KEYWORDS)) return "analyze";
@@ -162,14 +243,18 @@ export function determineSpecialistExecutionMode(input: {
     if (includesAny(normalized, FRONTEND_ANALYZE_KEYWORDS)) return "analyze";
     return "analyze";
   }
+  if (input.role === "qa") {
+    if (includesAny(normalized, QA_WRITE_KEYWORDS)) return "write";
+    return "analyze";
+  }
   return "analyze";
 }
 
 function buildJsonSchema(executionMode: SpecialistExecutionMode) {
   if (executionMode === "write") {
-    return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"write","changedFiles":["path/from/repo/root"],"verificationNotes":["string"]}';
+    return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"write","changedFiles":["path/from/repo/root"],"verificationNotes":["string"],"personaLabel":"string(optional)"}';
   }
-  return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"analyze"}';
+  return '{"summary":"string","impact":"info|approval_needed|blocking","artifacts":[{"kind":"report","title":"string"}],"rawFindings":["string"],"executionMode":"analyze","personaLabel":"string(optional)"}';
 }
 
 function buildExecutionInstruction(input: {
@@ -191,6 +276,37 @@ function buildExecutionInstruction(input: {
     ].join(" ");
   }
 
+  if (input.role === "planner") {
+    return [
+      "This is write-mode execution for the planner specialist.",
+      "Produce or update a narrowly scoped planning artifact inside the workspace, preferably under docs/, planning/, or a small repo-local notes path that already fits the codebase.",
+      "Write only the minimum markdown or text document needed to unblock implementation.",
+      "Do not rewrite product code, do not deploy, do not send external messages, and do not create broad project documentation unrelated to the goal.",
+    ].join(" ");
+  }
+
+  if (input.role === "designer") {
+    return [
+      "This is write-mode execution for the designer specialist.",
+      "Produce or update a narrowly scoped UX or copy artifact inside the workspace when the goal explicitly calls for design or writing documentation.",
+      "Prefer markdown notes, copy proposals, IA notes, or content diffs over product code changes.",
+      "Do not deploy, do not send external messages, and do not rewrite unrelated code or broad documentation.",
+    ].join(" ");
+  }
+
+  if (input.role === "qa") {
+    return [
+      "This is write-mode execution for the QA specialist.",
+      "Run focused verification, inspect changed files, and leave a concrete verification trail.",
+      "You may create or update narrowly scoped test or QA evidence files inside the workspace when helpful.",
+      "Prefer verification commands, regression tests, or QA notes over product code changes.",
+      "Do not call a navigation target broken until you verify the route declaration actually exists or does not exist in the router code.",
+      "If a route exists, treat mismatched labeling or destination choice as a follow-up issue, not an automatic release blocker.",
+      "Do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
+      "If verification cannot be completed, return blocking with the missing condition and the exact failed command or gap.",
+    ].join(" ");
+  }
+
   return [
     "This is write-mode execution for the backend specialist.",
     "Make the smallest backend-only code change that satisfies the goal.",
@@ -198,6 +314,109 @@ function buildExecutionInstruction(input: {
     "Do not modify files outside the workspace root, do not deploy, do not send external messages, do not delete data, and do not rewrite unrelated code.",
     "If the goal is ambiguous or unsafe to execute, do not write code; return approval_needed or blocking with a concrete reason.",
   ].join(" ");
+}
+
+function buildRoleOutputContract(role: RoleName) {
+  if (role === "planner") {
+    return "Output contract: include the narrowed goal, success criteria, and the smallest next slice that should actually be executed.";
+  }
+  if (role === "designer") {
+    return "Output contract: include UX judgment, what copy or journey should change, and what user confusion it resolves.";
+  }
+  if (role === "frontend") {
+    return "Output contract: include the concrete UI change, affected files or surfaces, and how it was verified.";
+  }
+  if (role === "backend") {
+    return "Output contract: include the concrete contract or endpoint change, affected files, and the verification trail.";
+  }
+  if (role === "qa") {
+    return "Output contract: include release judgment, exact verification evidence, and the concrete reason if it blocks or needs approval.";
+  }
+  return "Output contract: include the user-facing value signal, what is unclear, and what would make the request or experience more convincing.";
+}
+
+function buildPlaybookInstructions(role: RoleName, playbookMemory: Record<string, string>) {
+  const checklist = parseJsonStringArray(playbookMemory.checklist_json);
+  const skillPack = parseJsonStringArray(playbookMemory.skill_pack_json);
+  const allowedTools = parseJsonStringArray(playbookMemory.allowed_tools_json);
+  const disallowedTools = parseJsonStringArray(playbookMemory.disallowed_tools_json);
+  const lines = [buildRoleOutputContract(role)];
+
+  if (playbookMemory.charter) {
+    lines.push(`Charter: ${playbookMemory.charter}`);
+  }
+  if (checklist.length > 0) {
+    lines.push(`Checklist: ${checklist.join(" / ")}`);
+  }
+  if (skillPack.length > 0) {
+    lines.push(`Preferred skills: ${skillPack.join(", ")}`);
+  }
+  if (allowedTools.length > 0) {
+    lines.push(`Allowed capabilities: ${allowedTools.join(", ")}`);
+  }
+  if (disallowedTools.length > 0) {
+    lines.push(`Disallowed actions: ${disallowedTools.join(", ")}`);
+  }
+
+  return lines.join("\n");
+}
+
+function buildCustomerVoiceDirective(input: {
+  decision?: CustomerVoiceDelegationDecision;
+  persona?: CustomerVoicePersona;
+}) {
+  if (!input.decision) return null;
+
+  return {
+    mode: input.decision.mode,
+    needsSetup: input.decision.needsSetup,
+    reason: input.decision.reason,
+    selectedPersonas: input.decision.selectedPersonas,
+    activePersona: input.persona ?? null,
+    simulation: input.decision.simulation,
+  };
+}
+
+async function collectDynamicArtifacts(input: {
+  role: RoleName;
+  projectId: string;
+  memoryStore?: MemoryStore;
+  customerVoiceDecision?: CustomerVoiceDelegationDecision;
+}) {
+  if (!input.memoryStore) return [];
+  if (input.role !== "qa" && input.role !== "customer-voice") return [];
+
+  const profile = readProjectCustomerVoiceProfile({
+    memoryStore: input.memoryStore,
+    projectId: input.projectId,
+  });
+  const simulation = input.customerVoiceDecision?.simulation ?? profile.simulation;
+  const evidence = await runBrowserSimulation({
+    projectId: input.projectId,
+    enabled: simulation.enabled,
+    baseUrl: simulation.baseUrl,
+    allowedJourneys: simulation.allowedJourneys,
+    requiresCredentials: simulation.requiresCredentials,
+    credentialRefs: simulation.credentialRefs,
+  });
+
+  input.memoryStore.putRoleProjectFact(
+    input.projectId,
+    input.role,
+    "last_browser_simulation_json",
+    JSON.stringify(evidence),
+  );
+
+  return [
+    {
+      title: "browser-simulation.json",
+      body: JSON.stringify(evidence, null, 2),
+    },
+    {
+      title: "browser-simulation-summary.txt",
+      body: summarizeBrowserSimulation(evidence).join("\n"),
+    },
+  ];
 }
 
 function buildPrompt(input: {
@@ -209,6 +428,10 @@ function buildPrompt(input: {
   memoryStore?: MemoryStore;
   runId?: string | null;
   openclawWorkspacePath?: string | null;
+  personaLabel?: string;
+  customerVoiceDecision?: CustomerVoiceDelegationDecision;
+  customerVoicePersona?: CustomerVoicePersona;
+  extraArtifacts?: Array<{ title: string; body: string }>;
 }) {
   const projectMemory = input.memoryStore
     ? pruneMemory(input.memoryStore.getSharedProjectMemory(input.projectId))
@@ -222,6 +445,10 @@ function buildPrompt(input: {
   const playbookMemory = input.memoryStore
     ? pruneMemory(input.memoryStore.getPlaybookMemory(input.role))
     : {};
+  const customerVoiceDirective = buildCustomerVoiceDirective({
+    decision: input.customerVoiceDecision,
+    persona: input.customerVoicePersona,
+  });
 
   const context = buildRoleContext({
     role: input.role,
@@ -229,6 +456,7 @@ function buildPrompt(input: {
       `project_id=${input.projectId}`,
       `goal=${input.goalTitle}`,
       `workspace=${input.workspacePath ?? "unresolved"}`,
+      input.personaLabel ? `persona=${input.personaLabel}` : "",
     ].join("\n"),
     artifacts: [
       {
@@ -247,6 +475,13 @@ function buildPrompt(input: {
         title: "role-playbook.json",
         body: JSON.stringify(playbookMemory, null, 2),
       },
+      ...(customerVoiceDirective
+        ? [{
+            title: "customer-voice-directive.json",
+            body: JSON.stringify(customerVoiceDirective, null, 2),
+          }]
+        : []),
+      ...(input.extraArtifacts ?? []),
       ...loadOpenClawContextArtifacts({
         workspacePath: input.openclawWorkspacePath,
         repoPath: input.workspacePath,
@@ -262,6 +497,7 @@ function buildPrompt(input: {
     role: input.role,
     executionMode: input.executionMode,
   });
+  const playbookInstructions = buildPlaybookInstructions(input.role, playbookMemory);
 
   return [
     FILESYSTEM_BOUNDARY,
@@ -270,6 +506,8 @@ function buildPrompt(input: {
     ROLE_INSTRUCTIONS[input.role],
     workspaceInstruction,
     executionInstruction,
+    playbookInstructions,
+    input.personaLabel ? `Active persona label: ${input.personaLabel}` : "",
     "Inspect only the minimum number of files needed. Avoid broad repository inventories.",
     "In most cases, read at most 3 directly relevant files before answering.",
     "Answer in Korean.",
@@ -286,6 +524,10 @@ function buildPrompt(input: {
     "Context:",
     context,
   ].join("\n");
+}
+
+export function buildSpecialistPromptForTest(input: Parameters<typeof buildPrompt>[0]) {
+  return buildPrompt(input);
 }
 
 function parseGitStatusPath(line: string) {
@@ -309,7 +551,7 @@ async function listGitChangedFiles(cwd: string) {
     proc.exited,
   ]);
   if (exitCode !== 0) {
-    return [] as string[];
+    return null;
   }
   return stdout
     .split(/\r?\n/)
@@ -452,6 +694,9 @@ export function parseCodexSpecialistResponse(text: string) {
   const verificationNotes = Array.isArray(parsed.verificationNotes)
     ? parsed.verificationNotes.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
     : [];
+  const personaLabel = typeof parsed.personaLabel === "string" && parsed.personaLabel.trim().length > 0
+    ? parsed.personaLabel.trim()
+    : undefined;
 
   if (!summary || (impact !== "info" && impact !== "approval_needed" && impact !== "blocking")) {
     throw new Error("Codex specialist response was not valid JSON");
@@ -465,7 +710,186 @@ export function parseCodexSpecialistResponse(text: string) {
     executionMode,
     changedFiles,
     verificationNotes,
+    personaLabel,
   } satisfies Omit<SpecialistResult, "role">;
+}
+
+export async function parseOrRepairCodexSpecialistResponse(input: {
+  text: string;
+  repair?: (text: string) => Promise<string>;
+}) {
+  try {
+    return parseCodexSpecialistResponse(input.text);
+  } catch (error) {
+    if (!input.repair) {
+      throw error;
+    }
+    const repaired = await input.repair(input.text);
+    return parseCodexSpecialistResponse(repaired);
+  }
+}
+
+function buildRepairPrompt(input: {
+  role: RoleName;
+  executionMode: SpecialistExecutionMode;
+  text: string;
+}) {
+  return [
+    "You convert a specialist response into strict JSON.",
+    `Role: ${input.role}`,
+    "Return exactly one JSON object and nothing else.",
+    "Do not add markdown fences.",
+    "Preserve only facts that are already present in the source response.",
+    "If changed files or verification notes are missing, use empty arrays.",
+    "Keep summary concise and grounded in the source response.",
+    "",
+    "JSON schema:",
+    buildJsonSchema(input.executionMode),
+    "",
+    "Source response:",
+    input.text,
+  ].join("\n");
+}
+
+async function repairCodexSpecialistResponse(input: {
+  role: RoleName;
+  executionMode: SpecialistExecutionMode;
+  text: string;
+  timeoutMs?: number;
+}) {
+  const repaired = await runCodexPrompt({
+    cwd: emptyCodexSandbox(),
+    prompt: buildRepairPrompt(input),
+    timeoutMs: Math.min(input.timeoutMs ?? 90_000, 30_000),
+  });
+  return repaired.text;
+}
+
+function listSourceFiles(root: string) {
+  const files: string[] = [];
+  const queue = [join(root, "src")];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) continue;
+    let entries: ReturnType<typeof readdirSync>;
+    try {
+      entries = readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const nextPath = join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(nextPath);
+        continue;
+      }
+      if (!/\.(tsx?|jsx?)$/.test(entry.name)) continue;
+      files.push(nextPath);
+    }
+  }
+  return files;
+}
+
+function extractRouteMentions(text: string) {
+  return [...text.matchAll(/[`'"]?(\/[A-Za-z0-9/_:-]*)[`'"]?/g)]
+    .map((match) => match[1]?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
+function workspaceHasDeclaredRoute(workspacePath: string, route: string) {
+  const routeMatchers = [
+    `path="${route}"`,
+    `path='${route}'`,
+    `path: "${route}"`,
+    `path: '${route}'`,
+  ];
+  for (const filePath of listSourceFiles(workspacePath)) {
+    let text = "";
+    try {
+      text = readFileSync(filePath, "utf8");
+    } catch {
+      continue;
+    }
+    if (routeMatchers.some((candidate) => text.includes(candidate))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function normalizeSpecialistResult(input: {
+  role: RoleName;
+  executionMode: SpecialistExecutionMode;
+  parsed: Omit<SpecialistResult, "role">;
+  originalText: string;
+  workspacePath: string | null;
+  observedChangedFiles?: string[] | null;
+  timeoutMs?: number;
+}) {
+  let parsed = input.parsed;
+
+  if (input.executionMode === "write" && Array.isArray(input.observedChangedFiles)) {
+    parsed = {
+      ...parsed,
+      changedFiles: [...input.observedChangedFiles],
+    };
+  }
+
+  if (!containsHangul(parsed.summary)) {
+    const repaired = await repairCodexSpecialistResponse({
+      role: input.role,
+      executionMode: input.executionMode,
+      text: input.originalText,
+      timeoutMs: input.timeoutMs,
+    });
+    parsed = parseCodexSpecialistResponse(repaired);
+  }
+
+  if (
+    input.role === "qa"
+    && input.workspacePath
+    && parsed.impact === "blocking"
+  ) {
+    const joined = [parsed.summary, ...parsed.rawFindings].join("\n");
+    const routes = extractRouteMentions(joined);
+    if (
+      QA_ROUTE_BLOCK_PATTERN.test(joined)
+      && routes.length > 0
+      && routes.every((route) => workspaceHasDeclaredRoute(input.workspacePath!, route))
+    ) {
+      parsed = {
+        ...parsed,
+        impact: "info",
+        summary: `라우트 선언을 다시 확인해보니 ${routes.map((route) => `\`${route}\``).join(", ")} 경로는 이미 등록돼 있어요. 이번 변경은 차단 이슈가 아니라 목적에 맞는 연결과 카피 정합성을 다시 확인하면 되는 수준이에요.`,
+        rawFindings: [
+          ...parsed.rawFindings.filter((finding) => !QA_ROUTE_BLOCK_PATTERN.test(finding)),
+          `라우트 선언 확인: ${routes.join(", ")} 경로가 앱 라우터에 이미 등록돼 있습니다.`,
+        ],
+        verificationNotes: [
+          ...parsed.verificationNotes,
+          `라우트 선언 확인: ${routes.join(", ")} path가 src/app/App.tsx 계열 라우터에 존재합니다.`,
+        ],
+      };
+    }
+  }
+
+  if (
+    input.role === "qa"
+    && input.executionMode === "write"
+    && parsed.impact === "blocking"
+    && parsed.verificationNotes.length === 0
+  ) {
+    parsed = {
+      ...parsed,
+      impact: "approval_needed",
+      rawFindings: [
+        ...parsed.rawFindings,
+        "차단 판단을 뒷받침하는 실행된 검증 명령이나 실패 로그가 결과에 포함되지 않았습니다.",
+      ],
+    };
+  }
+
+  return parsed;
 }
 
 export function sanitizeCodexSpecialistResponse(input: {
@@ -523,7 +947,13 @@ export function createCodexSpecialistExecutor(input: {
     const cwd = workspacePath ?? emptyCodexSandbox();
     const beforeChangedFiles = executionMode === "write"
       ? await listGitChangedFiles(cwd)
-      : [];
+      : null;
+    const extraArtifacts = await collectDynamicArtifacts({
+      role: specialist.role,
+      projectId: specialist.projectId,
+      memoryStore: specialist.memoryStore,
+      customerVoiceDecision: specialist.customerVoiceDecision,
+    });
     const prompt = buildPrompt({
       role: specialist.role,
       projectId: specialist.projectId,
@@ -533,24 +963,53 @@ export function createCodexSpecialistExecutor(input: {
       memoryStore: specialist.memoryStore,
       runId: specialist.runId,
       openclawWorkspacePath: input.openclawWorkspacePath,
+      personaLabel: specialist.personaLabel,
+      customerVoiceDecision: specialist.customerVoiceDecision,
+      customerVoicePersona: specialist.customerVoicePersona,
+      extraArtifacts,
     });
     const response = await runCodexPrompt({
       cwd,
       prompt,
       timeoutMs: input.timeoutMs,
     });
-    const parsed = sanitizeCodexSpecialistResponse({
-      parsed: parseCodexSpecialistResponse(response.text),
-      inspectedWorkspace: response.inspectedWorkspace,
-    });
     const afterChangedFiles = executionMode === "write"
       ? await listGitChangedFiles(cwd)
-      : [];
+      : null;
+    const observedChangedFiles = executionMode === "write"
+      ? (
+        Array.isArray(beforeChangedFiles) && Array.isArray(afterChangedFiles)
+          ? afterChangedFiles.filter((path) => !beforeChangedFiles.includes(path))
+          : null
+      )
+      : null;
+    const parsed = sanitizeCodexSpecialistResponse({
+      parsed: await normalizeSpecialistResult({
+        role: specialist.role,
+        executionMode,
+        originalText: response.text,
+        workspacePath,
+        observedChangedFiles,
+        timeoutMs: input.timeoutMs,
+        parsed: await parseOrRepairCodexSpecialistResponse({
+          text: response.text,
+          repair: async (text) =>
+            await repairCodexSpecialistResponse({
+              role: specialist.role,
+              executionMode,
+              text,
+              timeoutMs: input.timeoutMs,
+            }),
+        }),
+      }),
+      inspectedWorkspace: response.inspectedWorkspace,
+    });
     const mergedChangedFiles = executionMode === "write"
-      ? mergeChangedFiles(
-          parsed.changedFiles,
-          afterChangedFiles.filter((path) => !beforeChangedFiles.includes(path)),
-        )
+      ? (
+        Array.isArray(observedChangedFiles)
+          ? observedChangedFiles
+          : mergeChangedFiles(parsed.changedFiles)
+      )
       : [];
 
     return {
@@ -565,6 +1024,7 @@ export function createCodexSpecialistExecutor(input: {
         executionMode,
         changedFiles: mergedChangedFiles,
         verificationNotes: parsed.verificationNotes,
+        personaLabel: parsed.personaLabel ?? specialist.personaLabel,
       },
       meta: {
         workspacePath,

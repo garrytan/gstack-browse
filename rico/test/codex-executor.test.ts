@@ -1,9 +1,22 @@
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { expect, test } from "bun:test";
 import {
+  buildSpecialistPromptForTest,
   determineSpecialistExecutionMode,
+  normalizeSpecialistResult,
   parseCodexSpecialistResponse,
+  parseOrRepairCodexSpecialistResponse,
   sanitizeCodexSpecialistResponse,
 } from "../src/codex/executor";
+import { MemoryStore } from "../src/memory/store";
+import { openStore } from "../src/state/store";
+import {
+  decideCustomerVoiceDelegation,
+  ensureProjectCustomerVoiceProfile,
+} from "../src/orchestrator/customer-voice-director";
+import { ensureDefaultRolePlaybooks } from "../src/roles/playbooks";
 
 test("parseCodexSpecialistResponse accepts raw JSON", () => {
   const parsed = parseCodexSpecialistResponse(
@@ -40,6 +53,40 @@ test("parseCodexSpecialistResponse keeps write-mode metadata when provided", () 
     executionMode: "write",
     changedFiles: ["src/api/signup.ts", "src/routes/signup.ts"],
     verificationNotes: ["bun test test/signup.test.ts"],
+  });
+});
+
+
+
+test("parseCodexSpecialistResponse extracts JSON after progress prose", () => {
+  const parsed = parseCodexSpecialistResponse(
+    [
+      "요청 범위를 먼저 좁히겠습니다.",
+      "기존 워크트리 상태를 확인했습니다.",
+      '{"summary":"백엔드 입력 검증을 보완했어요.","impact":"info","artifacts":[{"kind":"report","title":"backend-report.md"}],"rawFindings":["PATCH /projects/:id 입력 파싱 실패를 400으로 처리"],"executionMode":"write","changedFiles":["supabase/functions/make-server-bea7392e/index.ts"],"verificationNotes":["git diff -- supabase/functions/make-server-bea7392e/index.ts"]}',
+    ].join("\n"),
+  );
+
+  expect(parsed).toMatchObject({
+    summary: "백엔드 입력 검증을 보완했어요.",
+    impact: "info",
+    executionMode: "write",
+    changedFiles: ["supabase/functions/make-server-bea7392e/index.ts"],
+  });
+});
+
+
+
+test("parseOrRepairCodexSpecialistResponse repairs prose-only specialist output", async () => {
+  const repaired = await parseOrRepairCodexSpecialistResponse({
+    text: "백엔드에서 PATCH /projects/:id 입력 검증을 400으로 보강했고 변경 파일은 make-server 함수예요.",
+    repair: async () => '{"summary":"PATCH /projects/:id 입력 검증을 400으로 보강했어요.","impact":"info","artifacts":[{"kind":"report","title":"backend-report.md"}],"rawFindings":["잘못된 JSON 본문을 400으로 처리"],"executionMode":"write","changedFiles":["supabase/functions/make-server-bea7392e/index.ts"],"verificationNotes":["git diff -- supabase/functions/make-server-bea7392e/index.ts"]}',
+  });
+
+  expect(repaired).toMatchObject({
+    summary: "PATCH /projects/:id 입력 검증을 400으로 보강했어요.",
+    impact: "info",
+    executionMode: "write",
   });
 });
 
@@ -118,4 +165,172 @@ test("determineSpecialistExecutionMode keeps frontend navigation connection goal
       goalTitle: "메인 랜딩페이지와 ai-employee 서브 페이지 네비게이션을 이어줘",
     }),
   ).toBe("write");
+});
+
+test("determineSpecialistExecutionMode promotes QA verification-and-report goals to write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "qa",
+      goalTitle: "변경 파일과 검증 결과를 스레드에 남겨줘",
+    }),
+  ).toBe("write");
+});
+
+test("determineSpecialistExecutionMode promotes planner doc-writing goals to write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "planner",
+      goalTitle: "기획 초안을 문서로 정리해줘",
+    }),
+  ).toBe("write");
+});
+
+test("determineSpecialistExecutionMode promotes designer doc-writing goals to write mode", () => {
+  expect(
+    determineSpecialistExecutionMode({
+      role: "designer",
+      goalTitle: "UX writing 가이드를 문서로 작성해줘",
+    }),
+  ).toBe("write");
+});
+
+test("normalizeSpecialistResult downgrades false QA blockers when the route is declared", async () => {
+  const workspace = mkdtempSync(join(tmpdir(), "rico-qa-route-"));
+  mkdirSync(join(workspace, "src", "app"), { recursive: true });
+  writeFileSync(
+    join(workspace, "src", "app", "App.tsx"),
+    [
+      "export function App() {",
+      "  return null;",
+      "}",
+      'const routes = <Route path="/projects" />;',
+    ].join("\n"),
+  );
+
+  try {
+    const normalized = await normalizeSpecialistResult({
+      role: "qa",
+      executionMode: "write",
+      originalText: '{"summary":"`/projects` 링크를 차단 이슈로 분류했습니다.","impact":"blocking","artifacts":[],"rawFindings":["`/projects` is not a registered route."],"executionMode":"write","changedFiles":[],"verificationNotes":[]}',
+      workspacePath: workspace,
+      parsed: {
+        summary: "`/projects` 링크를 차단 이슈로 분류했습니다.",
+        impact: "blocking",
+        artifacts: [],
+        rawFindings: ["`/projects` is not a registered route."],
+        executionMode: "write",
+        changedFiles: [],
+        verificationNotes: [],
+      },
+    });
+
+    expect(normalized.impact).toBe("info");
+    expect(normalized.summary.includes("`/projects`")).toBe(true);
+    expect(normalized.summary.includes("등록")).toBe(true);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizeSpecialistResult replaces changed files with observed git delta when available", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "qa",
+    executionMode: "write",
+    originalText: '{"summary":"검증 파일을 만들었다고 보고했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["qa/fake.md"],"verificationNotes":["bun test test/foo.test.ts"]}',
+    workspacePath: null,
+    observedChangedFiles: ["src/api/client.ts"],
+    parsed: {
+      summary: "검증 파일을 만들었다고 보고했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["qa/fake.md"],
+      verificationNotes: ["bun test test/foo.test.ts"],
+    },
+  });
+
+  expect(normalized.changedFiles).toEqual(["src/api/client.ts"]);
+});
+
+test("normalizeSpecialistResult downgrades QA blockers without verification trail", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "qa",
+    executionMode: "write",
+    originalText: '{"summary":"차단해야 합니다.","impact":"blocking","artifacts":[],"rawFindings":["회귀 가능성"],"executionMode":"write","changedFiles":[],"verificationNotes":[]}',
+    workspacePath: null,
+    observedChangedFiles: [],
+    parsed: {
+      summary: "차단해야 합니다.",
+      impact: "blocking",
+      artifacts: [],
+      rawFindings: ["회귀 가능성"],
+      executionMode: "write",
+      changedFiles: [],
+      verificationNotes: [],
+    },
+  });
+
+  expect(normalized.impact).toBe("approval_needed");
+  expect(normalized.rawFindings.at(-1)).toContain("실행된 검증 명령");
+});
+
+test("buildSpecialistPromptForTest injects customer voice persona and simulation context", () => {
+  const store = openStore(":memory:");
+  const memoryStore = new MemoryStore(store.db);
+  ensureDefaultRolePlaybooks(memoryStore);
+  ensureProjectCustomerVoiceProfile({
+    memoryStore,
+    projectId: "sherpalabs",
+  });
+  const decision = decideCustomerVoiceDelegation({
+    memoryStore,
+    projectId: "sherpalabs",
+    goalTitle: "여러 페르소나의 고객 관점으로 메인 랜딩과 ai-employee 동선, UX writing을 같이 점검해줘",
+    selectedRoles: ["designer", "frontend"],
+  });
+  const persona = decision.selectedPersonas[0]!;
+
+  const prompt = buildSpecialistPromptForTest({
+    role: "customer-voice",
+    projectId: "sherpalabs",
+    goalTitle: "여러 페르소나의 고객 관점으로 메인 랜딩과 ai-employee 동선, UX writing을 같이 점검해줘",
+    workspacePath: "/tmp/sherpalabs",
+    executionMode: "analyze",
+    memoryStore,
+    runId: "run-1",
+    personaLabel: persona.label,
+    customerVoiceDecision: decision,
+    customerVoicePersona: persona,
+  });
+
+  expect(prompt.includes("customer-voice-directive.json")).toBe(true);
+  expect(prompt.includes(persona.label)).toBe(true);
+  expect(prompt.includes("Allowed capabilities")).toBe(true);
+  expect(prompt.includes("persona-simulation")).toBe(true);
+
+  store.db.close();
+});
+
+test("buildSpecialistPromptForTest exposes playbook guardrails for backend specialists", () => {
+  const store = openStore(":memory:");
+  const memoryStore = new MemoryStore(store.db);
+  ensureDefaultRolePlaybooks(memoryStore);
+
+  const prompt = buildSpecialistPromptForTest({
+    role: "backend",
+    projectId: "mypetroutine",
+    goalTitle: "회원가입 API 에러 응답 스키마를 수정해줘",
+    workspacePath: "/tmp/mypetroutine",
+    executionMode: "write",
+    memoryStore,
+    runId: "run-2",
+  });
+
+  expect(prompt.includes("Charter:")).toBe(true);
+  expect(prompt.includes("Allowed capabilities")).toBe(true);
+  expect(prompt.includes("Disallowed actions")).toBe(true);
+  expect(prompt.includes("api-contract-review")).toBe(true);
+
+  store.db.close();
 });

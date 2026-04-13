@@ -1,6 +1,18 @@
 import { MemoryStore } from "../memory/store";
 import { ROLE_REGISTRY, type RoleName } from "./index";
 
+function parseJsonStringArray(value: string | undefined) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 const DEFAULT_ROLE_PLAYBOOKS: Record<
   RoleName,
   {
@@ -22,7 +34,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     ],
     artifactTemplate: "plan-brief.md",
     whenToUse: "목표 정의, 범위 고정, 실행 순서 정리가 필요할 때",
-    skillPack: ["scope-brief", "dependency-ordering", "initiative-splitting"],
+    skillPack: ["scope-brief", "dependency-ordering", "initiative-splitting", "decision-logging"],
     allowedTools: ["repo-read", "project-memory", "run-memory"],
     disallowedTools: ["deploy", "destructive-write"],
   },
@@ -35,7 +47,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     ],
     artifactTemplate: "ux-review.md",
     whenToUse: "화면 흐름, UX, 카피, 랜딩 메시지를 점검할 때",
-    skillPack: ["ux-flow-review", "copy-critique", "hierarchy-check"],
+    skillPack: ["ux-flow-review", "copy-critique", "hierarchy-check", "journey-mapping"],
     allowedTools: ["repo-read", "artifact-read", "project-memory"],
     disallowedTools: ["deploy", "schema-migration"],
   },
@@ -74,8 +86,8 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     ],
     artifactTemplate: "qa-gate.md",
     whenToUse: "검증, 회귀, 배포 판단, 테스트 범위 점검이 필요할 때",
-    skillPack: ["release-gate", "regression-check", "acceptance-criteria-review"],
-    allowedTools: ["repo-read", "artifact-read", "browser-check", "run-memory"],
+    skillPack: ["release-gate", "regression-check", "acceptance-criteria-review", "evidence-trace"],
+    allowedTools: ["repo-read", "artifact-read", "browser-check", "run-memory", "verification-log"],
     disallowedTools: ["deploy-approve", "destructive-write"],
   },
   "customer-voice": {
@@ -87,9 +99,9 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     ],
     artifactTemplate: "customer-voice.md",
     whenToUse: "가치 제안, 카피, JTBD, 사용자 약속을 점검할 때",
-    skillPack: ["jtbd-review", "value-prop-check", "message-clarity-review"],
-    allowedTools: ["artifact-read", "project-memory", "run-memory"],
-    disallowedTools: ["deploy", "schema-migration"],
+    skillPack: ["jtbd-review", "value-prop-check", "message-clarity-review", "persona-simulation", "objection-mapping"],
+    allowedTools: ["artifact-read", "project-memory", "run-memory", "browser-check", "test-credentials"],
+    disallowedTools: ["deploy", "schema-migration", "production-write"],
   },
 };
 
@@ -111,19 +123,16 @@ export function ensureDefaultRolePlaybooks(memoryStore: MemoryStore) {
     if (!existing.when_to_use) {
       memoryStore.putPlaybookFact(role, "when_to_use", defaults.whenToUse);
     }
-    if (!existing.skill_pack_json) {
-      memoryStore.putPlaybookFact(role, "skill_pack_json", JSON.stringify(defaults.skillPack));
-    }
-    if (!existing.allowed_tools_json) {
-      memoryStore.putPlaybookFact(role, "allowed_tools_json", JSON.stringify(defaults.allowedTools));
-    }
-    if (!existing.disallowed_tools_json) {
-      memoryStore.putPlaybookFact(
-        role,
-        "disallowed_tools_json",
-        JSON.stringify(defaults.disallowedTools),
-      );
-    }
+    const mergedSkillPack = [...new Set([...parseJsonStringArray(existing.skill_pack_json), ...defaults.skillPack])];
+    memoryStore.putPlaybookFact(role, "skill_pack_json", JSON.stringify(mergedSkillPack));
+    const mergedAllowedTools = [...new Set([...parseJsonStringArray(existing.allowed_tools_json), ...defaults.allowedTools])];
+    memoryStore.putPlaybookFact(role, "allowed_tools_json", JSON.stringify(mergedAllowedTools));
+    const mergedDisallowedTools = [...new Set([...parseJsonStringArray(existing.disallowed_tools_json), ...defaults.disallowedTools])];
+    memoryStore.putPlaybookFact(
+      role,
+      "disallowed_tools_json",
+      JSON.stringify(mergedDisallowedTools),
+    );
     if (!existing.invoke) {
       memoryStore.putPlaybookFact(role, "invoke", profile.invoke);
     }

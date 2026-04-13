@@ -1,4 +1,4 @@
-import type { ImpactLevel } from "../roles/contracts";
+import type { ImpactLevel, SpecialistExecutionMode } from "../roles/contracts";
 import type { CaptainPlan } from "../orchestrator/captain-plan";
 import type { RoleName } from "../roles";
 
@@ -57,12 +57,67 @@ function roleLabel(role: RoleName | string) {
   return role;
 }
 
+function roleIcon(role: RoleName | string) {
+  if (role === "planner") return "🧠";
+  if (role === "designer") return "🎨";
+  if (role === "frontend") return "🖥️";
+  if (role === "backend") return "🧱";
+  if (role === "qa") return "🧪";
+  if (role === "customer-voice") return "🗣️";
+  return "•";
+}
+
 function joinRoleLabels(roles: Array<RoleName | string>) {
   const labels = roles.map(roleLabel);
   if (labels.length === 0) return "캡틴";
   if (labels.length === 1) return labels[0]!;
   if (labels.length === 2) return `${labels[0]}과 ${labels[1]}`;
   return `${labels.slice(0, -1).join(", ")}, ${labels.at(-1)}`;
+}
+
+function impactLabel(impact: ImpactLevel) {
+  if (impact === "blocking") return "차단";
+  if (impact === "approval_needed") return "결정 필요";
+  return "진행 가능";
+}
+
+function headerForCaptain(kind: "plan" | "progress" | "final", state?: string) {
+  const icon =
+    kind === "plan"
+      ? state === "blocked"
+        ? "⛔"
+        : state === "needs_decision"
+          ? "🟡"
+          : "📝"
+      : kind === "progress"
+        ? state === "blocking"
+          ? "⛔"
+          : state === "approval_needed"
+            ? "🟡"
+            : "🔄"
+        : state === "approved" || state === "released"
+          ? "✅"
+          : state === "awaiting_human_approval"
+            ? "🟡"
+            : state === "qa_failed" || state === "blocking" || state === "blocked"
+              ? "⛔"
+              : "✅";
+  const label = kind === "plan" ? "캡틴 계획" : kind === "progress" ? "캡틴 진행" : "캡틴 마감";
+  return `${icon} ${label}`;
+}
+
+function headerForGovernor(kind: "routing" | "final" | "approval", state?: string) {
+  if (kind === "routing") return "🧭 총괄 라우팅";
+  if (kind === "approval") return "🛑 총괄 승인 요청";
+  const icon =
+    state === "approved" || state === "released"
+      ? "✅"
+      : state === "awaiting_human_approval"
+        ? "🟡"
+        : state === "qa_failed" || state === "blocking" || state === "blocked"
+          ? "⛔"
+          : "✅";
+  return `${icon} 총괄 마감`;
 }
 
 function hasFinalConsonant(text: string) {
@@ -90,17 +145,37 @@ function buildAssignmentText(plan?: CaptainPlan, roles: Array<RoleName | string>
   return assignments.join(", ");
 }
 
+function buildAssignmentLines(plan?: CaptainPlan, roles: Array<RoleName | string> = []) {
+  const tasks = plan?.taskGraph?.length
+    ? plan.taskGraph.map((task) => ({
+        role: roleLabel(task.role),
+        title: task.title,
+      }))
+    : roles.map((role) => ({
+        role: roleLabel(role),
+        title: `${roleLabel(role)} 1차 검토`,
+      }));
+  return tasks.map((task) => `  • ${task.role}: ${task.title}`);
+}
+
 export function buildRoutingText(projectId: string, plan?: CaptainPlan) {
-  const base = `총괄: 이 건은 #${projectId} 채널에서 이어갈게요.`;
-  const assignmentText = buildAssignmentText(plan, plan?.selectedRoles ?? []);
-  if (!assignmentText) return base;
-  return `${base} 캡틴에게는 ${assignmentText} 먼저 보게 하라고 전달했어요.`;
+  const lines = [
+    headerForGovernor("routing"),
+    `- 프로젝트: #${projectId}`,
+    "- 상태: 프로젝트 채널에서 바로 이어가요.",
+  ];
+  const assignments = buildAssignmentLines(plan, plan?.selectedRoles ?? []);
+  if (assignments.length > 0) {
+    lines.push("- 배정:");
+    lines.push(...assignments);
+  }
+  return lines.join("\n");
 }
 
 function firstSentence(text: string, fallback: string) {
   const trimmed = text.trim();
   if (!trimmed) return fallback;
-  const match = trimmed.match(/^(.+?[.!?]|.+?$)/);
+  const match = trimmed.match(/^(.+?(?:[.!?](?=\s|$)|$))/s);
   return match?.[1]?.trim() ?? fallback;
 }
 
@@ -110,6 +185,10 @@ function trimMessage(text: string, limit = 90) {
   return `${trimmed.slice(0, limit - 1).trimEnd()}…`;
 }
 
+function compactSentence(text: string, limit = 110) {
+  return trimMessage(firstSentence(text, text), limit);
+}
+
 function impactPriority(impact: ImpactLevel) {
   if (impact === "blocking") return 0;
   if (impact === "approval_needed") return 1;
@@ -117,37 +196,63 @@ function impactPriority(impact: ImpactLevel) {
 }
 
 export function buildCaptainStartText(
-  _title: string,
+  title: string,
   roles: RoleName[] = [],
   plan?: CaptainPlan,
 ) {
-  const firstPass = joinRoleLabels(roles);
-  const nextAction = plan?.nextAction ? ` 먼저 ${plan.nextAction}` : "";
+  const lines = [headerForCaptain("plan", plan?.status), `- 요청: ${trimMessage(title, 120)}`];
   if (plan?.status === "blocked" && plan.blockedReason) {
-    return `캡틴: 먼저 막힌 조건부터 푸는 게 맞아요. ${plan.blockedReason}${nextAction}`;
+    lines.push("- 상태: 차단");
+    lines.push(`- 이유: ${plan.blockedReason}`);
+    if (plan.nextAction) {
+      lines.push(`- 다음 액션: ${plan.nextAction}`);
+    }
+    return lines.join("\n");
   }
   if (plan?.status === "needs_decision" && plan.blockedReason) {
-    return `캡틴: 먼저 결정이 필요한 쟁점을 좁히고 갈게요. ${plan.blockedReason}${nextAction}`;
+    lines.push("- 상태: 결정 필요");
+    lines.push(`- 이유: ${plan.blockedReason}`);
+    if (plan.nextAction) {
+      lines.push(`- 다음 액션: ${plan.nextAction}`);
+    }
+    return lines.join("\n");
   }
   if (roles.length === 0) {
-    return `캡틴: 요청 확인했어요. 먼저 범위와 리스크를 빠르게 정리하고, 바로 다음 액션을 제안할게요.${nextAction}`;
+    lines.push("- 상태: 요청 확인");
+    lines.push("- 다음 액션: 먼저 범위와 리스크를 빠르게 정리할게요.");
+    if (plan?.nextAction) {
+      lines.push(`- 이어서: ${plan.nextAction}`);
+    }
+    return lines.join("\n");
   }
-  const assignmentText = buildAssignmentText(plan, roles);
-  if (assignmentText) {
-    return `캡틴: 이번 라운드에서는 ${assignmentText} 맡길게요.${nextAction}`;
+  lines.push("- 배정:");
+  lines.push(...buildAssignmentLines(plan, roles));
+  if (plan?.nextAction) {
+    lines.push(`- 다음 액션: ${plan.nextAction}`);
   }
-  return `캡틴: 요청 확인했어요. 먼저 ${firstPass}에서 봐야 할 핵심 전제와 리스크를 빠르게 확인한 뒤, 실행 순서를 제안할게요.${nextAction}`;
+  return lines.join("\n");
 }
 
 export function buildCaptainProgressText(
-  _title: string,
+  title: string,
   impacts: Array<{ role: string; level: ImpactLevel; message: string; changedFiles?: string[] }> = [],
   plan?: CaptainPlan,
 ) {
   if (impacts.length === 0) {
-    return plan?.nextAction
-      ? `캡틴: 지금은 계획을 실행 가능한 순서로 다듬고 있어요. 다음 액션은 ${plan.nextAction}`
-      : "캡틴: 지금은 검토 결과를 한 줄 계획으로 묶고 있어요. 바로 다음 액션이 보이게 정리해서 넘길게요.";
+    if (plan?.nextAction) {
+      return [
+        headerForCaptain("progress"),
+        `- 요청: ${trimMessage(title, 120)}`,
+        "- 상태: 계획 정리 중",
+        `- 다음 액션: ${plan.nextAction}`,
+      ].join("\n");
+    }
+    return [
+      headerForCaptain("progress"),
+      `- 요청: ${trimMessage(title, 120)}`,
+      "- 상태: 계획 정리 중",
+      "- 다음 액션: 바로 실행 가능한 한 줄 계획으로 묶고 있어요.",
+    ].join("\n");
   }
 
   const sorted = [...impacts].sort(
@@ -160,28 +265,138 @@ export function buildCaptainProgressText(
   const leadSummary = trimMessage(
     firstSentence(lead.message, "핵심 쟁점을 먼저 정리하고 있어요."),
   );
-  const changedFilesText = lead.changedFiles && lead.changedFiles.length > 0
-    ? ` 수정 파일은 ${lead.changedFiles.slice(0, 2).join(", ")}${lead.changedFiles.length > 2 ? ` 외 ${lead.changedFiles.length - 2}개` : ""}예요.`
-    : "";
-
-  if (lead.level === "blocking") {
-    const nextAction = plan?.nextAction ? ` 다음 액션은 ${plan.nextAction}` : "";
-    return `캡틴: 지금은 ${roleLabel(lead.role)}에서 막히는 조건이 보여서 그 이슈부터 정리하고 있어요.${supportingText} ${leadSummary}${nextAction}${changedFilesText}`;
+  const lines = [
+    headerForCaptain("progress", lead.level),
+    `- 요청: ${trimMessage(title, 120)}`,
+    `- 기준 역할: ${roleLabel(lead.role)}`,
+    `- 판정: ${impactLabel(lead.level)}`,
+    `- 핵심 결론: ${compactSentence(leadSummary, 100)}`,
+  ];
+  if (supportingRoles.length > 0) {
+    lines.push(`- 참고: ${supportingRoles.join(", ")} 의견까지 함께 보고 있어요.`);
   }
-
-  if (lead.level === "approval_needed") {
-    const nextAction = plan?.nextAction ? ` 다음 액션은 ${plan.nextAction}` : "";
-    return `캡틴: 지금은 ${roleLabel(lead.role)} 기준으로 먼저 결정이 필요한 지점을 모으고 있어요.${supportingText} ${leadSummary}${nextAction}${changedFilesText}`;
+  if (plan?.nextAction) {
+    lines.push(`- 다음 액션: ${plan.nextAction}`);
   }
+  if (lead.changedFiles && lead.changedFiles.length > 0) {
+    lines.push(
+      `- 변경 파일: ${lead.changedFiles.slice(0, 2).join(", ")}${lead.changedFiles.length > 2 ? ` 외 ${lead.changedFiles.length - 2}개` : ""}`,
+    );
+  }
+  return lines.join("\n");
+}
 
-  const nextAction = plan?.nextAction
-    ? ` 다음 액션은 ${plan.nextAction}`
-    : " 다음 단계는 여기서 바로 이어갈게요.";
-  return `캡틴: 지금까지는 ${roleLabel(lead.role)} 중심으로 실행 순서를 좁혔어요.${supportingText}${nextAction} ${leadSummary}${changedFilesText}`;
+function finalStateLabel(state: string) {
+  if (state === "approved") return "완료";
+  if (state === "released") return "출시 완료";
+  if (state === "awaiting_human_approval") return "결정 필요";
+  if (state === "blocking" || state === "blocked" || state === "qa_failed") return "차단";
+  return "진행 중";
+}
+
+function uniqueStrings(values: Array<string | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())))];
+}
+
+function summarizeChangedFiles(
+  impacts: Array<{ changedFiles?: string[] }>,
+) {
+  return [
+    ...new Set(
+      impacts.flatMap((impact) => impact.changedFiles ?? []).filter(Boolean),
+    ),
+  ];
+}
+
+function summarizeVerificationNotes(
+  impacts: Array<{ verificationNotes?: string[] }>,
+) {
+  return [
+    ...new Set(
+      impacts.flatMap((impact) => impact.verificationNotes ?? []).filter(Boolean),
+    ),
+  ];
+}
+
+function pickLeadImpact(
+  impacts: Array<{ role: string; level: ImpactLevel; message: string }>,
+) {
+  if (impacts.length === 0) return null;
+  return [...impacts].sort(
+    (left, right) => impactPriority(left.level) - impactPriority(right.level),
+  )[0]!;
+}
+
+export function buildCaptainFinalText(input: {
+  finalState: string;
+  impacts: Array<{
+    role: string;
+    level: ImpactLevel;
+    message: string;
+    changedFiles?: string[];
+    verificationNotes?: string[];
+  }>;
+  nextAction?: string | null;
+}) {
+  const lines = [
+    headerForCaptain("final", input.finalState),
+    `- 상태: ${finalStateLabel(input.finalState)}`,
+  ];
+  const lead = pickLeadImpact(input.impacts);
+  if (lead) {
+    lines.push(`- 핵심 결론: ${compactSentence(lead.message, 120)}`);
+  }
+  const changedFiles = summarizeChangedFiles(input.impacts);
+  if (changedFiles.length > 0) {
+    lines.push(
+      `- 실제 변경: ${changedFiles.slice(0, 2).join(", ")}${changedFiles.length > 2 ? ` 외 ${changedFiles.length - 2}개` : ""}`,
+    );
+  }
+  const verificationNotes = summarizeVerificationNotes(input.impacts);
+  if (verificationNotes.length > 0) {
+    lines.push(`- 검증: ${compactSentence(verificationNotes[0]!, 120)}`);
+  }
+  if (
+    input.nextAction
+    && (input.finalState === "awaiting_human_approval" || input.finalState === "blocked" || input.finalState === "qa_failed")
+  ) {
+    lines.push(`- 남은 조치: ${input.nextAction}`);
+  }
+  return lines.join("\n");
+}
+
+export function buildGovernorFinalText(input: {
+  projectId: string;
+  finalState: string;
+  leadSummary?: string | null;
+  changedFiles?: string[];
+  nextAction?: string | null;
+}) {
+  const lines = [
+    headerForGovernor("final", input.finalState),
+    `- 프로젝트: #${input.projectId}`,
+    `- 상태: ${finalStateLabel(input.finalState)}`,
+  ];
+  if (input.leadSummary) {
+    lines.push(`- 핵심 결론: ${compactSentence(input.leadSummary, 120)}`);
+  }
+  const changedFiles = uniqueStrings(input.changedFiles ?? []);
+  if (changedFiles.length > 0) {
+    lines.push(
+      `- 실제 변경: ${changedFiles.slice(0, 2).join(", ")}${changedFiles.length > 2 ? ` 외 ${changedFiles.length - 2}개` : ""}`,
+    );
+  }
+  if (
+    input.nextAction
+    && (input.finalState === "awaiting_human_approval" || input.finalState === "blocked" || input.finalState === "qa_failed")
+  ) {
+    lines.push(`- 남은 조치: ${input.nextAction}`);
+  }
+  return lines.join("\n");
 }
 
 export function buildApprovalText(actionType: string, blockingReason: string) {
-  return `총괄: 이 단계는 ${actionType} 전에 사람 확인이 필요해요. ${blockingReason}`;
+  return `${headerForGovernor("approval")}\n- 상태: 사람 확인 필요\n- 액션: ${actionType}\n- 이유: ${blockingReason}`;
 }
 
 export function buildApprovalResolutionText(input: {
@@ -194,9 +409,56 @@ export function buildApprovalResolutionText(input: {
   return `${input.actionType} 요청(${input.approvalId})은 ${action}. 처리한 사람은 ${input.actor}예요.`;
 }
 
-export function buildImpactNarration(role: string, summary: string, changedFiles: string[] = []) {
-  const changedFilesText = changedFiles.length > 0
-    ? ` 수정 파일: ${changedFiles.slice(0, 3).join(", ")}${changedFiles.length > 3 ? ` 외 ${changedFiles.length - 3}개` : ""}`
-    : "";
-  return `${roleLabel(role)}: ${summary}${changedFilesText}`;
+function detailLabelForRole(input: {
+  role: string;
+  executionMode?: SpecialistExecutionMode;
+  changedFiles?: string[];
+}) {
+  if (input.role === "planner") return "제안";
+  if (input.role === "designer") return "UX 판단";
+  if (input.role === "customer-voice") return "사용자 영향";
+  if (input.role === "qa") return "근거";
+  if (
+    input.executionMode === "write"
+    || (input.changedFiles && input.changedFiles.length > 0)
+  ) {
+    return "변경";
+  }
+  return "판단";
+}
+
+export function buildImpactNarration(input: {
+  role: string;
+  summary: string;
+  level: ImpactLevel;
+  changedFiles?: string[];
+  verificationNotes?: string[];
+  executionMode?: SpecialistExecutionMode;
+  personaLabel?: string;
+}) {
+  const statusLabel = input.role === "qa" ? "판정" : "상태";
+  const detailLabel = detailLabelForRole({
+    role: input.role,
+    executionMode: input.executionMode,
+    changedFiles: input.changedFiles,
+  });
+  const lines = [
+    `${roleIcon(input.role)} ${roleLabel(input.role)}${input.personaLabel ? ` · ${input.personaLabel}` : ""}`,
+    `- ${statusLabel}: ${impactLabel(input.level)}`,
+    `- ${detailLabel}: ${compactSentence(input.summary, 120)}`,
+  ];
+  if (input.changedFiles && input.changedFiles.length > 0) {
+    lines.push(
+      `- 변경 파일: ${input.changedFiles.slice(0, 2).join(", ")}${input.changedFiles.length > 2 ? ` 외 ${input.changedFiles.length - 2}개` : ""}`,
+    );
+  }
+  if (input.verificationNotes && input.verificationNotes.length > 0) {
+    lines.push(
+      `- 검증: ${input.verificationNotes
+        .slice(0, 1)
+        .map((note) => compactSentence(note, 100))
+        .join(" / ")}${input.verificationNotes.length > 1 ? " / ..." : ""}`,
+    );
+  }
+  return lines.join("\n");
 }

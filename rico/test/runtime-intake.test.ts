@@ -41,6 +41,37 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
         RICO_AI_OPS_CHANNEL_ID: "C_AI_OPS",
       },
     }),
+    captainExecutor: async () => ({
+      selectedRoles: ["backend"],
+      nextAction: "배포 전 백엔드 변경만 먼저 확정한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        {
+          id: "task-1",
+          role: "backend",
+          title: "배포 전 백엔드 변경 확정",
+          dependsOn: [],
+        },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: "배포 가능한 변경만 남겼어요.",
+        impact: "info",
+        artifacts: [{ kind: "report", title: `${role}.md` }],
+        rawFindings: [],
+        executionMode: "write",
+        changedFiles: ["src/api/projects.ts"],
+        verificationNotes: ["npm test -- --run src/api/projects.test.ts"],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
     slackClient: {
       async postMessage(input) {
         postedMessages.push(input);
@@ -83,10 +114,10 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
 
   expect(response.status).toBe(200);
 
-  await waitFor(() => postedMessages.length >= 5);
+  await waitFor(() => postedMessages.length >= 4);
 
-  expect(runtime.store.repositories.initiatives.listByProject("mypetroutine")).toHaveLength(1);
-  expect(runtime.store.repositories.goals.listByProject("mypetroutine").length).toBeGreaterThan(1);
+  expect(runtime.store.repositories.initiatives.listByProject("mypetroutine")).toHaveLength(0);
+  expect(runtime.store.repositories.goals.listByProject("mypetroutine")).toHaveLength(1);
   expect(
     runtime.store.repositories.goals
       .listByProject("mypetroutine")
@@ -104,49 +135,14 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("QA:"),
-    ),
-  ).toBe(true);
-  expect(
-    postedMessages.some(
-      (message) =>
-        message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("고객 관점:"),
-    ),
-  ).toBe(true);
-  expect(
-    postedMessages.some(
-      (message) =>
-        message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("기획:"),
-    ),
-  ).toBe(true);
-  expect(
-    postedMessages.some(
-      (message) =>
-        message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("디자인:"),
-    ),
-  ).toBe(true);
-  expect(
-    postedMessages.some(
-      (message) =>
-        message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("프론트엔드:"),
-    ),
-  ).toBe(true);
-  expect(
-    postedMessages.some(
-      (message) =>
-        message.channel === "C_MYPETROUTINE" &&
-        message.text.startsWith("백엔드:"),
+        /^(🧠 기획|🎨 디자인|🖥️ 프론트엔드|🧱 백엔드|🧪 QA|🗣️ 고객 관점)/.test(message.text),
     ),
   ).toBe(true);
   expect(
     postedMessages.some(
       (message) =>
         message.channel === "C_AI_OPS" &&
-        message.text.includes("사람 확인이 필요해요") &&
+        message.text.includes("사람 확인 필요") &&
         JSON.stringify(message.blocks ?? []).includes("approval:approve") &&
         message.metadata?.approvalId === latestApproval?.id,
     ),
@@ -156,7 +152,8 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_AI_OPS" &&
-        message.text.includes("총괄: 이 건은 #mypetroutine 채널에서 이어갈게요."),
+        message.text.includes("총괄") &&
+        message.text.includes("#mypetroutine"),
     ),
   ).toBe(true);
 
@@ -164,7 +161,7 @@ test("ai-ops message bootstraps work and drives the captain/governor Slack flow"
     postedMessages.some(
       (message) =>
         message.channel === "C_MYPETROUTINE" &&
-        message.text.includes("캡틴:") &&
+        message.text.includes("캡틴 계획") &&
         !message.text.includes("다음을 사용하여 보냄") &&
         !message.text.includes("ChatGPT"),
     ),

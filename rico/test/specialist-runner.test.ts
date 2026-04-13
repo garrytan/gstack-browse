@@ -174,6 +174,35 @@ test("runSpecialist falls back to heuristic output when the executor fails", asy
   db.db.close();
 });
 
+test("runSpecialist surfaces write-mode executor failures as blocking instead of generic fallback", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+
+  const result = await runSpecialist({
+    role: "backend",
+    input: {
+      goalId: "goal-1",
+      projectId: "sherpalabs",
+      runId: "run-backend-error",
+      goalTitle: "백엔드 엔드포인트를 점검하고 보완할 부분은 직접 수정해줘",
+    },
+    memoryStore,
+    executor: async () => {
+      throw new Error("codex backend write timed out");
+    },
+  });
+
+  expect(result.impact).toBe("blocking");
+  expect(result.executionMode).toBe("write");
+  expect(result.summary).toContain("실행기");
+  expect(result.rawFindings?.[0]).toContain("codex backend write timed out");
+  expect(
+    memoryStore.getRunMemory("run-backend-error")["specialist.backend.executor_error"],
+  ).toContain("codex backend write timed out");
+
+  db.db.close();
+});
+
 test("QA role profile stops on regression and keeps protected actions behind human sign-off", () => {
   expect(QA_ROLE_PROFILE.guardrails).toContain("stop_on_regression");
   expect(QA_ROLE_PROFILE.guardrails).toContain(

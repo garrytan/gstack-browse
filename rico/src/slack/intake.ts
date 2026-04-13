@@ -1,9 +1,16 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
+import { MemoryStore } from "../memory/store";
 import { splitOversizedGoal } from "../orchestrator/initiative";
+import { readProjectCustomerVoiceProfile } from "../orchestrator/customer-voice-director";
 import { enqueueQueuedRun, type QueueJob } from "../runtime/queue";
 import { createRepositories } from "../state/repositories";
 import type { SlackMessageClient } from "./publish";
+import {
+  applyCustomerVoiceCommand,
+  buildCustomerVoiceStatusText,
+  parseCustomerVoiceCommand,
+} from "./customer-voice-commands";
 import {
   buildAiOpsGreetingText,
   buildAiOpsStatusText,
@@ -141,22 +148,15 @@ async function resolveProjectForIncomingChannel(input: {
 function deriveTaskList(text: string) {
   const segments = sanitizeIncomingSlackText(stripLeadingMention(text))
     .split(/[,\n]+/)
-    .map((segment) => segment.trim())
+    .map((segment) => segment.replace(/^[-*•]\s*/, "").trim())
     .filter(Boolean);
 
   if (segments.length === 0) {
-    return [
-      `plan:${text}`,
-      `implement:${text}`,
-      `review:${text}`,
-    ];
+    const normalized = sanitizeIncomingSlackText(stripLeadingMention(text));
+    return normalized ? [normalized] : [];
   }
 
-  return segments.flatMap((segment) => [
-    `plan:${segment}`,
-    `implement:${segment}`,
-    `review:${segment}`,
-  ]);
+  return [...new Set(segments)];
 }
 
 function normalizeEventText(text: string) {
@@ -407,10 +407,8 @@ export async function maybeBuildConversationReply(
   }
 
   const repositories = createRepositories(db);
+  const memoryStore = new MemoryStore(db);
   const text = sanitizeIncomingSlackText(event.text as string);
-  const intent = detectConversationalIntent(text);
-  if (!intent) return null;
-
   const threadTs =
     typeof event.thread_ts === "string"
       ? event.thread_ts
@@ -419,7 +417,40 @@ export async function maybeBuildConversationReply(
         : `slack-${Date.now()}`;
 
   if (options.aiOpsChannelId && channelId === options.aiOpsChannelId) {
-    if (normalizeEventText(text)) return null;
+    const normalized = normalizeEventText(text);
+    if (normalized) {
+      const command = parseCustomerVoiceCommand(normalized.goalText);
+      if (command) {
+        const project = await resolveProjectByIdentifier({
+          repositories,
+          projectId: normalized.projectId,
+          slackClient: options.slackClient,
+        });
+        if (!project) return null;
+        if (command.type !== "status") {
+          applyCustomerVoiceCommand({
+            memoryStore,
+            projectId: project.id,
+            command,
+          });
+        }
+        return {
+          channelId,
+          threadTs,
+          text: buildCustomerVoiceStatusText({
+            projectId: project.id,
+            profile: readProjectCustomerVoiceProfile({
+              memoryStore,
+              projectId: project.id,
+            }),
+          }),
+        } satisfies SlackConversationReply;
+      }
+      return null;
+    }
+
+    const intent = detectConversationalIntent(text);
+    if (!intent) return null;
     const projectIds = repositories.projects.list().map((project) => project.id);
     return {
       channelId,
@@ -437,6 +468,31 @@ export async function maybeBuildConversationReply(
     slackClient: options.slackClient,
   });
   if (!project) return null;
+
+  const command = parseCustomerVoiceCommand(text);
+  if (command) {
+    if (command.type !== "status") {
+      applyCustomerVoiceCommand({
+        memoryStore,
+        projectId: project.id,
+        command,
+      });
+    }
+    return {
+      channelId,
+      threadTs,
+      text: buildCustomerVoiceStatusText({
+        projectId: project.id,
+        profile: readProjectCustomerVoiceProfile({
+          memoryStore,
+          projectId: project.id,
+        }),
+      }),
+    } satisfies SlackConversationReply;
+  }
+
+  const intent = detectConversationalIntent(text);
+  if (!intent) return null;
 
   return {
     channelId,

@@ -1,4 +1,5 @@
 import { MemoryStore } from "../memory/store";
+import { determineSpecialistExecutionMode } from "../codex/executor";
 import { ROLE_REGISTRY, type RoleName } from "../roles";
 import {
   type ImpactLevel,
@@ -6,11 +7,22 @@ import {
   validateSpecialistResult,
 } from "../roles/contracts";
 import type { CodexSpecialistExecution } from "../codex/executor";
+import type {
+  CustomerVoiceDelegationDecision,
+  CustomerVoicePersona,
+} from "./customer-voice-director";
 
 export interface SpecialistImpact {
   role: string;
   level: ImpactLevel;
   message: string;
+}
+
+function executorFailureSummary(role: RoleName, executionMode: "analyze" | "write") {
+  if (executionMode === "write") {
+    return `${ROLE_REGISTRY[role].role} 실행기에서 오류가 나서 실제 수정 또는 검증을 끝내지 못했어요.`;
+  }
+  return `${ROLE_REGISTRY[role].role} 분석 실행기에서 오류가 나서 이번 라운드 근거 수집이 중단됐어요.`;
 }
 
 export type SpecialistExecutor = (input: {
@@ -19,6 +31,9 @@ export type SpecialistExecutor = (input: {
   goalTitle: string;
   runId?: string | null;
   memoryStore?: MemoryStore;
+  personaLabel?: string;
+  customerVoiceDecision?: CustomerVoiceDelegationDecision;
+  customerVoicePersona?: CustomerVoicePersona;
 }) => Promise<CodexSpecialistExecution | SpecialistResult>;
 
 function isWrappedExecution(
@@ -111,7 +126,11 @@ export function preserveSpecialistImpacts(
 
 export async function runSpecialist(input: {
   role: RoleName;
-  input: Record<string, unknown>;
+  input: Record<string, unknown> & {
+    personaLabel?: string;
+    customerVoiceDecision?: CustomerVoiceDelegationDecision;
+    customerVoicePersona?: CustomerVoicePersona;
+  };
   memoryStore?: MemoryStore;
   executor?: SpecialistExecutor;
 }) {
@@ -141,6 +160,9 @@ export async function runSpecialist(input: {
         goalTitle,
         runId,
         memoryStore: input.memoryStore,
+        personaLabel: input.input.personaLabel,
+        customerVoiceDecision: input.input.customerVoiceDecision,
+        customerVoicePersona: input.input.customerVoicePersona,
       });
       result = isWrappedExecution(executed) ? executed.result : executed;
       if (input.memoryStore && isWrappedExecution(executed)) {
@@ -157,8 +179,34 @@ export async function runSpecialist(input: {
           );
         }
       }
-    } catch {
-      result = null;
+    } catch (error) {
+      const executionMode = determineSpecialistExecutionMode({
+        role: input.role,
+        goalTitle,
+      });
+      const message = error instanceof Error ? error.message : String(error);
+      if (input.memoryStore && runId) {
+        input.memoryStore.putRunFact(
+          runId,
+          `specialist.${input.role}.executor_error`,
+          message,
+        );
+      }
+      if (executionMode === "write") {
+        result = {
+          role: input.role,
+          summary: executorFailureSummary(input.role, executionMode),
+          impact: "blocking",
+          artifacts: [{ kind: "report", title: `${input.role}-report.md` }],
+          rawFindings: [message],
+          executionMode,
+          changedFiles: [],
+          verificationNotes: [],
+          personaLabel: input.input.personaLabel,
+        };
+      } else {
+        result = null;
+      }
     }
   }
 
@@ -169,6 +217,7 @@ export async function runSpecialist(input: {
       impact: profile.defaultImpact,
       artifacts: [{ kind: "report", title: `${input.role}-report.md` }],
       rawFindings: [profile.invoke],
+      personaLabel: input.input.personaLabel,
     };
   }
 

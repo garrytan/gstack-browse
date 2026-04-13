@@ -1,5 +1,7 @@
 import { test, expect } from "bun:test";
 import { processSlackPayload } from "../src/slack/ingress";
+import { MemoryStore } from "../src/memory/store";
+import { readProjectCustomerVoiceProfile } from "../src/orchestrator/customer-voice-director";
 import { openStore } from "../src/state/store";
 
 test("processSlackPayload ignores unsupported Slack event callbacks without queueing a run", async () => {
@@ -61,7 +63,7 @@ test("processSlackPayload replies to greeting in ai-ops channel without creating
   expect(posted).toHaveLength(1);
   expect(posted[0]?.channel).toBe("C_TOTAL");
   expect(posted[0]?.thread_ts).toBe("1712900000.000100");
-  expect(posted[0]?.text).toContain("총괄:");
+  expect(posted[0]?.text).toContain("총괄");
   expect(posted[0]?.text).toContain("프로젝트명: 목표");
   expect(store.db.query("select count(*) as count from runs").get()).toEqual({ count: 0 });
 });
@@ -281,4 +283,87 @@ test("processSlackPayload auto-registers an ai-ops project when a matching Slack
     slackChannelId: "C_PET_SANDBOX",
   });
   expect(store.repositories.goals.listByProject("pet-sandbox")).toHaveLength(1);
+});
+
+test("processSlackPayload updates customer voice settings in a project channel without queueing work", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "test",
+    slackChannelId: "C_TEST",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TEST",
+        user: "U_TONY",
+        text: "고객관점 base-url: http://127.0.0.1:5173",
+        ts: "1712900000.000600",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.text).toContain("고객관점 설정");
+  expect(
+    readProjectCustomerVoiceProfile({
+      memoryStore: new MemoryStore(store.db),
+      projectId: "test",
+    }).simulation.baseUrl,
+  ).toBe("http://127.0.0.1:5173");
+  expect(store.repositories.goals.listByProject("test")).toHaveLength(0);
+});
+
+test("processSlackPayload updates customer voice settings from ai-ops with explicit project prefix", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "sherpalabs",
+    slackChannelId: "C_SHERPALABS",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "sherpalabs: 고객관점 상태",
+        ts: "1712900000.000700",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.channel).toBe("C_TOTAL");
+  expect(posted[0]?.text).toContain("#sherpalabs");
+  expect(posted[0]?.text).toContain("persona-driven");
 });

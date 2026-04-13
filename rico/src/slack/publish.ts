@@ -79,7 +79,11 @@ function artifactLinkText(artifact: SlackArtifactReference) {
 }
 
 export function buildImpactMessage(input: ImpactMessageInput) {
-  return `${buildImpactNarration(input.role, input.summary)} 자세한 내용은 ${input.artifactLabel}에 정리해뒀어요.`;
+  return `${buildImpactNarration({
+    role: input.role,
+    summary: input.summary,
+    level: input.impact as "info" | "approval_needed" | "blocking",
+  })}\n- 아티팩트: ${input.artifactLabel}`;
 }
 
 export function buildApprovalRequest(input: BuildApprovalRequestInput): ApprovalRequestMessage {

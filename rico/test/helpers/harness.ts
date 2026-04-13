@@ -211,7 +211,13 @@ export async function createHarness() {
         await recordMessage({
           channelId: mappedProjectChannelId,
           threadTs,
-          text: buildImpactNarration(result.role, result.summary),
+          text: buildImpactNarration({
+            role: result.role,
+            summary: result.summary,
+            level: result.impact,
+            changedFiles: result.changedFiles,
+            verificationNotes: result.verificationNotes,
+          }),
           kind: "impact",
         });
       }

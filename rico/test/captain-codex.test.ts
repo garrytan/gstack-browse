@@ -94,3 +94,40 @@ test("normalizeCaptainPlanForGoal expands empty task graphs into goal-sensitive 
   expect(normalized.nextAction).not.toContain("planner");
   expect(normalized.nextAction).toContain("목표 후보");
 });
+
+test("normalizeCaptainPlanForGoal drops planner from concrete implementation loops unless a planning doc is requested", () => {
+  const normalized = normalizeCaptainPlanForGoal(
+    "실제 수정까지 진행해줘. UX writing을 보완하고 네비게이션을 이어줘",
+    {
+      selectedRoles: ["planner", "frontend", "backend", "qa"],
+      nextAction: "기획이 먼저 수정 범위를 고정한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        {
+          id: "task-1",
+          role: "planner",
+          title: "수정 범위 확정",
+          dependsOn: [],
+        },
+        {
+          id: "task-2",
+          role: "frontend",
+          title: "랜딩 네비게이션 수정",
+          dependsOn: ["task-1"],
+        },
+        {
+          id: "task-3",
+          role: "backend",
+          title: "엔드포인트 보완",
+          dependsOn: ["task-2"],
+        },
+      ],
+    },
+  );
+
+  expect(normalized.selectedRoles).toEqual(["designer", "frontend", "backend", "qa"]);
+  expect(normalized.taskGraph.map((task) => task.role)).toEqual(["designer", "frontend", "backend"]);
+  expect(normalized.taskGraph[0]?.dependsOn).toEqual([]);
+  expect(normalized.taskGraph[1]?.dependsOn).toContain("task-design");
+});
