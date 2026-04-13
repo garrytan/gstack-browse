@@ -385,3 +385,47 @@ The active skill lives at `~/.claude/skills/gstack/`. After making changes:
 Or copy the binaries directly:
 - `cp browse/dist/browse ~/.claude/skills/gstack/browse/dist/browse`
 - `cp design/dist/design ~/.claude/skills/gstack/design/dist/design`
+
+## gstack
+
+**Web browsing:** Always use the `/browse` skill from gstack for all web browsing
+tasks. NEVER use `mcp__claude-in-chrome__*` tools — they are slow, unreliable,
+and not part of the gstack workflow.
+
+**Available skills:**
+
+| Skill | Purpose |
+|-------|---------|
+| `/office-hours` | YC Office Hours — startup diagnostic + builder brainstorm |
+| `/plan-ceo-review` | CEO-perspective plan review |
+| `/plan-eng-review` | Engineering plan review |
+| `/plan-design-review` | Design audit (report only) |
+| `/design-consultation` | Design system from scratch |
+| `/design-shotgun` | Visual design exploration |
+| `/design-html` | Design to HTML conversion |
+| `/review` | PR review |
+| `/ship` | Ship workflow |
+| `/land-and-deploy` | Merge → deploy → canary verify |
+| `/canary` | Post-deploy monitoring loop |
+| `/benchmark` | Performance regression detection |
+| `/browse` | Headless browser interaction |
+| `/connect-chrome` | Headed Chrome with side panel |
+| `/qa` | QA with fixes |
+| `/qa-only` | Report-only QA (no fixes) |
+| `/design-review` | Design audit + fix loop |
+| `/setup-browser-cookies` | Browser cookie setup |
+| `/setup-deploy` | One-time deploy config |
+| `/retro` | Retrospective (cross-project) |
+| `/investigate` | Systematic root-cause debugging |
+| `/document-release` | Post-ship doc updates |
+| `/codex` | Multi-AI second opinion via Codex CLI |
+| `/cso` | OWASP Top 10 + STRIDE security audit |
+| `/autoplan` | Auto-review pipeline (CEO → design → eng) |
+| `/plan-devex-review` | DevEx plan review |
+| `/devex-review` | DevEx review |
+| `/careful` | Extra-careful mode |
+| `/freeze` | Freeze deployments |
+| `/guard` | Guard mode |
+| `/unfreeze` | Unfreeze deployments |
+| `/gstack-upgrade` | Upgrade gstack |
+| `/learn` | Learn from context |
