@@ -41,6 +41,9 @@ test("bootstrap creates the workflow tables", () => {
       .all()
       .map((row: any) => row.name);
     expect(taskColumns).toContain("run_id");
+    expect(taskColumns).toContain("attempt_count");
+    expect(taskColumns).toContain("started_at");
+    expect(taskColumns).toContain("finished_at");
   });
 });
 
@@ -137,24 +140,33 @@ test("current execution snapshot groups the active run and tasks for a goal", ()
       goalId: "goal-2",
       runId: "run-1",
       role: "planner",
-      state: "done",
+      state: "succeeded",
       payloadJson: JSON.stringify({ step: 1 }),
+      attemptCount: 1,
+      startedAt: "2026-04-12T00:01:10.000Z",
+      finishedAt: "2026-04-12T00:01:20.000Z",
     });
     tasks.create({
       id: "task-2",
       goalId: "goal-2",
       runId: "run-1",
       role: "qa",
-      state: "queued",
+      state: "ready",
       payloadJson: JSON.stringify({ step: 2 }),
+      attemptCount: 0,
+      startedAt: null,
+      finishedAt: null,
     });
     tasks.create({
       id: "task-old",
       goalId: "goal-2",
       runId: "run-0",
       role: "qa",
-      state: "done",
+      state: "succeeded",
       payloadJson: JSON.stringify({ step: "old" }),
+      attemptCount: 1,
+      startedAt: "2026-04-11T23:52:00.000Z",
+      finishedAt: "2026-04-11T23:55:00.000Z",
     });
 
     const snapshot = goals.getCurrentExecutionSnapshot("goal-2");
@@ -162,6 +174,12 @@ test("current execution snapshot groups the active run and tasks for a goal", ()
     expect(snapshot.goal?.id).toBe("goal-2");
     expect(snapshot.run?.id).toBe("run-1");
     expect(snapshot.tasks.map((task) => task.id)).toEqual(["task-1", "task-2"]);
+    expect(snapshot.tasks[0]).toMatchObject({
+      state: "succeeded",
+      attemptCount: 1,
+      startedAt: "2026-04-12T00:01:10.000Z",
+      finishedAt: "2026-04-12T00:01:20.000Z",
+    });
   });
 });
 

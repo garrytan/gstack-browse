@@ -143,6 +143,24 @@ function determineFinalGoalState(
   return "approved";
 }
 
+function shouldPostSpecialistMessage(result: SpecialistResult) {
+  if (result.impact === "blocking" || result.impact === "approval_needed") return true;
+  if (result.executionMode === "write") return true;
+  if ((result.changedFiles?.length ?? 0) > 0) return true;
+  if ((result.verificationNotes?.length ?? 0) > 0) return true;
+  if (result.personaLabel) return true;
+  return false;
+}
+
+function shouldExposeCustomerVoicePersona(input: {
+  decision?: ReturnType<typeof decideCustomerVoiceDelegation>;
+  personaCount: number;
+}) {
+  if (!input.decision) return false;
+  if (input.personaCount > 1) return true;
+  return input.decision.mode === "persona-driven" && !input.decision.needsSetup;
+}
+
 async function executeRole(input: {
   role: string;
   payload: GoalIntakePayload;
@@ -185,6 +203,10 @@ async function executeRole(input: {
   }
 
   const results: SpecialistResult[] = [];
+  const exposePersonaLabel = shouldExposeCustomerVoicePersona({
+    decision: input.customerVoiceDecision,
+    personaCount: personas.length,
+  });
   for (const persona of personas) {
     const result = await runSpecialist({
       role: "customer-voice",
@@ -201,7 +223,7 @@ async function executeRole(input: {
     });
     results.push({
       ...result,
-      personaLabel: result.personaLabel ?? persona.label,
+      personaLabel: exposePersonaLabel ? (result.personaLabel ?? persona.label) : undefined,
     });
   }
   return results;
@@ -256,9 +278,17 @@ export function createRuntimeDispatcher(input: {
           title: payload.text,
         }).portfolioRecord;
 
-      input.db.query(
-        "update goals set state = 'in_progress' where id = ?",
-      ).run(payload.goalId);
+      const currentGoalState = repositories.goals.get(payload.goalId)?.state ?? context.goal.state;
+      if (currentGoalState !== "in_progress") {
+        repositories.stateTransitions.append({
+          id: `transition-${context.run.id}-start`,
+          goalId: payload.goalId,
+          fromState: currentGoalState,
+          toState: "in_progress",
+          createdAt: new Date().toISOString(),
+          actor: "captain",
+        });
+      }
       ensureProjectCustomerVoiceProfile({
         memoryStore,
         projectId: payload.projectId,
@@ -300,23 +330,43 @@ export function createRuntimeDispatcher(input: {
       captain.capturePlan(payload.projectId, context.run.id, captainPlan);
       for (const task of captainPlan.taskGraph) {
         input.db.query(
-          `insert into tasks (id, goal_id, run_id, role, state, payload_json)
-           values (?, ?, ?, ?, ?, ?)
+          `insert into tasks (id, goal_id, run_id, role, state, payload_json, attempt_count, started_at, finished_at)
+           values (?, ?, ?, ?, ?, ?, ?, ?, ?)
            on conflict(id) do update set
              goal_id = excluded.goal_id,
              run_id = excluded.run_id,
              role = excluded.role,
              state = excluded.state,
-             payload_json = excluded.payload_json`,
+             payload_json = excluded.payload_json,
+             attempt_count = excluded.attempt_count,
+             started_at = excluded.started_at,
+             finished_at = excluded.finished_at`,
         ).run(
           `${context.run.id}:${task.id}`,
           payload.goalId,
           context.run.id,
           task.role,
-          "planned",
+          task.dependsOn.length === 0 ? "ready" : "planned",
           JSON.stringify(task),
+          0,
+          null,
+          null,
         );
       }
+      if (
+        payload.sourceChannelId
+        && payload.sourceChannelId !== payload.projectChannelId
+      ) {
+        const governorUpdate = await input.slackClient.postMessage({
+          channel: payload.sourceChannelId,
+          thread_ts: payload.intakeThreadTs,
+          text: buildRoutingText(payload.projectId, captainPlan),
+        });
+        if (!governorUpdate.ok) {
+          throw new Error("Slack rejected governor routing update");
+        }
+      }
+
       if (!projectThreadTs) {
         const root = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
@@ -337,22 +387,21 @@ export function createRuntimeDispatcher(input: {
         }
       }
 
-      if (
-        payload.sourceChannelId
-        && payload.sourceChannelId !== payload.projectChannelId
-      ) {
-        const governorUpdate = await input.slackClient.postMessage({
-          channel: payload.sourceChannelId,
-          thread_ts: payload.intakeThreadTs,
-          text: buildRoutingText(payload.projectId, captainPlan),
-        });
-        if (!governorUpdate.ok) {
-          throw new Error("Slack rejected governor routing update");
-        }
-      }
-
       const specialistResults = [];
       for (const role of buildRoleExecutionOrder(captainPlan, specialistRoles)) {
+        const roleTasks = captainPlan.taskGraph.filter((task) => task.role === role);
+        const now = new Date().toISOString();
+        for (const task of roleTasks) {
+          const taskId = `${context.run.id}:${task.id}`;
+          const currentTask = repositories.tasks.get(taskId);
+          repositories.tasks.updateState({
+            id: taskId,
+            state: "running",
+            attemptCount: (currentTask?.attemptCount ?? 0) + 1,
+            startedAt: now,
+            finishedAt: null,
+          });
+        }
         const results = await executeRole({
           role,
           payload,
@@ -363,25 +412,67 @@ export function createRuntimeDispatcher(input: {
         });
         for (const result of results) {
           specialistResults.push(result);
-          const message = await input.slackClient.postMessage({
-            channel: portfolio.projectChannelId,
-            thread_ts: projectThreadTs,
-            text: buildImpactNarration({
-              role: result.role,
-              summary: result.summary,
-              level: result.impact,
-              changedFiles: result.changedFiles,
-              verificationNotes: result.verificationNotes,
-              executionMode: result.executionMode,
-              personaLabel: result.personaLabel,
-            }),
+          if (shouldPostSpecialistMessage(result)) {
+            const message = await input.slackClient.postMessage({
+              channel: portfolio.projectChannelId,
+              thread_ts: projectThreadTs,
+              text: buildImpactNarration({
+                role: result.role,
+                summary: result.summary,
+                level: result.impact,
+                changedFiles: result.changedFiles,
+                verificationNotes: result.verificationNotes,
+                executionMode: result.executionMode,
+                personaLabel: result.personaLabel,
+              }),
+            });
+            if (!message.ok) {
+              throw new Error(`Slack rejected ${result.role} impact message`);
+            }
+          }
+        }
+        const roleImpact = results.some((result) => result.impact === "blocking")
+          ? "blocked"
+          : "succeeded";
+        const finishedAt = new Date().toISOString();
+        for (const task of roleTasks) {
+          repositories.tasks.updateState({
+            id: `${context.run.id}:${task.id}`,
+            state: roleImpact,
+            finishedAt,
           });
-          if (!message.ok) {
-            throw new Error(`Slack rejected ${result.role} impact message`);
+        }
+        const succeededTaskIds = new Set(
+          repositories.tasks
+            .listByRun(context.run.id)
+            .filter((task) => task.state === "succeeded")
+            .map((task) => task.id.replace(`${context.run.id}:`, "")),
+        );
+        for (const task of captainPlan.taskGraph) {
+          const taskId = `${context.run.id}:${task.id}`;
+          const currentTask = repositories.tasks.get(taskId);
+          if (!currentTask || currentTask.state !== "planned") continue;
+          if (task.dependsOn.every((dependency) => succeededTaskIds.has(dependency))) {
+            repositories.tasks.updateState({
+              id: taskId,
+              state: "ready",
+            });
           }
         }
       }
       captain.captureSpecialistResults(payload.projectId, specialistResults);
+
+      const goalStateBeforeQa = repositories.goals.get(payload.goalId)?.state ?? context.goal.state;
+      if (goalStateBeforeQa !== "awaiting_qa") {
+        repositories.stateTransitions.append({
+          id: `transition-${context.run.id}-awaiting-qa`,
+          goalId: payload.goalId,
+          fromState: goalStateBeforeQa,
+          toState: "awaiting_qa",
+          createdAt: new Date().toISOString(),
+          actor: "captain",
+        });
+      }
 
       const baseFinalGoalState = determineFinalGoalState(
         specialistResults.map((result) => ({
@@ -459,7 +550,7 @@ export function createRuntimeDispatcher(input: {
             goalId: payload.goalId,
             actionType: "deploy",
             rationale: deployDecision.blockingReason ?? null,
-            fromState: "in_progress",
+            fromState: "approved",
             toState: deployDecision.state,
             actor: "governor",
           });

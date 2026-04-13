@@ -12,6 +12,14 @@ import {
   parseCustomerVoiceCommand,
 } from "./customer-voice-commands";
 import {
+  buildGovernorApprovalBacklogText,
+  buildGovernorPolicyChangeText,
+  buildGovernorQueueText,
+  buildGovernorSnapshot,
+  buildGovernorStatusSnapshotText,
+  parseGovernorCommand,
+} from "./governor-commands";
+import {
   buildAiOpsGreetingText,
   buildAiOpsStatusText,
   buildProjectGreetingText,
@@ -398,7 +406,7 @@ export async function bootstrapSlackIntake(
 export async function maybeBuildConversationReply(
   db: Database,
   payload: Record<string, unknown>,
-  options: { aiOpsChannelId: string; slackClient?: SlackMessageClient },
+  options: { aiOpsChannelId: string; maxActiveProjects?: number; slackClient?: SlackMessageClient },
 ) {
   const event = resolveEvent(payload);
   const channelId = resolveChannelId(payload, event);
@@ -447,6 +455,79 @@ export async function maybeBuildConversationReply(
         } satisfies SlackConversationReply;
       }
       return null;
+    }
+
+    const governorCommand = parseGovernorCommand(text);
+    if (governorCommand) {
+      if (governorCommand.type === "status") {
+        return {
+          channelId,
+          threadTs,
+          text: buildGovernorStatusSnapshotText(
+            buildGovernorSnapshot(repositories, options.maxActiveProjects ?? 2),
+          ),
+        } satisfies SlackConversationReply;
+      }
+      if (governorCommand.type === "queue") {
+        return {
+          channelId,
+          threadTs,
+          text: buildGovernorQueueText(
+            buildGovernorSnapshot(repositories, options.maxActiveProjects ?? 2),
+          ),
+        } satisfies SlackConversationReply;
+      }
+      if (governorCommand.type === "approval_backlog") {
+        return {
+          channelId,
+          threadTs,
+          text: buildGovernorApprovalBacklogText(
+            buildGovernorSnapshot(repositories, options.maxActiveProjects ?? 2),
+          ),
+        } satisfies SlackConversationReply;
+      }
+
+      const project = await resolveProjectByIdentifier({
+        repositories,
+        projectId: governorCommand.projectId,
+        slackClient: options.slackClient,
+      });
+      if (!project) {
+        return {
+          channelId,
+          threadTs,
+          text: `총괄: #${governorCommand.projectId} 프로젝트를 찾지 못했어요.`,
+        } satisfies SlackConversationReply;
+      }
+
+      if (governorCommand.type === "pause") {
+        repositories.projects.update({
+          id: project.id,
+          paused: true,
+        });
+      } else if (governorCommand.type === "resume") {
+        repositories.projects.update({
+          id: project.id,
+          paused: false,
+        });
+      } else {
+        repositories.projects.update({
+          id: project.id,
+          priority: governorCommand.priority,
+        });
+      }
+
+      return {
+        channelId,
+        threadTs,
+        text: buildGovernorPolicyChangeText({
+          projectId: project.id,
+          action: governorCommand.type,
+          priority: governorCommand.type === "reprioritize"
+            ? governorCommand.priority
+            : undefined,
+        }),
+      } satisfies SlackConversationReply;
     }
 
     const intent = detectConversationalIntent(text);

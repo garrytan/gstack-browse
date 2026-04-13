@@ -38,6 +38,9 @@ export interface TaskRecord {
   role: string;
   state: string;
   payloadJson: string;
+  attemptCount: number;
+  startedAt: string | null;
+  finishedAt: string | null;
 }
 
 export interface ApprovalRecord {
@@ -134,6 +137,22 @@ export function createRepositories(db: Database) {
         paused: toBoolean(row.paused),
       }));
     },
+    update(input: { id: string; priority?: number; paused?: boolean }) {
+      const project = projects.get(input.id);
+      if (!project) {
+        throw new Error(`unknown project: ${input.id}`);
+      }
+      db.query(
+        `update projects
+         set priority = coalesce(?, priority),
+             paused = coalesce(?, paused)
+         where id = ?`,
+      ).run(
+        input.priority ?? null,
+        input.paused == null ? null : input.paused ? 1 : 0,
+        input.id,
+      );
+    },
   };
 
   const initiatives = {
@@ -211,6 +230,18 @@ export function createRepositories(db: Database) {
           state: row.state,
         }));
     },
+    list(): GoalRecord[] {
+      return db
+        .query("select * from goals order by id asc")
+        .all()
+        .map((row: any) => ({
+          id: row.id,
+          initiativeId: row.initiative_id,
+          projectId: row.project_id,
+          title: row.title,
+          state: row.state,
+        }));
+    },
     updateState(goalId: string, state: string) {
       db.query("update goals set state = ? where id = ?").run(state, goalId);
     },
@@ -221,7 +252,17 @@ export function createRepositories(db: Database) {
           `select * from runs
            where goal_id = ?
            order by
-             case status when 'running' then 0 when 'in_progress' then 0 when 'queued' then 1 else 2 end asc,
+           case status when 'running' then 0 when 'in_progress' then 0 when 'queued' then 1 else 2 end asc,
+             case
+               when status = 'running' then 0
+               when status = 'queued' then 1
+               when status = 'succeeded' then 2
+               when status = 'failed' then 3
+               when status = 'cancelled' then 4
+               when status = 'in_progress' then 0
+               when status = 'finished' then 2
+               else 5
+             end asc,
              coalesce(started_at, queued_at, finished_at) desc,
              id desc
            limit 1`,
@@ -293,6 +334,19 @@ export function createRepositories(db: Database) {
           finishedAt: row.finished_at,
         }));
     },
+    list(): RunRecord[] {
+      return db
+        .query("select * from runs order by coalesce(started_at, queued_at, finished_at) asc, id asc")
+        .all()
+        .map((row: any) => ({
+          id: row.id,
+          goalId: row.goal_id,
+          status: row.status,
+          queuedAt: row.queued_at,
+          startedAt: row.started_at,
+          finishedAt: row.finished_at,
+        }));
+    },
   };
 
   const tasks = {
@@ -303,17 +357,33 @@ export function createRepositories(db: Database) {
       role: string;
       state: string;
       payloadJson: string;
+      attemptCount?: number;
+      startedAt?: string | null;
+      finishedAt?: string | null;
     }) {
       db.query(
-        `insert into tasks (id, goal_id, run_id, role, state, payload_json)
-         values (?, ?, ?, ?, ?, ?)
+        `insert into tasks (id, goal_id, run_id, role, state, payload_json, attempt_count, started_at, finished_at)
+         values (?, ?, ?, ?, ?, ?, ?, ?, ?)
          on conflict(id) do update set
            goal_id = excluded.goal_id,
            run_id = excluded.run_id,
            role = excluded.role,
            state = excluded.state,
-           payload_json = excluded.payload_json`,
-      ).run(input.id, input.goalId, input.runId, input.role, input.state, input.payloadJson);
+           payload_json = excluded.payload_json,
+           attempt_count = excluded.attempt_count,
+           started_at = excluded.started_at,
+           finished_at = excluded.finished_at`,
+      ).run(
+        input.id,
+        input.goalId,
+        input.runId,
+        input.role,
+        input.state,
+        input.payloadJson,
+        input.attemptCount ?? 0,
+        input.startedAt ?? null,
+        input.finishedAt ?? null,
+      );
     },
     get(id: string): TaskRecord | null {
       return one(
@@ -324,6 +394,9 @@ export function createRepositories(db: Database) {
           role: row.role,
           state: row.state,
           payloadJson: row.payload_json,
+          attemptCount: row.attempt_count ?? 0,
+          startedAt: row.started_at ?? null,
+          finishedAt: row.finished_at ?? null,
         })),
       );
     },
@@ -338,6 +411,9 @@ export function createRepositories(db: Database) {
           role: row.role,
           state: row.state,
           payloadJson: row.payload_json,
+          attemptCount: row.attempt_count ?? 0,
+          startedAt: row.started_at ?? null,
+          finishedAt: row.finished_at ?? null,
         }));
     },
     listByRun(runId: string): TaskRecord[] {
@@ -351,7 +427,32 @@ export function createRepositories(db: Database) {
           role: row.role,
           state: row.state,
           payloadJson: row.payload_json,
+          attemptCount: row.attempt_count ?? 0,
+          startedAt: row.started_at ?? null,
+          finishedAt: row.finished_at ?? null,
         }));
+    },
+    updateState(input: {
+      id: string;
+      state: string;
+      attemptCount?: number;
+      startedAt?: string | null;
+      finishedAt?: string | null;
+    }) {
+      db.query(
+        `update tasks
+         set state = ?,
+             attempt_count = coalesce(?, attempt_count),
+             started_at = coalesce(?, started_at),
+             finished_at = ?
+         where id = ?`,
+      ).run(
+        input.state,
+        input.attemptCount ?? null,
+        input.startedAt ?? null,
+        input.finishedAt ?? null,
+        input.id,
+      );
     },
   };
 
@@ -377,6 +478,18 @@ export function createRepositories(db: Database) {
       return db
         .query("select * from approvals where goal_id = ? order by id asc")
         .all(goalId)
+        .map((row: any) => ({
+          id: row.id,
+          goalId: row.goal_id,
+          type: row.type,
+          status: row.status,
+          rationale: row.rationale,
+        }));
+    },
+    list(): ApprovalRecord[] {
+      return db
+        .query("select * from approvals order by id asc")
+        .all()
         .map((row: any) => ({
           id: row.id,
           goalId: row.goal_id,

@@ -44,6 +44,7 @@ export function createRicoRuntime(input: {
   const fetch = createSlackRouter({
     db: store.db,
     aiOpsChannelId: config.aiOpsChannelId,
+    maxActiveProjects: config.maxActiveProjects,
     signingSecret: config.slackSigningSecret,
     slackClient,
     triggerDrain: () => runner.kick(),

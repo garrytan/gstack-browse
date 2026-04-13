@@ -7,6 +7,7 @@ import { verifySlackRequest } from "./signing";
 interface SlackRouterOptions {
   db: Database;
   aiOpsChannelId: string;
+  maxActiveProjects?: number;
   signingSecret: string;
   slackClient?: SlackMessageClient;
   runIdFactory?: () => string;

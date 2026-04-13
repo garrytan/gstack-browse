@@ -8,6 +8,7 @@ import type { SlackMessageClient } from "./publish";
 export interface SlackIngressOptions {
   db: Database;
   aiOpsChannelId: string;
+  maxActiveProjects?: number;
   slackClient?: SlackMessageClient;
   runIdFactory?: () => string;
   triggerDrain?: () => void | Promise<void>;
@@ -33,6 +34,7 @@ export async function processSlackPayload(
 
   const conversationReply = await maybeBuildConversationReply(options.db, payload, {
     aiOpsChannelId: options.aiOpsChannelId,
+    maxActiveProjects: options.maxActiveProjects ?? 2,
     slackClient: options.slackClient,
   });
   if (conversationReply && options.slackClient) {

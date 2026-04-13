@@ -61,9 +61,9 @@ export async function drainNextQueuedRun(
 
   try {
     await options.dispatch?.(context);
-    db.query("update runs set status = 'finished', finished_at = ? where id = ?")
+    db.query("update runs set status = 'succeeded', finished_at = ? where id = ?")
       .run(options.finishedAt ?? new Date().toISOString(), claimed.id);
-    return { ...claimed, status: "finished" as const, target: context.target };
+    return { ...claimed, status: "succeeded" as const, target: context.target };
   } catch (error) {
     db.query("update runs set status = 'failed', finished_at = ? where id = ?")
       .run(options.finishedAt ?? new Date().toISOString(), claimed.id);

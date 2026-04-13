@@ -18,6 +18,22 @@ export interface SpecialistImpact {
   message: string;
 }
 
+function enforceResultContracts(result: SpecialistResult) {
+  if (
+    result.role === "qa"
+    && result.impact === "blocking"
+    && (!result.verificationNotes || result.verificationNotes.length === 0)
+  ) {
+    return {
+      ...result,
+      impact: "approval_needed" as const,
+      summary: `${result.summary} 검증 근거가 더 필요해요.`,
+    };
+  }
+
+  return result;
+}
+
 function executorFailureSummary(role: RoleName, executionMode: "analyze" | "write") {
   if (executionMode === "write") {
     return `${ROLE_REGISTRY[role].role} 실행기에서 오류가 나서 실제 수정 또는 검증을 끝내지 못했어요.`;
@@ -221,6 +237,7 @@ export async function runSpecialist(input: {
     };
   }
 
+  result = enforceResultContracts(result);
   const validated = validateSpecialistResult(result);
   if (!validated.ok) {
     throw new Error("invalid specialist output");

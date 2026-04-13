@@ -4,6 +4,20 @@ import { Database } from "bun:sqlite";
 import { BOOTSTRAP_SQL } from "./schema";
 import { createRepositories } from "./repositories";
 
+function ensureColumn(
+  db: Database,
+  table: string,
+  column: string,
+  definition: string,
+) {
+  const columns = db
+    .query(`pragma table_info(${table})`)
+    .all()
+    .map((row: any) => row.name as string);
+  if (columns.includes(column)) return;
+  db.exec(`alter table ${table} add column ${column} ${definition};`);
+}
+
 export function openStore(dbPath: string) {
   mkdirSync(dirname(dbPath), { recursive: true });
 
@@ -16,6 +30,9 @@ export function openStore(dbPath: string) {
     throw new Error("Failed to enable SQLite foreign keys");
   }
   db.exec(BOOTSTRAP_SQL);
+  ensureColumn(db, "tasks", "attempt_count", "integer not null default 0");
+  ensureColumn(db, "tasks", "started_at", "text");
+  ensureColumn(db, "tasks", "finished_at", "text");
 
   return {
     db,

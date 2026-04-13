@@ -98,7 +98,7 @@ test("dispatcher releases the governor slot after a Slack failure", async () => 
     runId: "run-2",
   });
 
-  await expect(dispatcher(firstContext)).rejects.toThrow("Slack rejected project thread root");
+  await expect(dispatcher(firstContext)).rejects.toThrow("Slack rejected governor routing update");
   await expect(dispatcher(secondContext)).resolves.toBeUndefined();
 
   store.db.close();
@@ -175,7 +175,7 @@ test("dispatcher keeps approval state changes atomic when approval transition in
   await expect(dispatcher(context)).rejects.toThrow();
 
   expect(store.repositories.approvals.listByGoal("goal-1")).toHaveLength(0);
-  expect(store.repositories.goals.get("goal-1")?.state).toBe("in_progress");
+  expect(store.repositories.goals.get("goal-1")?.state).toBe("awaiting_qa");
 
   store.db.close();
 });
@@ -444,6 +444,165 @@ test("dispatcher respects captain task order and waits for upstream specialists 
   store.db.close();
 });
 
+test("dispatcher moves goals through awaiting_qa before approval and updates task states", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    captainExecutor: async () => ({
+      selectedRoles: ["frontend", "qa"],
+      nextAction: "QA 기준으로 최종 확인을 끝낸다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        { id: "task-1", role: "frontend", title: "랜딩 CTA 연결", dependsOn: [] },
+        { id: "task-2", role: "qa", title: "변경 사항 회귀 검증", dependsOn: ["task-1"] },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => {
+      if (role === "frontend") {
+        return {
+          result: {
+            role,
+            summary: "랜딩 CTA와 /ai-employee 진입을 연결했어요.",
+            impact: "info",
+            artifacts: [{ kind: "report", title: "frontend.md" }],
+            rawFindings: [],
+            executionMode: "write",
+            changedFiles: ["src/app/App.tsx"],
+            verificationNotes: ["npm test -- --run src/app/App.aiEmployeeRoute.test.tsx"],
+          },
+          meta: {
+            workspacePath: "/tmp/workspace",
+            tokensUsed: 1,
+            inspectedWorkspace: true,
+          },
+        };
+      }
+
+      return {
+        result: {
+          role,
+          summary: "변경 파일 기준 회귀 검증을 마쳤고 차단 이슈는 없어요.",
+          impact: "info",
+          artifacts: [{ kind: "report", title: "qa.md" }],
+          rawFindings: [],
+          executionMode: "write",
+          changedFiles: ["qa/verification.md"],
+          verificationNotes: ["npm test -- --run src/app/App.aiEmployeeRoute.test.tsx"],
+        },
+        meta: {
+          workspacePath: "/tmp/workspace",
+          tokensUsed: 1,
+          inspectedWorkspace: true,
+        },
+      };
+    },
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000009${posted.length}.000100` };
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "sherpalabs",
+    projectChannelId: "C_SHERPALABS",
+    goalId: "goal-awaiting-qa",
+    goalTitle: "메인 랜딩과 ai-employee 동선을 연결하고 QA까지 끝내줘",
+    runId: "run-awaiting-qa",
+    payload: {
+      sourceChannelId: "C_SHERPALABS",
+      intakeThreadTs: "1710008999.000100",
+    },
+  });
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  expect(
+    store.repositories.stateTransitions.listByGoal("goal-awaiting-qa").map((transition) => transition.toState),
+  ).toEqual(["in_progress", "awaiting_qa", "approved"]);
+  expect(store.repositories.goals.get("goal-awaiting-qa")?.state).toBe("approved");
+  expect(store.repositories.tasks.listByRun("run-awaiting-qa")).toEqual([
+    expect.objectContaining({ id: "run-awaiting-qa:task-1", state: "succeeded" }),
+    expect.objectContaining({ id: "run-awaiting-qa:task-2", state: "succeeded" }),
+  ]);
+
+  store.db.close();
+});
+
+test("dispatcher folds analyze-only info specialists into captain summary instead of posting each one", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    captainExecutor: async () => ({
+      selectedRoles: ["planner", "customer-voice"],
+      nextAction: "목표 후보를 두 개로 줄인다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        { id: "task-1", role: "planner", title: "목표 후보 정리", dependsOn: [] },
+        { id: "task-2", role: "customer-voice", title: "사용자 약속 점검", dependsOn: ["task-1"] },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: role === "planner" ? "첫 목표 후보를 두 개로 좁혔어요." : "왜 중요한지가 조금 더 드러나면 좋아요.",
+        impact: "info",
+        artifacts: [{ kind: "report", title: `${role}.md` }],
+        rawFindings: [],
+        executionMode: "analyze",
+        changedFiles: [],
+        verificationNotes: [],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000010${posted.length}.000100` };
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "test",
+    projectChannelId: "C_TEST",
+    goalId: "goal-info-fold",
+    goalTitle: "이 채널 목표 제안해봐",
+    runId: "run-info-fold",
+    payload: {
+      sourceChannelId: "C_TEST",
+      intakeThreadTs: "1710009999.000100",
+    },
+  });
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  expect(
+    posted.some((message) => message.text.startsWith("🧠 기획") || message.text.startsWith("🗣️ 고객 관점")),
+  ).toBe(false);
+  expect(
+    posted.some(
+      (message) =>
+        message.text.includes("캡틴 계획") || message.text.includes("캡틴 마감"),
+    ),
+  ).toBe(true);
+
+  store.db.close();
+});
+
 test("dispatcher keeps ai-ops voice on the governor and includes captain delegation in the routing note", async () => {
   const store = openStore(":memory:");
   const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
@@ -489,8 +648,10 @@ test("dispatcher keeps ai-ops voice on the governor and includes captain delegat
 
   const aiOpsMessages = posted.filter((message) => message.channel === "C_AI_OPS");
   const firstAiOpsIndex = posted.findIndex((message) => message.channel === "C_AI_OPS");
-  const firstProjectImpactIndex = posted.findIndex(
-    (message) => message.channel === "C_MYPETROUTINE" && /^(🧱 백엔드|🖥️ 프론트엔드|🧪 QA)/.test(message.text),
+  const firstProjectMessageIndex = posted.findIndex(
+    (message) =>
+      message.channel === "C_MYPETROUTINE"
+      && (message.text.includes("캡틴 계획") || message.text.includes("캡틴 진행") || message.text.includes("캡틴 마감")),
   );
   expect(aiOpsMessages.some((message) => message.text.includes("총괄"))).toBe(true);
   expect(
@@ -502,7 +663,7 @@ test("dispatcher keeps ai-ops voice on the governor and includes captain delegat
   ).toBe(true);
   expect(aiOpsMessages.every((message) => !message.text.includes("캡틴"))).toBe(true);
   expect(firstAiOpsIndex).toBeGreaterThanOrEqual(0);
-  expect(firstProjectImpactIndex).toBeGreaterThan(firstAiOpsIndex);
+  expect(firstProjectMessageIndex).toBeGreaterThan(firstAiOpsIndex);
 
   store.db.close();
 });
@@ -599,7 +760,7 @@ test("dispatcher closes the goal with a final report and mirrors completion back
   expect(
     store.repositories.stateTransitions.listByGoal("goal-final-report").at(-1),
   ).toMatchObject({
-    fromState: "in_progress",
+    fromState: "awaiting_qa",
     toState: "awaiting_human_approval",
     actor: "captain",
   });

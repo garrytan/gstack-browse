@@ -367,3 +367,257 @@ test("processSlackPayload updates customer voice settings from ai-ops with expli
   expect(posted[0]?.text).toContain("#sherpalabs");
   expect(posted[0]?.text).toContain("persona-driven");
 });
+
+test("processSlackPayload shows a structured governor status snapshot in ai-ops", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+    priority: 8,
+  });
+  store.repositories.projects.create({
+    id: "sherpalabs",
+    slackChannelId: "C_SHERPALABS",
+    priority: 3,
+    paused: true,
+  });
+  store.repositories.goals.create({
+    id: "goal-active",
+    projectId: "mypetroutine",
+    initiativeId: null,
+    title: "온보딩 개선",
+    state: "in_progress",
+  });
+  store.repositories.runs.create({
+    id: "run-active",
+    goalId: "goal-active",
+    status: "running",
+    queuedAt: "2026-04-14T01:00:00.000Z",
+    startedAt: "2026-04-14T01:05:00.000Z",
+    finishedAt: null,
+  });
+  store.repositories.goals.create({
+    id: "goal-approval",
+    projectId: "sherpalabs",
+    initiativeId: null,
+    title: "배포 준비",
+    state: "awaiting_human_approval",
+  });
+  store.repositories.approvals.create({
+    id: "approval-1",
+    goalId: "goal-approval",
+    type: "deploy",
+    status: "pending",
+    rationale: "배포 전 확인 필요",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000500" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "상태",
+        ts: "1712900000.000900",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.text).toContain("총괄 상태");
+  expect(posted[0]?.text).toContain("활성 프로젝트");
+  expect(posted[0]?.text).toContain("#mypetroutine");
+  expect(posted[0]?.text).toContain("승인 대기");
+  expect(posted[0]?.text).toContain("#sherpalabs");
+  expect(posted[0]?.text).toContain("일시정지");
+});
+
+test("processSlackPayload applies governor pause, resume, and reprioritize commands in ai-ops", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const slackClient = {
+    async postMessage(input: { channel: string; thread_ts?: string; text: string }) {
+      posted.push(input);
+      return { ok: true, ts: "1710000000.000600" };
+    },
+  };
+
+  await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient,
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "우선순위 mypetroutine 9",
+        ts: "1712900000.001000",
+      },
+    },
+  );
+  await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient,
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "일시정지 mypetroutine",
+        ts: "1712900000.001100",
+      },
+    },
+  );
+  await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient,
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "재개 mypetroutine",
+        ts: "1712900000.001200",
+      },
+    },
+  );
+
+  expect(store.repositories.projects.get("mypetroutine")).toMatchObject({
+    priority: 9,
+    paused: false,
+  });
+  expect(posted).toHaveLength(3);
+  expect(posted[0]?.text).toContain("총괄 정책 변경");
+  expect(posted[0]?.text).toContain("우선순위: 9");
+  expect(posted[1]?.text).toContain("일시정지");
+  expect(posted[2]?.text).toContain("재개");
+});
+
+test("processSlackPayload summarizes queued and pending approval projects in ai-ops", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+    priority: 4,
+  });
+  store.repositories.projects.create({
+    id: "sherpalabs",
+    slackChannelId: "C_SHERPALABS",
+    priority: 7,
+  });
+  store.repositories.goals.create({
+    id: "goal-queued",
+    projectId: "mypetroutine",
+    initiativeId: null,
+    title: "QA 재검증",
+    state: "planned",
+  });
+  store.repositories.runs.create({
+    id: "run-queued",
+    goalId: "goal-queued",
+    status: "queued",
+    queuedAt: "2026-04-14T02:00:00.000Z",
+    startedAt: null,
+    finishedAt: null,
+  });
+  store.repositories.goals.create({
+    id: "goal-approval",
+    projectId: "sherpalabs",
+    initiativeId: null,
+    title: "배포 승인",
+    state: "awaiting_human_approval",
+  });
+  store.repositories.approvals.create({
+    id: "approval-queued",
+    goalId: "goal-approval",
+    type: "deploy",
+    status: "pending",
+    rationale: "릴리즈 전 확인",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const slackClient = {
+    async postMessage(input: { channel: string; thread_ts?: string; text: string }) {
+      posted.push(input);
+      return { ok: true, ts: "1710000000.000700" };
+    },
+  };
+
+  await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient,
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "대기열",
+        ts: "1712900000.001300",
+      },
+    },
+  );
+  await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient,
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "승인 대기",
+        ts: "1712900000.001400",
+      },
+    },
+  );
+
+  expect(posted).toHaveLength(2);
+  expect(posted[0]?.text).toContain("총괄 대기열");
+  expect(posted[0]?.text).toContain("#mypetroutine");
+  expect(posted[1]?.text).toContain("총괄 승인 대기");
+  expect(posted[1]?.text).toContain("#sherpalabs");
+  expect(posted[1]?.text).toContain("deploy");
+});

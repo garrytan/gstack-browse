@@ -33,10 +33,10 @@ test("runSpecialist validates, persists, and returns qa impact", async () => {
   });
 
   expect(result.role).toBe("qa");
-  expect(result.summary).toBe("verify onboarding");
-  expect(result.impact).toBe("blocking");
+  expect(result.summary).toContain("verify onboarding");
+  expect(result.impact).toBe("approval_needed");
   expect(memoryStore.getRunMemory("run-1")["specialist.qa.impact"]).toBe(
-    "blocking",
+    "approval_needed",
   );
   expect(
     memoryStore.getRunMemory("run-1")["specialist.qa.result_json"],
@@ -174,6 +174,38 @@ test("runSpecialist falls back to heuristic output when the executor fails", asy
   db.db.close();
 });
 
+test("QA blocking results require evidence and are downgraded when verification is missing", async () => {
+  const db = openStore(":memory:");
+  const memoryStore = new MemoryStore(db.db);
+
+  const result = await runSpecialist({
+    role: "qa",
+    input: {
+      goalId: "goal-qa-evidence",
+      projectId: "sherpalabs",
+      runId: "run-qa-evidence",
+      goalTitle: "실환경 회귀 여부를 검증해줘",
+    },
+    memoryStore,
+    executor: async () => ({
+      role: "qa",
+      summary: "회귀로 보여서 배포를 막아야 해요.",
+      impact: "blocking",
+      artifacts: [{ kind: "report", title: "qa-report.md" }],
+      rawFindings: ["느낌상 위험해 보임"],
+      executionMode: "write",
+      changedFiles: [],
+      verificationNotes: [],
+    }),
+  });
+
+  expect(result.impact).toBe("approval_needed");
+  expect(result.summary).toContain("검증 근거");
+  expect(result.verificationNotes).toEqual([]);
+
+  db.db.close();
+});
+
 test("runSpecialist surfaces write-mode executor failures as blocking instead of generic fallback", async () => {
   const db = openStore(":memory:");
   const memoryStore = new MemoryStore(db.db);
@@ -240,13 +272,13 @@ test("Captain stores validated specialist results without rewriting impact", asy
 
   expect(captain.getStoredSpecialistResults("mypetroutine")).toEqual(results);
   expect(captain.getStoredSpecialistResults("mypetroutine")[0]?.impact).toBe(
-    "blocking",
+    "approval_needed",
   );
   expect(
     memoryStore.getProjectMemory("mypetroutine")[
       "captain.specialist.qa.result_json"
     ],
-  ).toContain('"impact":"blocking"');
+  ).toContain('"impact":"approval_needed"');
 
   db.db.close();
 });

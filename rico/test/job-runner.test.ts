@@ -80,12 +80,12 @@ test("drainNextQueuedRun loads goal/project snapshots and routes work before fin
 
   expect(drained).toMatchObject({
     id: "run-1",
-    status: "finished",
+    status: "succeeded",
     target: "governor",
   });
   expect(store.repositories.runs.get("run-1")).toMatchObject({
     id: "run-1",
-    status: "finished",
+    status: "succeeded",
     startedAt: "2026-04-12T00:02:00.000Z",
     finishedAt: "2026-04-12T00:03:00.000Z",
   });

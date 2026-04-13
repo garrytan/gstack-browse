@@ -38,6 +38,9 @@ create table if not exists tasks (
   role text not null,
   state text not null,
   payload_json text not null,
+  attempt_count integer not null default 0,
+  started_at text,
+  finished_at text,
   foreign key (run_id) references runs(id) on delete cascade,
   foreign key (goal_id) references goals(id) on delete cascade
 );
