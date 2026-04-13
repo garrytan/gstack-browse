@@ -5,6 +5,7 @@ import { expect, test } from "bun:test";
 import {
   buildSpecialistPromptForTest,
   determineSpecialistExecutionMode,
+  finalizeSpecialistResultForRuntime,
   normalizeSpecialistResult,
   parseCodexSpecialistResponse,
   parseOrRepairCodexSpecialistResponse,
@@ -431,4 +432,45 @@ test("buildSpecialistPromptForTest exposes playbook guardrails for backend speci
   expect(prompt.includes("api-contract-review")).toBe(true);
 
   store.db.close();
+});
+
+test("finalizeSpecialistResultForRuntime applies playbook artifact templates", () => {
+  const finalized = finalizeSpecialistResultForRuntime({
+    role: "backend",
+    playbookMemory: {
+      artifact_template: "backend-slice.md",
+    },
+    parsed: {
+      summary: "백엔드 변경을 정리했어요.",
+      impact: "info",
+      artifacts: [{ kind: "report", title: "backend-report.md" }],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["src/api/projects.ts"],
+      verificationNotes: ["bun test test/projects.test.ts"],
+    },
+  });
+
+  expect(finalized.artifacts).toEqual([{ kind: "report", title: "backend-slice.md" }]);
+});
+
+test("finalizeSpecialistResultForRuntime marks artifact-only writes explicitly", () => {
+  const finalized = finalizeSpecialistResultForRuntime({
+    role: "customer-voice",
+    playbookMemory: {
+      artifact_template: "customer-voice.md",
+    },
+    parsed: {
+      summary: "고객 관점 증적을 정리했어요.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: [],
+      verificationNotes: ["browser simulation summary"],
+    },
+  });
+
+  expect(finalized.artifacts).toEqual([{ kind: "report", title: "customer-voice.md" }]);
+  expect(finalized.rawFindings.at(-1)).toContain("artifact-only write");
 });

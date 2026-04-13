@@ -397,6 +397,69 @@ function buildPlaybookInstructions(role: RoleName, playbookMemory: Record<string
   return lines.join("\n");
 }
 
+function defaultArtifactTitle(role: RoleName, playbookMemory: Record<string, string>) {
+  const template = playbookMemory.artifact_template?.trim();
+  if (template) return template;
+  return `${ROLE_REGISTRY[role].role}-report.md`;
+}
+
+function ensureArtifactTemplate(input: {
+  role: RoleName;
+  playbookMemory: Record<string, string>;
+  artifacts: Array<{ kind: string; title: string }>;
+}) {
+  const artifactTitle = defaultArtifactTitle(input.role, input.playbookMemory);
+  if (input.artifacts.length === 0) {
+    return [{ kind: "report", title: artifactTitle }];
+  }
+
+  const next = input.artifacts.map((artifact) => ({ ...artifact }));
+  if (next.some((artifact) => artifact.title === artifactTitle)) {
+    return next;
+  }
+
+  const genericReportIndex = next.findIndex(
+    (artifact) => artifact.kind === "report" && /-report\.md$/i.test(artifact.title),
+  );
+  if (genericReportIndex >= 0) {
+    next[genericReportIndex] = {
+      ...next[genericReportIndex]!,
+      title: artifactTitle,
+    };
+    return next;
+  }
+
+  return [{ kind: "report", title: artifactTitle }, ...next];
+}
+
+export function finalizeSpecialistResultForRuntime(input: {
+  role: RoleName;
+  playbookMemory: Record<string, string>;
+  parsed: Omit<SpecialistResult, "role">;
+}) {
+  const artifacts = ensureArtifactTemplate({
+    role: input.role,
+    playbookMemory: input.playbookMemory,
+    artifacts: input.parsed.artifacts,
+  });
+  const changedFiles = input.parsed.changedFiles ?? [];
+  const rawFindings = [...(input.parsed.rawFindings ?? [])];
+
+  if (
+    input.parsed.executionMode === "write"
+    && changedFiles.length === 0
+    && !rawFindings.some((finding) => /artifact-only write/i.test(finding))
+  ) {
+    rawFindings.push("artifact-only write: no repo files were changed");
+  }
+
+  return {
+    ...input.parsed,
+    artifacts,
+    rawFindings,
+  };
+}
+
 function buildCustomerVoiceDirective(input: {
   decision?: CustomerVoiceDelegationDecision;
   persona?: CustomerVoicePersona;
@@ -1139,6 +1202,9 @@ export function createCodexSpecialistExecutor(input: {
       }),
       inspectedWorkspace: response.inspectedWorkspace,
     });
+    const playbookMemory = specialist.memoryStore
+      ? pruneMemory(specialist.memoryStore.getPlaybookMemory(specialist.role))
+      : {};
     const mergedChangedFiles = executionMode === "write"
       ? (
         Array.isArray(observedChangedFiles)
@@ -1147,19 +1213,27 @@ export function createCodexSpecialistExecutor(input: {
       )
       : [];
 
+    const finalized = finalizeSpecialistResultForRuntime({
+      role: specialist.role,
+      playbookMemory,
+      parsed: {
+        ...parsed,
+        executionMode,
+        changedFiles: mergedChangedFiles,
+      },
+    });
+
     return {
       result: {
         role: specialist.role,
-        summary: parsed.summary,
-        impact: parsed.impact,
-        artifacts: parsed.artifacts.length > 0
-          ? parsed.artifacts
-          : [{ kind: "report", title: `${ROLE_REGISTRY[specialist.role].role}-report.md` }],
-        rawFindings: parsed.rawFindings,
+        summary: finalized.summary,
+        impact: finalized.impact,
+        artifacts: finalized.artifacts,
+        rawFindings: finalized.rawFindings,
         executionMode,
-        changedFiles: mergedChangedFiles,
-        verificationNotes: parsed.verificationNotes,
-        personaLabel: parsed.personaLabel ?? specialist.personaLabel,
+        changedFiles: finalized.changedFiles,
+        verificationNotes: finalized.verificationNotes,
+        personaLabel: finalized.personaLabel ?? specialist.personaLabel,
       },
       meta: {
         workspacePath,
