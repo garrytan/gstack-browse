@@ -1,7 +1,7 @@
 ---
 name: discuss
 preamble-tier: 2
-version: 0.2.0
+version: 0.3.0
 description: |
   Interactive discussion of experiment reports. Load a completed report and
   its backing data, then have a back-and-forth conversation with the researcher.
@@ -196,6 +196,44 @@ cat research/discussions/<slug>.md 2>/dev/null || echo "NEW_DISCUSSION"
 If resuming an existing discussion, show the prior entries and continue from where
 it left off.
 
+## Prior Learnings
+
+Search for relevant learnings from previous sessions:
+
+```bash
+_CROSS_PROJ=$(~/.claude/skills/research-stack/bin/gstack-config get cross_project_learnings 2>/dev/null || echo "unset")
+echo "CROSS_PROJECT: $_CROSS_PROJ"
+if [ "$_CROSS_PROJ" = "true" ]; then
+  ~/.claude/skills/research-stack/bin/gstack-learnings-search --limit 10 --cross-project 2>/dev/null || true
+else
+  ~/.claude/skills/research-stack/bin/gstack-learnings-search --limit 10 2>/dev/null || true
+fi
+```
+
+If `CROSS_PROJECT` is `unset` (first time): Use AskUserQuestion:
+
+> gstack can search learnings from your other projects on this machine to find
+> patterns that might apply here. This stays local (no data leaves your machine).
+> Recommended for solo developers. Skip if you work on multiple client codebases
+> where cross-contamination would be a concern.
+
+Options:
+- A) Enable cross-project learnings (recommended)
+- B) Keep learnings project-scoped only
+
+If A: run `~/.claude/skills/research-stack/bin/gstack-config set cross_project_learnings true`
+If B: run `~/.claude/skills/research-stack/bin/gstack-config set cross_project_learnings false`
+
+Then re-run the search with the appropriate flag.
+
+If learnings are found, incorporate them into your analysis. When a review finding
+matches a past learning, display:
+
+**"Prior learning applied: [key] (confidence N/10, from [date])"**
+
+This makes the compounding visible. The user should see that gstack is getting
+smarter on their codebase over time.
+
 ### Step 2: Summarize loaded context
 
 Print a concise summary to the chat:
@@ -233,14 +271,14 @@ explicitly and suggest what additional experiment would produce it.
 **3c. Record the exchange.** Append to the discussion log (built in memory,
 written in Step 5).
 
-**3d. Prompt for continuation.** After answering, **call the AskUserQuestion tool**:
-- question: "<one-line summary of your answer>. What next?"
-- options: ["Ask another question", "Add an annotation", "Suggest a follow-up experiment", "End discussion"]
+**3d. Continue naturally.** After answering, continue the conversation without
+prompting. The researcher will ask follow-up questions, add annotations, or
+indicate they are done.
 
-If "Ask another question": Loop back to Step 3.
-If "Add an annotation": Go to Step 4a.
-If "Suggest a follow-up experiment": Go to Step 4b.
-If "End discussion": Go to Step 5.
+- If the researcher says "done", "that's all", "end discussion", or similar → go to Step 5.
+- If they ask to annotate or flag something → go to Step 4a.
+- If they suggest a follow-up experiment → go to Step 4b.
+- Otherwise → loop back to Step 3a with their next question.
 
 ### Step 4a: Add annotation
 
@@ -362,4 +400,6 @@ Discussion saved:
 Related:
   Report:  research/reports/<slug>.md
   Results: research/results/<slug>/<timestamp>/
+
+Next step: /peer-review <slug>
 ```

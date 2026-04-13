@@ -1,7 +1,7 @@
 ---
 name: discuss
 preamble-tier: 2
-version: 0.2.0
+version: 0.3.0
 description: |
   Interactive discussion of experiment reports. Load a completed report and
   its backing data, then have a back-and-forth conversation with the researcher.
@@ -71,6 +71,8 @@ cat research/discussions/<slug>.md 2>/dev/null || echo "NEW_DISCUSSION"
 If resuming an existing discussion, show the prior entries and continue from where
 it left off.
 
+{{LEARNINGS_SEARCH}}
+
 ### Step 2: Summarize loaded context
 
 Print a concise summary to the chat:
@@ -108,14 +110,14 @@ explicitly and suggest what additional experiment would produce it.
 **3c. Record the exchange.** Append to the discussion log (built in memory,
 written in Step 5).
 
-**3d. Prompt for continuation.** After answering, **call the AskUserQuestion tool**:
-- question: "<one-line summary of your answer>. What next?"
-- options: ["Ask another question", "Add an annotation", "Suggest a follow-up experiment", "End discussion"]
+**3d. Continue naturally.** After answering, continue the conversation without
+prompting. The researcher will ask follow-up questions, add annotations, or
+indicate they are done.
 
-If "Ask another question": Loop back to Step 3.
-If "Add an annotation": Go to Step 4a.
-If "Suggest a follow-up experiment": Go to Step 4b.
-If "End discussion": Go to Step 5.
+- If the researcher says "done", "that's all", "end discussion", or similar → go to Step 5.
+- If they ask to annotate or flag something → go to Step 4a.
+- If they suggest a follow-up experiment → go to Step 4b.
+- Otherwise → loop back to Step 3a with their next question.
 
 ### Step 4a: Add annotation
 
@@ -214,4 +216,6 @@ Discussion saved:
 Related:
   Report:  research/reports/<slug>.md
   Results: research/results/<slug>/<timestamp>/
+
+Next step: /peer-review <slug>
 ```

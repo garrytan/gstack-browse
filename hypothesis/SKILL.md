@@ -1,7 +1,7 @@
 ---
 name: hypothesis
 preamble-tier: 2
-version: 0.2.0
+version: 0.3.0
 description: |
   Structure a research idea into a testable hypothesis and experiment specification.
   Takes a natural language description and produces a structured hypothesis document
@@ -206,7 +206,7 @@ smarter on their codebase over time.
 
 Search for related hypotheses and experiments. If similar work was done before:
 - **If it succeeded:** Note it and suggest building on those results
-- **If it failed (dead-end):** Warn the researcher with the reason
+- **If it failed (dead-end):** See below
 
 ```bash
 eval "$(~/.claude/skills/research-stack/bin/gstack-slug 2>/dev/null)"
@@ -215,6 +215,17 @@ if [ -f "$_LEARN_FILE" ]; then
   grep -i "<relevant_keyword>" "$_LEARN_FILE" | tail -5
 fi
 ```
+
+**If a similar hypothesis was previously marked as a dead-end:**
+
+**Call the AskUserQuestion tool:**
+- question: "A similar hypothesis '<prior_slug>' was previously abandoned: '<reason>'. How would you like to proceed?"
+- options: ["Try with different parameters", "Redesign the approach", "Proceed anyway — my setup differs", "Skip this hypothesis"]
+
+If "Try with different parameters": Continue to Step 3, noting which parameters to change.
+If "Redesign the approach": Return to Step 1 to reformulate the idea.
+If "Proceed anyway": Continue to Step 3 with a note about the prior dead-end.
+If "Skip": End the skill and suggest the researcher explore alternative ideas.
 
 ### Step 3: Read project conventions
 

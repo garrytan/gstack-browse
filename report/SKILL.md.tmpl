@@ -1,7 +1,7 @@
 ---
 name: report
 preamble-tier: 2
-version: 0.2.0
+version: 0.3.0
 description: |
   Analyze experiment results, compare against baselines, generate plots,
   and produce a structured research report. Connects results back to the
@@ -30,13 +30,17 @@ The user provides either:
 - A results directory path (e.g., `research/results/threshold-scaling/20260406-231603/`)
 - A slug name (finds the latest results automatically)
 
-If only a slug is given:
+If only a slug is given, use the `latest` symlink if available, otherwise fall back to
+the most recent timestamp directory:
 
 ```bash
-ls -t research/results/<slug>/ | head -1
+if [ -L "research/results/<slug>/latest" ]; then
+  echo "research/results/<slug>/latest"
+else
+  _LATEST=$(ls -t research/results/<slug>/ | head -1)
+  echo "research/results/<slug>/$_LATEST"
+fi
 ```
-
-Use the most recent timestamp directory.
 
 ## Workflow
 
@@ -268,5 +272,6 @@ Report complete:
   Outcome:    <CONFIRMED/REJECTED/INCONCLUSIVE>
   Baseline:   <updated / unchanged>
 
+Next step: /discuss <slug>
 Previous: /run-experiment research/experiments/<slug>/spec.yaml
 ```
