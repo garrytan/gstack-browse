@@ -2453,26 +2453,67 @@ you missed it.>
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
+**Reviewer resolution (before creating the PR):**
+
+Check for a configured reviewer in this priority order:
+1. `CLAUDE.md` has a line matching `Default reviewer:\s*@?(\w+)` — use that username.
+2. `CLAUDE.md` has a line matching `Reviewers?:\s*@?(\w+(?:,\s*@?\w+)*)` — use that list.
+3. Otherwise: `gh api repos/:owner/:repo/collaborators --jq "[.[] | select(.login != \"$(gh api user --jq .login)\") | .login] | join(\",\")" 2>/dev/null` — auto-detect non-self collaborators.
+4. If none of the above return anything, skip reviewer assignment (solo repo, no reviewers available).
+
+Store the result in a variable, e.g. `_REVIEWERS`.
+
 **If GitHub:**
 
 ```bash
-gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
+# Create PR with reviewer if resolved
+if [ -n "$_REVIEWERS" ]; then
+  gh pr create --base <base> --reviewer "$_REVIEWERS" --title "<type>: <summary>" --body "$(cat <<'EOF'
 <PR body from above>
 EOF
 )"
+else
+  gh pr create --base <base> --title "<type>: <summary>" --body "$(cat <<'EOF'
+<PR body from above>
+EOF
+)"
+fi
 ```
 
 **If GitLab:**
 
 ```bash
-glab mr create -b <base> -t "<type>: <summary>" -d "$(cat <<'EOF'
+# GitLab equivalent: --reviewer flag
+if [ -n "$_REVIEWERS" ]; then
+  glab mr create -b <base> --reviewer "$_REVIEWERS" -t "<type>: <summary>" -d "$(cat <<'EOF'
 <MR body from above>
 EOF
 )"
+else
+  glab mr create -b <base> -t "<type>: <summary>" -d "$(cat <<'EOF'
+<MR body from above>
+EOF
+)"
+fi
 ```
 
 **If neither CLI is available:**
 Print the branch name, remote URL, and instruct the user to create the PR/MR manually via the web UI. Do not stop — the code is pushed and ready.
+
+**Post-creation review gate banner (MANDATORY if `_REVIEWERS` is set):**
+
+After the PR/MR is created, print this banner verbatim and STOP any auto-merge intent:
+
+```
+==================================================================
+  REVIEW REQUESTED from: $_REVIEWERS
+  DO NOT MERGE this PR until a reviewer approves it.
+  Check status: gh pr view <PR#> --json reviewDecision,reviews
+  Merge only when reviewDecision == "APPROVED"
+==================================================================
+```
+
+**Never run `gh pr merge` (or equivalent) in the same /ship invocation when reviewers are set.** /ship's job ends at PR creation. The user runs a separate merge command only after the review is approved. If the user asks /ship to also merge, refuse with: "Review required first. PR #<N> has reviewers assigned. Merge only after reviewDecision is APPROVED."
 
 **Output the PR/MR URL** — then proceed to Step 8.5.
 
@@ -2532,6 +2573,7 @@ This step is automatic — never skip it, never ask for confirmation.
 - **Never skip tests.** If tests fail, stop.
 - **Never skip the pre-landing review.** If checklist.md is unreadable, stop.
 - **Never force push.** Use regular `git push` only.
+- **Never merge without reviewer approval.** If the repo has collaborators or CLAUDE.md specifies a reviewer, /ship creates the PR with `--reviewer` assigned and STOPS. The user runs `gh pr merge` only after `reviewDecision == "APPROVED"`. If asked to merge in the same invocation, refuse and point at the review gate banner from Step 8.
 - **Never ask for trivial confirmations** (e.g., "ready to push?", "create PR?"). DO stop for: version bumps (MINOR/MAJOR), pre-landing review findings (ASK items), and Codex structured review [P1] findings (large diffs only).
 - **Always use the 4-digit version format** from the VERSION file.
 - **Date format in CHANGELOG:** `YYYY-MM-DD`

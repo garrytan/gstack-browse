@@ -1035,6 +1035,46 @@ and tell the user: "I found and fixed a few issues during the review. The fixes 
 
 **If review is CURRENT:** Skip this sub-step entirely — no question asked.
 
+### 3.5a-ter: GitHub PR review approval check (HARD GATE)
+
+**This is a hard gate — it blocks merge if a human reviewer was requested but hasn't approved.** Local AI reviews (3.5a) are not a substitute for human approval when a reviewer is assigned.
+
+Query the PR's review state:
+
+```bash
+gh pr view --json reviewDecision,reviewRequests,latestReviews
+```
+
+Parse the output:
+- `reviewDecision`: `APPROVED` / `CHANGES_REQUESTED` / `REVIEW_REQUIRED` / `null`
+- `reviewRequests`: list of pending reviewers (haven't responded yet)
+- `latestReviews`: list of reviews submitted (each has a `state` and `author`)
+
+**Gate logic:**
+
+| Condition | Action |
+|-----------|--------|
+| `reviewDecision == "APPROVED"` | PASS — continue |
+| `reviewDecision == "CHANGES_REQUESTED"` | **BLOCKER** — list the reviewer who requested changes, the file/line they commented on if available, and refuse to merge |
+| `reviewDecision == "REVIEW_REQUIRED"` AND `reviewRequests` is non-empty | **BLOCKER** — "PR has {N} pending reviewer(s): {list}. Cannot merge until at least one approves." |
+| `reviewDecision == null` AND `reviewRequests` is empty AND `latestReviews` is empty AND repo has other collaborators | **WARNING** — "No reviewers requested. This repo has other collaborators — consider requesting review before merge." Not a hard blocker because it may be a solo-authored fix in a multi-person repo. |
+| `reviewDecision == null` AND repo has no other collaborators | PASS — solo repo, no review possible |
+
+**How to fetch collaborators for the "solo repo" check:**
+
+```bash
+_SELF=$(gh api user --jq .login 2>/dev/null)
+_OTHER_COLLABS=$(gh api repos/:owner/:repo/collaborators --jq "[.[] | select(.login != \"$_SELF\") | .login] | length" 2>/dev/null || echo "0")
+```
+
+If `_OTHER_COLLABS > 0`, treat missing reviews as a warning/blocker per the table above. If `_OTHER_COLLABS == 0`, treat as solo repo and pass.
+
+**If BLOCKER:** Include the reviewDecision status in the readiness report under a new `GITHUB REVIEW` section (see 3.5e) and recommend option B (hold off). Do NOT let the user override with option C for this specific blocker — review bypass requires a different, explicit override.
+
+**Explicit override for the GitHub review blocker:** Only if the user types `/land-and-deploy --override-review` (or answers an explicit `AskUserQuestion` with a dedicated "I am the reviewer and I approve this" option) can this blocker be bypassed. Default is refuse.
+
+**Why this matters:** Free GitHub plans on private repos have no branch protection, so discipline is the only gate. Without this check, `/land-and-deploy` would happily merge PRs that the assigned reviewer never saw. That is the exact failure mode this sub-step exists to prevent.
+
 ### 3.5b: Test results
 
 **Free tests — run them now:**
@@ -1126,11 +1166,17 @@ Build the full readiness report:
 ║  PR: #NNN — title                                        ║
 ║  Branch: feature → main                                  ║
 ║                                                          ║
-║  REVIEWS                                                 ║
+║  REVIEWS (local AI)                                      ║
 ║  ├─ Eng Review:    CURRENT / STALE (N commits) / —       ║
 ║  ├─ CEO Review:    CURRENT / — (optional)                ║
 ║  ├─ Design Review: CURRENT / — (optional)                ║
 ║  └─ Codex Review:  CURRENT / — (optional)                ║
+║                                                          ║
+║  GITHUB REVIEW (human)                                   ║
+║  ├─ Decision:      APPROVED / CHANGES_REQUESTED /        ║
+║  │                 REVIEW_REQUIRED / none (solo repo)    ║
+║  ├─ Approvers:     @user1 / —                            ║
+║  └─ Pending:       @user2 / —                            ║
 ║                                                          ║
 ║  TESTS                                                   ║
 ║  ├─ Free tests:    PASS / FAIL (blocker)                 ║
@@ -1149,7 +1195,8 @@ Build the full readiness report:
 ╚══════════════════════════════════════════════════════════╝
 ```
 
-If there are BLOCKERS (failing free tests): list them and recommend B.
+If there are BLOCKERS (failing free tests, OR `reviewDecision == "CHANGES_REQUESTED"`, OR pending required reviewers from 3.5a-ter): list them and recommend B.
+**If the blocker is "GitHub PR review not approved", option C is NOT available.** The user must either get the approval on GitHub or explicitly pass `--override-review` to `/land-and-deploy`. Do not present option C for this blocker.
 If there are WARNINGS but no blockers: list each warning and recommend A if
 warnings are minor, or B if warnings are significant.
 If everything is green: recommend A.
@@ -1575,6 +1622,7 @@ Then suggest relevant follow-ups:
 
 - **Never force push.** Use `gh pr merge` which is safe.
 - **Never skip CI.** If checks are failing, stop and explain why.
+- **Never merge a PR without approved human review when a reviewer was assigned.** Step 3.5a-ter is a HARD GATE — if `reviewDecision != "APPROVED"` and the PR has reviewers or the repo has other collaborators, refuse to merge. The only override is an explicit `--override-review` flag or an explicit AskUserQuestion bypass. Do not treat local AI reviews (eng-review, codex-review) as a substitute for human PR approval. On free GitHub plans with no branch protection, this discipline is the only thing preventing unreviewed merges to main.
 - **Narrate the journey.** The user should always know: what just happened, what's happening now, and what's about to happen next. No silent gaps between steps.
 - **Auto-detect everything.** PR number, merge method, deploy strategy, project type, merge queues, staging environments. Only ask when information genuinely can't be inferred.
 - **Poll with backoff.** Don't hammer GitHub API. 30-second intervals for CI/deploy, with reasonable timeouts.
