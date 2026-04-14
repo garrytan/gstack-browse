@@ -218,6 +218,16 @@ const QA_ROUTE_BLOCK_PATTERN =
   /(not a registered route|broken link|등록된\s*라우트가\s*아니|라우트가\s*없|깨진\s*링크)/i;
 const CUSTOMER_VOICE_HARD_STOP_PATTERN =
   /(simulation failed|browser simulation failed|base-url|credentials?|로그인 필요|접근 불가|404|500|network error|실패|재현하지 못|must stop|멈춰야|차단|cannot access)/i;
+const BACKEND_REPO_STATUS_GOAL_PATTERN =
+  /(git|repo|repository|저장소|레포|브랜치|origin|upstream|remote|원격)/i;
+const BACKEND_REPO_STATUS_INTENT_PATTERN =
+  /(\?|있나|상태|확인|점검|알려줘|봐줘|연결)/i;
+const WORKSPACE_UNRESOLVED_PATTERN =
+  /(workspace[- ]unresolved|저장소 후보가 발견되지 않|workspace를 식별할 근거를 찾지 못|project workspace)/i;
+const AUTH_LIMIT_PATTERN =
+  /(could not read username|authentication|auth|인증|permission denied|접근 권한|ls-remote)/i;
+const REPO_CONFIGURATION_EVIDENCE_PATTERN =
+  /(git 저장소|origin|upstream|원격|브랜치|remote)/i;
 
 function emptyCodexSandbox() {
   const sandbox = join(tmpdir(), "rico-codex-sandbox");
@@ -1156,6 +1166,7 @@ function workspaceHasDeclaredRoute(workspacePath: string, route: string) {
 export async function normalizeSpecialistResult(input: {
   role: RoleName;
   executionMode: SpecialistExecutionMode;
+  goalTitle?: string;
   parsed: Omit<SpecialistResult, "role">;
   originalText: string;
   workspacePath: string | null;
@@ -1239,6 +1250,31 @@ export async function normalizeSpecialistResult(input: {
         rawFindings: [
           ...parsed.rawFindings,
           "customer-voice advisory feedback: no hard blocking evidence was present.",
+        ],
+      };
+    }
+  }
+
+  if (
+    input.role === "backend"
+    && input.executionMode === "analyze"
+    && parsed.impact === "approval_needed"
+  ) {
+    const goalTitle = input.goalTitle ?? input.originalText;
+    const joined = [parsed.summary, ...parsed.rawFindings, ...(parsed.verificationNotes ?? [])].join("\n");
+    const looksLikeRepoStatusQuestion =
+      BACKEND_REPO_STATUS_GOAL_PATTERN.test(goalTitle)
+      && BACKEND_REPO_STATUS_INTENT_PATTERN.test(goalTitle);
+    const hasConcreteRepoEvidence = REPO_CONFIGURATION_EVIDENCE_PATTERN.test(joined);
+    const isMissingWorkspace = WORKSPACE_UNRESOLVED_PATTERN.test(joined);
+    const isAuthLimited = AUTH_LIMIT_PATTERN.test(joined);
+    if (looksLikeRepoStatusQuestion && !isMissingWorkspace && hasConcreteRepoEvidence && isAuthLimited) {
+      parsed = {
+        ...parsed,
+        impact: "info",
+        rawFindings: [
+          ...parsed.rawFindings,
+          "원격 설정은 확인됐고, 추가 인증이 없어서 live remote 질의까지만 제한됐습니다.",
         ],
       };
     }
@@ -1389,6 +1425,7 @@ export function createCodexSpecialistExecutor(input: {
       parsed: await normalizeSpecialistResult({
         role: specialist.role,
         executionMode,
+        goalTitle: specialist.goalTitle,
         originalText: response.text,
         workspacePath,
         observedChangedFiles,

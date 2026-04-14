@@ -160,6 +160,23 @@ function determineFinalGoalState(
   return "approved";
 }
 
+const FACT_CHECK_ROLE_PATTERN = new Set(["backend", "frontend", "qa"]);
+const FACT_CHECK_DOMAIN_PATTERN =
+  /(git|repo|repository|저장소|레포|브랜치|origin|upstream|remote|원격|상태|로그|엔드포인트|endpoint)/i;
+const FACT_CHECK_INTENT_PATTERN =
+  /(\?|있나|맞아|상태|확인|점검|알려줘|봐줘|연결)/i;
+
+function shouldUseFactCheckPresentation(input: {
+  goalTitle: string;
+  selectedRoles: string[];
+}) {
+  if (input.selectedRoles.length !== 1) return false;
+  const role = input.selectedRoles[0];
+  if (!role || !FACT_CHECK_ROLE_PATTERN.has(role)) return false;
+  return FACT_CHECK_DOMAIN_PATTERN.test(input.goalTitle)
+    && FACT_CHECK_INTENT_PATTERN.test(input.goalTitle);
+}
+
 function shouldPostSpecialistMessage(result: SpecialistResult) {
   if (result.impact === "blocking" || result.impact === "approval_needed") return true;
   if (result.executionMode === "write") return true;
@@ -412,6 +429,12 @@ export function createRuntimeDispatcher(input: {
       const specialistRoles = captainPlan.selectedRoles.length > 0
         ? captainPlan.selectedRoles
         : buildFallbackCaptainPlan(effectiveGoalTitle).selectedRoles;
+      const compactPresentation = shouldUseFactCheckPresentation({
+        goalTitle: context.goal.title,
+        selectedRoles: specialistRoles,
+      })
+        ? "fact_check" as const
+        : undefined;
       captain.capturePlan(payload.projectId, context.run.id, captainPlan);
       for (const task of captainPlan.taskGraph) {
         input.db.query(
@@ -455,7 +478,10 @@ export function createRuntimeDispatcher(input: {
       if (!projectThreadTs) {
         const root = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
-          text: buildCaptainStartText(displayGoalTitle, specialistRoles, captainPlan),
+          text: buildCaptainStartText(displayGoalTitle, specialistRoles, captainPlan, {
+            compactMode: compactPresentation,
+            followUpText: payload.followUpText,
+          }),
         });
         if (!root.ok || !root.ts) {
           throw new Error("Slack rejected project thread root");
@@ -465,7 +491,10 @@ export function createRuntimeDispatcher(input: {
         const ack = await input.slackClient.postMessage({
           channel: portfolio.projectChannelId,
           thread_ts: projectThreadTs,
-          text: buildCaptainStartText(displayGoalTitle, specialistRoles, captainPlan),
+          text: buildCaptainStartText(displayGoalTitle, specialistRoles, captainPlan, {
+            compactMode: compactPresentation,
+            followUpText: payload.followUpText,
+          }),
         });
         if (!ack.ok) {
           throw new Error("Slack rejected project thread acknowledgement");
@@ -499,7 +528,7 @@ export function createRuntimeDispatcher(input: {
         });
         for (const result of results) {
           specialistResults.push(result);
-          if (shouldPostSpecialistMessage(result)) {
+          if (shouldPostSpecialistMessage(result) || compactPresentation === "fact_check") {
             if (
               input.artifactRoot
               && shouldPublishArtifact(result)
@@ -551,6 +580,7 @@ export function createRuntimeDispatcher(input: {
                   verificationNotes: result.verificationNotes,
                   executionMode: result.executionMode,
                   personaLabel: result.personaLabel,
+                  compactMode: compactPresentation,
                 }),
               });
               if (!message.ok) {
@@ -630,6 +660,8 @@ export function createRuntimeDispatcher(input: {
             verificationNotes: result.verificationNotes,
           })),
           nextAction: captainPlan.nextAction,
+        }, {
+          compactMode: compactPresentation,
         }),
         impacts: specialistResults.map((result) => ({
           role: result.role,

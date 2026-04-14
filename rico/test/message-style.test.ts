@@ -148,3 +148,57 @@ test("message style helpers produce human-sounding Slack copy without bracket pr
     "🧪 QA\n- 판정: 차단\n- 근거: 첫 문장입니다.\n- 변경 파일: a.ts, b.ts 외 1개\n- 검증: npm test -- --run src/app/very/long/path.test.ts 에서 vitest not found 오류가 길게 이어졌습니다. / ...",
   );
 });
+
+test("message style helpers keep factual follow-ups concise", () => {
+  expect(buildCaptainStartText("지금 원격 깃이 연결되어있나?", ["backend"], {
+    selectedRoles: ["backend"],
+    nextAction: "원격 저장소와 현재 브랜치만 바로 다시 확인한다.",
+    blockedReason: null,
+    status: "active",
+    taskGraph: [
+      {
+        id: "task-1",
+        role: "backend",
+        title: "원격 저장소와 현재 브랜치 확인",
+        dependsOn: [],
+      },
+    ],
+  }, {
+    compactMode: "fact_check",
+    followUpText: "남은 조치 해봐",
+  })).toBe(
+    "🔍 캡틴 확인\n- 후속 요청: 남은 조치 해봐\n- 바로 볼 항목: 원격 저장소와 현재 브랜치만 바로 다시 확인한다.",
+  );
+
+  expect(
+    buildCaptainFinalText({
+      finalState: "approved",
+      impacts: [
+        {
+          role: "backend",
+          level: "info",
+          message: "원격 Git 설정 자체는 살아 있고, 현재 인증 없이도 origin 설정과 저장소 경로까지는 확인됐어요.",
+          changedFiles: [],
+          verificationNotes: ["git remote -v", "git rev-parse --abbrev-ref HEAD"],
+        },
+      ],
+    }, {
+      compactMode: "fact_check",
+    }),
+  ).toBe(
+    "✅ 캡틴 확인 완료\n- 결론: 원격 Git 설정 자체는 살아 있고, 현재 인증 없이도 origin 설정과 저장소 경로까지는 확인됐어요.\n- 검증: git remote -v",
+  );
+
+  expect(
+    buildImpactNarration({
+      role: "backend",
+      summary: "원격 Git 설정 자체는 살아 있습니다.",
+      level: "info",
+      verificationNotes: ["git remote -v", "git ls-remote --heads origin 는 인증 없이 실패했습니다."],
+      executionMode: "analyze",
+      compactMode: "fact_check",
+    }),
+  ).toBe(
+    "🧱 백엔드 확인\n- 결론: 원격 Git 설정 자체는 살아 있습니다.\n- 검증: git remote -v / ...",
+  );
+});

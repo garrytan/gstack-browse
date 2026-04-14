@@ -279,6 +279,31 @@ test("normalizeSpecialistResult softens customer-voice approval gating when the 
   expect(normalized.summary).toContain("메시지");
 });
 
+test("normalizeSpecialistResult softens backend repo status checks with auth-limited verification", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "backend",
+    executionMode: "analyze",
+    goalTitle: "지금 원격 깃이 연결되어있나?",
+    originalText: '{"summary":"원격 Git 설정 자체는 살아 있습니다.","impact":"approval_needed","artifacts":[],"rawFindings":["/home/tony/srv/crypto 는 실제 Git 저장소입니다.","origin 은 https://github.com/xogjs/Crypto.git 로 설정돼 있습니다.","git ls-remote --heads origin 가 could not read Username for https://github.com 로 실패했습니다."],"executionMode":"analyze","verificationNotes":["git remote -v","git ls-remote --heads origin 는 인증 없이 실패했습니다."]}',
+    workspacePath: "/home/tony/srv/crypto",
+    parsed: {
+      summary: "원격 Git 설정 자체는 살아 있습니다.",
+      impact: "approval_needed",
+      artifacts: [],
+      rawFindings: [
+        "/home/tony/srv/crypto 는 실제 Git 저장소입니다.",
+        "origin 은 https://github.com/xogjs/Crypto.git 로 설정돼 있습니다.",
+        "git ls-remote --heads origin 가 could not read Username for https://github.com 로 실패했습니다.",
+      ],
+      executionMode: "analyze",
+      verificationNotes: ["git remote -v", "git ls-remote --heads origin 는 인증 없이 실패했습니다."],
+    },
+  });
+
+  expect(normalized.impact).toBe("info");
+  expect(normalized.summary).toContain("원격 Git 설정");
+});
+
 test("normalizeSpecialistResult keeps customer-voice blocking when simulation or access fails", async () => {
   const normalized = await normalizeSpecialistResult({
     role: "customer-voice",

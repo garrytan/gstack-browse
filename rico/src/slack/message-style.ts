@@ -21,6 +21,7 @@ export function sanitizeIncomingSlackText(text: string) {
 }
 
 export type ConversationalIntent = "greeting" | "status" | null;
+export type CaptainCompactMode = "fact_check";
 
 export function detectConversationalIntent(text: string): ConversationalIntent {
   const normalized = sanitizeIncomingSlackText(text);
@@ -199,7 +200,19 @@ export function buildCaptainStartText(
   title: string,
   roles: RoleName[] = [],
   plan?: CaptainPlan,
+  options?: {
+    compactMode?: CaptainCompactMode;
+    followUpText?: string;
+  },
 ) {
+  const requestText = options?.followUpText?.trim() || title;
+  if (options?.compactMode === "fact_check") {
+    return [
+      "🔍 캡틴 확인",
+      `${options?.followUpText?.trim() ? "- 후속 요청" : "- 요청"}: ${trimMessage(requestText, 120)}`,
+      `- 바로 볼 항목: ${trimMessage(plan?.nextAction ?? "관련 상태를 바로 다시 확인할게요.", 120)}`,
+    ].join("\n");
+  }
   const lines = [headerForCaptain("plan", plan?.status), `- 요청: ${trimMessage(title, 120)}`];
   if (plan?.status === "blocked" && plan.blockedReason) {
     lines.push("- 상태: 차단");
@@ -337,7 +350,33 @@ export function buildCaptainFinalText(input: {
     verificationNotes?: string[];
   }>;
   nextAction?: string | null;
+}, options?: {
+  compactMode?: CaptainCompactMode;
 }) {
+  if (options?.compactMode === "fact_check") {
+    const lead = pickLeadImpact(input.impacts);
+    const verificationNotes = summarizeVerificationNotes(input.impacts);
+    const header =
+      input.finalState === "approved" || input.finalState === "released"
+        ? "✅ 캡틴 확인 완료"
+        : input.finalState === "awaiting_human_approval"
+          ? "🟡 캡틴 확인 보류"
+          : "⛔ 캡틴 확인 보류";
+    const lines = [header];
+    if (lead) {
+      lines.push(`- 결론: ${compactSentence(lead.message, 120)}`);
+    }
+    if (verificationNotes.length > 0) {
+      lines.push(`- 검증: ${compactSentence(verificationNotes[0]!, 120)}`);
+    }
+    if (
+      input.nextAction
+      && (input.finalState === "awaiting_human_approval" || input.finalState === "blocked" || input.finalState === "qa_failed")
+    ) {
+      lines.push(`- 참고: ${input.nextAction}`);
+    }
+    return lines.join("\n");
+  }
   const lines = [
     headerForCaptain("final", input.finalState),
     `- 상태: ${finalStateLabel(input.finalState)}`,
@@ -435,7 +474,27 @@ export function buildImpactNarration(input: {
   verificationNotes?: string[];
   executionMode?: SpecialistExecutionMode;
   personaLabel?: string;
+  compactMode?: CaptainCompactMode;
 }) {
+  if (
+    input.compactMode === "fact_check"
+    && input.role === "backend"
+    && input.executionMode !== "write"
+  ) {
+    const lines = [
+      "🧱 백엔드 확인",
+      `- 결론: ${compactSentence(input.summary, 120)}`,
+    ];
+    if (input.verificationNotes && input.verificationNotes.length > 0) {
+      lines.push(
+        `- 검증: ${input.verificationNotes
+          .slice(0, 1)
+          .map((note) => compactSentence(note, 100))
+          .join(" / ")}${input.verificationNotes.length > 1 ? " / ..." : ""}`,
+      );
+    }
+    return lines.join("\n");
+  }
   const statusLabel = input.role === "qa" ? "판정" : "상태";
   const detailLabel = detailLabelForRole({
     role: input.role,

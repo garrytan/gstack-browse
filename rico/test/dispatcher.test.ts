@@ -651,7 +651,7 @@ test("dispatcher keeps ai-ops voice on the governor and includes captain delegat
   const firstProjectMessageIndex = posted.findIndex(
     (message) =>
       message.channel === "C_MYPETROUTINE"
-      && (message.text.includes("캡틴 계획") || message.text.includes("캡틴 진행") || message.text.includes("캡틴 마감")),
+      && message.text.includes("캡틴"),
   );
   expect(aiOpsMessages.some((message) => message.text.includes("총괄"))).toBe(true);
   expect(

@@ -34,6 +34,26 @@ function normalizeReplyText(text: string) {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function normalizeSlackAutolinks(text: string) {
+  return text
+    .replace(/<mailto:([^>|]+)(?:\|[^>]+)?>/gi, "$1")
+    .replace(/<((?:https?:\/\/|git@)[^>|]+)\|([^>]+)>/gi, "$2 ($1)")
+    .replace(/<((?:https?:\/\/|git@)[^>\s`]+)>/gi, "$1")
+    .replace(/`<((?:https?:\/\/|git@)[^>\s`]+)`/gi, "`$1`")
+    .replace(/<((?:https?:\/\/|git@)[^>\s`]+)`로>/gi, "$1로")
+    .replace(/<((?:https?:\/\/|git@)[^>\s`]+)`/gi, "$1");
+}
+
+export function sanitizeConversationReplyForSlack(text: string) {
+  return normalizeSlackAutolinks(text)
+    .replace(/이 세션에서/g, "지금 확인 기준으로는")
+    .replace(/이번 라운드에서/g, "지금 확인 기준으로는")
+    .replace(/이 라운드에서/g, "지금 확인 기준으로는")
+    .replace(/로>/g, "로")
+    .replace(/[ \t]+\n/g, "\n")
+    .trim();
+}
+
 function lastAssistantReply(history: ConversationTurn[] | undefined) {
   return [...(history ?? [])].reverse().find((turn) => turn.speaker === "assistant")?.text ?? null;
 }
@@ -166,6 +186,7 @@ function buildGovernorPrompt(input: {
     "If the user is asking for real execution but has not scoped it clearly, say that briefly and tell them what project or project channel to use.",
     "If the user says something like '그래 그럼 얘기해봐' or '아무거나 얘기해봐', do not repeat your previous routing guidance. Offer one concrete, useful thought, priority, risk, or follow-up question instead.",
     "Use the thread history to continue naturally. Avoid repeating the previous assistant message unless the user explicitly asked you to restate it.",
+    "Avoid phrases like '이 세션', '이번 라운드', or stiff workflow jargon. Speak like a practical teammate in Slack.",
     "Keep it short, human, and practical. 2-5 lines max. Answer in Korean.",
     "Return exactly one JSON object and nothing else.",
     "",
@@ -235,6 +256,7 @@ function buildCaptainPrompt(input: {
     "Choose mode=delegate for: actual implementation, repo inspection, QA verification, structured specialist work, or anything that should become a tracked run.",
     "Do not create tasks here. Just decide reply vs delegate.",
     "Use the thread history to continue the existing conversation naturally. Do not just restate the goal title or repeat your previous answer.",
+    "Avoid phrases like '이 세션', '이번 라운드', or stiff workflow jargon. Speak like a pragmatic PM in Slack.",
     "If mode=reply, write a short human response as the Captain. 2-5 lines max. Answer in Korean.",
     "If mode=delegate, explain the reason briefly in delegateReason and keep reply empty or very short.",
     "Return exactly one JSON object and nothing else.",
@@ -253,7 +275,7 @@ function parseGovernorConversation(text: string): GovernorConversationReply {
   if (typeof parsed.reply !== "string" || parsed.reply.trim().length === 0) {
     throw new Error("Codex governor conversation response was not valid JSON");
   }
-  return { reply: parsed.reply.trim() };
+  return { reply: sanitizeConversationReplyForSlack(parsed.reply.trim()) };
 }
 
 function parseCaptainConversation(text: string): CaptainConversationDecision {
@@ -266,7 +288,7 @@ function parseCaptainConversation(text: string): CaptainConversationDecision {
   }
   return {
     mode: parsed.mode,
-    reply: parsed.reply.trim(),
+    reply: sanitizeConversationReplyForSlack(parsed.reply.trim()),
     delegateReason:
       parsed.delegateReason == null
         ? null
