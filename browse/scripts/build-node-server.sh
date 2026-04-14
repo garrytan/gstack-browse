@@ -14,13 +14,16 @@ DIST_DIR="$GSTACK_DIR/browse/dist"
 echo "Building Node-compatible server bundle..."
 
 # Step 1: Transpile server.ts to a single .mjs bundle (externalize runtime deps)
+# Note: @ngrok/ngrok is externalized because it ships a .node native binding;
+# bun >=1.3 refuses --outfile when an asset would be emitted alongside the entry.
 bun build "$SRC_DIR/server.ts" \
   --target=node \
   --outfile "$DIST_DIR/server-node.mjs" \
   --external playwright \
   --external playwright-core \
   --external diff \
-  --external "bun:sqlite"
+  --external "bun:sqlite" \
+  --external "@ngrok/ngrok"
 
 # Step 2: Post-process
 # Replace import.meta.dir with a resolvable reference
