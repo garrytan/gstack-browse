@@ -521,6 +521,41 @@ test("processSlackPayload answers lightweight ai-ops discussion through governor
   expect(store.repositories.goals.listByProject("mypetroutine")).toHaveLength(0);
 });
 
+test("processSlackPayload delegates implicit ai-ops execution requests for known projects without requiring a prefix", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "sherpalabs",
+    slackChannelId: "C_SHERPALABS",
+  });
+
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      governorConversationExecutor: async () => ({
+        reply: "총괄: 이건 실행보다 대화예요.",
+      }),
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "sherpalabs 쪽 랜딩 문구만 실제로 손봐줘",
+        ts: "1712900000.000741",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: true, handled: true });
+  expect(store.repositories.goals.listByProject("sherpalabs")).toHaveLength(1);
+  expect(store.repositories.goals.listByProject("sherpalabs")[0]?.title).toBe(
+    "랜딩 문구만 실제로 손봐줘",
+  );
+});
+
 test("processSlackPayload passes prior governor thread history into follow-up conversation turns", async () => {
   const store = openStore(":memory:");
   store.repositories.projects.create({
@@ -760,6 +795,42 @@ test("processSlackPayload delegates project discussion into a new run when capta
   expect(store.repositories.goals.listByProject("mypetroutine")).toHaveLength(1);
   expect(store.repositories.goals.listByProject("mypetroutine")[0]?.title).toBe(
     "이건 논의보다 실제 작업 라운드로 이어가는 게 낫지 않을까?",
+  );
+});
+
+test("processSlackPayload delegates project deliverable requests even when discourse markers are present", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "test",
+    slackChannelId: "C_TEST",
+  });
+
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      captainConversationExecutor: async () => ({
+        mode: "reply",
+        reply: "캡틴: 이건 대화예요.",
+      }),
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TEST",
+        user: "U_TONY",
+        text: "그럼 이 채널 목표를 한 줄 문서로 정리해줘",
+        ts: "1712900000.000821",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: true, handled: true });
+  expect(store.repositories.goals.listByProject("test")).toHaveLength(1);
+  expect(store.repositories.goals.listByProject("test")[0]?.title).toBe(
+    "그럼 이 채널 목표를 한 줄 문서로 정리해줘",
   );
 });
 

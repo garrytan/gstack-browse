@@ -38,6 +38,7 @@ import type {
   GovernorConversationReply,
 } from "./conversation-gate";
 import {
+  looksLikeExecutionRequest,
   shouldUseCaptainConversation,
   shouldUseGovernorConversation,
 } from "./conversation-gate";
@@ -209,6 +210,54 @@ function normalizeEventText(text: string) {
     projectId,
     goalText,
   };
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function detectImplicitProjectExecutionIntent(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  text: string;
+}) {
+  const normalized = sanitizeIncomingSlackText(stripLeadingMention(input.text));
+  if (!normalized) return null;
+
+  const projects = input.repositories.projects.list()
+    .map((project) => project.id)
+    .sort((left, right) => right.length - left.length);
+
+  for (const projectId of projects) {
+    const projectPattern = normalizeProjectKey(projectId);
+    if (!projectPattern) continue;
+    const pattern = new RegExp(
+      `^(?:#)?${escapeRegExp(projectPattern)}(?:\\s*(?:쪽|관련|프로젝트))?[\\s,:-]+(.+)$`,
+      "i",
+    );
+    const match = normalized.match(pattern);
+    if (!match) continue;
+    const goalText = match[1]?.trim();
+    if (!goalText) continue;
+    return {
+      projectId: projectPattern,
+      goalText,
+    };
+  }
+
+  return null;
+}
+
+function resolveAiOpsExecutionIntent(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  text: string;
+}) {
+  const explicit = normalizeEventText(input.text);
+  if (explicit) return explicit;
+  const implicit = detectImplicitProjectExecutionIntent(input);
+  if (!implicit) return null;
+  if (!looksLikeExecutionRequest(implicit.goalText)) return null;
+  if (detectConversationalIntent(input.text)) return null;
+  return implicit;
 }
 
 function readThreadGoal(input: {
@@ -446,7 +495,10 @@ async function bootstrapAiOpsIntake(
         : `slack-${Date.now()}`;
 
   if (options.aiOpsChannelId && channelId === options.aiOpsChannelId) {
-    const normalized = normalizeEventText(text);
+    const normalized = resolveAiOpsExecutionIntent({
+      repositories,
+      text,
+    });
     if (!normalized) return "ignored";
 
     const project = await resolveProjectByIdentifier({
@@ -592,6 +644,10 @@ export async function maybeBuildConversationReply(
         : `slack-${Date.now()}`;
 
   if (options.aiOpsChannelId && channelId === options.aiOpsChannelId) {
+    const aiOpsExecutionIntent = resolveAiOpsExecutionIntent({
+      repositories,
+      text,
+    });
     const governorThreadHistory = readConversationHistory({
       memoryStore,
       scopeId: GOVERNOR_CONVERSATION_SCOPE,
@@ -644,6 +700,9 @@ export async function maybeBuildConversationReply(
           }),
         } satisfies SlackConversationReply;
       }
+      return null;
+    }
+    if (aiOpsExecutionIntent) {
       return null;
     }
 
