@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { enqueueQueuedRun, type QueueJob } from "../runtime/queue";
+import type {
+  CaptainConversationDecision,
+  CaptainConversationInput,
+  GovernorConversationInput,
+  GovernorConversationReply,
+} from "./conversation-gate";
 import { handleApprovalInteraction } from "./interactions";
 import { bootstrapSlackIntake, maybeBuildConversationReply } from "./intake";
 import type { SlackMessageClient } from "./publish";
@@ -10,6 +16,12 @@ export interface SlackIngressOptions {
   aiOpsChannelId: string;
   maxActiveProjects?: number;
   slackClient?: SlackMessageClient;
+  governorConversationExecutor?: (
+    input: GovernorConversationInput,
+  ) => Promise<GovernorConversationReply>;
+  captainConversationExecutor?: (
+    input: CaptainConversationInput,
+  ) => Promise<CaptainConversationDecision>;
   runIdFactory?: () => string;
   triggerDrain?: () => void | Promise<void>;
 }
@@ -36,6 +48,8 @@ export async function processSlackPayload(
     aiOpsChannelId: options.aiOpsChannelId,
     maxActiveProjects: options.maxActiveProjects ?? 2,
     slackClient: options.slackClient,
+    governorConversationExecutor: options.governorConversationExecutor,
+    captainConversationExecutor: options.captainConversationExecutor,
   });
   if (conversationReply && options.slackClient) {
     await options.slackClient.postMessage({

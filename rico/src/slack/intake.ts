@@ -30,6 +30,16 @@ import {
   applyProjectWorkspaceCommand,
   parseProjectWorkspaceCommand,
 } from "./project-workspace-commands";
+import type {
+  CaptainConversationDecision,
+  CaptainConversationInput,
+  GovernorConversationInput,
+  GovernorConversationReply,
+} from "./conversation-gate";
+import {
+  shouldUseCaptainConversation,
+  shouldUseGovernorConversation,
+} from "./conversation-gate";
 import {
   buildAiOpsGreetingText,
   buildAiOpsStatusText,
@@ -43,6 +53,12 @@ interface SlackIntakeOptions {
   aiOpsChannelId: string;
   runIdFactory: () => string;
   slackClient?: SlackMessageClient;
+  governorConversationExecutor?: (
+    input: GovernorConversationInput,
+  ) => Promise<GovernorConversationReply>;
+  captainConversationExecutor?: (
+    input: CaptainConversationInput,
+  ) => Promise<CaptainConversationDecision>;
 }
 
 export interface SlackConversationReply {
@@ -192,6 +208,19 @@ function normalizeEventText(text: string) {
     projectId,
     goalText,
   };
+}
+
+function readThreadGoal(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  memoryStore: MemoryStore;
+  projectId: string;
+  threadTs?: string;
+}) {
+  if (!input.threadTs) return null;
+  const goalId =
+    input.memoryStore.getProjectMemory(input.projectId)[`captain.thread.${input.threadTs}.goal_id`];
+  if (!goalId) return null;
+  return input.repositories.goals.get(goalId);
 }
 
 function resolveEvent(payload: Record<string, unknown>) {
@@ -480,7 +509,17 @@ export async function bootstrapSlackIntake(
 export async function maybeBuildConversationReply(
   db: Database,
   payload: Record<string, unknown>,
-  options: { aiOpsChannelId: string; maxActiveProjects?: number; slackClient?: SlackMessageClient },
+  options: {
+    aiOpsChannelId: string;
+    maxActiveProjects?: number;
+    slackClient?: SlackMessageClient;
+    governorConversationExecutor?: (
+      input: GovernorConversationInput,
+    ) => Promise<GovernorConversationReply>;
+    captainConversationExecutor?: (
+      input: CaptainConversationInput,
+    ) => Promise<CaptainConversationDecision>;
+  },
 ) {
   const event = resolveEvent(payload);
   const channelId = resolveChannelId(payload, event);
@@ -678,15 +717,34 @@ export async function maybeBuildConversationReply(
     }
 
     const intent = detectConversationalIntent(text);
-    if (!intent) return null;
     const projectIds = repositories.projects.list().map((project) => project.id);
+    if (intent) {
+      return {
+        channelId,
+        threadTs,
+        text:
+          intent === "status"
+            ? buildAiOpsStatusText(projectIds)
+            : buildAiOpsGreetingText(projectIds),
+      } satisfies SlackConversationReply;
+    }
+    if (!shouldUseGovernorConversation(text)) return null;
+    if (options.governorConversationExecutor) {
+      const reply = await options.governorConversationExecutor({
+        text,
+        knownProjects: projectIds,
+      });
+      return {
+        channelId,
+        threadTs,
+        text: reply.reply,
+      } satisfies SlackConversationReply;
+    }
     return {
       channelId,
       threadTs,
       text:
-        intent === "status"
-          ? buildAiOpsStatusText(projectIds)
-          : buildAiOpsGreetingText(projectIds),
+        `총괄: 이건 여기서 바로 얘기해도 돼요. 실행이 필요해지면 \`프로젝트명: 목표\` 형식으로 넘기거나 해당 프로젝트 채널에서 이어가 주세요.`,
     } satisfies SlackConversationReply;
   }
 
@@ -696,6 +754,20 @@ export async function maybeBuildConversationReply(
     slackClient: options.slackClient,
   });
   if (!project) return null;
+  const explicitProject = normalizeEventText(text);
+  const explicitProjectMatch = explicitProject
+    ? await resolveProjectByIdentifier({
+        repositories,
+        projectId: explicitProject.projectId,
+        slackClient: options.slackClient,
+      })
+    : null;
+  const threadGoal = readThreadGoal({
+    repositories,
+    memoryStore,
+    projectId: project.id,
+    threadTs: typeof event.thread_ts === "string" ? event.thread_ts : undefined,
+  });
 
   const workspaceCommand = parseProjectWorkspaceCommand(text);
   if (workspaceCommand) {
@@ -733,14 +805,63 @@ export async function maybeBuildConversationReply(
   }
 
   const intent = detectConversationalIntent(text);
-  if (!intent) return null;
-
-  return {
-    channelId,
-    threadTs,
-    text:
-      intent === "status"
-        ? buildProjectStatusText(project.id)
-        : buildProjectGreetingText(project.id),
-  } satisfies SlackConversationReply;
+  if (intent) {
+    return {
+      channelId,
+      threadTs,
+      text:
+        intent === "status"
+          ? buildProjectStatusText(project.id)
+          : buildProjectGreetingText(project.id),
+    } satisfies SlackConversationReply;
+  }
+  if (
+    explicitProjectMatch
+    && explicitProjectMatch.id !== project.id
+  ) {
+    return null;
+  }
+  const shouldConsultCaptainConversation =
+    !explicitProjectMatch
+      ? (
+          options.captainConversationExecutor
+            ? Boolean(threadGoal) || shouldUseCaptainConversation({
+                text,
+                hasThreadGoal: Boolean(threadGoal),
+                hasExplicitProjectOverride: false,
+              })
+            : shouldUseCaptainConversation({
+                text,
+                hasThreadGoal: Boolean(threadGoal),
+                hasExplicitProjectOverride: false,
+              })
+        )
+      : false;
+  if (shouldConsultCaptainConversation) {
+    if (options.captainConversationExecutor) {
+      const decision = await options.captainConversationExecutor({
+        projectId: project.id,
+        text,
+        threadGoalTitle: threadGoal?.title ?? null,
+        memoryStore,
+      });
+      if (decision.mode === "reply") {
+        return {
+          channelId,
+          threadTs,
+          text: decision.reply,
+        } satisfies SlackConversationReply;
+      }
+      return null;
+    }
+    return {
+      channelId,
+      threadTs,
+      text:
+        threadGoal
+          ? `캡틴: 이건 새 라운드로 태우기보다 지금 스레드 맥락에서 바로 얘기할 수 있어요. 실제 수정이나 검증이 필요해지면 한 줄로 요청해 주세요.`
+          : `캡틴: 이건 바로 대화로 정리할 수 있어요. 실제 작업으로 돌릴 필요가 생기면 한 문장으로 요청해 주세요.`,
+    } satisfies SlackConversationReply;
+  }
+  return null;
 }

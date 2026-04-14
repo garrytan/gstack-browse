@@ -1,4 +1,8 @@
 import { createCodexCaptainExecutor } from "./codex/captain";
+import {
+  createCodexCaptainConversationExecutor,
+  createCodexGovernorConversationExecutor,
+} from "./codex/conversation";
 import { resolveConfig } from "./config";
 import { createCodexSpecialistExecutor } from "./codex/executor";
 import { createRuntimeDispatcher } from "./runtime/dispatcher";
@@ -14,6 +18,8 @@ export function createRicoRuntime(input: {
     slackClient?: SlackMessageClient;
     captainExecutor?: Parameters<typeof createRuntimeDispatcher>[0]["captainExecutor"];
     specialistExecutor?: Parameters<typeof createRuntimeDispatcher>[0]["specialistExecutor"];
+    governorConversationExecutor?: Parameters<typeof createSlackRouter>[0]["governorConversationExecutor"];
+    captainConversationExecutor?: Parameters<typeof createSlackRouter>[0]["captainConversationExecutor"];
 } = {}) {
   const config = input.config ?? resolveConfig();
   const store = openStore(config.dbPath);
@@ -48,6 +54,16 @@ export function createRicoRuntime(input: {
     maxActiveProjects: config.maxActiveProjects,
     signingSecret: config.slackSigningSecret,
     slackClient,
+    governorConversationExecutor:
+      input.governorConversationExecutor
+      ?? (input.slackClient ? undefined : createCodexGovernorConversationExecutor()),
+    captainConversationExecutor:
+      input.captainConversationExecutor
+      ?? (input.slackClient
+        ? undefined
+        : createCodexCaptainConversationExecutor({
+            openclawWorkspacePath: config.openclawWorkspacePath,
+          })),
     triggerDrain: () => runner.kick(),
   });
 

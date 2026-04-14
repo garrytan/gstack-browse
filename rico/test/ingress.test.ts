@@ -479,6 +479,142 @@ test("processSlackPayload updates project repo root in a project channel without
   rmSync(repoRoot, { recursive: true, force: true });
 });
 
+test("processSlackPayload answers lightweight ai-ops discussion through governor without queueing work", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      governorConversationExecutor: async () => ({
+        reply: "총괄: 지금은 mypetroutine이 가장 먼저 볼 건이고, 이 질문은 바로 답할 수 있어요.",
+      }),
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "mypetroutine 쪽 지금 어떤 흐름으로 보면 돼?",
+        ts: "1712900000.000740",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.channel).toBe("C_TOTAL");
+  expect(posted[0]?.text).toContain("총괄");
+  expect(store.repositories.goals.listByProject("mypetroutine")).toHaveLength(0);
+});
+
+test("processSlackPayload answers lightweight project-thread discussion through captain without queueing follow-up work", async () => {
+  const store = openStore(":memory:");
+  const memoryStore = new MemoryStore(store.db);
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+  });
+  store.repositories.goals.create({
+    id: "goal-existing",
+    projectId: "mypetroutine",
+    initiativeId: null,
+    title: "온보딩 개선",
+    state: "in_progress",
+  });
+  memoryStore.putProjectFact(
+    "mypetroutine",
+    "captain.thread.1712900000.000800.goal_id",
+    "goal-existing",
+  );
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      captainConversationExecutor: async () => ({
+        mode: "reply",
+        reply: "캡틴: 이건 새 라운드로 태울 필요 없이, QA를 붙인 이유만 바로 설명할 수 있어요.",
+      }),
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_MYPETROUTINE",
+        user: "U_TONY",
+        text: "왜 QA를 붙였어?",
+        ts: "1712900000.000810",
+        thread_ts: "1712900000.000800",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.channel).toBe("C_MYPETROUTINE");
+  expect(posted[0]?.thread_ts).toBe("1712900000.000800");
+  expect(posted[0]?.text).toContain("캡틴");
+  expect(store.repositories.runs.listByGoal("goal-existing")).toHaveLength(0);
+});
+
+test("processSlackPayload delegates project discussion into a new run when captain gate says execution is needed", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "mypetroutine",
+    slackChannelId: "C_MYPETROUTINE",
+  });
+
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      captainConversationExecutor: async () => ({
+        mode: "delegate",
+        reply: "캡틴: 이건 바로 답하는 것보다 실제 라운드로 태우는 게 맞아요.",
+      }),
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_MYPETROUTINE",
+        user: "U_TONY",
+        text: "이건 논의보다 실제 작업 라운드로 이어가는 게 낫지 않을까?",
+        ts: "1712900000.000820",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: true, handled: true });
+  expect(store.repositories.goals.listByProject("mypetroutine")).toHaveLength(1);
+  expect(store.repositories.goals.listByProject("mypetroutine")[0]?.title).toBe(
+    "이건 논의보다 실제 작업 라운드로 이어가는 게 낫지 않을까?",
+  );
+});
+
 test("processSlackPayload shows a structured governor status snapshot in ai-ops", async () => {
   const store = openStore(":memory:");
   store.repositories.projects.create({

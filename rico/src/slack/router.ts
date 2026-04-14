@@ -1,5 +1,11 @@
 import { randomUUID } from "node:crypto";
 import type { Database } from "bun:sqlite";
+import type {
+  CaptainConversationDecision,
+  CaptainConversationInput,
+  GovernorConversationInput,
+  GovernorConversationReply,
+} from "./conversation-gate";
 import { processSlackPayload } from "./ingress";
 import type { SlackMessageClient } from "./publish";
 import { verifySlackRequest } from "./signing";
@@ -10,6 +16,12 @@ interface SlackRouterOptions {
   maxActiveProjects?: number;
   signingSecret: string;
   slackClient?: SlackMessageClient;
+  governorConversationExecutor?: (
+    input: GovernorConversationInput,
+  ) => Promise<GovernorConversationReply>;
+  captainConversationExecutor?: (
+    input: CaptainConversationInput,
+  ) => Promise<CaptainConversationDecision>;
   runIdFactory?: () => string;
   nowSeconds?: () => number;
   triggerDrain?: () => void | Promise<void>;
