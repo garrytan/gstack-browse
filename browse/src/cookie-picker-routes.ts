@@ -40,6 +40,23 @@ export function generatePickerCode(): string {
   return code;
 }
 
+/** Return true while the picker still has a live code or session. */
+export function hasActivePicker(): boolean {
+  const now = Date.now();
+
+  for (const [code, expiry] of pendingCodes) {
+    if (expiry > now) return true;
+    pendingCodes.delete(code);
+  }
+
+  for (const [session, expiry] of validSessions) {
+    if (expiry > now) return true;
+    validSessions.delete(session);
+  }
+
+  return false;
+}
+
 /** Extract session ID from the gstack_picker cookie. */
 function getSessionFromCookie(req: Request): string | null {
   const cookie = req.headers.get('cookie');

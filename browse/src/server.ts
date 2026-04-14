@@ -763,6 +763,7 @@ if (BROWSE_PARENT_PID > 0) {
     try {
       process.kill(BROWSE_PARENT_PID, 0); // signal 0 = existence check only, no signal sent
     } catch {
+      if (hasActivePicker()) return;
       console.log(`[browse] Parent process ${BROWSE_PARENT_PID} exited, shutting down`);
       shutdown();
     }
@@ -770,6 +771,7 @@ if (BROWSE_PARENT_PID > 0) {
 }
 
 // ─── Command Sets (from commands.ts — single source of truth) ───
+import { hasActivePicker } from './cookie-picker-routes';
 import { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS } from './commands';
 export { READ_COMMANDS, WRITE_COMMANDS, META_COMMANDS };
 
