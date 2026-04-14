@@ -97,6 +97,14 @@ function extractRepoFacts(text: string) {
   return { urls, paths, branch, upstream, authLimited };
 }
 
+function displayRepoLocation(value: string) {
+  return value
+    .replace(/^https?:\/\//i, "")
+    .replace(/^git@/i, "")
+    .replace(/^github\.com:/i, "github.com/")
+    .replace(/^([^:]+):/, "$1/");
+}
+
 export function shapeCaptainConversationReplyForSlack(input: {
   message: string;
   reply: string;
@@ -121,7 +129,7 @@ export function shapeCaptainConversationReplyForSlack(input: {
 
   const confirmedParts: string[] = [];
   if (facts.paths[0]) confirmedParts.push(`workspace \`${facts.paths[0]}\``);
-  if (facts.urls[0]) confirmedParts.push(`origin \`${facts.urls[0]}\``);
+  if (facts.urls[0]) confirmedParts.push(`origin \`${displayRepoLocation(facts.urls[0])}\``);
   if (facts.branch && facts.upstream) {
     confirmedParts.push(`브랜치 \`${facts.branch} -> ${facts.upstream}\``);
   } else if (facts.branch) {
