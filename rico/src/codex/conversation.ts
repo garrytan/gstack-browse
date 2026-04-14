@@ -44,8 +44,20 @@ function normalizeSlackAutolinks(text: string) {
     .replace(/<((?:https?:\/\/|git@)[^>\s`]+)`/gi, "$1");
 }
 
+function protectUrlsForSlack(text: string) {
+  return text
+    .replace(
+      /(^|[^`])((?:https?:\/\/|git@)[^\s`<>]+?)(로|은|는|이|가|을|를|도|에|와|과)(?=\s|$)/g,
+      (_match, prefix: string, url: string, particle: string) => `${prefix}\`${url}\`${particle}`,
+    )
+    .replace(
+      /(^|[^`])((?:https?:\/\/|git@)[^\s`<>]+)(?=\s|$)/g,
+      (_match, prefix: string, url: string) => `${prefix}\`${url}\``,
+    );
+}
+
 export function sanitizeConversationReplyForSlack(text: string) {
-  return normalizeSlackAutolinks(text)
+  return protectUrlsForSlack(normalizeSlackAutolinks(text))
     .replace(/이 세션에서/g, "지금 확인 기준으로는")
     .replace(/이번 라운드에서/g, "지금 확인 기준으로는")
     .replace(/이 라운드에서/g, "지금 확인 기준으로는")
