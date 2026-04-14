@@ -31,3 +31,11 @@ jobs:
             echo "Generated Factory SKILL.md files are stale. Run: bun run gen:skill-docs --host factory"
             exit 1
           }
+      - name: Generate Hermes skill docs
+        run: bun run gen:skill-docs --host hermes
+      - name: Verify Hermes skill docs are fresh
+        run: |
+          git diff --exit-code -- .hermes/ || {
+            echo "Generated Hermes SKILL.md files are stale. Run: bun run gen:skill-docs --host hermes"
+            exit 1
+          }

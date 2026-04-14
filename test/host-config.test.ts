@@ -22,6 +22,7 @@ import {
   slate,
   cursor,
   openclaw,
+  hermes,
 } from '../hosts/index';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 
@@ -30,8 +31,8 @@ const ROOT = path.resolve(import.meta.dir, '..');
 // ─── hosts/index.ts ─────────────────────────────────────────
 
 describe('hosts/index.ts', () => {
-  test('ALL_HOST_CONFIGS has 8 hosts', () => {
-    expect(ALL_HOST_CONFIGS.length).toBe(8);
+  test('ALL_HOST_CONFIGS has 9 hosts', () => {
+    expect(ALL_HOST_CONFIGS.length).toBe(9);
   });
 
   test('ALL_HOST_NAMES matches config names', () => {
@@ -493,12 +494,44 @@ describe('host config correctness', () => {
     expect(openclaw.generation.includeSkills!.length).toBe(0);
   });
 
+  test('hermes has tool rewrites for terminal/read_file/write_file', () => {
+    expect(hermes.toolRewrites).toBeDefined();
+    expect(hermes.toolRewrites!['use the Bash tool']).toBe('use the terminal tool');
+    expect(hermes.toolRewrites!['use the Read tool']).toBe('use the read_file tool');
+    expect(hermes.toolRewrites!['use the Edit tool']).toBe('use the patch tool');
+  });
+
+  test('hermes has CLAUDE.md→HERMES.md path rewrite', () => {
+    expect(hermes.pathRewrites.some(r => r.from === 'CLAUDE.md' && r.to === 'HERMES.md')).toBe(true);
+  });
+
+  test('hermes has adapter path', () => {
+    expect(hermes.adapter).toBeDefined();
+    expect(hermes.adapter).toContain('hermes-adapter');
+  });
+
+  test('hermes has description limit for agentskills.io', () => {
+    expect(hermes.frontmatter.descriptionLimit).toBe(1024);
+    expect(hermes.frontmatter.descriptionLimitBehavior).toBe('error');
+  });
+
+  test('hermes has agentskills.io version field', () => {
+    expect(hermes.frontmatter.extraFields).toBeDefined();
+    expect(hermes.frontmatter.extraFields!.version).toBeDefined();
+  });
+
+  test('hermes includeSkills is empty (native skills separate from generated)', () => {
+    expect(hermes.generation.includeSkills).toBeDefined();
+    expect(hermes.generation.includeSkills!.length).toBe(0);
+  });
+
   test('every host has coAuthorTrailer or undefined', () => {
-    // Claude, Codex, Factory, OpenClaw have explicit trailers
+    // Claude, Codex, Factory, OpenClaw, Hermes have explicit trailers
     expect(claude.coAuthorTrailer).toContain('Claude');
     expect(codex.coAuthorTrailer).toContain('Codex');
     expect(factory.coAuthorTrailer).toContain('Factory');
     expect(openclaw.coAuthorTrailer).toContain('OpenClaw');
+    expect(hermes.coAuthorTrailer).toContain('Hermes');
   });
 
   test('every external host skips the codex skill', () => {

@@ -398,6 +398,13 @@ function processExternalHost(
     }
   }
 
+  // Run host adapter for semantic transforms (after generic rewrites)
+  if (hostConfig.adapter) {
+    const adapterPath = path.resolve(ROOT, hostConfig.adapter);
+    const adapter = require(adapterPath);
+    result = adapter.transform(result, hostConfig);
+  }
+
   // Config-driven: generate metadata (e.g., openai.yaml for Codex)
   if (hostConfig.generation.generateMetadata && !symlinkLoop) {
     const agentsDir = path.join(outputDir, 'agents');

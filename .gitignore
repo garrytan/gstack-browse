@@ -13,6 +13,7 @@ bin/gstack-global-discover
 .slate/
 .cursor/
 .openclaw/
+.hermes/
 .context/
 extension/.auth.json
 .gstack-worktrees/
