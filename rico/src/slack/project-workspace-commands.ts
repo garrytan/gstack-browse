@@ -16,8 +16,14 @@ function normalizeText(text: string) {
   return text.trim().replace(/\s+/g, " ");
 }
 
+function normalizeRepoSpecifier(value: string) {
+  return value
+    .trim()
+    .replace(/^<mailto:([^>|]+)(?:\|[^>]+)?>:(.+)$/i, "$1:$2");
+}
+
 function looksLikeGitRemoteUrl(value: string) {
-  return /^(?:git@|ssh:\/\/git@|https?:\/\/).+\.git$/i.test(value.trim());
+  return /^(?:git@|ssh:\/\/git@|https?:\/\/).+\.git$/i.test(normalizeRepoSpecifier(value));
 }
 
 export function parseProjectWorkspaceCommand(text: string): ProjectWorkspaceCommand | null {
@@ -29,7 +35,7 @@ export function parseProjectWorkspaceCommand(text: string): ProjectWorkspaceComm
 
   const setMatch = normalized.match(/^(?:저장소|repo)\s*:\s*(.+)$/i);
   if (setMatch?.[1]) {
-    const value = setMatch[1].trim();
+    const value = normalizeRepoSpecifier(setMatch[1]);
     if (looksLikeGitRemoteUrl(value)) {
       return {
         type: "set-repo-url",

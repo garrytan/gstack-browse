@@ -521,6 +521,45 @@ test("processSlackPayload stores project repo url in a project channel without q
   expect(store.repositories.goals.listByProject("crypto")).toHaveLength(0);
 });
 
+test("processSlackPayload normalizes Slack mailto wrapping for git remote repo urls", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_CRYPTO",
+        user: "U_TONY",
+        text: "저장소: <mailto:git@github.com>:xogjs/Crypto.git",
+        ts: "1712900000.0007315",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted[0]?.text).toContain("git@github.com:xogjs/Crypto.git");
+  expect(new MemoryStore(store.db).getProjectMemory("crypto")).toMatchObject({
+    "project.repo_url": "git@github.com:xogjs/Crypto.git",
+  });
+});
+
 test("processSlackPayload treats natural-language repository discovery asks as workspace commands", async () => {
   const store = openStore(":memory:");
   store.repositories.projects.create({

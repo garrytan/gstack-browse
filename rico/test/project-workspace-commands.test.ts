@@ -11,6 +11,10 @@ test("parseProjectWorkspaceCommand recognizes git remote URLs", () => {
     type: "set-repo-url",
     repoUrl: "git@github.com:xogjs/Crypto.git",
   });
+  expect(parseProjectWorkspaceCommand("저장소: <mailto:git@github.com>:xogjs/Crypto.git")).toEqual({
+    type: "set-repo-url",
+    repoUrl: "git@github.com:xogjs/Crypto.git",
+  });
 });
 
 test("parseProjectWorkspaceCommand recognizes natural-language local repo discovery asks", () => {
