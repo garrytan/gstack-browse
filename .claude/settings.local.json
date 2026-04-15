@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "graphrag-kb-cloud"
+  ],
+  "enableAllProjectMcpServers": true
+}

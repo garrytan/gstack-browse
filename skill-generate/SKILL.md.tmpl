@@ -1,0 +1,262 @@
+---
+name: skill-generate
+preamble-tier: 3
+version: 1.0.0
+description: |
+  業務フロー記述テキストから gstack 規約準拠の SKILL.md.tmpl を自動生成する。
+  マーケティング記事作成、法務契約書チェック、CSエスカレーション対応など、
+  任意の業務ドメインの知識をAIスキルとして構造化する。
+  Use when asked to "スキルを作る", "業務をスキル化する", "skill-generate", "SKILL.md を生成".
+  /office-hours でドメインを整理した後に使うと効果的。 (gstack)
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - AskUserQuestion
+---
+
+{{PREAMBLE}}
+
+# /skill-generate — 業務スキル生成
+
+業務フローの記述テキストを受け取り、gstack 規約準拠の `SKILL.md.tmpl` を生成します。
+生成後に `bun run gen:skill-docs` と `bun run skill:check` を実行して動作確認します。
+
+**出力する業務スキルの5セクション (業務スキル専用規約):**
+
+| セクション | 内容 |
+|-----------|------|
+| Preamble | 業務コンテキスト確認・必要インプット確認 |
+| Workflow | ステップバイステップの業務フロー (番号付き) |
+| Output Format | 成果物の形式・品質基準 |
+| Failure Patterns | よくある落とし穴・「やってはいけない」パターン |
+| Quality Gate | 「これができたら完了」の自己チェック項目 |
+
+---
+
+## Step 1: 業務フローを引き出す
+
+AskUserQuestion で以下を確認します。一度に全部聞かず、まず業務名と目的から始めます。
+
+まず尋ねること:
+
+> どんな業務をスキル化したいですか?
+> (例: 「法務契約書のリスクチェック」「マーケ記事の品質レビュー」「CSエスカレーション判断」)
+
+回答をもとに、以下を順次引き出します:
+
+1. **業務名** (スキル名になります。日本語可、ただしフォルダ名は英数字-ハイフンのみ)
+2. **業務の目的** (誰が、何のために使うか)
+3. **インプット** (何を受け取るか: テキスト、ドキュメント、データ等)
+4. **アウトプット** (何を出力するか: レポート、判断、修正案等)
+5. **主なステップ** (3〜7ステップ程度。箇条書きでOK)
+6. **よくある失敗パターン** (省略可。「よくあるミスは?」と聞く)
+
+**明確でない点があれば追加で質問する。** 5〜6が揃ったら Step 2 へ。
+
+---
+
+## Step 2: スキルのメタデータを決定する
+
+収集した情報から以下を決定します:
+
+### slug (フォルダ名) の決定ルール
+- 英数字とハイフンのみ (`[a-z0-9-]`)
+- スペース・日本語は使用不可
+- 例: 法務契約書チェック → `legal-contract-check`
+- 例: CSエスカレーション → `cs-escalation`
+
+**slug が既存スキルと衝突しないか確認:**
+
+```bash
+ls /c/Users/yshim/.claude/skills/gstack/ 2>/dev/null | grep -x "SLUG" || \
+ls ~/.claude/skills/gstack/ 2>/dev/null | grep -x "SLUG" || \
+echo "OK — no collision"
+```
+
+(SLUG の部分を実際の slug に置き換えて実行する)
+
+### preamble-tier の決定ルール
+
+| tier | 内容 | 使うタイミング |
+|------|------|-------------|
+| 1 | 最小 (プリアンブルのみ) | シンプルなユーティリティ |
+| 2 | + Context Recovery + AskUserQuestion フォーマット | 対話型スキル |
+| 3 | + Repo Mode + Search Before Building | 設計・分析スキル |
+| 4 | + 完全な review/ship 統合 | 開発ワークフロースキル |
+
+業務スキルは通常 **tier 2** が適切。対話型で業務フローを引き出すため。
+
+### allowed-tools の決定ルール
+
+業務スキルの典型的なツールセット:
+- 必須: `AskUserQuestion` (業務内容を引き出す)
+- テキスト出力あり: `Write` (レポート・チェックリスト生成)
+- ファイル読み取りあり: `Read` (添付ドキュメントを読む)
+- Web参照あり: `WebSearch` (最新情報・規制確認)
+- コード生成なし: Bash は原則不要
+
+---
+
+## Step 3: SKILL.md.tmpl を生成する
+
+以下のテンプレートを元に、収集した情報で埋めて `{slug}/SKILL.md.tmpl` を作成します。
+
+ファイルパスを確認:
+
+```bash
+# gstack のインストール先を確認
+GSTACK_DIR=$(ls -d ~/.claude/skills/gstack 2>/dev/null || ls -d .claude/skills/gstack 2>/dev/null || echo "NOT_FOUND")
+echo "GSTACK_DIR: $GSTACK_DIR"
+```
+
+`NOT_FOUND` の場合はユーザーに確認する。見つかった場合は `$GSTACK_DIR/{slug}/SKILL.md.tmpl` に生成する。
+
+**生成するファイルの構造:**
+
+```markdown
+---
+name: {slug}
+preamble-tier: {tier}
+version: 1.0.0
+description: |
+  {業務の一行説明}
+  Use when asked to "{業務名}", "{関連キーワード}". (gstack)
+allowed-tools:
+  - AskUserQuestion
+  - Read
+  - Write
+---
+
+{{PREAMBLE}}
+
+# /{slug} — {業務名}
+
+{業務の目的と概要を2〜3文で}
+
+---
+
+## Preamble (確認事項)
+
+このスキルを実行する前に確認します:
+
+- **対象**: {業務の対象となるもの (例: 契約書, 記事, チケット)}
+- **目的**: {何を達成するか}
+- **必要なインプット**: {ユーザーが提供すべきもの}
+
+インプットがまだ提供されていない場合は AskUserQuestion で確認してから進む。
+
+---
+
+## Workflow
+
+{業務ステップを番号付きで記述。各ステップに完了条件を明記。}
+
+1. **{ステップ名}**
+   - {具体的な作業内容}
+   - 完了条件: {何があれば次へ進めるか}
+
+2. **{ステップ名}**
+   - ...
+
+---
+
+## Output Format
+
+成果物の形式:
+
+{成果物の具体的な形式を記述。例: Markdownリスト、表、箇条書き等}
+
+品質基準:
+- {品質条件1}
+- {品質条件2}
+
+---
+
+## Failure Patterns
+
+よくある落とし穴:
+
+- **{失敗パターン1}**: {原因と回避方法}
+- **{失敗パターン2}**: ...
+
+やってはいけないこと:
+- {禁止事項1}
+
+---
+
+## Quality Gate
+
+以下が揃ったら完了:
+
+- [ ] {チェック項目1}
+- [ ] {チェック項目2}
+- [ ] {チェック項目3}
+```
+
+このテンプレートを収集した業務情報で埋めて Write ツールで出力する。
+**フォルダ名に日本語・スペース・特殊文字を使わない。** ASCII のハイフン区切りのみ。
+
+---
+
+## Step 4: gen:skill-docs を実行する
+
+```bash
+cd "$GSTACK_DIR"
+bun run gen:skill-docs 2>&1 | tail -20
+```
+
+エラーが出た場合:
+- `Invalid preamble-tier` → tier の値を 1〜4 に修正して再実行
+- `Token ceiling exceeded` → SKILL.md.tmpl の内容を短縮して再実行
+- その他のエラー → エラーメッセージをそのまま提示してユーザーに判断を仰ぐ
+
+---
+
+## Step 5: skill:check で検証する
+
+```bash
+cd "$GSTACK_DIR"
+bun run skill:check 2>&1 | grep -A 2 "{slug}"
+```
+
+- ✅ が出れば成功
+- ❌ が出れば内容を確認して修正
+
+---
+
+## Step 6: 完了報告
+
+成功した場合、以下を報告する:
+
+```
+✅ スキル生成完了
+
+スキル名: /{slug}
+ファイル: {GSTACK_DIR}/{slug}/SKILL.md.tmpl
+       : {GSTACK_DIR}/{slug}/SKILL.md (生成済み)
+
+使い方:
+  /skill-generate で呼び出すか、Claude Code に「/{slug}」と入力する
+
+次のステップ:
+  - 実際の業務タスクで試してみる
+  - 改善が必要なら document-skills:skill-creator で評価・改善ループを回す
+```
+
+失敗した場合は、エラー内容と修正方法をユーザーに提示する。
+
+---
+
+## 業務スキルテンプレートの5セクション規約 (参考)
+
+これは gstack 内部の SKILL.md 規約とは別の、**業務スキル専用のコンテンツ規約**です。
+生成した SKILL.md.tmpl のコンテンツ部分がこの規約を満たすように確認してください。
+
+| セクション | 必須? | 説明 |
+|-----------|------|------|
+| Preamble (確認事項) | ✅ | 業務コンテキストの確認・インプット確認 |
+| Workflow | ✅ | 番号付きの業務フロー・各ステップの完了条件 |
+| Output Format | ✅ | 成果物の形式と品質基準 |
+| Failure Patterns | 推奨 | よくある落とし穴と回避方法 |
+| Quality Gate | 推奨 | 完了の自己チェックリスト |

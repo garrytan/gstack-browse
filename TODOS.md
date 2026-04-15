@@ -1,5 +1,35 @@
 # TODOS
 
+## Business Skill Framework (/skill-generate)
+
+### 業務スキルテンプレートのバリデーター
+
+**What:** `/skill-generate` が生成した SKILL.md.tmpl に対して、業務スキル固有の5セクション (Preamble / Workflow / Output Format / Failure Patterns / Quality Gate) を検証するバリデーター。`skill:check` では検証できない業務スキル固有の品質基準をカバーする。
+
+**Why:** `skill:check` は browse コマンド・frontmatter・テンプレートの freshness を検証するが、業務スキルが「実際に使えるか」は評価しない。Codex のレビューで指摘: 生成スキルの品質保証が `skill:check` だけでは不十分。
+
+**Pros:** 生成スキルの品質が保証され、顧客デモで「動く」ことが確認できる。
+**Cons:** 業務ドメインに依存するため、汎用バリデーターの設計が難しい。LLM判定が必要になる可能性。
+**Context:** `/skill-generate` (Phase 1) が完成してから設計する。最初の顧客ユースケースで「何が足りないか」が見えてから作る。`test/skill-llm-eval.test.ts` に eval ケースとして追加するのが適切。
+**Depends on:** /skill-generate Phase 1 完成
+
+**Effort:** M (human: ~1日 / CC+gstack: ~30min)
+**Priority:** P2
+
+### ファイル添付の ingestion セマンティクス定義
+
+**What:** `/skill-generate` のファイル添付入力の仕様を定義する。pasted text / explicit file path (ローカル) / host-specific attachment (PDF, Notion等) のどれに対応するかを明確にする。
+
+**Why:** Codex が指摘 — 「ファイル添付サポート」は現状では実装不可能なほど未定義。Claude の Read ツールで読める形式 (テキスト、Markdown、PDF) と、添付できない形式 (Notion DB, 生バイナリ) の境界を明確にしないと実装が発散する。
+
+**Pros:** Phase 2 (ファイル添付対応) の実装が具体的になる。顧客への約束が明確になる。
+**Cons:** 仕様化に時間がかかる。ホストごとに対応範囲が異なる。
+**Context:** Phase 1 は自然言語入力のみで進める。Phase 2 でファイル添付を追加する際にこの仕様を先に確定する。
+**Depends on:** /skill-generate Phase 1 完成、最初の顧客フィードバック
+
+**Effort:** S (human: ~2時間 / CC+gstack: ~15min)
+**Priority:** P2
+
 ## Sidebar Security
 
 ### ML Prompt Injection Classifier
