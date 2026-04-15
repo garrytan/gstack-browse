@@ -135,10 +135,12 @@ export function findInstalledBrowsers(): BrowserInfo[] {
       const browserDir = path.join(getBaseDir(platform), dataDir);
       try {
         const entries = fs.readdirSync(browserDir, { withFileTypes: true });
-        if (entries.some(e =>
-          e.isDirectory() && e.name.startsWith('Profile ') &&
-          fs.existsSync(path.join(browserDir, e.name, 'Cookies'))
-        )) return true;
+        if (entries.some(e => {
+          if (!e.isDirectory() || !e.name.startsWith('Profile ')) return false;
+          const profileDir = path.join(browserDir, e.name);
+          return fs.existsSync(path.join(profileDir, 'Cookies'))
+            || (platform === 'win32' && fs.existsSync(path.join(profileDir, 'Network', 'Cookies')));
+        })) return true;
       } catch {}
     }
     return false;
@@ -176,8 +178,11 @@ export function listProfiles(browserName: string): ProfileEntry[] {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       if (entry.name !== 'Default' && !entry.name.startsWith('Profile ')) continue;
-      const cookiePath = path.join(browserDir, entry.name, 'Cookies');
-      if (!fs.existsSync(cookiePath)) continue;
+      // Chrome 80+ on Windows stores cookies under Network/Cookies
+      const cookieCandidates = platform === 'win32'
+        ? [path.join(browserDir, entry.name, 'Network', 'Cookies'), path.join(browserDir, entry.name, 'Cookies')]
+        : [path.join(browserDir, entry.name, 'Cookies')];
+      if (!cookieCandidates.some(p => fs.existsSync(p))) continue;
 
       // Avoid duplicates if the same profile appears on multiple platforms
       if (profiles.some(p => p.name === entry.name)) continue;
@@ -380,6 +385,13 @@ function getBrowserMatch(browser: BrowserInfo, profile: string): BrowserMatch {
 // ─── Internal: SQLite Access ────────────────────────────────────
 
 function openDb(dbPath: string, browserName: string): Database {
+  // On Windows, Chrome holds exclusive WAL locks even when we open readonly.
+  // The readonly open may "succeed" but return empty results because the WAL
+  // (where all actual data lives) can't be replayed. Always use the copy
+  // approach on Windows so we can open read-write and process the WAL.
+  if (process.platform === 'win32') {
+    return openDbFromCopy(dbPath, browserName);
+  }
   try {
     return new Database(dbPath, { readonly: true });
   } catch (err: any) {
@@ -666,6 +678,14 @@ function decryptCookieValue(row: RawCookie, keys: Map<string, Buffer>, platform:
   if (ev.length === 0) return '';
 
   const prefix = ev.slice(0, 3).toString('utf-8');
+
+  // Chrome 127+ on Windows uses App-Bound Encryption (v20) — cannot be decrypted
+  // outside the Chrome process. Caller should fall back to CDP extraction.
+  if (prefix === 'v20') throw new CookieImportError(
+    'Cookie uses App-Bound Encryption (v20). Use CDP extraction instead.',
+    'v20_encryption',
+  );
+
   const key = keys.get(prefix);
   if (!key) throw new Error(`No decryption key available for ${prefix} cookies`);
 
@@ -725,5 +745,260 @@ function mapSameSite(value: number): 'Strict' | 'Lax' | 'None' {
     case 1: return 'Lax';
     case 2: return 'Strict';
     default: return 'Lax';
+  }
+}
+
+
+// ─── CDP-based Cookie Extraction (Windows v20 fallback) ────────
+// When App-Bound Encryption (v20) is detected, we launch Chrome headless
+// with remote debugging and extract cookies via the DevTools Protocol.
+// This only works when Chrome is NOT already running (profile lock).
+
+const CHROME_PATHS_WIN = [
+  path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+  path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+];
+
+const EDGE_PATHS_WIN = [
+  path.join(process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+  path.join(process.env.PROGRAMFILES || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+];
+
+function findBrowserExe(browserName: string): string | null {
+  const candidates = browserName.toLowerCase().includes('edge') ? EDGE_PATHS_WIN : CHROME_PATHS_WIN;
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function isBrowserRunning(browserName: string): Promise<boolean> {
+  const exe = browserName.toLowerCase().includes('edge') ? 'msedge.exe' : 'chrome.exe';
+  return new Promise((resolve) => {
+    const proc = Bun.spawn(['tasklist', '/FI', `IMAGENAME eq ${exe}`, '/NH'], {
+      stdout: 'pipe', stderr: 'pipe',
+    });
+    proc.exited.then(async () => {
+      const out = await new Response(proc.stdout).text();
+      resolve(out.toLowerCase().includes(exe));
+    }).catch(() => resolve(false));
+  });
+}
+
+/**
+ * Extract cookies via Chrome DevTools Protocol. Launches Chrome headless with
+ * remote debugging on the user's real profile directory. Requires Chrome to be
+ * closed first (profile lock).
+ *
+ * v20 App-Bound Encryption binds decryption keys to the original user-data-dir
+ * path, so a temp copy of the profile won't work — Chrome silently discards
+ * cookies it can't decrypt. We must use the real profile.
+ */
+export async function importCookiesViaCdp(
+  browserName: string,
+  domains: string[],
+  profile = 'Default',
+): Promise<ImportResult> {
+  if (domains.length === 0) return { cookies: [], count: 0, failed: 0, domainCounts: {} };
+  if (process.platform !== 'win32') {
+    throw new CookieImportError('CDP extraction is only needed on Windows', 'not_supported');
+  }
+
+  const browser = resolveBrowser(browserName);
+  const exePath = findBrowserExe(browser.name);
+  if (!exePath) {
+    throw new CookieImportError(
+      `Cannot find ${browser.name} executable. Install it or use /connect-chrome.`,
+      'not_installed',
+    );
+  }
+
+  if (await isBrowserRunning(browser.name)) {
+    throw new CookieImportError(
+      `${browser.name} is running. Close it first so we can launch headless with your profile, or use /connect-chrome to control your real browser directly.`,
+      'browser_running',
+      'retry',
+    );
+  }
+
+  // Must use the real user data dir — v20 ABE keys are path-bound
+  const dataDir = getDataDirForPlatform(browser, 'win32');
+  if (!dataDir) throw new CookieImportError(`No Windows data dir for ${browser.name}`, 'not_installed');
+  const userDataDir = path.join(getBaseDir('win32'), dataDir);
+
+  // Launch Chrome headless with remote debugging on the real profile
+  const debugPort = 9222 + Math.floor(Math.random() * 100);
+  const chromeProc = Bun.spawn([
+    exePath,
+    `--remote-debugging-port=${debugPort}`,
+    `--user-data-dir=${userDataDir}`,
+    `--profile-directory=${profile}`,
+    '--headless=new',
+    '--no-first-run',
+    '--disable-background-networking',
+    '--disable-default-apps',
+    '--disable-extensions',
+    '--disable-sync',
+    '--no-default-browser-check',
+  ], { stdout: 'pipe', stderr: 'pipe' });
+
+  // Wait for Chrome to start, then find a page target's WebSocket URL.
+  // Network.getAllCookies is only available on page targets, not browser.
+  let wsUrl: string | null = null;
+  const startTime = Date.now();
+  while (Date.now() - startTime < 15_000) {
+    try {
+      const resp = await fetch(`http://127.0.0.1:${debugPort}/json/list`);
+      if (resp.ok) {
+        const targets = await resp.json() as Array<{ type: string; webSocketDebuggerUrl?: string }>;
+        const page = targets.find(t => t.type === 'page');
+        if (page?.webSocketDebuggerUrl) {
+          wsUrl = page.webSocketDebuggerUrl;
+          break;
+        }
+      }
+    } catch {
+      // Not ready yet
+    }
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  if (!wsUrl) {
+    chromeProc.kill();
+    throw new CookieImportError(
+      `${browser.name} headless did not start within 15s`,
+      'cdp_timeout',
+      'retry',
+    );
+  }
+
+  try {
+    // Connect via CDP WebSocket
+    const cookies = await extractCookiesViaCdp(wsUrl, domains);
+
+    const domainCounts: Record<string, number> = {};
+    for (const c of cookies) {
+      domainCounts[c.domain] = (domainCounts[c.domain] || 0) + 1;
+    }
+
+    return { cookies, count: cookies.length, failed: 0, domainCounts };
+  } finally {
+    chromeProc.kill();
+  }
+}
+
+async function extractCookiesViaCdp(wsUrl: string, domains: string[]): Promise<PlaywrightCookie[]> {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(wsUrl);
+    let msgId = 1;
+
+    const timeout = setTimeout(() => {
+      ws.close();
+      reject(new CookieImportError('CDP cookie extraction timed out', 'cdp_timeout'));
+    }, 10_000);
+
+    ws.onopen = () => {
+      // Enable Network domain first, then request all cookies
+      ws.send(JSON.stringify({ id: msgId++, method: 'Network.enable' }));
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(String(event.data));
+
+      // After Network.enable succeeds, request all cookies
+      if (data.id === 1 && !data.error) {
+        ws.send(JSON.stringify({ id: msgId, method: 'Network.getAllCookies' }));
+        return;
+      }
+
+      if (data.id === msgId && data.result?.cookies) {
+        clearTimeout(timeout);
+        ws.close();
+
+        // Normalize domain matching: domains like ".example.com" match "example.com" and vice versa
+        const domainSet = new Set<string>();
+        for (const d of domains) {
+          domainSet.add(d);
+          domainSet.add(d.startsWith('.') ? d.slice(1) : '.' + d);
+        }
+
+        const matched: PlaywrightCookie[] = [];
+        for (const c of data.result.cookies as CdpCookie[]) {
+          if (!domainSet.has(c.domain)) continue;
+          matched.push({
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path || '/',
+            expires: c.expires === -1 ? -1 : c.expires,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
+            sameSite: cdpSameSite(c.sameSite),
+          });
+        }
+        resolve(matched);
+      } else if (data.id === msgId && data.error) {
+        clearTimeout(timeout);
+        ws.close();
+        reject(new CookieImportError(
+          `CDP error: ${data.error.message}`,
+          'cdp_error',
+        ));
+      }
+    };
+
+    ws.onerror = (err) => {
+      clearTimeout(timeout);
+      reject(new CookieImportError(
+        `CDP WebSocket error: ${(err as any).message || 'unknown'}`,
+        'cdp_error',
+      ));
+    };
+  });
+}
+
+interface CdpCookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires: number;
+  size: number;
+  httpOnly: boolean;
+  secure: boolean;
+  session: boolean;
+  sameSite: string;
+}
+
+function cdpSameSite(value: string): 'Strict' | 'Lax' | 'None' {
+  switch (value) {
+    case 'Strict': return 'Strict';
+    case 'Lax': return 'Lax';
+    case 'None': return 'None';
+    default: return 'Lax';
+  }
+}
+
+/**
+ * Check if a browser's cookie DB contains v20 (App-Bound) encrypted cookies.
+ * Quick check — reads a small sample, no decryption attempted.
+ */
+export function hasV20Cookies(browserName: string, profile = 'Default'): boolean {
+  if (process.platform !== 'win32') return false;
+  try {
+    const browser = resolveBrowser(browserName);
+    const match = getBrowserMatch(browser, profile);
+    const db = openDb(match.dbPath, browser.name);
+    try {
+      const rows = db.query('SELECT encrypted_value FROM cookies LIMIT 10').all() as Array<{ encrypted_value: Buffer | Uint8Array }>;
+      return rows.some(row => {
+        const ev = Buffer.from(row.encrypted_value);
+        return ev.length >= 3 && ev.slice(0, 3).toString('utf-8') === 'v20';
+      });
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
   }
 }
