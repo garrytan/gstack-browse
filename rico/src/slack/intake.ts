@@ -39,6 +39,7 @@ import type {
 } from "./conversation-gate";
 import {
   looksLikeExecutionRequest,
+  looksLikeStatusReport,
   shouldUseCaptainConversation,
   shouldUseGovernorConversation,
 } from "./conversation-gate";
@@ -184,13 +185,17 @@ async function resolveProjectForIncomingChannel(input: {
 }
 
 function deriveTaskList(text: string) {
-  const segments = sanitizeIncomingSlackText(stripLeadingMention(text))
+  const normalized = sanitizeIncomingSlackText(stripLeadingMention(text));
+  if (looksLikeStatusReport(normalized)) {
+    return normalized ? [normalized] : [];
+  }
+
+  const segments = normalized
     .split(/[,\n]+/)
     .map((segment) => segment.replace(/^[-*•]\s*/, "").trim())
     .filter(Boolean);
 
   if (segments.length === 0) {
-    const normalized = sanitizeIncomingSlackText(stripLeadingMention(text));
     return normalized ? [normalized] : [];
   }
 
@@ -324,6 +329,37 @@ function appendConversationHistory(input: {
     conversationHistoryKey(input.threadTs),
     JSON.stringify(history.slice(-8)),
   );
+}
+
+function compactSlackSentence(text: string, limit = 120) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
+}
+
+function extractStatusReportBullets(text: string) {
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[•*-]\s+/.test(line))
+    .map((line) => line.replace(/^[•*-]\s+/, "").trim())
+    .slice(0, 3);
+}
+
+function buildCaptainStatusReportReply(text: string, fallback?: string | null) {
+  const bullets = extractStatusReportBullets(text);
+  const completed = bullets[0]
+    ? compactSlackSentence(bullets[0], 100)
+    : "보고 기준으로는 주요 작업이 마무리된 걸로 보여요.";
+  const remaining = fallback && fallback.trim().length > 0
+    ? compactSlackSentence(fallback, 120)
+    : "남은 건 이번 보고에서 실제로 검증된 항목과 아직 확인이 필요한 항목을 분리해서 보는 거예요.";
+  return [
+    "캡틴:",
+    `- 완료로 보이는 것: ${completed}`,
+    `- 아직 확인할 것: ${remaining}`,
+    "- 다음 단계: 이 스레드에서는 새 실행 라운드를 열지 않고, 보고에서 빠진 검증만 짧게 확인할게요.",
+  ].join("\n");
 }
 
 function resolveEvent(payload: Record<string, unknown>) {
@@ -978,27 +1014,31 @@ export async function maybeBuildConversationReply(
               })
         )
       : false;
-  if (shouldConsultCaptainConversation) {
-    if (options.captainConversationExecutor) {
-      const decision = await options.captainConversationExecutor({
-        projectId: project.id,
-        text,
+    if (shouldConsultCaptainConversation) {
+      if (options.captainConversationExecutor) {
+        const decision = await options.captainConversationExecutor({
+          projectId: project.id,
+          text,
         threadGoalTitle: threadGoal?.title ?? null,
-        memoryStore,
-        threadHistory: captainThreadHistory,
-      });
-      if (decision.mode === "reply") {
+          memoryStore,
+          threadHistory: captainThreadHistory,
+        });
+      if (decision.mode === "reply" || looksLikeStatusReport(text)) {
+        const assistantText =
+          decision.mode === "reply"
+            ? decision.reply
+            : buildCaptainStatusReportReply(text, decision.reply);
         appendConversationHistory({
           memoryStore,
           scopeId: project.id,
           threadTs,
           userText: text,
-          assistantText: decision.reply,
+          assistantText,
         });
         return {
           channelId,
           threadTs,
-          text: decision.reply,
+          text: assistantText,
         } satisfies SlackConversationReply;
       }
       return null;

@@ -31,6 +31,11 @@ export async function processSlackPayload(
   kind: QueueJob["kind"],
   payload: Record<string, unknown>,
 ) {
+  const slackReceiptId = buildSlackReceiptId(kind, payload);
+  if (slackReceiptId && !claimSlackReceipt(options.db, slackReceiptId, kind)) {
+    return { queued: false, handled: true } as const;
+  }
+
   const runIdFactory = options.runIdFactory ?? (() => randomUUID());
 
   if (kind === "interaction") {
@@ -91,6 +96,69 @@ export async function processSlackPayload(
   }
 
   return { queued, handled: intakeResult !== "ignored" } as const;
+}
+
+function buildSlackReceiptId(
+  kind: QueueJob["kind"],
+  payload: Record<string, unknown>,
+) {
+  if (kind === "event") {
+    if (typeof payload.event_id === "string" && payload.event_id.length > 0) {
+      return `event:${payload.event_id}`;
+    }
+    const event = payload.event && typeof payload.event === "object"
+      ? payload.event as Record<string, unknown>
+      : payload;
+    const channel = typeof event.channel === "string" ? event.channel : "";
+    const ts = typeof event.ts === "string" ? event.ts : "";
+    const user = typeof event.user === "string" ? event.user : "";
+    if (channel && ts) {
+      return `event:${channel}:${ts}:${user}`;
+    }
+  }
+
+  if (kind === "interaction") {
+    const actions = Array.isArray(payload.actions) ? payload.actions : [];
+    const firstAction = actions[0];
+    const actionId =
+      firstAction && typeof firstAction === "object" && typeof firstAction.action_id === "string"
+        ? firstAction.action_id
+        : "";
+    const channelId =
+      payload.channel && typeof payload.channel === "object" && typeof payload.channel.id === "string"
+        ? payload.channel.id
+        : "";
+    const messageTs =
+      payload.message && typeof payload.message === "object" && typeof payload.message.ts === "string"
+        ? payload.message.ts
+        : "";
+    const userId =
+      payload.user && typeof payload.user === "object" && typeof payload.user.id === "string"
+        ? payload.user.id
+        : "";
+    if (channelId && messageTs && actionId) {
+      return `interaction:${channelId}:${messageTs}:${actionId}:${userId}`;
+    }
+  }
+
+  if (kind === "command") {
+    const command = typeof payload.command === "string" ? payload.command : "";
+    const triggerId = typeof payload.trigger_id === "string" ? payload.trigger_id : "";
+    if (command && triggerId) {
+      return `command:${command}:${triggerId}`;
+    }
+  }
+
+  return null;
+}
+
+function claimSlackReceipt(db: Database, id: string, kind: QueueJob["kind"]) {
+  const result = db.query(
+    `insert into slack_receipts (id, kind, processed_at)
+     values (?, ?, ?)
+     on conflict(id) do nothing`,
+  ).run(id, kind, new Date().toISOString()) as { changes?: number } | undefined;
+  return result?.changes === 1;
 }
 
 function hasGoalId(payload: Record<string, unknown>) {

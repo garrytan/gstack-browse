@@ -177,21 +177,37 @@ function shouldUseFactCheckPresentation(input: {
     && FACT_CHECK_INTENT_PATTERN.test(input.goalTitle);
 }
 
+function isLowSignalNoChangeResult(result: SpecialistResult) {
+  const changedFiles = result.changedFiles?.length ?? 0;
+  const verificationNotes = result.verificationNotes?.length ?? 0;
+  return changedFiles === 0
+    && verificationNotes === 0
+    && (result.role === "backend"
+      || result.role === "frontend"
+      || result.role === "planner"
+      || result.role === "designer");
+}
+
 function shouldPostSpecialistMessage(result: SpecialistResult) {
+  if (isLowSignalNoChangeResult(result)) return false;
   if (result.impact === "blocking" || result.impact === "approval_needed") return true;
-  if (result.executionMode === "write") return true;
   if ((result.changedFiles?.length ?? 0) > 0) return true;
-  if ((result.verificationNotes?.length ?? 0) > 0) return true;
-  if (result.personaLabel) return true;
+  if (result.role === "qa" && (result.verificationNotes?.length ?? 0) > 0) return true;
+  if (result.role === "customer-voice" && Boolean(result.personaLabel)) return true;
   return false;
 }
 
 function shouldPublishArtifact(result: SpecialistResult) {
-  if (result.role === "qa") return true;
-  if (result.role === "customer-voice" && ((result.verificationNotes?.length ?? 0) > 0 || result.personaLabel)) {
-    return true;
+  if (isLowSignalNoChangeResult(result)) return false;
+  if (result.role === "qa") {
+    return (result.verificationNotes?.length ?? 0) > 0 || result.impact !== "info";
   }
-  if (result.executionMode === "write") return true;
+  if (result.role === "customer-voice" && ((result.verificationNotes?.length ?? 0) > 0 || result.personaLabel)) {
+    return result.impact !== "info";
+  }
+  if (result.executionMode === "write") {
+    return (result.changedFiles?.length ?? 0) > 0;
+  }
   return false;
 }
 
@@ -528,7 +544,10 @@ export function createRuntimeDispatcher(input: {
         });
         for (const result of results) {
           specialistResults.push(result);
-          if (shouldPostSpecialistMessage(result) || compactPresentation === "fact_check") {
+          if (
+            shouldPostSpecialistMessage(result)
+            || (compactPresentation === "fact_check" && !isLowSignalNoChangeResult(result))
+          ) {
             if (
               input.artifactRoot
               && shouldPublishArtifact(result)

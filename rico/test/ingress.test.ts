@@ -429,6 +429,201 @@ test("processSlackPayload treats project-thread feedback as a follow-up run for 
   });
 });
 
+test("processSlackPayload treats completion-report style project messages as captain conversation instead of queueing a new goal", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+      captainConversationExecutor: async () => ({
+        mode: "reply",
+        reply: "캡틴:\n- 보고 기준 정리: 완료 보고로 이해했고, 남은 리스크만 짧게 볼게요.",
+      }),
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_CRYPTO",
+        user: "U_TONY",
+        text: [
+          "작업 완료했습니다.",
+          "• private UI 리포트/거래/실험 화면을 운영 콘솔 기준으로 재구성했습니다.",
+          "• reporting은 *.trades.json 아티팩트를 생성하도록 확장했습니다.",
+          "현재 확인 경로:",
+          "• private: http://100.77.10.49:3000/",
+          "로컬/회귀 검증:",
+          "• pytest -q -> 67 passed",
+        ].join("\n"),
+        ts: "1712900000.000725",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.text).toContain("보고 기준 정리");
+  expect(store.repositories.goals.listByProject("crypto")).toHaveLength(0);
+});
+
+test("processSlackPayload keeps completion-report style project messages in captain conversation even if captain tries to delegate", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000101" };
+        },
+      },
+      captainConversationExecutor: async () => ({
+        mode: "delegate",
+        reply: "",
+        delegateReason: "structured specialist review",
+      }),
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_CRYPTO",
+        user: "U_TONY",
+        text: [
+          "작업 완료했습니다.",
+          "• private UI 리포트/거래/실험 화면을 운영 콘솔 기준으로 재구성했습니다.",
+          "• reporting은 *.trades.json 아티팩트를 생성하도록 확장했습니다.",
+          "현재 확인 경로:",
+          "• private: http://100.77.10.49:3000/",
+          "로컬/회귀 검증:",
+          "• pytest -q -> 67 passed",
+        ].join("\n"),
+        ts: "1712900000.0007255",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+  expect(posted[0]?.text).toContain("완료로 보이는 것");
+  expect(posted[0]?.text).toContain("아직 확인할 것");
+  expect(posted[0]?.text).not.toContain("아직 확인할 것: 캡틴:");
+  expect(store.repositories.goals.listByProject("crypto")).toHaveLength(0);
+});
+
+test("processSlackPayload keeps prefixed completion reports as a single goal instead of initiative phases", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: [
+          "crypto: 작업 완료했습니다. 아래 보고를 검토해줘",
+          "• private UI 리포트/거래/실험 화면을 운영 콘솔 기준으로 재구성했습니다.",
+          "• reporting은 *.trades.json 아티팩트를 생성하도록 확장했습니다.",
+          "현재 확인 경로:",
+          "• private: http://100.77.10.49:3000/",
+          "로컬/회귀 검증:",
+          "• pytest -q -> 67 passed",
+        ].join("\n"),
+        ts: "1712900000.000726",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: true, handled: true });
+  expect(store.repositories.goals.listByProject("crypto")).toHaveLength(1);
+  expect(store.repositories.goals.listByProject("crypto")[0]?.title).toContain("작업 완료했습니다");
+});
+
+test("processSlackPayload deduplicates repeated Slack events by event id", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const payload = {
+    type: "event_callback",
+    event_id: "Ev_duplicate_1",
+    event: {
+      type: "message",
+      channel: "C_CRYPTO",
+      user: "U_TONY",
+      text: "안녕",
+      ts: "1712900000.000727",
+    },
+  };
+
+  const first = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    payload,
+  );
+  const second = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: "1710000000.000100" };
+        },
+      },
+    },
+    "event",
+    payload,
+  );
+
+  expect(first).toEqual({ queued: false, handled: true });
+  expect(second).toEqual({ queued: false, handled: true });
+  expect(posted).toHaveLength(1);
+});
+
 test("processSlackPayload updates project repo root in a project channel without queueing work", async () => {
   const store = openStore(":memory:");
   store.repositories.projects.create({

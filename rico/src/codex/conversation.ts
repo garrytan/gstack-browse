@@ -12,6 +12,7 @@ import type {
   GovernorConversationInput,
   GovernorConversationReply,
 } from "../slack/conversation-gate";
+import { looksLikeStatusReport } from "../slack/conversation-gate";
 
 const FILESYSTEM_BOUNDARY =
   "IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, or .claude/skills/. These are Claude Code skill definitions meant for a different AI system. Stay focused on repository code only.";
@@ -32,6 +33,12 @@ function pruneThreadHistory(history: ConversationTurn[] | undefined, limit = 6) 
 
 function normalizeReplyText(text: string) {
   return text.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+function compactSentence(text: string, limit = 110) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= limit) return normalized;
+  return `${normalized.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
 }
 
 function normalizeSlackAutolinks(text: string) {
@@ -119,6 +126,12 @@ export function shapeCaptainConversationReplyForSlack(input: {
         turn.speaker === "assistant" && REPO_STATUS_QUESTION_PATTERN.test(turn.text))
     );
   if (!looksLikeRepoStatus) {
+    if (looksLikeStatusReport(input.message) && !/\n-\s/.test(normalizedReply)) {
+      return [
+        "캡틴:",
+        `- 보고 기준 정리: ${compactSentence(normalizedReply, 140)}`,
+      ].join("\n");
+    }
     return normalizedReply;
   }
 
@@ -187,6 +200,45 @@ function stabilizeCaptainReply(input: {
     return `캡틴: 좋아요. 그러면 "${input.threadGoalTitle}" 기준으로 지금 바로 결정해야 할 점이나 막힌 점부터 짚어볼게요.`;
   }
   return "캡틴: 좋아요. 그러면 지금 맥락에서 핵심 쟁점 하나를 바로 짚어서 이어가볼게요.";
+}
+
+function extractStatusReportItems(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return lines
+    .filter((line) => /^[•*-]\s+/.test(line))
+    .map((line) => line.replace(/^[•*-]\s+/, "").trim())
+    .slice(0, 3);
+}
+
+function buildStatusReportFallbackReply(input: {
+  message: string;
+  reply?: string;
+}) {
+  const reported = extractStatusReportItems(input.message);
+  const cleanedFallback = input.reply
+    ?.replace(/^캡틴:\s*/i, "")
+    .replace(/^\s*-\s*/gm, "")
+    .trim();
+  const replySummary =
+    cleanedFallback && cleanedFallback.length > 0
+      ? compactSentence(sanitizeConversationReplyForSlack(cleanedFallback), 120)
+      : null;
+  const completed = reported[0]
+    ? compactSentence(reported[0], 110)
+    : "보고 기준으로는 주요 작업이 마무리된 걸로 보여요.";
+  const remaining = replySummary && replySummary !== completed
+    ? replySummary
+    : "남은 건 이번 보고에서 정말 확인된 항목과 아직 확인이 필요한 항목을 분리해서 보는 거예요.";
+
+  return [
+    "캡틴:",
+    `- 완료로 보이는 것: ${completed}`,
+    `- 아직 확인할 것: ${remaining}`,
+    "- 다음 단계: 이 스레드에서는 새 실행 라운드를 열지 않고, 보고 기준에서 빠진 검증만 짧게 확인할게요.",
+  ].join("\n");
 }
 
 async function readText(stream: ReadableStream<Uint8Array> | null | undefined) {
@@ -362,6 +414,8 @@ function buildCaptainPrompt(input: {
     "Do not create tasks here. Just decide reply vs delegate.",
     "Use the thread history to continue the existing conversation naturally. Do not just restate the goal title or repeat your previous answer.",
     "If the message is a simple repo/status/fact-check question or a follow-up like '남은 조치 해봐', prefer reply unless you truly need a tracked run.",
+    "If the user pasted a completion/progress report with bullets, URLs, or test results, treat it as a status report review by default.",
+    "For status reports, do not re-brief the full request. Reply with only the smallest useful review: what seems done, what is still unverified or risky, and the single next step that matters.",
     "For repo/status/fact-check replies, use a compact bullet shape: conclusion, confirmed facts, what's still unverified, next step.",
     "When mentioning remotes or URLs, put them in backticks and on their own field, not inline with Korean particles.",
     "Avoid phrases like '이 세션', '이번 라운드', or stiff workflow jargon. Speak like a pragmatic PM in Slack.",
@@ -459,14 +513,34 @@ export function createCodexCaptainConversationExecutor(input: {
       timeoutMs: input.timeoutMs,
     });
     const parsed = parseCaptainConversation(text);
+    const statusReportReply =
+      looksLikeStatusReport(conversation.text)
+        ? buildStatusReportFallbackReply({
+            message: conversation.text,
+            reply: parsed.reply,
+          })
+        : null;
     return {
-      ...parsed,
+      ...(
+        statusReportReply
+          ? {
+              ...parsed,
+              mode: "reply" as const,
+              reply: statusReportReply,
+              delegateReason: null,
+            }
+          : parsed
+      ),
       reply:
-        parsed.mode === "reply"
+        (
+          statusReportReply
+            ? true
+            : parsed.mode === "reply"
+        )
           ? shapeCaptainConversationReplyForSlack({
               message: conversation.text,
               reply: stabilizeCaptainReply({
-                reply: parsed.reply,
+                reply: statusReportReply ?? parsed.reply,
                 history: conversation.threadHistory,
                 threadGoalTitle: conversation.threadGoalTitle,
               }),

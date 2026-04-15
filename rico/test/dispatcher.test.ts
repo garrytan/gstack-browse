@@ -253,7 +253,6 @@ test("dispatcher uses goal-sensitive specialist narration instead of a fixed onb
   const joined = posted.map((message) => message.text).join("\n");
   expect(joined.includes("온보딩 흐름")).toBe(false);
   expect(joined.includes("원격") || joined.includes("저장소") || joined.includes("깃")).toBe(true);
-  expect(joined.includes("백엔드")).toBe(true);
   expect(joined.includes("기획")).toBe(false);
   expect(joined.includes("디자인")).toBe(false);
   expect(joined.includes("프론트엔드")).toBe(false);
@@ -908,6 +907,151 @@ test("dispatcher fans out customer voice into multiple persona runs when the dir
   expect(customerVoiceRuns.some((entry) => entry.personaLabel?.includes("운영"))).toBe(true);
   expect(customerVoiceRuns.some((entry) => entry.personaLabel?.includes("팀장"))).toBe(true);
   expect(posted.filter((message) => message.text.includes("고객 관점")).length).toBeGreaterThanOrEqual(2);
+
+  store.db.close();
+});
+
+test("dispatcher suppresses low-signal backend artifacts when nothing changed", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    artifactRoot: "/tmp/rico-artifacts-test",
+    captainExecutor: async () => ({
+      selectedRoles: ["backend"],
+      nextAction: "워크트리 상태만 확인한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        { id: "task-1", role: "backend", title: "워크트리 상태 확인", dependsOn: [] },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: "백엔드 기준으로는 추가 수정이 필요하지 않았어요.",
+        impact: "info",
+        artifacts: [{ kind: "report", title: "backend-slice.md" }],
+        rawFindings: [],
+        executionMode: "write",
+        changedFiles: [],
+        verificationNotes: [],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000009${posted.length}.000100` };
+      },
+      async getUploadURLExternal() {
+        throw new Error("artifact upload should not run");
+      },
+      async uploadBinary() {
+        throw new Error("artifact upload should not run");
+      },
+      async completeUploadExternal() {
+        throw new Error("artifact upload should not run");
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "crypto",
+    projectChannelId: "C_CRYPTO",
+    goalId: "goal-low-signal-backend",
+    goalTitle: "private UI 보고를 검토해줘",
+    runId: "run-low-signal-backend",
+    payload: {
+      sourceChannelId: "C_CRYPTO",
+      intakeThreadTs: "1710008999.000100",
+    },
+  });
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  expect(store.repositories.artifacts.listByGoal("goal-low-signal-backend")).toHaveLength(0);
+  expect(posted.filter((message) => message.text.includes("🧱 백엔드"))).toHaveLength(0);
+
+  store.db.close();
+});
+
+test("dispatcher folds no-change backend approval-needed reviews into captain summary instead of posting artifacts", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    artifactRoot: "/tmp/rico-artifacts-test",
+    captainExecutor: async () => ({
+      selectedRoles: ["backend"],
+      nextAction: "남은 건 승인 포인트만 정리한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        { id: "task-1", role: "backend", title: "구현 완료 보고 검토", dependsOn: [] },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: "백엔드 기준으로는 이미 구현과 테스트가 끝났고, 남은 건 승인 판단뿐이에요.",
+        impact: "approval_needed",
+        artifacts: [{ kind: "report", title: "backend-slice.md" }],
+        rawFindings: ["코드는 준비돼 있지만 최종 반영 여부는 사람 판단이 필요해요."],
+        executionMode: "write",
+        changedFiles: [],
+        verificationNotes: [],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000010${posted.length}.000100` };
+      },
+      async getUploadURLExternal() {
+        throw new Error("artifact upload should not run");
+      },
+      async uploadBinary() {
+        throw new Error("artifact upload should not run");
+      },
+      async completeUploadExternal() {
+        throw new Error("artifact upload should not run");
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "crypto",
+    projectChannelId: "C_CRYPTO",
+    goalId: "goal-no-change-backend-approval",
+    goalTitle: "작업 완료 보고를 검토해줘",
+    runId: "run-no-change-backend-approval",
+    payload: {
+      sourceChannelId: "C_CRYPTO",
+      intakeThreadTs: "1710018999.000100",
+    },
+  });
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  expect(store.repositories.artifacts.listByGoal("goal-no-change-backend-approval")).toHaveLength(0);
+  expect(posted.filter((message) => message.text.includes("🧱 백엔드"))).toHaveLength(0);
+  expect(posted.some((message) => message.text.includes("캡틴 마감"))).toBe(true);
 
   store.db.close();
 });

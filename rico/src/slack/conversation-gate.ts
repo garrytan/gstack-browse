@@ -36,6 +36,23 @@ const DISCUSSION_PATTERN =
 const BULLET_PATTERN = /(^|\n)\s*[-*•]\s+/;
 const DELIVERABLE_PATTERN =
   /(문서|초안|카피|문구|랜딩|cta|정리|수정|연결|링크|보고|결과|리포트|검증|점검|구현|적어줘|써줘|남겨줘)/i;
+const STATUS_REPORT_LEAD_PATTERN =
+  /^(작업|구현|수정|반영|점검|검증|재배포|재생성|보고).*(완료|완료했습니다|마쳤|끝냈|끝났|반영했|재배포했|재생성했)/i;
+const STATUS_REPORT_EVIDENCE_PATTERN =
+  /(현재 확인 경로|회귀 검증|검증:|passed|https?:\/\/|git@|artifact|아티팩트|재배포|재생성|로컬\/회귀 검증|테스트)/i;
+
+export function looksLikeStatusReport(text: string) {
+  const normalized = text.trim();
+  if (!normalized) return false;
+  if (STATUS_REPORT_LEAD_PATTERN.test(normalized)) return true;
+
+  const bulletCount = (normalized.match(/(^|\n)\s*[•*-]\s+/g) ?? []).length;
+  if (bulletCount >= 3 && STATUS_REPORT_EVIDENCE_PATTERN.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
 
 export function looksLikeExecutionRequest(text: string) {
   const normalized = text.trim();
@@ -65,6 +82,7 @@ export function shouldUseCaptainConversation(input: {
 }) {
   if (input.hasExplicitProjectOverride) return false;
   if (!input.text.trim()) return false;
+  if (looksLikeStatusReport(input.text)) return true;
   if (input.hasConversationHistory) return true;
   if (input.hasThreadGoal && !looksLikeExecutionRequest(input.text)) {
     return true;

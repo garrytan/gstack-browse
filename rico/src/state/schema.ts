@@ -100,4 +100,10 @@ create table if not exists role_playbooks (
   value text not null,
   primary key (role, key)
 );
+
+create table if not exists slack_receipts (
+  id text primary key,
+  kind text not null,
+  processed_at text not null
+);
 `;
