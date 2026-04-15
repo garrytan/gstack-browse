@@ -250,39 +250,43 @@ if [ "$INSTALL_FACTORY" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
 fi
 
 # 2. Ensure Playwright's Chromium is available
-if ! ensure_playwright_browser; then
-  echo "Installing Playwright Chromium..."
-  (
-    cd "$SOURCE_GSTACK_DIR"
-    bunx playwright install chromium
-  )
-
-  if [ "$IS_WINDOWS" -eq 1 ]; then
-    # On Windows, Node.js launches Chromium (not Bun — see oven-sh/bun#4253).
-    # Ensure playwright is importable by Node from the gstack directory.
-    if ! command -v node >/dev/null 2>&1; then
-      echo "gstack setup failed: Node.js is required on Windows (Bun cannot launch Chromium due to a pipe bug)" >&2
-      echo "  Install Node.js: https://nodejs.org/" >&2
-      exit 1
-    fi
-    echo "Windows detected — verifying Node.js can load Playwright..."
+if [ "${GSTACK_SKIP_PLAYWRIGHT:-0}" = "1" ]; then
+  log "GSTACK_SKIP_PLAYWRIGHT=1 — skipping Playwright Chromium install (set GSTACK_CHROMIUM_PATH if needed)."
+else
+  if ! ensure_playwright_browser; then
+    echo "Installing Playwright Chromium..."
     (
       cd "$SOURCE_GSTACK_DIR"
-      # Bun's node_modules already has playwright; verify Node can require it
-      node -e "require('playwright')" 2>/dev/null || npm install --no-save playwright
+      bunx playwright install chromium
     )
-  fi
-fi
 
-if ! ensure_playwright_browser; then
-  if [ "$IS_WINDOWS" -eq 1 ]; then
-    echo "gstack setup failed: Playwright Chromium could not be launched via Node.js" >&2
-    echo "  This is a known issue with Bun on Windows (oven-sh/bun#4253)." >&2
-    echo "  Ensure Node.js is installed and 'node -e \"require('playwright')\"' works." >&2
-  else
-    echo "gstack setup failed: Playwright Chromium could not be launched" >&2
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+      # On Windows, Node.js launches Chromium (not Bun — see oven-sh/bun#4253).
+      # Ensure playwright is importable by Node from the gstack directory.
+      if ! command -v node >/dev/null 2>&1; then
+        echo "gstack setup failed: Node.js is required on Windows (Bun cannot launch Chromium due to a pipe bug)" >&2
+        echo "  Install Node.js: https://nodejs.org/" >&2
+        exit 1
+      fi
+      echo "Windows detected — verifying Node.js can load Playwright..."
+      (
+        cd "$SOURCE_GSTACK_DIR"
+        # Bun's node_modules already has playwright; verify Node can require it
+        node -e "require('playwright')" 2>/dev/null || npm install --no-save playwright
+      )
+    fi
   fi
-  exit 1
+
+  if ! ensure_playwright_browser; then
+    if [ "$IS_WINDOWS" -eq 1 ]; then
+      echo "gstack setup failed: Playwright Chromium could not be launched via Node.js" >&2
+      echo "  This is a known issue with Bun on Windows (oven-sh/bun#4253)." >&2
+      echo "  Ensure Node.js is installed and 'node -e \"require('playwright')\"' works." >&2
+    else
+      echo "gstack setup failed: Playwright Chromium could not be launched" >&2
+    fi
+    exit 1
+  fi
 fi
 
 # 3. Ensure ~/.gstack global state directory exists
