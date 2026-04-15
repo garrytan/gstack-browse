@@ -44,6 +44,45 @@ Upstream remote is kept as `upstream`, so `git fetch upstream && git merge upstr
 
 Removes the symlinks, the caveman hooks, and `~/.jstack/` state. Your project files are untouched.
 
+## Troubleshooting
+
+**Skill not showing up?** `cd ~/.claude/skills/jstack && ./setup`
+
+**`/browse` fails?** `cd ~/.claude/skills/jstack && bun install && bun run build`
+
+**Stale install?** Run `/jstack-upgrade` — or set `auto_upgrade: true` in `~/.jstack/config.yaml`.
+
+**Caveman not firing on new sessions?** Check that `~/.claude/settings.json` has both a `hooks.SessionStart` entry pointing at `caveman-activate.js` and a `hooks.UserPromptSubmit` entry pointing at `caveman-mode-tracker.js`. Re-register with `~/.claude/skills/jstack/bin/jstack-settings-hook install-caveman`. Verify Node.js is on PATH (`node --version`) — the hooks run under Node, not Bun.
+
+**Want to stop caveman for one session?** Type `stop caveman` or `normal mode`. Turn it back on with `/caveman` (default `full`) or pick an intensity: `/caveman lite`, `/caveman ultra`.
+
+**Permanently disable caveman?** `~/.claude/skills/jstack/bin/jstack-settings-hook remove-caveman` removes the two entries from `settings.json` and writes a `.backup`. jstack still works without caveman — you just get verbose default output again.
+
+**Want shorter commands?** They're already short. jstack ships with `skill_prefix: false` by default, so `/qa`, `/ship`, `/review` etc. have the same names as upstream gstack. No muscle-memory break on migration.
+
+**Want namespaced commands to avoid collision with another skill pack?** `cd ~/.claude/skills/jstack && ./setup --prefix` — switches from `/qa` to `/jstack-qa`. Your choice is remembered for future upgrades.
+
+**Codex says "Skipped loading skill(s) due to invalid SKILL.md"?** Your Codex skill descriptions are stale. Fix: `cd ~/.codex/skills/jstack && git pull && ./setup --host codex` — or for repo-local installs: `cd "$(readlink -f .agents/skills/jstack)" && git pull && ./setup --host codex`.
+
+**Windows users:** jstack runs on Windows 10/11 via Git Bash or WSL. Both `bun` and `node` must be on PATH — Bun has a known bug with Playwright's pipe transport on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)), so `browse` falls back to Node.js for its server.
+
+**`./setup` fails on `bun run build` with "cannot write multiple output files without an output directory"?** Known upstream issue in `browse/scripts/build-node-server.sh` on Windows Git Bash — a glob pattern resolves to multiple files without an `--outdir` flag. The primary compiled binaries (`browse.exe`, `find-browse.exe`, `design.exe`, `jstack-global-discover.exe`) still build successfully; only the Node-compat server bundle fails. Non-blocking for most workflows. Workaround: run individual `bun build` commands manually, or use `msedge --headless` for browser automation until the upstream fix lands.
+
+**Claude says it can't see the skills?** Make sure your project's `CLAUDE.md` has a jstack section. The `/office-hours` skill can add one for you automatically (it prompts on first run). Or add this manually:
+
+```
+## jstack
+Use /browse from jstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
+Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
+/design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy,
+/canary, /benchmark, /browse, /open-jstack-browser, /qa, /qa-only, /design-review,
+/setup-browser-cookies, /setup-deploy, /retro, /investigate, /document-release, /codex,
+/cso, /autoplan, /pair-agent, /careful, /freeze, /guard, /unfreeze, /jstack-upgrade,
+/learn, /caveman, /caveman-commit, /caveman-review, /caveman-help.
+```
+
+**Hitting a bug not listed here?** Open an issue at [github.com/JerkyJesse/jstack/issues](https://github.com/JerkyJesse/jstack/issues) with your OS, bun version (`bun --version`), node version (`node --version`), and the exact error output. If the bug reproduces on upstream gstack too, upstream it to [garrytan/gstack](https://github.com/garrytan/gstack/issues) — jstack is a thin fork, most bugs live there.
+
 ## License
 
 MIT. See [LICENSE](LICENSE) — which preserves Garry Tan (gstack), Julius Brussee (caveman), and JerkyJesse (jstack fork modifications) attribution.
