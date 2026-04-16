@@ -125,5 +125,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: eval-periodic-${{ matrix.suite.name }}
-          path: ~/.jstack-dev/evals/*.json
+          path: ~/.cavestack-dev/evals/*.json
           retention-days: 90

@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "jstack-sidebyside",
+      "name": "cavestack-sidebyside",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["scripts/serve-sidebyside.mjs", "docs/images", "5178"],
       "port": 5178

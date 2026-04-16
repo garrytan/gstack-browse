@@ -110,8 +110,8 @@ describe('validateHostConfig', () => {
       name: 'test-host',
       displayName: 'Test Host',
       cliCommand: 'testcli',
-      globalRoot: '.test/skills/jstack',
-      localSkillRoot: '.test/skills/jstack',
+      globalRoot: '.test/skills/cavestack',
+      localSkillRoot: '.test/skills/cavestack',
       hostSubdir: '.test',
       usesEnvVars: true,
       frontmatter: { mode: 'allowlist', keepFields: ['name', 'description'] },
@@ -195,8 +195,8 @@ describe('validateHostConfig', () => {
 
   test('paths with $ and ~ are valid', () => {
     const c = makeValid();
-    c.globalRoot = '$HOME/.test/skills/jstack';
-    c.localSkillRoot = '~/.test/skills/jstack';
+    c.globalRoot = '$HOME/.test/skills/cavestack';
+    c.localSkillRoot = '~/.test/skills/cavestack';
     expect(validateHostConfig(c)).toEqual([]);
   });
 
@@ -222,13 +222,13 @@ describe('validateAllConfigs', () => {
   });
 
   test('duplicate hostSubdir detected', () => {
-    const dup = { ...codex, name: 'dup-host', hostSubdir: '.claude', globalRoot: '.dup/skills/jstack' } as HostConfig;
+    const dup = { ...codex, name: 'dup-host', hostSubdir: '.claude', globalRoot: '.dup/skills/cavestack' } as HostConfig;
     const errors = validateAllConfigs([claude, dup]);
     expect(errors.some(e => e.includes('Duplicate hostSubdir'))).toBe(true);
   });
 
   test('duplicate globalRoot detected', () => {
-    const dup = { ...codex, name: 'dup-host', hostSubdir: '.dup', globalRoot: '.claude/skills/jstack' } as HostConfig;
+    const dup = { ...codex, name: 'dup-host', hostSubdir: '.dup', globalRoot: '.claude/skills/cavestack' } as HostConfig;
     const errors = validateAllConfigs([claude, dup]);
     expect(errors.some(e => e.includes('Duplicate globalRoot'))).toBe(true);
   });
@@ -244,24 +244,24 @@ describe('validateAllConfigs', () => {
 
 describe('HOST_PATHS derivation from configs', () => {
   test('Claude uses literal home paths (no env vars)', () => {
-    expect(HOST_PATHS.claude.skillRoot).toBe('~/.claude/skills/jstack');
-    expect(HOST_PATHS.claude.binDir).toBe('~/.claude/skills/jstack/bin');
-    expect(HOST_PATHS.claude.browseDir).toBe('~/.claude/skills/jstack/browse/dist');
-    expect(HOST_PATHS.claude.designDir).toBe('~/.claude/skills/jstack/design/dist');
+    expect(HOST_PATHS.claude.skillRoot).toBe('~/.claude/skills/cavestack');
+    expect(HOST_PATHS.claude.binDir).toBe('~/.claude/skills/cavestack/bin');
+    expect(HOST_PATHS.claude.browseDir).toBe('~/.claude/skills/cavestack/browse/dist');
+    expect(HOST_PATHS.claude.designDir).toBe('~/.claude/skills/cavestack/design/dist');
   });
 
-  test('Codex uses $JSTACK_ROOT env vars', () => {
-    expect(HOST_PATHS.codex.skillRoot).toBe('$JSTACK_ROOT');
-    expect(HOST_PATHS.codex.binDir).toBe('$JSTACK_BIN');
-    expect(HOST_PATHS.codex.browseDir).toBe('$JSTACK_BROWSE');
-    expect(HOST_PATHS.codex.designDir).toBe('$JSTACK_DESIGN');
+  test('Codex uses $CAVESTACK_ROOT env vars', () => {
+    expect(HOST_PATHS.codex.skillRoot).toBe('$CAVESTACK_ROOT');
+    expect(HOST_PATHS.codex.binDir).toBe('$CAVESTACK_BIN');
+    expect(HOST_PATHS.codex.browseDir).toBe('$CAVESTACK_BROWSE');
+    expect(HOST_PATHS.codex.designDir).toBe('$CAVESTACK_DESIGN');
   });
 
   test('every host with usesEnvVars=true gets env var paths', () => {
     for (const config of ALL_HOST_CONFIGS) {
       if (config.usesEnvVars) {
-        expect(HOST_PATHS[config.name].skillRoot).toBe('$JSTACK_ROOT');
-        expect(HOST_PATHS[config.name].binDir).toBe('$JSTACK_BIN');
+        expect(HOST_PATHS[config.name].skillRoot).toBe('$CAVESTACK_ROOT');
+        expect(HOST_PATHS[config.name].binDir).toBe('$CAVESTACK_BIN');
       }
     }
   });
@@ -314,7 +314,7 @@ describe('host-config-export.ts CLI', () => {
   test('get returns string field', () => {
     const { stdout, exitCode } = run('get', 'codex', 'globalRoot');
     expect(exitCode).toBe(0);
-    expect(stdout).toBe('.codex/skills/jstack');
+    expect(stdout).toBe('.codex/skills/cavestack');
   });
 
   test('get returns boolean as 1/0', () => {
@@ -385,13 +385,13 @@ describe('golden-file regression', () => {
 
   test('Codex ship skill matches golden baseline', () => {
     const golden = fs.readFileSync(path.join(GOLDEN_DIR, 'codex-ship-SKILL.md'), 'utf-8');
-    const current = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'jstack-ship', 'SKILL.md'), 'utf-8');
+    const current = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'cavestack-ship', 'SKILL.md'), 'utf-8');
     expect(current).toBe(golden);
   });
 
   test('Factory ship skill matches golden baseline', () => {
     const golden = fs.readFileSync(path.join(GOLDEN_DIR, 'factory-ship-SKILL.md'), 'utf-8');
-    const current = fs.readFileSync(path.join(ROOT, '.factory', 'skills', 'jstack-ship', 'SKILL.md'), 'utf-8');
+    const current = fs.readFileSync(path.join(ROOT, '.factory', 'skills', 'cavestack-ship', 'SKILL.md'), 'utf-8');
     expect(current).toBe(golden);
   });
 });
@@ -441,7 +441,7 @@ describe('host config correctness', () => {
 
   test('codex has sidecar config', () => {
     expect(codex.sidecar).toBeDefined();
-    expect(codex.sidecar!.path).toBe('.agents/skills/jstack');
+    expect(codex.sidecar!.path).toBe('.agents/skills/cavestack');
   });
 
   test('factory has tool rewrites', () => {

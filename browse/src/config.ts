@@ -3,7 +3,7 @@
  *
  * Resolution:
  *   1. BROWSE_STATE_FILE env → derive stateDir from parent
- *   2. git rev-parse --show-toplevel → projectDir/.jstack/
+ *   2. git rev-parse --show-toplevel → projectDir/.cavestack/
  *   3. process.cwd() fallback (non-git environments)
  *
  * The CLI computes the config and passes BROWSE_STATE_FILE to the
@@ -57,10 +57,10 @@ export function resolveConfig(
   if (env.BROWSE_STATE_FILE) {
     stateFile = env.BROWSE_STATE_FILE;
     stateDir = path.dirname(stateFile);
-    projectDir = path.dirname(stateDir); // parent of .jstack/
+    projectDir = path.dirname(stateDir); // parent of .cavestack/
   } else {
     projectDir = getGitRoot() || process.cwd();
-    stateDir = path.join(projectDir, '.jstack');
+    stateDir = path.join(projectDir, '.cavestack');
     stateFile = path.join(stateDir, 'browse.json');
   }
 
@@ -76,7 +76,7 @@ export function resolveConfig(
 }
 
 /**
- * Create the .jstack/ state directory if it doesn't exist.
+ * Create the .cavestack/ state directory if it doesn't exist.
  * Throws with a clear message on permission errors.
  */
 export function ensureStateDir(config: BrowseConfig): void {
@@ -92,13 +92,13 @@ export function ensureStateDir(config: BrowseConfig): void {
     throw err;
   }
 
-  // Ensure .jstack/ is in the project's .gitignore
+  // Ensure .cavestack/ is in the project's .gitignore
   const gitignorePath = path.join(config.projectDir, '.gitignore');
   try {
     const content = fs.readFileSync(gitignorePath, 'utf-8');
-    if (!content.match(/^\.jstack\/?$/m)) {
+    if (!content.match(/^\.cavestack\/?$/m)) {
       const separator = content.endsWith('\n') ? '' : '\n';
-      fs.appendFileSync(gitignorePath, `${separator}.jstack/\n`);
+      fs.appendFileSync(gitignorePath, `${separator}.cavestack/\n`);
     }
   } catch (err: any) {
     if (err.code !== 'ENOENT') {

@@ -58,7 +58,7 @@ No documented length limits on either field.
 
 Slate reads both `CLAUDE.md` and `AGENTS.md` for project instructions.
 Both literal strings confirmed in binary. No changes needed to existing
-jstack projects... CLAUDE.md works as-is.
+cavestack projects... CLAUDE.md works as-is.
 
 ## Configuration
 
@@ -155,11 +155,11 @@ OPENCODE_LIBC
 OPENCODE_TERMINAL
 ```
 
-### Critical env vars for jstack integration
+### Critical env vars for cavestack integration
 
 **`SLATE_DISABLE_CLAUDE_CODE_SKILLS`** — When set, `.claude/skills/` loading is disabled.
 This makes publishing to `.slate/skills/` load-bearing, not just an optimization.
-Without native `.slate/` publishing, jstack skills vanish when this flag is set.
+Without native `.slate/` publishing, cavestack skills vanish when this flag is set.
 
 **`SLATE_TEST_HOME`** — Useful for E2E tests. Can redirect Slate's home directory
 to an isolated temp directory, similar to how Codex tests use a temp HOME.
@@ -219,8 +219,8 @@ Binary override: `SLATE_BIN_PATH` env var skips all discovery, runs the specifie
 
 ## What Already Works Today
 
-jstack skills already work in Slate via the `.claude/skills/` fallback path.
-No changes needed for basic functionality. Users who install jstack for Claude Code
+cavestack skills already work in Slate via the `.claude/skills/` fallback path.
+No changes needed for basic functionality. Users who install cavestack for Claude Code
 and also use Slate will find their skills available in both agents.
 
 ## What First-Class Support Adds
@@ -241,7 +241,7 @@ Codex, Factory) is "host explosion for a path alias." The current architecture h
 - Per-host branches in `transformFrontmatter()` with near-duplicate logic
 - Per-host config in `EXTERNAL_HOST_CONFIG` with similar patterns
 - Per-host functions in the setup script (`create_codex_runtime_root`, `link_codex_skill_dirs`)
-- Host names duplicated in `bin/jstack-platform-detect`, `bin/jstack-uninstall`, `bin/dev-setup`
+- Host names duplicated in `bin/cavestack-platform-detect`, `bin/cavestack-uninstall`, `bin/dev-setup`
 
 Adding Slate means copying all of these patterns again. A refactor to make hosts
 data-driven (config objects instead of if/else branches) would make Slate integration
@@ -251,9 +251,9 @@ trivial AND make future hosts (any new OpenCode fork, any new agent) zero-effort
 
 - `lib/worktree.ts` only copies `.agents/`, not `.slate/` — E2E tests in worktrees won't
   have Slate skills
-- `bin/jstack-uninstall` doesn't know about `.slate/`
+- `bin/cavestack-uninstall` doesn't know about `.slate/`
 - `bin/dev-setup` doesn't wire `.slate/` for contributor dev mode
-- `bin/jstack-platform-detect` doesn't detect Slate
+- `bin/cavestack-platform-detect` doesn't detect Slate
 - E2E tests should set `SLATE_DISABLE_CLAUDE_CODE_SKILLS=1` to prove `.slate/` path
   actually works (not just falling back to `.claude/`)
 

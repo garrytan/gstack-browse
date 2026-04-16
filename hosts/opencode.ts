@@ -6,8 +6,8 @@ const opencode: HostConfig = {
   cliCommand: 'opencode',
   cliAliases: [],
 
-  globalRoot: '.config/opencode/skills/jstack',
-  localSkillRoot: '.opencode/skills/jstack',
+  globalRoot: '.config/opencode/skills/cavestack',
+  localSkillRoot: '.opencode/skills/cavestack',
   hostSubdir: '.opencode',
   usesEnvVars: true,
 
@@ -23,13 +23,13 @@ const opencode: HostConfig = {
   },
 
   pathRewrites: [
-    { from: '~/.claude/skills/jstack', to: '~/.config/opencode/skills/jstack' },
-    { from: '.claude/skills/jstack', to: '.opencode/skills/jstack' },
+    { from: '~/.claude/skills/cavestack', to: '~/.config/opencode/skills/cavestack' },
+    { from: '.claude/skills/cavestack', to: '.opencode/skills/cavestack' },
     { from: '.claude/skills', to: '.opencode/skills' },
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

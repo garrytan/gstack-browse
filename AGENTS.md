@@ -1,6 +1,6 @@
-# jstack — AI Engineering Workflow
+# cavestack — AI Engineering Workflow
 
-jstack is a collection of SKILL.md files that give AI agents structured roles for
+cavestack is a collection of SKILL.md files that give AI agents structured roles for
 software development. Each skill is a specialist: CEO reviewer, eng manager,
 designer, QA lead, release engineer, debugger, and more.
 
@@ -29,7 +29,7 @@ Skills live in `.agents/skills/`. Invoke them by name (e.g., `/office-hours`).
 | `/freeze` | Lock edits to one directory. Hard block, not just a warning. |
 | `/guard` | Activate both careful + freeze at once. |
 | `/unfreeze` | Remove directory edit restrictions. |
-| `/jstack-upgrade` | Update jstack to the latest version. |
+| `/cavestack-upgrade` | Update cavestack to the latest version. |
 
 ## Build commands
 

@@ -1,0 +1,192 @@
+#!/usr/bin/env bash
+# cavestack-team-init — generate repo-level bootstrap files for team mode
+#
+# Usage:
+#   cavestack-team-init optional   # gentle CLAUDE.md suggestion, one-time offer
+#   cavestack-team-init required   # CLAUDE.md enforcement + PreToolUse hook
+#
+# Run from the root of your team's repo (not from the cavestack directory).
+
+set -euo pipefail
+
+MODE="${1:-}"
+
+if [ "$MODE" != "optional" ] && [ "$MODE" != "required" ]; then
+  echo "Usage: cavestack-team-init {optional|required}" >&2
+  echo "" >&2
+  echo "  optional  — suggest cavestack install once per developer (gentle)" >&2
+  echo "  required  — enforce cavestack install, block work without it" >&2
+  exit 1
+fi
+
+# Must be in a git repo
+if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+  echo "Error: not in a git repository. Run from your project root." >&2
+  exit 1
+fi
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+GENERATED=()
+
+# ── Migrate vendored copy if present ──────────────────────────
+
+if [ -d "$REPO_ROOT/.claude/skills/cavestack" ] && [ ! -L "$REPO_ROOT/.claude/skills/cavestack" ]; then
+  if [ -f "$REPO_ROOT/.claude/skills/cavestack/VERSION" ] || [ -d "$REPO_ROOT/.claude/skills/cavestack/.git" ]; then
+    echo "  Found vendored cavestack copy at $REPO_ROOT/.claude/skills/cavestack"
+    echo "  Team mode uses the global install — removing vendored copy..."
+    ( cd "$REPO_ROOT" && git rm -r --cached .claude/skills/cavestack/ 2>/dev/null ) || true
+    if [ -f "$REPO_ROOT/.gitignore" ]; then
+      if ! grep -qF '.claude/skills/cavestack/' "$REPO_ROOT/.gitignore" 2>/dev/null; then
+        echo '.claude/skills/cavestack/' >> "$REPO_ROOT/.gitignore"
+      fi
+    else
+      echo '.claude/skills/cavestack/' > "$REPO_ROOT/.gitignore"
+    fi
+    rm -rf "$REPO_ROOT/.claude/skills/cavestack"
+    GENERATED+=(".gitignore")
+    echo "  Removed vendored copy and added .claude/skills/cavestack/ to .gitignore"
+  fi
+fi
+
+# ── CLAUDE.md snippet ──────────────────────────────────────────
+
+if [ "$MODE" = "optional" ]; then
+  SNIPPET='## cavestack (recommended)
+
+This project uses [cavestack](https://github.com/JerkyJesse/cavestack) for AI-assisted workflows.
+Install it for the best experience:
+
+```bash
+git clone --depth 1 https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+cd ~/.claude/skills/cavestack && ./setup --team
+```
+
+Skills like /qa, /ship, /review, /investigate, and /browse become available after install.
+Use /browse for all web browsing. Use ~/.claude/skills/cavestack/... for cavestack file paths.'
+else
+  SNIPPET='## cavestack (REQUIRED — global install)
+
+**Before doing ANY work, verify cavestack is installed:**
+
+```bash
+test -d ~/.claude/skills/cavestack/bin && echo "CAVESTACK_OK" || echo "CAVESTACK_MISSING"
+```
+
+If CAVESTACK_MISSING: STOP. Do not proceed. Tell the user:
+
+> cavestack is required for all AI-assisted work in this repo.
+> Install it:
+> ```bash
+> git clone --depth 1 https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+> cd ~/.claude/skills/cavestack && ./setup --team
+> ```
+> Then restart your AI coding tool.
+
+Do not skip skills, ignore cavestack errors, or work around missing cavestack.
+
+Using cavestack skills: After install, skills like /qa, /ship, /review, /investigate,
+and /browse are available. Use /browse for all web browsing.
+Use ~/.claude/skills/cavestack/... for cavestack file paths (the global path).'
+fi
+
+# Check if CLAUDE.md already has a cavestack section
+if [ -f "$CLAUDE_MD" ] && grep -q "## cavestack" "$CLAUDE_MD" 2>/dev/null; then
+  echo "CLAUDE.md already has a cavestack section. Skipping CLAUDE.md update."
+  echo "  To replace it, remove the existing ## cavestack section and re-run."
+else
+  if [ -f "$CLAUDE_MD" ]; then
+    echo "" >> "$CLAUDE_MD"
+  fi
+  echo "$SNIPPET" >> "$CLAUDE_MD"
+  GENERATED+=("CLAUDE.md")
+  echo "  + CLAUDE.md — added cavestack $MODE section"
+fi
+
+# ── Required mode: enforcement hook ────────────────────────────
+
+if [ "$MODE" = "required" ]; then
+  HOOKS_DIR="$REPO_ROOT/.claude/hooks"
+  SETTINGS="$REPO_ROOT/.claude/settings.json"
+
+  # Create enforcement hook script
+  mkdir -p "$HOOKS_DIR"
+  cat > "$HOOKS_DIR/check-cavestack.sh" << 'HOOK_EOF'
+#!/bin/bash
+# Block skill usage when cavestack is not installed globally.
+
+if [ ! -d "$HOME/.claude/skills/cavestack/bin" ]; then
+  cat >&2 <<'MSG'
+BLOCKED: cavestack is not installed globally.
+
+cavestack is required for AI-assisted work in this repo.
+
+Install it:
+  git clone --depth 1 https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack
+  cd ~/.claude/skills/cavestack && ./setup --team
+
+Then restart your AI coding tool.
+MSG
+  echo '{"permissionDecision":"deny","message":"cavestack is required but not installed. See stderr for install instructions."}'
+  exit 0
+fi
+
+echo '{}'
+HOOK_EOF
+  chmod +x "$HOOKS_DIR/check-cavestack.sh"
+  GENERATED+=(".claude/hooks/check-cavestack.sh")
+  echo "  + .claude/hooks/check-cavestack.sh — enforcement hook"
+
+  # Add hook to project-level settings.json
+  if command -v bun >/dev/null 2>&1; then
+    CAVESTACK_SETTINGS_PATH="$SETTINGS" bun -e "
+      const fs = require('fs');
+      const settingsPath = process.env.CAVESTACK_SETTINGS_PATH;
+
+      let settings = {};
+      try { settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+
+      if (!settings.hooks) settings.hooks = {};
+      if (!settings.hooks.PreToolUse) settings.hooks.PreToolUse = [];
+
+      // Dedup
+      const exists = settings.hooks.PreToolUse.some(entry =>
+        entry.matcher === 'Skill' &&
+        entry.hooks && entry.hooks.some(h => h.command && h.command.includes('check-cavestack'))
+      );
+
+      if (!exists) {
+        settings.hooks.PreToolUse.push({
+          matcher: 'Skill',
+          hooks: [{
+            type: 'command',
+            command: '\"\$CLAUDE_PROJECT_DIR/.claude/hooks/check-cavestack.sh\"'
+          }]
+        });
+      }
+
+      const tmp = settingsPath + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(settings, null, 2) + '\n');
+      fs.renameSync(tmp, settingsPath);
+    " 2>/dev/null
+    GENERATED+=(".claude/settings.json")
+    echo "  + .claude/settings.json — PreToolUse hook registered"
+  else
+    echo "  ! bun not found — manually add the PreToolUse hook to .claude/settings.json"
+  fi
+fi
+
+# ── Summary ────────────────────────────────────────────────────
+
+echo ""
+echo "Team mode ($MODE) initialized."
+echo ""
+if [ ${#GENERATED[@]} -gt 0 ]; then
+  echo "Commit the generated files:"
+  echo "  git add ${GENERATED[*]}"
+  echo "  git commit -m \"chore: require cavestack for AI-assisted work\""
+fi
+echo ""
+echo "Each developer then runs:"
+echo "  git clone --depth 1 https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack"
+echo "  cd ~/.claude/skills/cavestack && ./setup --team"

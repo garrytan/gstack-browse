@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Set up jstack for local development — test skills from within this repo.
+# Set up cavestack for local development — test skills from within this repo.
 #
-# Creates .claude/skills/jstack → (symlink to repo root) so Claude Code
+# Creates .claude/skills/cavestack → (symlink to repo root) so Claude Code
 # discovers skills from your working tree. Changes take effect immediately.
 #
 # Also copies .env from the main worktree if this is a Conductor workspace
@@ -31,38 +31,38 @@ fi
 # 3. Create .claude/skills/ inside the repo
 mkdir -p "$REPO_ROOT/.claude/skills"
 
-# 4. Symlink .claude/skills/jstack → repo root
+# 4. Symlink .claude/skills/cavestack → repo root
 # This makes setup think it's inside a real .claude/skills/ directory
-JSTACK_LINK="$REPO_ROOT/.claude/skills/jstack"
-if [ -L "$JSTACK_LINK" ]; then
+CAVESTACK_LINK="$REPO_ROOT/.claude/skills/cavestack"
+if [ -L "$CAVESTACK_LINK" ]; then
   echo "Updating existing symlink..."
-  rm "$JSTACK_LINK"
-elif [ -d "$JSTACK_LINK" ]; then
-  echo "Error: .claude/skills/jstack is a real directory, not a symlink." >&2
+  rm "$CAVESTACK_LINK"
+elif [ -d "$CAVESTACK_LINK" ]; then
+  echo "Error: .claude/skills/cavestack is a real directory, not a symlink." >&2
   echo "Remove it manually if you want to use dev mode." >&2
   exit 1
 fi
-ln -s "$REPO_ROOT" "$JSTACK_LINK"
+ln -s "$REPO_ROOT" "$CAVESTACK_LINK"
 
-# 5. Create .agents/skills/jstack → repo root (for Codex/Gemini/Cursor)
+# 5. Create .agents/skills/cavestack → repo root (for Codex/Gemini/Cursor)
 mkdir -p "$REPO_ROOT/.agents/skills"
-AGENTS_LINK="$REPO_ROOT/.agents/skills/jstack"
+AGENTS_LINK="$REPO_ROOT/.agents/skills/cavestack"
 if [ -L "$AGENTS_LINK" ]; then
   rm "$AGENTS_LINK"
 elif [ -d "$AGENTS_LINK" ]; then
-  echo "Warning: .agents/skills/jstack is a real directory, skipping." >&2
+  echo "Warning: .agents/skills/cavestack is a real directory, skipping." >&2
 fi
 if [ ! -e "$AGENTS_LINK" ]; then
   ln -s "$REPO_ROOT" "$AGENTS_LINK"
 fi
 
 # 6. Run setup via the symlink so it detects .claude/skills/ as its parent
-"$JSTACK_LINK/setup"
+"$CAVESTACK_LINK/setup"
 
 echo ""
 echo "Dev mode active. Skills resolve from this working tree."
-echo "  .claude/skills/jstack → $REPO_ROOT"
-echo "  .agents/skills/jstack → $REPO_ROOT"
+echo "  .claude/skills/cavestack → $REPO_ROOT"
+echo "  .agents/skills/cavestack → $REPO_ROOT"
 echo "Edit any SKILL.md and test immediately — no copy/deploy needed."
 echo ""
 echo "To tear down: bin/dev-teardown"

@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# cavestack-review-log — atomically log a review result
+# Usage: cavestack-review-log '{"skill":"...","timestamp":"...","status":"..."}'
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+eval "$("$SCRIPT_DIR/cavestack-slug" 2>/dev/null)"
+CAVESTACK_HOME="${CAVESTACK_HOME:-$HOME/.cavestack}"
+mkdir -p "$CAVESTACK_HOME/projects/$SLUG"
+
+# Validate: input must be parseable JSON (reject malformed or injection attempts)
+INPUT="$1"
+if ! printf '%s' "$INPUT" | bun -e "JSON.parse(await Bun.stdin.text())" 2>/dev/null; then
+  # Not valid JSON — refuse to append
+  echo "cavestack-review-log: invalid JSON, skipping" >&2
+  exit 1
+fi
+
+echo "$INPUT" >> "$CAVESTACK_HOME/projects/$SLUG/$BRANCH-reviews.jsonl"

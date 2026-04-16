@@ -1,8 +1,8 @@
 ---
 name: caveman-review
 description: |
-  Caveman-review for jstack: ultra-compressed PR review comments, one line per finding (location, problem, fix).
-  Vendored from JuliusBrussee/caveman and bundled into jstack so it composes with /jreview when the diff is
+  Caveman-review for cavestack: ultra-compressed PR review comments, one line per finding (location, problem, fix).
+  Vendored from JuliusBrussee/caveman and bundled into cavestack so it composes with /jreview when the diff is
   large and noise must go. Use when user says "review this PR", "code review", "review the diff", invokes
   /caveman-review, or asks for ultra-terse review feedback.
 ---

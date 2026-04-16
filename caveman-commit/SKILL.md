@@ -1,9 +1,9 @@
 ---
 name: caveman-commit
 description: |
-  Caveman-commit for jstack: ultra-compressed commit messages in Conventional Commits format.
+  Caveman-commit for cavestack: ultra-compressed commit messages in Conventional Commits format.
   Subject ≤50 chars imperative, body only when the "why" isn't obvious. Vendored from
-  JuliusBrussee/caveman and bundled into jstack so it composes with /jship. Use when user says
+  JuliusBrussee/caveman and bundled into cavestack so it composes with /jship. Use when user says
   "write a commit", "commit message", "generate commit", "/commit", or invokes /caveman-commit;
   auto-triggers when staging changes.
 ---

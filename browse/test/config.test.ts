@@ -19,15 +19,15 @@ describe('config', () => {
       const gitRoot = getGitRoot();
       expect(gitRoot).not.toBeNull();
       expect(config.projectDir).toBe(gitRoot);
-      expect(config.stateDir).toBe(path.join(gitRoot!, '.jstack'));
-      expect(config.stateFile).toBe(path.join(gitRoot!, '.jstack', 'browse.json'));
+      expect(config.stateDir).toBe(path.join(gitRoot!, '.cavestack'));
+      expect(config.stateFile).toBe(path.join(gitRoot!, '.cavestack', 'browse.json'));
     });
 
     test('derives paths from BROWSE_STATE_FILE when set', () => {
-      const stateFile = '/tmp/test-config/.jstack/browse.json';
+      const stateFile = '/tmp/test-config/.cavestack/browse.json';
       const config = resolveConfig({ BROWSE_STATE_FILE: stateFile });
       expect(config.stateFile).toBe(stateFile);
-      expect(config.stateDir).toBe('/tmp/test-config/.jstack');
+      expect(config.stateDir).toBe('/tmp/test-config/.cavestack');
       expect(config.projectDir).toBe('/tmp/test-config');
     });
 
@@ -42,7 +42,7 @@ describe('config', () => {
   describe('ensureStateDir', () => {
     test('creates directory if it does not exist', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-config-test-${Date.now()}`);
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       expect(fs.existsSync(config.stateDir)).toBe(false);
       ensureStateDir(config);
       expect(fs.existsSync(config.stateDir)).toBe(true);
@@ -52,7 +52,7 @@ describe('config', () => {
 
     test('is a no-op if directory already exists', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-config-test-${Date.now()}`);
-      const stateDir = path.join(tmpDir, '.jstack');
+      const stateDir = path.join(tmpDir, '.cavestack');
       fs.mkdirSync(stateDir, { recursive: true });
       const config = resolveConfig({ BROWSE_STATE_FILE: path.join(stateDir, 'browse.json') });
       ensureStateDir(config); // should not throw
@@ -61,26 +61,26 @@ describe('config', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test('adds .jstack/ to .gitignore if not present', () => {
+    test('adds .cavestack/ to .gitignore if not present', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });
       fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n');
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       ensureStateDir(config);
       const content = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf-8');
-      expect(content).toContain('.jstack/');
-      expect(content).toBe('node_modules/\n.jstack/\n');
+      expect(content).toContain('.cavestack/');
+      expect(content).toBe('node_modules/\n.cavestack/\n');
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
-    test('does not duplicate .jstack/ in .gitignore', () => {
+    test('does not duplicate .cavestack/ in .gitignore', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });
-      fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n.jstack/\n');
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n.cavestack/\n');
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       ensureStateDir(config);
       const content = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf-8');
-      expect(content).toBe('node_modules/\n.jstack/\n');
+      expect(content).toBe('node_modules/\n.cavestack/\n');
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
@@ -88,20 +88,20 @@ describe('config', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });
       fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules');
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       ensureStateDir(config);
       const content = fs.readFileSync(path.join(tmpDir, '.gitignore'), 'utf-8');
-      expect(content).toBe('node_modules\n.jstack/\n');
+      expect(content).toBe('node_modules\n.cavestack/\n');
       fs.rmSync(tmpDir, { recursive: true, force: true });
     });
 
     test('logs warning to browse-server.log on non-ENOENT gitignore error', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });
-      // Create a read-only .gitignore (no .jstack/ entry → would try to append)
+      // Create a read-only .gitignore (no .cavestack/ entry → would try to append)
       fs.writeFileSync(path.join(tmpDir, '.gitignore'), 'node_modules/\n');
       fs.chmodSync(path.join(tmpDir, '.gitignore'), 0o444);
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       ensureStateDir(config); // should not throw
       // Verify warning was written to server log
       const logPath = path.join(config.stateDir, 'browse-server.log');
@@ -119,7 +119,7 @@ describe('config', () => {
     test('skips if no .gitignore exists', () => {
       const tmpDir = path.join(os.tmpdir(), `browse-gitignore-test-${Date.now()}`);
       fs.mkdirSync(tmpDir, { recursive: true });
-      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.jstack', 'browse.json') });
+      const config = resolveConfig({ BROWSE_STATE_FILE: path.join(tmpDir, '.cavestack', 'browse.json') });
       ensureStateDir(config);
       expect(fs.existsSync(path.join(tmpDir, '.gitignore'))).toBe(false);
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -136,24 +136,24 @@ describe('config', () => {
 
     test('parses SSH remote URLs', () => {
       // Test the regex directly since we can't mock Bun.spawnSync easily
-      const url = 'git@github.com:JerkyJesse/jstack.git';
+      const url = 'git@github.com:JerkyJesse/cavestack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-jstack');
+      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
     });
 
     test('parses HTTPS remote URLs', () => {
-      const url = 'https://github.com/JerkyJesse/jstack.git';
+      const url = 'https://github.com/JerkyJesse/cavestack.git';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-jstack');
+      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
     });
 
     test('parses HTTPS remote URLs without .git suffix', () => {
-      const url = 'https://github.com/JerkyJesse/jstack';
+      const url = 'https://github.com/JerkyJesse/cavestack';
       const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
       expect(match).not.toBeNull();
-      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-jstack');
+      expect(`${match![1]}-${match![2]}`).toBe('JerkyJesse-cavestack');
     });
   });
 

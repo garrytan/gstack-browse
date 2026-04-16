@@ -6,8 +6,8 @@ const factory: HostConfig = {
   cliCommand: 'droid',
   cliAliases: ['droid'],
 
-  globalRoot: '.factory/skills/jstack',
-  localSkillRoot: '.factory/skills/jstack',
+  globalRoot: '.factory/skills/cavestack',
+  localSkillRoot: '.factory/skills/cavestack',
   hostSubdir: '.factory',
   usesEnvVars: true,
 
@@ -29,9 +29,9 @@ const factory: HostConfig = {
   },
 
   pathRewrites: [
-    { from: '~/.claude/skills/jstack', to: '$JSTACK_ROOT' },
-    { from: '.claude/skills/jstack', to: '.factory/skills/jstack' },
-    { from: '.claude/skills/review', to: '.factory/skills/jstack/review' },
+    { from: '~/.claude/skills/cavestack', to: '$CAVESTACK_ROOT' },
+    { from: '.claude/skills/cavestack', to: '.factory/skills/cavestack' },
+    { from: '.claude/skills/review', to: '.factory/skills/cavestack/review' },
     { from: '.claude/skills', to: '.factory/skills' },
   ],
   toolRewrites: {
@@ -44,7 +44,7 @@ const factory: HostConfig = {
   },
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

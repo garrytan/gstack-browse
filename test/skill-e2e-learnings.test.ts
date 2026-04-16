@@ -17,11 +17,11 @@ const evalCollector = createEvalCollector('e2e-learnings');
 
 describeIfSelected('Learnings E2E', ['learnings-show'], () => {
   let workDir: string;
-  let jstackHome: string;
+  let cavestackHome: string;
 
   beforeAll(() => {
     workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-learnings-'));
-    jstackHome = path.join(workDir, '.jstack-home');
+    cavestackHome = path.join(workDir, '.cavestack-home');
 
     // Init git repo
     const run = (cmd: string, args: string[]) =>
@@ -39,15 +39,15 @@ describeIfSelected('Learnings E2E', ['learnings-show'], () => {
     // Copy bin scripts needed by /learn
     const binDir = path.join(workDir, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
-    for (const script of ['jstack-learnings-search', 'jstack-learnings-log', 'jstack-slug']) {
+    for (const script of ['cavestack-learnings-search', 'cavestack-learnings-log', 'cavestack-slug']) {
       fs.copyFileSync(path.join(ROOT, 'bin', script), path.join(binDir, script));
       fs.chmodSync(path.join(binDir, script), 0o755);
     }
 
-    // Seed learnings JSONL — slug must match what jstack-slug computes.
-    // With no git remote, jstack-slug falls back to basename(workDir).
+    // Seed learnings JSONL — slug must match what cavestack-slug computes.
+    // With no git remote, cavestack-slug falls back to basename(workDir).
     const slug = path.basename(workDir).replace(/[^a-zA-Z0-9._-]/g, '');
-    const projectDir = path.join(jstackHome, 'projects', slug);
+    const projectDir = path.join(cavestackHome, 'projects', slug);
     fs.mkdirSync(projectDir, { recursive: true });
 
     const learnings = [
@@ -93,10 +93,10 @@ describeIfSelected('Learnings E2E', ['learnings-show'], () => {
 Run the /learn command (no arguments — show recent learnings).
 
 IMPORTANT:
-- Use JSTACK_HOME="${jstackHome}" as an environment variable when running bin scripts.
-- The bin scripts are at ./bin/ (relative to this directory), not at ~/.claude/skills/jstack/bin/.
-  Replace any references to ~/.claude/skills/jstack/bin/ with ./bin/ when running commands.
-- Replace any references to ~/.claude/skills/jstack/bin/jstack-slug with ./bin/jstack-slug.
+- Use CAVESTACK_HOME="${cavestackHome}" as an environment variable when running bin scripts.
+- The bin scripts are at ./bin/ (relative to this directory), not at ~/.claude/skills/cavestack/bin/.
+  Replace any references to ~/.claude/skills/cavestack/bin/ with ./bin/ when running commands.
+- Replace any references to ~/.claude/skills/cavestack/bin/cavestack-slug with ./bin/cavestack-slug.
 - Do NOT use AskUserQuestion.
 - Do NOT implement code changes.
 - Just show the learnings and summarize what you found.`,

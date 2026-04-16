@@ -6,8 +6,8 @@ const slate: HostConfig = {
   cliCommand: 'slate',
   cliAliases: [],
 
-  globalRoot: '.slate/skills/jstack',
-  localSkillRoot: '.slate/skills/jstack',
+  globalRoot: '.slate/skills/cavestack',
+  localSkillRoot: '.slate/skills/cavestack',
   hostSubdir: '.slate',
   usesEnvVars: true,
 
@@ -23,13 +23,13 @@ const slate: HostConfig = {
   },
 
   pathRewrites: [
-    { from: '~/.claude/skills/jstack', to: '~/.slate/skills/jstack' },
-    { from: '.claude/skills/jstack', to: '.slate/skills/jstack' },
+    { from: '~/.claude/skills/cavestack', to: '~/.slate/skills/cavestack' },
+    { from: '.claude/skills/cavestack', to: '.slate/skills/cavestack' },
     { from: '.claude/skills', to: '.slate/skills' },
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

@@ -77,9 +77,9 @@ describe('welcome page served via HTTP', () => {
 
   // ─── Branding ─────────────────────────────────────────────────────
 
-  test('has JStack Browser title and branding', () => {
-    expect(html).toContain('<title>JStack Browser</title>');
-    expect(html).toContain('JStack Browser');
+  test('has CaveStack Browser title and branding', () => {
+    expect(html).toContain('<title>CaveStack Browser</title>');
+    expect(html).toContain('CaveStack Browser');
   });
 
   test('has amber dot logo', () => {
@@ -109,7 +109,7 @@ describe('welcome page served via HTTP', () => {
 
   test('hides sidebar prompt when extension is detected', () => {
     // Should listen for the extension-ready event
-    expect(html).toContain("'jstack-extension-ready'");
+    expect(html).toContain("'cavestack-extension-ready'");
     // Should add 'hidden' class to sidebar-prompt
     expect(html).toContain("classList.add('hidden')");
   });
@@ -117,7 +117,7 @@ describe('welcome page served via HTTP', () => {
   test('does NOT auto-hide based on extension detection alone', () => {
     // The arrow should only hide when the sidebar actually opens,
     // not when the content script loads (which happens on every page)
-    expect(html).not.toContain('jstack-status-pill');
+    expect(html).not.toContain('cavestack-status-pill');
     expect(html).not.toContain('checkPill');
   });
 
@@ -138,6 +138,6 @@ describe('welcome page served via HTTP', () => {
 
   test('has footer with attribution', () => {
     expect(html).toContain('Garry Tan');
-    expect(html).toContain('github.com/JerkyJesse/jstack');
+    expect(html).toContain('github.com/JerkyJesse/cavestack');
   });
 });

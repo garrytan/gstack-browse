@@ -1,10 +1,10 @@
-// jstack update-check edge function
+// cavestack update-check edge function
 // Logs an install ping and returns the current latest version.
-// Called by bin/jstack-update-check as a parallel background request.
+// Called by bin/cavestack-update-check as a parallel background request.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CURRENT_VERSION = Deno.env.get("JSTACK_CURRENT_VERSION") || "0.6.4.1";
+const CURRENT_VERSION = Deno.env.get("CAVESTACK_CURRENT_VERSION") || "0.6.4.1";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     // Log the update check (fire-and-forget)
     await supabase.from("update_checks").insert({
-      jstack_version: String(version).slice(0, 20),
+      cavestack_version: String(version).slice(0, 20),
       os: String(os).slice(0, 20),
     });
 

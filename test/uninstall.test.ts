@@ -5,9 +5,9 @@ import * as path from 'path';
 import * as os from 'os';
 
 const ROOT = path.resolve(import.meta.dir, '..');
-const UNINSTALL = path.join(ROOT, 'bin', 'jstack-uninstall');
+const UNINSTALL = path.join(ROOT, 'bin', 'cavestack-uninstall');
 
-describe('jstack-uninstall', () => {
+describe('cavestack-uninstall', () => {
   test('syntax check passes', () => {
     const result = spawnSync('bash', ['-n', UNINSTALL], { stdio: 'pipe' });
     expect(result.status).toBe(0);
@@ -17,7 +17,7 @@ describe('jstack-uninstall', () => {
     const result = spawnSync('bash', [UNINSTALL, '--help'], { stdio: 'pipe' });
     expect(result.status).toBe(0);
     const output = result.stdout.toString();
-    expect(output).toContain('jstack-uninstall');
+    expect(output).toContain('cavestack-uninstall');
     expect(output).toContain('--force');
     expect(output).toContain('--keep-state');
   });
@@ -37,24 +37,24 @@ describe('jstack-uninstall', () => {
     let mockGitRoot: string;
 
     beforeEach(() => {
-      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-uninstall-test-'));
+      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-uninstall-test-'));
       mockHome = path.join(tmpDir, 'home');
       mockGitRoot = path.join(tmpDir, 'repo');
 
-      // Create mock jstack install layout
-      fs.mkdirSync(path.join(mockHome, '.claude', 'skills', 'jstack'), { recursive: true });
-      fs.writeFileSync(path.join(mockHome, '.claude', 'skills', 'jstack', 'SKILL.md'), 'test');
+      // Create mock cavestack install layout
+      fs.mkdirSync(path.join(mockHome, '.claude', 'skills', 'cavestack'), { recursive: true });
+      fs.writeFileSync(path.join(mockHome, '.claude', 'skills', 'cavestack', 'SKILL.md'), 'test');
 
       // Create per-skill symlinks (both old unprefixed and new prefixed)
-      fs.symlinkSync('jstack/review', path.join(mockHome, '.claude', 'skills', 'review'));
-      fs.symlinkSync('jstack/ship', path.join(mockHome, '.claude', 'skills', 'jstack-ship'));
+      fs.symlinkSync('cavestack/review', path.join(mockHome, '.claude', 'skills', 'review'));
+      fs.symlinkSync('cavestack/ship', path.join(mockHome, '.claude', 'skills', 'cavestack-ship'));
 
-      // Create a non-jstack symlink (should NOT be removed)
+      // Create a non-cavestack symlink (should NOT be removed)
       fs.mkdirSync(path.join(mockHome, '.claude', 'skills', 'other-tool'), { recursive: true });
 
       // Create state directory
-      fs.mkdirSync(path.join(mockHome, '.jstack', 'projects'), { recursive: true });
-      fs.writeFileSync(path.join(mockHome, '.jstack', 'config.json'), '{}');
+      fs.mkdirSync(path.join(mockHome, '.cavestack', 'projects'), { recursive: true });
+      fs.writeFileSync(path.join(mockHome, '.cavestack', 'config.json'), '{}');
 
       // Create mock git repo
       fs.mkdirSync(mockGitRoot, { recursive: true });
@@ -71,28 +71,28 @@ describe('jstack-uninstall', () => {
         env: {
           ...process.env,
           HOME: mockHome,
-          JSTACK_DIR: path.join(mockHome, '.claude', 'skills', 'jstack'),
-          JSTACK_STATE_DIR: path.join(mockHome, '.jstack'),
+          CAVESTACK_DIR: path.join(mockHome, '.claude', 'skills', 'cavestack'),
+          CAVESTACK_STATE_DIR: path.join(mockHome, '.cavestack'),
         },
         cwd: mockGitRoot,
       });
 
       expect(result.status).toBe(0);
       const output = result.stdout.toString();
-      expect(output).toContain('jstack uninstalled');
+      expect(output).toContain('cavestack uninstalled');
 
       // Global skill dir should be removed
-      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'jstack'))).toBe(false);
+      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'cavestack'))).toBe(false);
 
-      // Per-skill symlinks pointing into jstack/ should be removed
+      // Per-skill symlinks pointing into cavestack/ should be removed
       expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'review'))).toBe(false);
-      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'jstack-ship'))).toBe(false);
+      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'cavestack-ship'))).toBe(false);
 
-      // Non-jstack tool should still exist
+      // Non-cavestack tool should still exist
       expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'other-tool'))).toBe(true);
 
       // State should be removed
-      expect(fs.existsSync(path.join(mockHome, '.jstack'))).toBe(false);
+      expect(fs.existsSync(path.join(mockHome, '.cavestack'))).toBe(false);
     });
 
     test('--keep-state preserves state directory', () => {
@@ -101,8 +101,8 @@ describe('jstack-uninstall', () => {
         env: {
           ...process.env,
           HOME: mockHome,
-          JSTACK_DIR: path.join(mockHome, '.claude', 'skills', 'jstack'),
-          JSTACK_STATE_DIR: path.join(mockHome, '.jstack'),
+          CAVESTACK_DIR: path.join(mockHome, '.claude', 'skills', 'cavestack'),
+          CAVESTACK_STATE_DIR: path.join(mockHome, '.cavestack'),
         },
         cwd: mockGitRoot,
       });
@@ -110,11 +110,11 @@ describe('jstack-uninstall', () => {
       expect(result.status).toBe(0);
 
       // Skills should be removed
-      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'jstack'))).toBe(false);
+      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'cavestack'))).toBe(false);
 
       // State should still exist
-      expect(fs.existsSync(path.join(mockHome, '.jstack'))).toBe(true);
-      expect(fs.existsSync(path.join(mockHome, '.jstack', 'config.json'))).toBe(true);
+      expect(fs.existsSync(path.join(mockHome, '.cavestack'))).toBe(true);
+      expect(fs.existsSync(path.join(mockHome, '.cavestack', 'config.json'))).toBe(true);
     });
 
     test('clean system outputs nothing to remove', () => {
@@ -126,8 +126,8 @@ describe('jstack-uninstall', () => {
         env: {
           ...process.env,
           HOME: cleanHome,
-          JSTACK_DIR: path.join(cleanHome, 'nonexistent'),
-          JSTACK_STATE_DIR: path.join(cleanHome, '.jstack'),
+          CAVESTACK_DIR: path.join(cleanHome, 'nonexistent'),
+          CAVESTACK_STATE_DIR: path.join(cleanHome, '.cavestack'),
         },
         cwd: mockGitRoot,
       });
@@ -139,26 +139,26 @@ describe('jstack-uninstall', () => {
     test('upgrade path: prefixed install + uninstall cleans both old and new symlinks', () => {
       // Simulate the state after setup --no-prefix followed by setup (with prefix):
       // Both old unprefixed and new prefixed symlinks exist
-      // (mockHome already has both 'review' and 'jstack-ship' symlinks)
+      // (mockHome already has both 'review' and 'cavestack-ship' symlinks)
 
       const result = spawnSync('bash', [UNINSTALL, '--force'], {
         stdio: 'pipe',
         env: {
           ...process.env,
           HOME: mockHome,
-          JSTACK_DIR: path.join(mockHome, '.claude', 'skills', 'jstack'),
-          JSTACK_STATE_DIR: path.join(mockHome, '.jstack'),
+          CAVESTACK_DIR: path.join(mockHome, '.claude', 'skills', 'cavestack'),
+          CAVESTACK_STATE_DIR: path.join(mockHome, '.cavestack'),
         },
         cwd: mockGitRoot,
       });
 
       expect(result.status).toBe(0);
 
-      // Both old (review) and new (jstack-ship) symlinks should be gone
+      // Both old (review) and new (cavestack-ship) symlinks should be gone
       expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'review'))).toBe(false);
-      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'jstack-ship'))).toBe(false);
+      expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'cavestack-ship'))).toBe(false);
 
-      // Non-jstack should survive
+      // Non-cavestack should survive
       expect(fs.existsSync(path.join(mockHome, '.claude', 'skills', 'other-tool'))).toBe(true);
     });
   });

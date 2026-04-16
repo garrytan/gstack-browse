@@ -75,7 +75,7 @@ Follow CLAUDE.md "Slop-scan" section. Summary:
 
 ## Effort estimate
 
-| Task | Human | CC+jstack |
+| Task | Human | CC+cavestack |
 |------|-------|-----------|
 | Add to review/SKILL.md.tmpl | 2 hours | 10 min |
 | Add to ship/SKILL.md.tmpl | 2 hours | 10 min |

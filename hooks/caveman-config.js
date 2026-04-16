@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Derived from JuliusBrussee/caveman (MIT). See hooks/LICENSE-caveman.
-// Vendored unchanged into jstack — do not modify; pull upstream fixes instead.
+// Vendored unchanged into cavestack — do not modify; pull upstream fixes instead.
 // caveman — shared configuration resolver
 //
 // Resolution order for default mode:

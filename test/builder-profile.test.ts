@@ -12,11 +12,11 @@ let tmpDir: string;
 function runProfile(): Record<string, string> {
   const execOpts: ExecSyncOptionsWithStringEncoding = {
     cwd: ROOT,
-    env: { ...process.env, JSTACK_HOME: tmpDir },
+    env: { ...process.env, CAVESTACK_HOME: tmpDir },
     encoding: 'utf-8',
     timeout: 15000,
   };
-  const stdout = execSync(`${BIN}/jstack-builder-profile`, execOpts).trim();
+  const stdout = execSync(`${BIN}/cavestack-builder-profile`, execOpts).trim();
   const result: Record<string, string> = {};
   for (const line of stdout.split('\n')) {
     const idx = line.indexOf(':');
@@ -59,14 +59,14 @@ function makeEntry(overrides: Partial<{
 }
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-profile-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-profile-'));
 });
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
-describe('jstack-builder-profile', () => {
+describe('cavestack-builder-profile', () => {
   describe('empty/missing state', () => {
     test('no profile file → introduction tier with defaults', () => {
       const r = runProfile();

@@ -6,8 +6,8 @@ const codex: HostConfig = {
   cliCommand: 'codex',
   cliAliases: ['agents'],
 
-  globalRoot: '.codex/skills/jstack',
-  localSkillRoot: '.agents/skills/jstack',
+  globalRoot: '.codex/skills/cavestack',
+  localSkillRoot: '.agents/skills/cavestack',
   hostSubdir: '.agents',
   usesEnvVars: true,
 
@@ -25,9 +25,9 @@ const codex: HostConfig = {
   },
 
   pathRewrites: [
-    { from: '~/.claude/skills/jstack', to: '$JSTACK_ROOT' },
-    { from: '.claude/skills/jstack', to: '.agents/skills/jstack' },
-    { from: '.claude/skills/review', to: '.agents/skills/jstack/review' },
+    { from: '~/.claude/skills/cavestack', to: '$CAVESTACK_ROOT' },
+    { from: '.claude/skills/cavestack', to: '.agents/skills/cavestack' },
+    { from: '.claude/skills/review', to: '.agents/skills/cavestack/review' },
     { from: '.claude/skills', to: '.agents/skills' },
   ],
 
@@ -40,13 +40,13 @@ const codex: HostConfig = {
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },
   },
   sidecar: {
-    path: '.agents/skills/jstack',
+    path: '.agents/skills/cavestack',
     symlinks: ['bin', 'browse', 'review', 'qa', 'ETHOS.md'],
   },
 

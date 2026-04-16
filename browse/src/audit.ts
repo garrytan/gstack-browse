@@ -1,7 +1,7 @@
 /**
  * Persistent command audit log — forensic trail for all browse server commands.
  *
- * Writes append-only JSONL to .jstack/browse-audit.jsonl. Unlike the in-memory
+ * Writes append-only JSONL to .cavestack/browse-audit.jsonl. Unlike the in-memory
  * ring buffers (console, network, dialog), the audit log persists across server
  * restarts and is never truncated by the server. Each entry records:
  *

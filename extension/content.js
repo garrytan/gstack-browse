@@ -1,5 +1,5 @@
 /**
- * jstack browse — content script
+ * cavestack browse — content script
  *
  * Receives ref data from background worker via chrome.runtime.onMessage.
  * Renders @ref overlay badges on the page (CDP mode only — positions are accurate).
@@ -18,7 +18,7 @@ function showStatusPill(connected, refs) {
 
   if (!statusPill) {
     statusPill = document.createElement('div');
-    statusPill.id = 'jstack-status-pill';
+    statusPill.id = 'cavestack-status-pill';
     statusPill.style.cursor = 'pointer';
     statusPill.addEventListener('click', () => {
       // Ask background to open the side panel
@@ -33,7 +33,7 @@ function showStatusPill(connected, refs) {
   }
 
   const refText = refCount > 0 ? ` · ${refCount} refs` : '';
-  statusPill.innerHTML = `<span class="jstack-pill-dot"></span> jstack${refText}`;
+  statusPill.innerHTML = `<span class="cavestack-pill-dot"></span> cavestack${refText}`;
   statusPill.style.display = 'flex';
   statusPill.style.opacity = '1';
 
@@ -53,7 +53,7 @@ function hideStatusPill() {
 function ensureContainer() {
   if (overlayContainer) return overlayContainer;
   overlayContainer = document.createElement('div');
-  overlayContainer.id = 'jstack-ref-overlays';
+  overlayContainer.id = 'cavestack-ref-overlays';
   overlayContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 0; height: 0; z-index: 2147483647; pointer-events: none;';
   document.body.appendChild(overlayContainer);
   return overlayContainer;
@@ -76,7 +76,7 @@ function renderRefBadges(refs) {
     // In CDP mode, we could use bounding boxes from the server
     // For now, use a floating panel approach
     const badge = document.createElement('div');
-    badge.className = 'jstack-ref-badge';
+    badge.className = 'cavestack-ref-badge';
     badge.textContent = ref.ref;
     badge.title = `${ref.role}: "${ref.name}"`;
     container.appendChild(badge);
@@ -90,34 +90,34 @@ function renderRefPanel(refs) {
   const container = ensureContainer();
 
   const panel = document.createElement('div');
-  panel.className = 'jstack-ref-panel';
+  panel.className = 'cavestack-ref-panel';
 
   const header = document.createElement('div');
-  header.className = 'jstack-ref-panel-header';
-  header.textContent = `jstack refs (${refs.length})`;
+  header.className = 'cavestack-ref-panel-header';
+  header.textContent = `cavestack refs (${refs.length})`;
   header.style.cssText = 'pointer-events: auto; cursor: move;';
   panel.appendChild(header);
 
   const list = document.createElement('div');
-  list.className = 'jstack-ref-panel-list';
+  list.className = 'cavestack-ref-panel-list';
   for (const ref of refs.slice(0, 30)) { // Show max 30 in panel
     const row = document.createElement('div');
-    row.className = 'jstack-ref-panel-row';
+    row.className = 'cavestack-ref-panel-row';
     const idSpan = document.createElement('span');
-    idSpan.className = 'jstack-ref-panel-id';
+    idSpan.className = 'cavestack-ref-panel-id';
     idSpan.textContent = ref.ref;
     const roleSpan = document.createElement('span');
-    roleSpan.className = 'jstack-ref-panel-role';
+    roleSpan.className = 'cavestack-ref-panel-role';
     roleSpan.textContent = ref.role;
     const nameSpan = document.createElement('span');
-    nameSpan.className = 'jstack-ref-panel-name';
+    nameSpan.className = 'cavestack-ref-panel-name';
     nameSpan.textContent = '"' + ref.name + '"';
     row.append(idSpan, document.createTextNode(' '), roleSpan, document.createTextNode(' '), nameSpan);
     list.appendChild(row);
   }
   if (refs.length > 30) {
     const more = document.createElement('div');
-    more.className = 'jstack-ref-panel-more';
+    more.className = 'cavestack-ref-panel-more';
     more.textContent = `+${refs.length - 30} more`;
     list.appendChild(more);
   }
@@ -326,7 +326,7 @@ function startBasicPicker() {
   document.addEventListener('keydown', onBasicKeydown, true);
 }
 
-// Do NOT dispatch jstack-extension-ready here — the extension being loaded
+// Do NOT dispatch cavestack-extension-ready here — the extension being loaded
 // does not mean the sidebar is open. The welcome page arrow hint should only
 // hide when the sidebar is actually open. We dispatch it when we receive
 // a 'sidebarOpened' message from background.js.
@@ -335,7 +335,7 @@ function startBasicPicker() {
 chrome.runtime.onMessage.addListener((msg) => {
   // Sidebar actually opened — now hide the welcome page arrow hint
   if (msg.type === 'sidebarOpened') {
-    document.dispatchEvent(new CustomEvent('jstack-extension-ready'));
+    document.dispatchEvent(new CustomEvent('cavestack-extension-ready'));
     return;
   }
   if (msg.type === 'startBasicPicker') {

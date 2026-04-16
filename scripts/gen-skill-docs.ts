@@ -47,7 +47,7 @@ let HOST: Host = HOST_ARG_VAL === 'all' ? 'claude' : HOST_ARG_VAL;
 
 // ─── Shared Design Constants ────────────────────────────────
 
-/** jstack's 10 AI slop anti-patterns — shared between DESIGN_METHODOLOGY and DESIGN_HARD_RULES */
+/** cavestack's 10 AI slop anti-patterns — shared between DESIGN_METHODOLOGY and DESIGN_HARD_RULES */
 const AI_SLOP_BLACKLIST = [
   'Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes',
   '**The 3-column feature grid:** icon-in-colored-circle + bold title + 2-line description, repeated 3x symmetrically. THE most recognizable AI layout.',
@@ -88,13 +88,13 @@ const OPENAI_LITMUS_CHECKS = [
 // Re-export local copy for use in this file (matches codex-helpers.ts)
 // Accepts optional frontmatter name to support directory/invocation name divergence
 function externalSkillName(skillDir: string, frontmatterName?: string): string {
-  // Root skill (skillDir === '' or '.') always maps to 'jstack' regardless of frontmatter
-  if (skillDir === '.' || skillDir === '') return 'jstack';
+  // Root skill (skillDir === '' or '.') always maps to 'cavestack' regardless of frontmatter
+  if (skillDir === '.' || skillDir === '') return 'cavestack';
   // Use frontmatter name when it differs from directory name (e.g., run-tests/ with name: test)
   const baseName = frontmatterName && frontmatterName !== skillDir ? frontmatterName : skillDir;
-  // Don't double-prefix: jstack-upgrade → jstack-upgrade (not jstack-jstack-upgrade)
-  if (baseName.startsWith('jstack-')) return baseName;
-  return `jstack-${baseName}`;
+  // Don't double-prefix: cavestack-upgrade → cavestack-upgrade (not cavestack-cavestack-upgrade)
+  if (baseName.startsWith('cavestack-')) return baseName;
+  return `cavestack-${baseName}`;
 }
 
 function extractNameAndDescription(content: string): { name: string; description: string } {
@@ -550,12 +550,12 @@ for (const currentHost of hostsToRun) {
       }
     }
 
-    // Generate jstack-lite and jstack-full for OpenClaw host
+    // Generate cavestack-lite and cavestack-full for OpenClaw host
     if (currentHost === 'openclaw' && !DRY_RUN) {
       const openclawDir = path.join(ROOT, 'openclaw');
       if (!fs.existsSync(openclawDir)) fs.mkdirSync(openclawDir, { recursive: true });
 
-      const jstackLite = `# jstack-lite Planning Discipline
+      const cavestackLite = `# cavestack-lite Planning Discipline
 
 Injected by the orchestrator into spawned Claude Code sessions. Append to existing CLAUDE.md.
 
@@ -568,10 +568,10 @@ Injected by the orchestrator into spawned Claude Code sessions. Append to existi
    imports, untested paths, style inconsistencies.
 5. Report when done: what shipped, what decisions you made, anything uncertain.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'jstack-lite-CLAUDE.md'), jstackLite);
-      console.log('GENERATED: openclaw/jstack-lite-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'cavestack-lite-CLAUDE.md'), cavestackLite);
+      console.log('GENERATED: openclaw/cavestack-lite-CLAUDE.md');
 
-      const jstackFull = `# jstack-full Pipeline
+      const cavestackFull = `# cavestack-full Pipeline
 
 Injected by the orchestrator for complete feature builds. Append to existing CLAUDE.md.
 
@@ -584,10 +584,10 @@ Injected by the orchestrator for complete feature builds. Append to existing CLA
 
 Do not ask for human input until the PR is ready for review.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'jstack-full-CLAUDE.md'), jstackFull);
-      console.log('GENERATED: openclaw/jstack-full-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'cavestack-full-CLAUDE.md'), cavestackFull);
+      console.log('GENERATED: openclaw/cavestack-full-CLAUDE.md');
 
-      const jstackPlan = `# jstack-plan: Full Review Gauntlet
+      const cavestackPlan = `# cavestack-plan: Full Review Gauntlet
 
 Injected by the orchestrator when the user wants to plan a Claude Code project.
 Append to existing CLAUDE.md.
@@ -603,13 +603,13 @@ Append to existing CLAUDE.md.
    - Plan file path
    - One-paragraph summary of what was designed and the key decisions
    - List of accepted scope expansions (if any)
-   - Recommended next step (usually: spawn a new session with jstack-full to implement)
+   - Recommended next step (usually: spawn a new session with cavestack-full to implement)
 
 Do not implement anything. This is planning only.
 The orchestrator will persist the plan link to its own memory/knowledge store.
 `;
-      fs.writeFileSync(path.join(openclawDir, 'jstack-plan-CLAUDE.md'), jstackPlan);
-      console.log('GENERATED: openclaw/jstack-plan-CLAUDE.md');
+      fs.writeFileSync(path.join(openclawDir, 'cavestack-plan-CLAUDE.md'), cavestackPlan);
+      console.log('GENERATED: openclaw/cavestack-plan-CLAUDE.md');
     }
 
     if (DRY_RUN && hasChanges) {
@@ -652,11 +652,11 @@ if (failures.length > 0 && HOST_ARG_VAL === 'all') {
 // After all hosts processed, warn if prefix patches may need re-applying
 if (!DRY_RUN) {
   try {
-    const configPath = path.join(process.env.HOME || '', '.jstack', 'config.yaml');
+    const configPath = path.join(process.env.HOME || '', '.cavestack', 'config.yaml');
     if (fs.existsSync(configPath)) {
       const config = fs.readFileSync(configPath, 'utf-8');
       if (/^skill_prefix:\s*true/m.test(config)) {
-        console.log('\nNote: skill_prefix is true. Run jstack-relink to re-apply name: patches.');
+        console.log('\nNote: skill_prefix is true. Run cavestack-relink to re-apply name: patches.');
       }
     }
   } catch { /* non-fatal */ }

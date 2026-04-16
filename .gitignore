@@ -3,8 +3,8 @@ node_modules/
 dist/
 browse/dist/
 design/dist/
-bin/jstack-global-discover
-.jstack/
+bin/cavestack-global-discover
+.cavestack/
 .claude/skills/
 .claude/settings.local.json
 .agents/
@@ -16,7 +16,7 @@ bin/jstack-global-discover
 .openclaw/
 .context/
 extension/.auth.json
-.jstack-worktrees/
+.cavestack-worktrees/
 /tmp/
 *.log
 *.bun-build

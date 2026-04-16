@@ -1,11 +1,11 @@
 MIT License
 
-jstack is a personal fork of gstack (https://github.com/garrytan/gstack) with
+cavestack is a personal fork of gstack (https://github.com/garrytan/gstack) with
 caveman (https://github.com/JuliusBrussee/caveman) integrated as an always-on
 terse-response layer. The original copyright notices from both upstream projects
 are preserved below.
 
-Copyright (c) 2026 JerkyJesse (jstack fork modifications)
+Copyright (c) 2026 JerkyJesse (cavestack fork modifications)
 Copyright (c) 2026 Garry Tan (gstack, upstream)
 Copyright (c) 2025 Julius Brussee (caveman, bundled under hooks/ and caveman*/)
 

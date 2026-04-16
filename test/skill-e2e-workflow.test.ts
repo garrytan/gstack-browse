@@ -124,8 +124,8 @@ describeIfSelected('Ship workflow E2E', ['ship-local-workflow'], () => {
   let shipRemoteDir: string;
 
   beforeAll(() => {
-    shipRemoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-ship-remote-'));
-    shipWorkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-ship-work-'));
+    shipRemoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-ship-remote-'));
+    shipWorkDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-ship-work-'));
 
     // Create bare remote
     spawnSync('git', ['init', '--bare'], { cwd: shipRemoteDir, stdio: 'pipe' });
@@ -200,15 +200,15 @@ describeIfSelected('Ship workflow E2E', ['ship-local-workflow'], () => {
 // detection, error handling, path traversal). The E2E just tested LLM instruction-
 // following ("write a file saying no browsers") on a CI box with no browsers.
 
-// --- jstack-upgrade E2E ---
+// --- cavestack-upgrade E2E ---
 
-describeIfSelected('jstack-upgrade E2E', ['jstack-upgrade-happy-path'], () => {
+describeIfSelected('cavestack-upgrade E2E', ['cavestack-upgrade-happy-path'], () => {
   let upgradeDir: string;
   let remoteDir: string;
 
   beforeAll(() => {
     upgradeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-upgrade-'));
-    remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-remote-'));
+    remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-remote-'));
 
     const run = (cmd: string, args: string[], cwd: string) =>
       spawnSync(cmd, args, { cwd, stdio: 'pipe', timeout: 5000 });
@@ -218,47 +218,47 @@ describeIfSelected('jstack-upgrade E2E', ['jstack-upgrade-happy-path'], () => {
     run('git', ['config', 'user.email', 'test@test.com'], upgradeDir);
     run('git', ['config', 'user.name', 'Test'], upgradeDir);
 
-    // Create mock jstack install directory (local-git type)
-    const mockJstack = path.join(upgradeDir, '.claude', 'skills', 'jstack');
-    fs.mkdirSync(mockJstack, { recursive: true });
+    // Create mock cavestack install directory (local-git type)
+    const mockCavestack = path.join(upgradeDir, '.claude', 'skills', 'cavestack');
+    fs.mkdirSync(mockCavestack, { recursive: true });
 
     // Init as a git repo
-    run('git', ['init'], mockJstack);
-    run('git', ['config', 'user.email', 'test@test.com'], mockJstack);
-    run('git', ['config', 'user.name', 'Test'], mockJstack);
+    run('git', ['init'], mockCavestack);
+    run('git', ['config', 'user.email', 'test@test.com'], mockCavestack);
+    run('git', ['config', 'user.name', 'Test'], mockCavestack);
 
     // Create bare remote
     run('git', ['init', '--bare'], remoteDir);
-    run('git', ['remote', 'add', 'origin', remoteDir], mockJstack);
+    run('git', ['remote', 'add', 'origin', remoteDir], mockCavestack);
 
     // Write old version files
-    fs.writeFileSync(path.join(mockJstack, 'VERSION'), '0.5.0\n');
-    fs.writeFileSync(path.join(mockJstack, 'CHANGELOG.md'),
+    fs.writeFileSync(path.join(mockCavestack, 'VERSION'), '0.5.0\n');
+    fs.writeFileSync(path.join(mockCavestack, 'CHANGELOG.md'),
       '# Changelog\n\n## 0.5.0 — 2026-03-01\n\n- Initial release\n');
-    fs.writeFileSync(path.join(mockJstack, 'setup'),
+    fs.writeFileSync(path.join(mockCavestack, 'setup'),
       '#!/bin/bash\necho "Setup completed"\n', { mode: 0o755 });
 
     // Initial commit + push
-    run('git', ['add', '.'], mockJstack);
-    run('git', ['commit', '-m', 'initial'], mockJstack);
-    run('git', ['push', '-u', 'origin', 'HEAD:main'], mockJstack);
+    run('git', ['add', '.'], mockCavestack);
+    run('git', ['commit', '-m', 'initial'], mockCavestack);
+    run('git', ['push', '-u', 'origin', 'HEAD:main'], mockCavestack);
 
     // Create new version (simulate upstream release)
-    fs.writeFileSync(path.join(mockJstack, 'VERSION'), '0.6.0\n');
-    fs.writeFileSync(path.join(mockJstack, 'CHANGELOG.md'),
+    fs.writeFileSync(path.join(mockCavestack, 'VERSION'), '0.6.0\n');
+    fs.writeFileSync(path.join(mockCavestack, 'CHANGELOG.md'),
       '# Changelog\n\n## 0.6.0 — 2026-03-15\n\n- New feature: interactive design review\n- Fix: snapshot flag validation\n\n## 0.5.0 — 2026-03-01\n\n- Initial release\n');
-    run('git', ['add', '.'], mockJstack);
-    run('git', ['commit', '-m', 'release 0.6.0'], mockJstack);
-    run('git', ['push', 'origin', 'HEAD:main'], mockJstack);
+    run('git', ['add', '.'], mockCavestack);
+    run('git', ['commit', '-m', 'release 0.6.0'], mockCavestack);
+    run('git', ['push', 'origin', 'HEAD:main'], mockCavestack);
 
     // Reset working copy back to old version
-    run('git', ['reset', '--hard', 'HEAD~1'], mockJstack);
+    run('git', ['reset', '--hard', 'HEAD~1'], mockCavestack);
 
-    // Copy jstack-upgrade skill
-    fs.mkdirSync(path.join(upgradeDir, 'jstack-upgrade'), { recursive: true });
+    // Copy cavestack-upgrade skill
+    fs.mkdirSync(path.join(upgradeDir, 'cavestack-upgrade'), { recursive: true });
     fs.copyFileSync(
-      path.join(ROOT, 'jstack-upgrade', 'SKILL.md'),
-      path.join(upgradeDir, 'jstack-upgrade', 'SKILL.md'),
+      path.join(ROOT, 'cavestack-upgrade', 'SKILL.md'),
+      path.join(upgradeDir, 'cavestack-upgrade', 'SKILL.md'),
     );
 
     // Commit so git repo is clean
@@ -271,12 +271,12 @@ describeIfSelected('jstack-upgrade E2E', ['jstack-upgrade-happy-path'], () => {
     try { fs.rmSync(remoteDir, { recursive: true, force: true }); } catch {}
   });
 
-  testConcurrentIfSelected('jstack-upgrade-happy-path', async () => {
-    const mockJstack = path.join(upgradeDir, '.claude', 'skills', 'jstack');
+  testConcurrentIfSelected('cavestack-upgrade-happy-path', async () => {
+    const mockCavestack = path.join(upgradeDir, '.claude', 'skills', 'cavestack');
     const result = await runSkillTest({
-      prompt: `Read jstack-upgrade/SKILL.md for the upgrade workflow.
+      prompt: `Read cavestack-upgrade/SKILL.md for the upgrade workflow.
 
-You are running /jstack-upgrade standalone. The jstack installation is at ./.claude/skills/jstack (local-git type — it has a .git directory with an origin remote).
+You are running /cavestack-upgrade standalone. The cavestack installation is at ./.claude/skills/cavestack (local-git type — it has a .git directory with an origin remote).
 
 Current version: 0.5.0. A new version 0.6.0 is available on origin/main.
 
@@ -288,24 +288,24 @@ Follow the standalone upgrade flow:
 
 Skip any AskUserQuestion calls — auto-approve the upgrade. Write a summary of what you did to stdout.
 
-IMPORTANT: The install directory is at ./.claude/skills/jstack — use that exact path.`,
+IMPORTANT: The install directory is at ./.claude/skills/cavestack — use that exact path.`,
       workingDirectory: upgradeDir,
       maxTurns: 20,
       timeout: 180_000,
-      testName: 'jstack-upgrade-happy-path',
+      testName: 'cavestack-upgrade-happy-path',
       runId,
     });
 
-    logCost('/jstack-upgrade happy path', result);
+    logCost('/cavestack-upgrade happy path', result);
 
     // Check that the version was updated
-    const versionAfter = fs.readFileSync(path.join(mockJstack, 'VERSION'), 'utf-8').trim();
+    const versionAfter = fs.readFileSync(path.join(mockCavestack, 'VERSION'), 'utf-8').trim();
     const output = result.output || '';
     const mentionsUpgrade = output.toLowerCase().includes('0.6.0') ||
       output.toLowerCase().includes('upgrade') ||
       output.toLowerCase().includes('updated');
 
-    recordE2E(evalCollector, '/jstack-upgrade happy path', 'jstack-upgrade E2E', result, {
+    recordE2E(evalCollector, '/cavestack-upgrade happy path', 'cavestack-upgrade E2E', result, {
       passed: versionAfter === '0.6.0' && ['success', 'error_max_turns'].includes(result.exitReason),
     });
 

@@ -45,7 +45,7 @@ function extractDescription(content: string): string {
 const ALL_SKILLS = (() => {
   const skills: Array<{ dir: string; name: string }> = [];
   if (fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))) {
-    skills.push({ dir: '.', name: 'root jstack' });
+    skills.push({ dir: '.', name: 'root cavestack' });
   }
   for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
@@ -216,11 +216,11 @@ describe('gen-skill-docs', () => {
   test('generated SKILL.md contains operational self-improvement (replaced contributor mode)', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).not.toContain('Contributor Mode');
-    expect(content).not.toContain('jstack_contributor');
+    expect(content).not.toContain('cavestack_contributor');
     expect(content).not.toContain('contributor-logs');
     expect(content).toContain('Operational Self-Improvement');
-    expect(content).toContain('jstack-learnings-log');
-    expect(content).toContain('jstack-learnings-search --limit 3');
+    expect(content).toContain('cavestack-learnings-log');
+    expect(content).toContain('cavestack-learnings-search --limit 3');
   });
 
   test('generated SKILL.md with LEARNINGS_LOG contains operational type', () => {
@@ -258,7 +258,7 @@ describe('gen-skill-docs', () => {
   test('generated SKILL.md contains telemetry line', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('skill-usage.jsonl');
-    expect(content).toContain('~/.jstack/analytics');
+    expect(content).toContain('~/.cavestack/analytics');
   });
 
   test('preamble .pending-* glob is zsh-safe (uses find, not shell glob)', () => {
@@ -268,7 +268,7 @@ describe('gen-skill-docs', () => {
       // Must NOT have a bare shell glob ".pending-*" outside of find's -name argument
       expect(content).not.toMatch(/for _PF in [^\n]*\/\.pending-\*/);
       // Must use find to avoid zsh NOMATCH error on glob expansion
-      expect(content).toContain("find ~/.jstack/analytics -maxdepth 1 -name '.pending-*'");
+      expect(content).toContain("find ~/.cavestack/analytics -maxdepth 1 -name '.pending-*'");
     }
   });
 
@@ -311,7 +311,7 @@ describe('gen-skill-docs', () => {
 
   test('preamble-using skills have correct skill name in telemetry', () => {
     const PREAMBLE_SKILLS = [
-      { dir: '.', name: 'jstack' },
+      { dir: '.', name: 'cavestack' },
       { dir: 'ship', name: 'ship' },
       { dir: 'review', name: 'review' },
       { dir: 'qa', name: 'qa' },
@@ -524,7 +524,7 @@ describe('REVIEW_DASHBOARD resolver', () => {
   for (const skill of REVIEW_SKILLS) {
     test(`review dashboard appears in ${skill} generated file`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('jstack-review');
+      expect(content).toContain('cavestack-review');
       expect(content).toContain('REVIEW READINESS DASHBOARD');
     });
   }
@@ -815,7 +815,7 @@ describe('PLAN_FILE_REVIEW_REPORT resolver', () => {
   for (const skill of REVIEW_SKILLS) {
     test(`plan file review report appears in ${skill} generated file`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
-      expect(content).toContain('JSTACK REVIEW REPORT');
+      expect(content).toContain('CAVESTACK REVIEW REPORT');
     });
   }
 
@@ -997,8 +997,8 @@ describe('Plan status footer in preamble', () => {
     // Read any skill that uses PREAMBLE
     const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
     expect(content).toContain('Plan Status Footer');
-    expect(content).toContain('JSTACK REVIEW REPORT');
-    expect(content).toContain('jstack-review-read');
+    expect(content).toContain('CAVESTACK REVIEW REPORT');
+    expect(content).toContain('cavestack-review-read');
     expect(content).toContain('ExitPlanMode');
     expect(content).toContain('NO REVIEWS YET');
   });
@@ -1086,7 +1086,7 @@ describe('DESIGN_SKETCH resolver', () => {
 
 describe('CODEX_SECOND_OPINION resolver', () => {
   const content = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
-  const codexContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'jstack-office-hours', 'SKILL.md'), 'utf-8');
+  const codexContent = fs.readFileSync(path.join(ROOT, '.agents', 'skills', 'cavestack-office-hours', 'SKILL.md'), 'utf-8');
 
   test('Phase 3.5 section appears in office-hours SKILL.md', () => {
     expect(content).toContain('Phase 3.5: Cross-Model Second Opinion');
@@ -1128,7 +1128,7 @@ describe('CODEX_SECOND_OPINION resolver', () => {
     // check for Phase 3.5-specific markers only.
     expect(codexContent).not.toContain('Phase 3.5: Cross-Model Second Opinion');
     expect(codexContent).not.toContain('TMPERR_OH');
-    expect(codexContent).not.toContain('jstack-codex-oh-');
+    expect(codexContent).not.toContain('cavestack-codex-oh-');
   });
 });
 
@@ -1164,7 +1164,7 @@ describe('Codex filesystem boundary', () => {
   test('codex skill has rabbit-hole detection rule', () => {
     const content = fs.readFileSync(path.join(ROOT, 'codex', 'SKILL.md'), 'utf-8');
     expect(content).toContain('Detect skill-file rabbit holes');
-    expect(content).toContain('jstack-update-check');
+    expect(content).toContain('cavestack-update-check');
     expect(content).toContain('Consider retrying');
   });
 
@@ -1181,14 +1181,14 @@ describe('Codex filesystem boundary', () => {
 
   test('autoplan boundary text avoids host-specific paths for cross-host compatibility', () => {
     const content = fs.readFileSync(path.join(ROOT, 'autoplan', 'SKILL.md.tmpl'), 'utf-8');
-    // autoplan template uses generic 'skills/jstack' pattern instead of host-specific
+    // autoplan template uses generic 'skills/cavestack' pattern instead of host-specific
     // paths like ~/.claude/ or .agents/skills (which break Codex/Claude output tests)
     const boundaryStart = content.indexOf('Filesystem Boundary');
     const boundaryEnd = content.indexOf('---', boundaryStart + 1);
     const boundarySection = content.slice(boundaryStart, boundaryEnd);
     expect(boundarySection).not.toContain('~/.claude/');
     expect(boundarySection).not.toContain('.agents/skills');
-    expect(boundarySection).toContain('skills/jstack');
+    expect(boundarySection).toContain('skills/cavestack');
     expect(boundarySection).toContain(BOUNDARY_MARKER);
   });
 });
@@ -1493,15 +1493,15 @@ describe('Codex generation (--host codex)', () => {
       } catch { return false; }
     };
     if (fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))) {
-      if (!isSymlinkLoop('jstack')) {
-        skills.push({ dir: '.', codexName: 'jstack' });
+      if (!isSymlinkLoop('cavestack')) {
+        skills.push({ dir: '.', codexName: 'cavestack' });
       }
     }
     for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       if (entry.name === 'codex') continue; // /codex is excluded from Codex output
       if (!fs.existsSync(path.join(ROOT, entry.name, 'SKILL.md.tmpl'))) continue;
-      const codexName = entry.name.startsWith('jstack-') ? entry.name : `jstack-${entry.name}`;
+      const codexName = entry.name.startsWith('cavestack-') ? entry.name : `cavestack-${entry.name}`;
       if (isSymlinkLoop(codexName)) continue;
       skills.push({ dir: entry.name, codexName });
     }
@@ -1515,25 +1515,25 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
-  test('root jstack bundle has OpenAI metadata for Codex skill browsing', () => {
+  test('root cavestack bundle has OpenAI metadata for Codex skill browsing', () => {
     const rootMetadata = path.join(ROOT, 'agents', 'openai.yaml');
     expect(fs.existsSync(rootMetadata)).toBe(true);
     const content = fs.readFileSync(rootMetadata, 'utf-8');
-    expect(content).toContain('display_name: "jstack"');
-    expect(content).toContain('Use $jstack to locate the bundled jstack skills.');
+    expect(content).toContain('display_name: "cavestack"');
+    expect(content).toContain('Use $cavestack to locate the bundled cavestack skills.');
     expect(content).toContain('allow_implicit_invocation: true');
   });
 
-  test('externalSkillName mapping: root is jstack, others are jstack-{dir}', () => {
-    // Root → jstack
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack', 'SKILL.md'))).toBe(true);
-    // Subdirectories → jstack-{dir}
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'))).toBe(true);
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-ship', 'SKILL.md'))).toBe(true);
-    // jstack-upgrade doesn't double-prefix
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-upgrade', 'SKILL.md'))).toBe(true);
-    // No double-prefix: jstack-jstack-upgrade must NOT exist
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-jstack-upgrade', 'SKILL.md'))).toBe(false);
+  test('externalSkillName mapping: root is cavestack, others are cavestack-{dir}', () => {
+    // Root → cavestack
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack', 'SKILL.md'))).toBe(true);
+    // Subdirectories → cavestack-{dir}
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'))).toBe(true);
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-ship', 'SKILL.md'))).toBe(true);
+    // cavestack-upgrade doesn't double-prefix
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-upgrade', 'SKILL.md'))).toBe(true);
+    // No double-prefix: cavestack-cavestack-upgrade must NOT exist
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-cavestack-upgrade', 'SKILL.md'))).toBe(false);
   });
 
   test('Codex frontmatter has ONLY name + description', () => {
@@ -1579,16 +1579,16 @@ describe('Codex generation (--host codex)', () => {
   });
 
   test('/codex skill excluded from Codex output', () => {
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-codex', 'SKILL.md'))).toBe(false);
-    expect(fs.existsSync(path.join(AGENTS_DIR, 'jstack-codex'))).toBe(false);
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-codex', 'SKILL.md'))).toBe(false);
+    expect(fs.existsSync(path.join(AGENTS_DIR, 'cavestack-codex'))).toBe(false);
   });
 
   test('Codex review step stripped from Codex-host ship and review', () => {
-    const shipContent = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-ship', 'SKILL.md'), 'utf-8');
+    const shipContent = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-ship', 'SKILL.md'), 'utf-8');
     expect(shipContent).not.toContain('codex review --base');
     expect(shipContent).not.toContain('CODEX_REVIEWS');
 
-    const reviewContent = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
+    const reviewContent = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
     expect(reviewContent).not.toContain('codex review --base');
     expect(reviewContent).not.toContain('CODEX_REVIEWS');
   });
@@ -1627,7 +1627,7 @@ describe('Codex generation (--host codex)', () => {
 
   test('multiline descriptions preserved in Codex output', () => {
     // office-hours has a multiline description — verify it survives the frontmatter transform
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-office-hours', 'SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-office-hours', 'SKILL.md'), 'utf-8');
     const fmEnd = content.indexOf('\n---', 4);
     const frontmatter = content.slice(4, fmEnd);
     // Description should span multiple lines (block scalar)
@@ -1638,7 +1638,7 @@ describe('Codex generation (--host codex)', () => {
   });
 
   test('hook skills have safety prose and no hooks: in frontmatter', () => {
-    const HOOK_SKILLS = ['jstack-careful', 'jstack-freeze', 'jstack-guard'];
+    const HOOK_SKILLS = ['cavestack-careful', 'cavestack-freeze', 'cavestack-guard'];
     for (const skillName of HOOK_SKILLS) {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skillName, 'SKILL.md'), 'utf-8');
       // Must have safety advisory prose
@@ -1658,58 +1658,58 @@ describe('Codex generation (--host codex)', () => {
     }
   });
 
-  test('Codex preamble resolves runtime assets from repo-local or global jstack roots', () => {
+  test('Codex preamble resolves runtime assets from repo-local or global cavestack roots', () => {
     // Check a skill that has a preamble (review is a good candidate)
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('JSTACK_ROOT');
-    expect(content).toContain('$_ROOT/.agents/skills/jstack');
-    expect(content).toContain('$JSTACK_BIN/jstack-config');
-    expect(content).toContain('$JSTACK_ROOT/jstack-upgrade/SKILL.md');
-    expect(content).not.toContain('~/.codex/skills/jstack/bin/jstack-config get telemetry');
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('CAVESTACK_ROOT');
+    expect(content).toContain('$_ROOT/.agents/skills/cavestack');
+    expect(content).toContain('$CAVESTACK_BIN/cavestack-config');
+    expect(content).toContain('$CAVESTACK_ROOT/cavestack-upgrade/SKILL.md');
+    expect(content).not.toContain('~/.codex/skills/cavestack/bin/cavestack-config get telemetry');
   });
 
   // ─── Path rewriting regression tests ─────────────────────────
 
-  test('sidecar paths point to .agents/skills/jstack/review/ (not jstack-review/)', () => {
-    // Regression: gen-skill-docs rewrote .claude/skills/review → .agents/skills/jstack-review
-    // but setup puts sidecars under .agents/skills/jstack/review/. Must match setup layout.
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
-    // Correct: references to sidecar files use jstack/review/ path
-    expect(content).toContain('.agents/skills/jstack/review/checklist.md');
+  test('sidecar paths point to .agents/skills/cavestack/review/ (not cavestack-review/)', () => {
+    // Regression: gen-skill-docs rewrote .claude/skills/review → .agents/skills/cavestack-review
+    // but setup puts sidecars under .agents/skills/cavestack/review/. Must match setup layout.
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
+    // Correct: references to sidecar files use cavestack/review/ path
+    expect(content).toContain('.agents/skills/cavestack/review/checklist.md');
     // design-checklist.md is now referenced via Review Army specialist (Claude only, stripped for Codex)
-    // Wrong: must NOT reference jstack-review/checklist.md (file doesn't exist there)
-    expect(content).not.toContain('.agents/skills/jstack-review/checklist.md');
+    // Wrong: must NOT reference cavestack-review/checklist.md (file doesn't exist there)
+    expect(content).not.toContain('.agents/skills/cavestack-review/checklist.md');
   });
 
-  test('sidecar paths in ship skill point to jstack/review/ for pre-landing review', () => {
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-ship', 'SKILL.md'), 'utf-8');
+  test('sidecar paths in ship skill point to cavestack/review/ for pre-landing review', () => {
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-ship', 'SKILL.md'), 'utf-8');
     // Ship references the review checklist in its pre-landing review step
     if (content.includes('checklist.md')) {
-      expect(content).toContain('.agents/skills/jstack/review/');
-      expect(content).not.toContain('.agents/skills/jstack-review/checklist');
+      expect(content).toContain('.agents/skills/cavestack/review/');
+      expect(content).not.toContain('.agents/skills/cavestack-review/checklist');
     }
   });
 
   test('greptile-triage sidecar path is correct', () => {
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
     if (content.includes('greptile-triage')) {
-      expect(content).toContain('.agents/skills/jstack/review/greptile-triage.md');
-      expect(content).not.toContain('.agents/skills/jstack-review/greptile-triage');
+      expect(content).toContain('.agents/skills/cavestack/review/greptile-triage.md');
+      expect(content).not.toContain('.agents/skills/cavestack-review/greptile-triage');
     }
   });
 
   test('all four path rewrite rules produce correct output', () => {
     // Test each of the 4 path rewrite rules individually
-    const content = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
+    const content = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
 
-    // Rule 1: ~/.claude/skills/jstack → $JSTACK_ROOT
-    expect(content).not.toContain('~/.claude/skills/jstack');
-    expect(content).toContain('$JSTACK_ROOT');
+    // Rule 1: ~/.claude/skills/cavestack → $CAVESTACK_ROOT
+    expect(content).not.toContain('~/.claude/skills/cavestack');
+    expect(content).toContain('$CAVESTACK_ROOT');
 
-    // Rule 2: .claude/skills/jstack → .agents/skills/jstack
-    expect(content).not.toContain('.claude/skills/jstack');
+    // Rule 2: .claude/skills/cavestack → .agents/skills/cavestack
+    expect(content).not.toContain('.claude/skills/cavestack');
 
-    // Rule 3: .claude/skills/review → .agents/skills/jstack/review
+    // Rule 3: .claude/skills/review → .agents/skills/cavestack/review
     expect(content).not.toContain('.claude/skills/review');
 
     // Rule 4: .claude/skills → .agents/skills (catch-all)
@@ -1723,12 +1723,12 @@ describe('Codex generation (--host codex)', () => {
       // No skill should reference Claude paths
       expect(content).not.toContain('~/.claude/skills');
       expect(content).not.toContain('.claude/skills');
-      if (content.includes('jstack-config') || content.includes('jstack-update-check') || content.includes('jstack-telemetry-log')) {
-        expect(content).toContain('$JSTACK_ROOT');
+      if (content.includes('cavestack-config') || content.includes('cavestack-update-check') || content.includes('cavestack-telemetry-log')) {
+        expect(content).toContain('$CAVESTACK_ROOT');
       }
       // If a skill references checklist.md, it must use the correct sidecar path
       if (content.includes('checklist.md') && !content.includes('design-checklist.md')) {
-        expect(content).not.toContain('jstack-review/checklist.md');
+        expect(content).not.toContain('cavestack-review/checklist.md');
       }
     }
   });
@@ -1739,7 +1739,7 @@ describe('Codex generation (--host codex)', () => {
     // Codex changes must NOT affect Claude output
     const content = fs.readFileSync(path.join(ROOT, 'review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('.claude/skills/review/checklist.md');
-    expect(content).toContain('~/.claude/skills/jstack');
+    expect(content).toContain('~/.claude/skills/cavestack');
     // Must NOT contain Codex paths
     expect(content).not.toContain('.agents/skills');
     expect(content).not.toContain('~/.codex/');
@@ -1747,7 +1747,7 @@ describe('Codex generation (--host codex)', () => {
 
   test('Claude output unchanged: ship skill still uses .claude/skills/ paths', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('~/.claude/skills/jstack');
+    expect(content).toContain('~/.claude/skills/cavestack');
     expect(content).not.toContain('.agents/skills');
     expect(content).not.toContain('~/.codex/');
   });
@@ -1759,8 +1759,8 @@ describe('Codex generation (--host codex)', () => {
       if (skill.dir !== 'pair-agent') {
         expect(content).not.toContain('~/.codex/');
       }
-      // jstack-upgrade legitimately references .agents/skills for cross-platform detection
-      if (skill.dir !== 'jstack-upgrade') {
+      // cavestack-upgrade legitimately references .agents/skills for cross-platform detection
+      if (skill.dir !== 'cavestack-upgrade') {
         expect(content).not.toContain('.agents/skills');
       }
     }
@@ -1769,12 +1769,12 @@ describe('Codex generation (--host codex)', () => {
   // ─── Design outside voices: Codex host guard ─────────────────
 
   test('codex host produces empty outside voices in design-review', () => {
-    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-design-review', 'SKILL.md'), 'utf-8');
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-design-review', 'SKILL.md'), 'utf-8');
     expect(codexContent).not.toContain('Design Outside Voices');
   });
 
   test('codex host does not include Codex design block in ship', () => {
-    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'jstack-ship', 'SKILL.md'), 'utf-8');
+    const codexContent = fs.readFileSync(path.join(AGENTS_DIR, 'cavestack-ship', 'SKILL.md'), 'utf-8');
     expect(codexContent).not.toContain('Codex design voice');
   });
 });
@@ -1797,13 +1797,13 @@ describe('Factory generation (--host factory)', () => {
       catch { return false; }
     };
     if (fs.existsSync(path.join(ROOT, 'SKILL.md.tmpl'))) {
-      if (!isSymlinkLoop('jstack')) skills.push({ dir: '.', factoryName: 'jstack' });
+      if (!isSymlinkLoop('cavestack')) skills.push({ dir: '.', factoryName: 'cavestack' });
     }
     for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       if (entry.name === 'codex') continue;
       if (!fs.existsSync(path.join(ROOT, entry.name, 'SKILL.md.tmpl'))) continue;
-      const factoryName = entry.name.startsWith('jstack-') ? entry.name : `jstack-${entry.name}`;
+      const factoryName = entry.name.startsWith('cavestack-') ? entry.name : `cavestack-${entry.name}`;
       if (isSymlinkLoop(factoryName)) continue;
       skills.push({ dir: entry.name, factoryName });
     }
@@ -1832,7 +1832,7 @@ describe('Factory generation (--host factory)', () => {
   });
 
   test('sensitive skills have disable-model-invocation', () => {
-    const SENSITIVE = ['jstack-ship', 'jstack-land-and-deploy', 'jstack-guard', 'jstack-careful', 'jstack-freeze', 'jstack-unfreeze'];
+    const SENSITIVE = ['cavestack-ship', 'cavestack-land-and-deploy', 'cavestack-guard', 'cavestack-careful', 'cavestack-freeze', 'cavestack-unfreeze'];
     for (const name of SENSITIVE) {
       const content = fs.readFileSync(path.join(FACTORY_DIR, name, 'SKILL.md'), 'utf-8');
       const fmEnd = content.indexOf('\n---', 4);
@@ -1842,7 +1842,7 @@ describe('Factory generation (--host factory)', () => {
   });
 
   test('non-sensitive skills lack disable-model-invocation', () => {
-    const NON_SENSITIVE = ['jstack-qa', 'jstack-review', 'jstack-investigate', 'jstack-browse'];
+    const NON_SENSITIVE = ['cavestack-qa', 'cavestack-review', 'cavestack-investigate', 'cavestack-browse'];
     for (const name of NON_SENSITIVE) {
       const content = fs.readFileSync(path.join(FACTORY_DIR, name, 'SKILL.md'), 'utf-8');
       const fmEnd = content.indexOf('\n---', 4);
@@ -1868,13 +1868,13 @@ describe('Factory generation (--host factory)', () => {
   });
 
   test('/codex skill excluded from Factory output', () => {
-    expect(fs.existsSync(path.join(FACTORY_DIR, 'jstack-codex', 'SKILL.md'))).toBe(false);
-    expect(fs.existsSync(path.join(FACTORY_DIR, 'jstack-codex'))).toBe(false);
+    expect(fs.existsSync(path.join(FACTORY_DIR, 'cavestack-codex', 'SKILL.md'))).toBe(false);
+    expect(fs.existsSync(path.join(FACTORY_DIR, 'cavestack-codex'))).toBe(false);
   });
 
   test('Factory keeps Codex integration blocks', () => {
     // Factory users CAN use Codex second opinions (codex exec is a standalone binary)
-    const shipContent = fs.readFileSync(path.join(FACTORY_DIR, 'jstack-ship', 'SKILL.md'), 'utf-8');
+    const shipContent = fs.readFileSync(path.join(FACTORY_DIR, 'cavestack-ship', 'SKILL.md'), 'utf-8');
     expect(shipContent).toContain('codex');
   });
 
@@ -1910,10 +1910,10 @@ describe('Factory generation (--host factory)', () => {
   });
 
   test('Factory preamble uses .factory paths', () => {
-    const content = fs.readFileSync(path.join(FACTORY_DIR, 'jstack-review', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('JSTACK_ROOT');
-    expect(content).toContain('$_ROOT/.factory/skills/jstack');
-    expect(content).toContain('$JSTACK_BIN/jstack-config');
+    const content = fs.readFileSync(path.join(FACTORY_DIR, 'cavestack-review', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('CAVESTACK_ROOT');
+    expect(content).toContain('$_ROOT/.factory/skills/cavestack');
+    expect(content).toContain('$CAVESTACK_BIN/cavestack-config');
   });
 });
 
@@ -1945,9 +1945,9 @@ describe('Parameterized host smoke tests', () => {
         if (!fs.existsSync(hostDir)) return; // skip if not generated
         const skills = fs.readdirSync(hostDir);
         for (const skill of skills) {
-          // Skip root jstack skill — it contains preamble with intentional .claude/skills
+          // Skip root cavestack skill — it contains preamble with intentional .claude/skills
           // fallback paths for binary lookup and skill prefix instructions
-          if (skill === 'jstack') continue;
+          if (skill === 'cavestack') continue;
           const skillMd = path.join(hostDir, skill, 'SKILL.md');
           if (!fs.existsSync(skillMd)) continue;
           const content = fs.readFileSync(skillMd, 'utf-8');
@@ -1985,7 +1985,7 @@ describe('Parameterized host smoke tests', () => {
 
       if (hostConfig.generation.skipSkills?.includes('codex')) {
         test('/codex skill excluded', () => {
-          expect(fs.existsSync(path.join(hostDir, 'jstack-codex', 'SKILL.md'))).toBe(false);
+          expect(fs.existsSync(path.join(hostDir, 'cavestack-codex', 'SKILL.md'))).toBe(false);
         });
       }
     });
@@ -2043,7 +2043,7 @@ describe('setup script validation', () => {
     expect(codexSection).toContain('create_codex_runtime_root');
     expect(codexSection).toContain('link_codex_skill_dirs');
     expect(codexSection).not.toContain('link_claude_skill_dirs');
-    expect(codexSection).not.toContain('ln -snf "$JSTACK_DIR" "$CODEX_JSTACK"');
+    expect(codexSection).not.toContain('ln -snf "$CAVESTACK_DIR" "$CODEX_CAVESTACK"');
   });
 
   test('Codex install prefers repo-local .agents/skills when setup runs from there', () => {
@@ -2055,16 +2055,16 @@ describe('setup script validation', () => {
   });
 
   test('setup separates install path from source path for symlinked repo-local installs', () => {
-    expect(setupContent).toContain('INSTALL_JSTACK_DIR=');
-    expect(setupContent).toContain('SOURCE_JSTACK_DIR=');
+    expect(setupContent).toContain('INSTALL_CAVESTACK_DIR=');
+    expect(setupContent).toContain('SOURCE_CAVESTACK_DIR=');
     expect(setupContent).toContain('INSTALL_SKILLS_DIR=');
-    expect(setupContent).toContain('CODEX_JSTACK="$INSTALL_JSTACK_DIR"');
-    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_JSTACK_DIR" "$CODEX_SKILLS"');
+    expect(setupContent).toContain('CODEX_CAVESTACK="$INSTALL_CAVESTACK_DIR"');
+    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_CAVESTACK_DIR" "$CODEX_SKILLS"');
   });
 
   test('Codex installs always create sidecar runtime assets for the real skill target', () => {
     expect(setupContent).toContain('if [ "$INSTALL_CODEX" -eq 1 ]; then');
-    expect(setupContent).toContain('create_agents_sidecar "$SOURCE_JSTACK_DIR"');
+    expect(setupContent).toContain('create_agents_sidecar "$SOURCE_CAVESTACK_DIR"');
   });
 
   test('link_codex_skill_dirs reads from .agents/skills/', () => {
@@ -2073,17 +2073,17 @@ describe('setup script validation', () => {
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('.agents/skills');
-    expect(fnBody).toContain('jstack*');
+    expect(fnBody).toContain('cavestack*');
   });
 
   test('link_claude_skill_dirs creates real directories with absolute SKILL.md symlinks', () => {
     // Claude links should be real directories with absolute SKILL.md symlinks
-    // to ensure Claude Code discovers them as top-level skills (not nested under jstack/)
+    // to ensure Claude Code discovers them as top-level skills (not nested under cavestack/)
     const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('mkdir -p "$target"');
-    expect(fnBody).toContain('ln -snf "$jstack_dir/$dir_name/SKILL.md" "$target/SKILL.md"');
+    expect(fnBody).toContain('ln -snf "$cavestack_dir/$dir_name/SKILL.md" "$target/SKILL.md"');
   });
 
   // REGRESSION: cleanup functions must handle both old symlinks AND new real-directory pattern
@@ -2126,21 +2126,21 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('command -v kiro-cli');
   });
 
-  // T1: Sidecar skip guard — prevents .agents/skills/jstack from being linked as a skill
-  test('link_codex_skill_dirs skips the jstack sidecar directory', () => {
+  // T1: Sidecar skip guard — prevents .agents/skills/cavestack from being linked as a skill
+  test('link_codex_skill_dirs skips the cavestack sidecar directory', () => {
     const fnStart = setupContent.indexOf('link_codex_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('[ "$skill_name" = "jstack" ] && continue');
+    expect(fnBody).toContain('[ "$skill_name" = "cavestack" ] && continue');
   });
 
-  // T2: Dynamic $JSTACK_ROOT paths in generated Codex preambles
-  test('generated Codex preambles use dynamic JSTACK_ROOT paths', () => {
-    const codexSkillDir = path.join(ROOT, '.agents', 'skills', 'jstack-ship');
+  // T2: Dynamic $CAVESTACK_ROOT paths in generated Codex preambles
+  test('generated Codex preambles use dynamic CAVESTACK_ROOT paths', () => {
+    const codexSkillDir = path.join(ROOT, '.agents', 'skills', 'cavestack-ship');
     if (!fs.existsSync(codexSkillDir)) return; // skip if .agents/ not generated
     const content = fs.readFileSync(path.join(codexSkillDir, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('JSTACK_ROOT=');
-    expect(content).toContain('$JSTACK_BIN/');
+    expect(content).toContain('CAVESTACK_ROOT=');
+    expect(content).toContain('$CAVESTACK_BIN/');
   });
 
   // T3: Kiro host support in setup script
@@ -2148,7 +2148,7 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('INSTALL_KIRO=');
     expect(setupContent).toContain('kiro-cli');
     expect(setupContent).toContain('KIRO_SKILLS=');
-    expect(setupContent).toContain('~/.kiro/skills/jstack');
+    expect(setupContent).toContain('~/.kiro/skills/cavestack');
   });
 
   test('create_agents_sidecar links runtime assets', () => {
@@ -2166,40 +2166,40 @@ describe('setup script validation', () => {
     const fnStart = setupContent.indexOf('create_codex_runtime_root()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('done', setupContent.indexOf('review/', fnStart)));
     const fnBody = setupContent.slice(fnStart, fnEnd);
-    expect(fnBody).toContain('jstack/SKILL.md');
+    expect(fnBody).toContain('cavestack/SKILL.md');
     expect(fnBody).toContain('browse/dist');
     expect(fnBody).toContain('browse/bin');
-    expect(fnBody).toContain('jstack-upgrade/SKILL.md');
+    expect(fnBody).toContain('cavestack-upgrade/SKILL.md');
     // Review runtime assets (individual files, not the whole dir)
     expect(fnBody).toContain('checklist.md');
     expect(fnBody).toContain('design-checklist.md');
     expect(fnBody).toContain('greptile-triage.md');
     expect(fnBody).toContain('TODOS-format.md');
-    expect(fnBody).not.toContain('ln -snf "$jstack_dir" "$codex_jstack"');
+    expect(fnBody).not.toContain('ln -snf "$cavestack_dir" "$codex_cavestack"');
   });
 
-  test('direct Codex installs are migrated out of ~/.codex/skills/jstack', () => {
+  test('direct Codex installs are migrated out of ~/.codex/skills/cavestack', () => {
     expect(setupContent).toContain('migrate_direct_codex_install');
-    expect(setupContent).toContain('$HOME/.jstack/repos/jstack');
+    expect(setupContent).toContain('$HOME/.cavestack/repos/cavestack');
     expect(setupContent).toContain('avoid duplicate skill discovery');
   });
 
   // --- Symlink prefix tests (PR #503) ---
 
-  test('link_claude_skill_dirs applies jstack- prefix by default', () => {
+  test('link_claude_skill_dirs applies cavestack- prefix by default', () => {
     const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('SKILL_PREFIX');
-    expect(fnBody).toContain('link_name="jstack-$skill_name"');
+    expect(fnBody).toContain('link_name="cavestack-$skill_name"');
   });
 
   test('link_claude_skill_dirs preserves already-prefixed dirs', () => {
     const fnStart = setupContent.indexOf('link_claude_skill_dirs()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('linked[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
-    // jstack-* dirs should keep their name (e.g., jstack-upgrade stays jstack-upgrade)
-    expect(fnBody).toContain('jstack-*) link_name="$skill_name"');
+    // cavestack-* dirs should keep their name (e.g., cavestack-upgrade stays cavestack-upgrade)
+    expect(fnBody).toContain('cavestack-*) link_name="$skill_name"');
   });
 
   test('setup supports --no-prefix flag', () => {
@@ -2207,16 +2207,16 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('SKILL_PREFIX=0');
   });
 
-  test('cleanup_old_claude_symlinks removes only jstack-pointing symlinks', () => {
+  test('cleanup_old_claude_symlinks removes only cavestack-pointing symlinks', () => {
     expect(setupContent).toContain('cleanup_old_claude_symlinks');
     const fnStart = setupContent.indexOf('cleanup_old_claude_symlinks()');
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('removed[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     // Should check readlink before removing
     expect(fnBody).toContain('readlink');
-    expect(fnBody).toContain('jstack/*');
+    expect(fnBody).toContain('cavestack/*');
     // Should skip already-prefixed dirs
-    expect(fnBody).toContain('jstack-*) continue');
+    expect(fnBody).toContain('cavestack-*) continue');
   });
 
   test('cleanup runs before link when prefix is enabled', () => {
@@ -2232,7 +2232,7 @@ describe('setup script validation', () => {
 
   test('setup reads skill_prefix from config', () => {
     expect(setupContent).toContain('get skill_prefix');
-    expect(setupContent).toContain('JSTACK_CONFIG');
+    expect(setupContent).toContain('CAVESTACK_CONFIG');
   });
 
   test('setup supports --prefix flag', () => {
@@ -2261,7 +2261,7 @@ describe('setup script validation', () => {
     const fnEnd = setupContent.indexOf('}', setupContent.indexOf('removed[@]}', fnStart));
     const fnBody = setupContent.slice(fnStart, fnEnd);
     expect(fnBody).toContain('readlink');
-    expect(fnBody).toContain('jstack-$skill_name');
+    expect(fnBody).toContain('cavestack-$skill_name');
   });
 
   test('reverse cleanup runs before link when prefix is disabled', () => {
@@ -2273,15 +2273,15 @@ describe('setup script validation', () => {
   });
 
   test('welcome message references SKILL_PREFIX', () => {
-    // jstack-upgrade is always called jstack-upgrade (it's the actual dir name)
+    // cavestack-upgrade is always called cavestack-upgrade (it's the actual dir name)
     // but the welcome section should exist near the prefix logic
-    expect(setupContent).toContain('Run /jstack-upgrade anytime');
+    expect(setupContent).toContain('Run /cavestack-upgrade anytime');
   });
 });
 
 describe('discover-skills hidden directory filtering', () => {
   test('discoverTemplates skips dot-prefixed directories', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-discover-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-discover-'));
     try {
       // Create a hidden dir with a template (should be excluded)
       fs.mkdirSync(path.join(tmpDir, '.hidden'), { recursive: true });
@@ -2309,22 +2309,22 @@ describe('telemetry', () => {
     expect(content).toContain('_SESSION_ID');
     expect(content).toContain('TELEMETRY:');
     expect(content).toContain('TEL_PROMPTED:');
-    expect(content).toContain('jstack-config get telemetry');
+    expect(content).toContain('cavestack-config get telemetry');
   });
 
   test('generated SKILL.md contains telemetry opt-in prompt', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('.telemetry-prompted');
-    expect(content).toContain('Help jstack get better');
-    expect(content).toContain('jstack-config set telemetry community');
-    expect(content).toContain('jstack-config set telemetry anonymous');
-    expect(content).toContain('jstack-config set telemetry off');
+    expect(content).toContain('Help cavestack get better');
+    expect(content).toContain('cavestack-config set telemetry community');
+    expect(content).toContain('cavestack-config set telemetry anonymous');
+    expect(content).toContain('cavestack-config set telemetry off');
   });
 
   test('generated SKILL.md contains telemetry epilogue', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('Telemetry (run last)');
-    expect(content).toContain('jstack-telemetry-log');
+    expect(content).toContain('cavestack-telemetry-log');
     expect(content).toContain('_TEL_END');
     expect(content).toContain('_TEL_DUR');
     expect(content).toContain('SKILL_NAME');
@@ -2369,13 +2369,13 @@ describe('community fixes wave', () => {
     return results;
   }
 
-  // #594 — Discoverability: every SKILL.md.tmpl description contains "jstack"
-  test('every SKILL.md.tmpl description contains "jstack"', () => {
+  // #594 — Discoverability: every SKILL.md.tmpl description contains "cavestack"
+  test('every SKILL.md.tmpl description contains "cavestack"', () => {
     for (const skill of ALL_SKILLS) {
       const tmplPath = skill.dir === '.' ? path.join(ROOT, 'SKILL.md.tmpl') : path.join(ROOT, skill.dir, 'SKILL.md.tmpl');
       const content = fs.readFileSync(tmplPath, 'utf-8');
       const desc = extractDescription(content);
-      expect(desc.toLowerCase()).toContain('jstack');
+      expect(desc.toLowerCase()).toContain('cavestack');
     }
   });
 
@@ -2452,7 +2452,7 @@ describe('codex commands must not use inline $(git rev-parse --show-toplevel) fo
   // The fix is to resolve _REPO_ROOT eagerly at the top of each bash block.
 
   // Scan all source files that could contain codex commands
-  // Use Bun.Glob to avoid ELOOP from .claude/skills/jstack symlink back to ROOT
+  // Use Bun.Glob to avoid ELOOP from .claude/skills/cavestack symlink back to ROOT
   const tmplGlob = new Bun.Glob('**/*.tmpl');
   const sourceFiles = [
     ...Array.from(tmplGlob.scanSync({ cwd: ROOT, followSymlinks: false })),
@@ -2542,7 +2542,7 @@ describe('LEARNINGS_SEARCH resolver', () => {
     test(`${skill} generated SKILL.md contains learnings search`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
       expect(content).toContain('Prior Learnings');
-      expect(content).toContain('jstack-learnings-search');
+      expect(content).toContain('cavestack-learnings-search');
     });
   }
 
@@ -2571,7 +2571,7 @@ describe('LEARNINGS_LOG resolver', () => {
     test(`${skill} generated SKILL.md contains learnings log`, () => {
       const content = fs.readFileSync(path.join(ROOT, skill, 'SKILL.md'), 'utf-8');
       expect(content).toContain('Capture Learnings');
-      expect(content).toContain('jstack-learnings-log');
+      expect(content).toContain('cavestack-learnings-log');
     });
   }
 
@@ -2647,13 +2647,13 @@ describe('gen-skill-docs prefix warning (#620/#578)', () => {
   const { execSync } = require('child_process');
 
   test('warns about skill_prefix when config has prefix=true', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-prefix-warn-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-prefix-warn-'));
     try {
-      // Create a fake ~/.jstack/config.yaml with skill_prefix: true
+      // Create a fake ~/.cavestack/config.yaml with skill_prefix: true
       const fakeHome = tmpDir;
-      const fakeJstack = path.join(fakeHome, '.jstack');
-      fs.mkdirSync(fakeJstack, { recursive: true });
-      fs.writeFileSync(path.join(fakeJstack, 'config.yaml'), 'skill_prefix: true\n');
+      const fakeCavestack = path.join(fakeHome, '.cavestack');
+      fs.mkdirSync(fakeCavestack, { recursive: true });
+      fs.writeFileSync(path.join(fakeCavestack, 'config.yaml'), 'skill_prefix: true\n');
 
       const output = execSync('bun run scripts/gen-skill-docs.ts', {
         cwd: ROOT,
@@ -2662,19 +2662,19 @@ describe('gen-skill-docs prefix warning (#620/#578)', () => {
         timeout: 30000,
       });
       expect(output).toContain('skill_prefix is true');
-      expect(output).toContain('jstack-relink');
+      expect(output).toContain('cavestack-relink');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
   test('no warning when skill_prefix is false or absent', () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'jstack-prefix-warn-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cavestack-prefix-warn-'));
     try {
       const fakeHome = tmpDir;
-      const fakeJstack = path.join(fakeHome, '.jstack');
-      fs.mkdirSync(fakeJstack, { recursive: true });
-      fs.writeFileSync(path.join(fakeJstack, 'config.yaml'), 'skill_prefix: false\n');
+      const fakeCavestack = path.join(fakeHome, '.cavestack');
+      fs.mkdirSync(fakeCavestack, { recursive: true });
+      fs.writeFileSync(path.join(fakeCavestack, 'config.yaml'), 'skill_prefix: false\n');
 
       const output = execSync('bun run scripts/gen-skill-docs.ts', {
         cwd: ROOT,
@@ -2707,13 +2707,13 @@ describe('voice-triggers processing', () => {
   });
 
   test('processVoiceTriggers appends voice triggers to description', () => {
-    const content = `---\nname: cso\ndescription: |\n  Security audit. (jstack)\nvoice-triggers:\n  - "see-so"\n  - "security review"\n---\nBody`;
+    const content = `---\nname: cso\ndescription: |\n  Security audit. (cavestack)\nvoice-triggers:\n  - "see-so"\n  - "security review"\n---\nBody`;
     const result = processVoiceTriggers(content);
     expect(result).toContain('Voice triggers (speech-to-text aliases): "see-so", "security review".');
   });
 
   test('processVoiceTriggers strips voice-triggers field from output', () => {
-    const content = `---\nname: cso\ndescription: |\n  Security audit. (jstack)\nvoice-triggers:\n  - "see-so"\n---\nBody`;
+    const content = `---\nname: cso\ndescription: |\n  Security audit. (cavestack)\nvoice-triggers:\n  - "see-so"\n---\nBody`;
     const result = processVoiceTriggers(content);
     expect(result).not.toContain('voice-triggers:');
   });

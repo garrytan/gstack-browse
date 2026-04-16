@@ -1,9 +1,9 @@
-/* jstack browse — CSS Inspector overlay styles
+/* cavestack browse — CSS Inspector overlay styles
  * Injected alongside inspector.js into the active tab.
  * Design system: amber accent, zinc neutrals.
  */
 
-#jstack-inspector-highlight {
+#cavestack-inspector-highlight {
   position: fixed;
   pointer-events: none;
   z-index: 2147483647;
@@ -13,7 +13,7 @@
   transition: top 50ms ease, left 50ms ease, width 50ms ease, height 50ms ease;
 }
 
-#jstack-inspector-tooltip {
+#cavestack-inspector-tooltip {
   position: fixed;
   pointer-events: none;
   z-index: 2147483647;

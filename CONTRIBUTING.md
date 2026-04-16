@@ -1,15 +1,15 @@
-# Contributing to jstack
+# Contributing to cavestack
 
-Thanks for wanting to make jstack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
+Thanks for wanting to make cavestack better. Whether you're fixing a typo in a skill prompt or building an entirely new workflow, this guide will get you up and running fast.
 
 ## Quick start
 
-jstack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/jstack/` (your global install). But when you're developing jstack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
+cavestack skills are Markdown files that Claude Code discovers from a `skills/` directory. Normally they live at `~/.claude/skills/cavestack/` (your global install). But when you're developing cavestack itself, you want Claude Code to use the skills *in your working tree* — so edits take effect instantly without copying or deploying anything.
 
 That's what dev mode does. It symlinks your repo into the local `.claude/skills/` directory so Claude Code reads skills straight from your checkout.
 
 ```bash
-git clone <repo> && cd jstack
+git clone <repo> && cd cavestack
 bun install                    # install dependencies
 bin/dev-setup                  # activate dev mode
 ```
@@ -22,52 +22,52 @@ bin/dev-teardown               # deactivate — back to your global install
 
 ## Operational self-improvement
 
-jstack automatically learns from failures. At the end of every skill session, the agent
+cavestack automatically learns from failures. At the end of every skill session, the agent
 reflects on what went wrong (CLI errors, wrong approaches, project quirks) and logs
-operational learnings to `~/.jstack/projects/{slug}/learnings.jsonl`. Future sessions
-surface these learnings automatically, so jstack gets smarter on your codebase over time.
+operational learnings to `~/.cavestack/projects/{slug}/learnings.jsonl`. Future sessions
+surface these learnings automatically, so cavestack gets smarter on your codebase over time.
 
 No setup needed. Learnings are logged automatically. View them with `/learn`.
 
 ### The contributor workflow
 
-1. **Use jstack normally** — operational learnings are captured automatically
-2. **Check your learnings:** `/learn` or `ls ~/.jstack/projects/*/learnings.jsonl`
-3. **Fork and clone jstack** (if you haven't already)
+1. **Use cavestack normally** — operational learnings are captured automatically
+2. **Check your learnings:** `/learn` or `ls ~/.cavestack/projects/*/learnings.jsonl`
+3. **Fork and clone cavestack** (if you haven't already)
 4. **Symlink your fork into the project where you hit the bug:**
    ```bash
-   # In your core project (the one where jstack annoyed you)
-   ln -sfn /path/to/your/jstack-fork .claude/skills/jstack
-   cd .claude/skills/jstack && bun install && bun run build && ./setup
+   # In your core project (the one where cavestack annoyed you)
+   ln -sfn /path/to/your/cavestack-fork .claude/skills/cavestack
+   cd .claude/skills/cavestack && bun install && bun run build && ./setup
    ```
-   Setup creates per-skill directories with SKILL.md symlinks inside (`qa/SKILL.md -> jstack/qa/SKILL.md`)
+   Setup creates per-skill directories with SKILL.md symlinks inside (`qa/SKILL.md -> cavestack/qa/SKILL.md`)
    and asks your prefix preference. Pass `--no-prefix` to skip the prompt and use short names.
 5. **Fix the issue** — your changes are live immediately in this project
-6. **Test by actually using jstack** — do the thing that annoyed you, verify it's fixed
+6. **Test by actually using cavestack** — do the thing that annoyed you, verify it's fixed
 7. **Open a PR from your fork**
 
-This is the best way to contribute: fix jstack while doing your real work, in the
+This is the best way to contribute: fix cavestack while doing your real work, in the
 project where you actually felt the pain.
 
 ### Session awareness
 
-When you have 3+ jstack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all skills.
+When you have 3+ cavestack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all skills.
 
-## Working on jstack inside the jstack repo
+## Working on cavestack inside the cavestack repo
 
-When you're editing jstack skills and want to test them by actually using jstack
+When you're editing cavestack skills and want to test them by actually using cavestack
 in the same repo, `bin/dev-setup` wires this up. It creates `.claude/skills/`
 symlinks (gitignored) pointing back to your working tree, so Claude Code uses
 your local edits instead of the global install.
 
 ```
-jstack/                          <- your working tree
+cavestack/                          <- your working tree
 ├── .claude/skills/              <- created by dev-setup (gitignored)
-│   ├── jstack -> ../../         <- symlink back to repo root
+│   ├── cavestack -> ../../         <- symlink back to repo root
 │   ├── review/                  <- real directory (short name, default)
-│   │   └── SKILL.md -> jstack/review/SKILL.md
-│   ├── ship/                    <- or jstack-review/, jstack-ship/ if --prefix
-│   │   └── SKILL.md -> jstack/ship/SKILL.md
+│   │   └── SKILL.md -> cavestack/review/SKILL.md
+│   ├── ship/                    <- or cavestack-review/, cavestack-ship/ if --prefix
+│   │   └── SKILL.md -> cavestack/ship/SKILL.md
 │   └── ...                      <- one directory per skill
 ├── review/
 │   └── SKILL.md                 <- edit this, test with /review
@@ -81,9 +81,9 @@ jstack/                          <- your working tree
 
 Setup creates real directories (not symlinks) at the top level with a SKILL.md
 symlink inside. This ensures Claude discovers them as top-level skills, not nested
-under `jstack/`. Names depend on your prefix setting (`~/.jstack/config.yaml`).
+under `cavestack/`. Names depend on your prefix setting (`~/.cavestack/config.yaml`).
 Short names (`/review`, `/ship`) are the default. Run `./setup --prefix` if you
-prefer namespaced names (`/jstack-review`, `/jstack-ship`).
+prefer namespaced names (`/cavestack-review`, `/cavestack-ship`).
 
 ## Day-to-day workflow
 
@@ -160,7 +160,7 @@ EVALS=1 bun test test/skill-e2e-*.test.ts
 
 ### E2E observability
 
-When E2E tests run, they produce machine-readable artifacts in `~/.jstack-dev/`:
+When E2E tests run, they produce machine-readable artifacts in `~/.cavestack-dev/`:
 
 | Artifact | Path | Purpose |
 |----------|------|---------|
@@ -182,7 +182,7 @@ bun run eval:summary         # aggregate stats + per-test efficiency averages ac
 
 **Eval comparison commentary:** `eval:compare` generates natural-language Takeaway sections interpreting what changed between runs — flagging regressions, noting improvements, calling out efficiency gains (fewer turns, faster, cheaper), and producing an overall summary. This is driven by `generateCommentary()` in `eval-store.ts`.
 
-Artifacts are never cleaned up — they accumulate in `~/.jstack-dev/` for post-mortem debugging and trend analysis.
+Artifacts are never cleaned up — they accumulate in `~/.cavestack-dev/` for post-mortem debugging and trend analysis.
 
 ### Tier 3: LLM-as-judge (~$0.15/run)
 
@@ -232,7 +232,7 @@ To add a browse command, add it to `browse/src/commands.ts`. To add a snapshot f
 
 ## Multi-host development
 
-jstack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.
+cavestack generates SKILL.md files for 8 hosts from one set of `.tmpl` templates.
 Each host is a typed config in `hosts/*.ts`. The generator reads these configs
 to produce host-appropriate output (different frontmatter, paths, tool names).
 
@@ -257,9 +257,9 @@ Each host config (`hosts/*.ts`) controls:
 
 | Aspect | Example (Claude vs Codex) |
 |--------|---------------------------|
-| Output directory | `{skill}/SKILL.md` vs `.agents/skills/jstack-{skill}/SKILL.md` |
+| Output directory | `{skill}/SKILL.md` vs `.agents/skills/cavestack-{skill}/SKILL.md` |
 | Frontmatter | Full (name, description, hooks, version) vs minimal (name + description) |
-| Paths | `~/.claude/skills/jstack` vs `$JSTACK_ROOT` |
+| Paths | `~/.claude/skills/cavestack` vs `$CAVESTACK_ROOT` |
 | Tool names | "use the Bash tool" vs same (Factory rewrites to "run this command") |
 | Hook skills | `hooks:` frontmatter vs inline safety advisory prose |
 | Suppressed sections | None vs Codex self-invocation sections stripped |
@@ -317,36 +317,36 @@ When Conductor creates a new workspace, `bin/dev-setup` runs automatically. It d
 - **SKILL.md files are generated.** Edit the `.tmpl` template, not the `.md`. Run `bun run gen:skill-docs` to regenerate.
 - **TODOS.md is the unified backlog.** Organized by skill/component with P0-P4 priorities. `/ship` auto-detects completed items. All planning/review/retro skills read it for context.
 - **Browse source changes need a rebuild.** If you touch `browse/src/*.ts`, run `bun run build`.
-- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/jstack`. `bin/dev-teardown` restores the global one.
+- **Dev mode shadows your global install.** Project-local skills take priority over `~/.claude/skills/cavestack`. `bin/dev-teardown` restores the global one.
 - **Conductor workspaces are independent.** Each workspace is its own git worktree. `bin/dev-setup` runs automatically via `conductor.json`.
 - **`.env` propagates across worktrees.** Set it once in the main repo, all Conductor workspaces get it.
 - **`.claude/skills/` is gitignored.** The symlinks never get committed.
 
 ## Testing your changes in a real project
 
-**This is the recommended way to develop jstack.** Symlink your jstack checkout
+**This is the recommended way to develop cavestack.** Symlink your cavestack checkout
 into the project where you actually use it, so your changes are live while you
 do real work.
 
 ### Step 1: Symlink your checkout
 
 ```bash
-# In your core project (not the jstack repo)
-ln -sfn /path/to/your/jstack-checkout .claude/skills/jstack
+# In your core project (not the cavestack repo)
+ln -sfn /path/to/your/cavestack-checkout .claude/skills/cavestack
 ```
 
 ### Step 2: Run setup to create per-skill symlinks
 
-The `jstack` symlink alone isn't enough. Claude Code discovers skills through
+The `cavestack` symlink alone isn't enough. Claude Code discovers skills through
 individual top-level directories (`qa/SKILL.md`, `ship/SKILL.md`, etc.), not through
-the `jstack/` directory itself. Run `./setup` to create them:
+the `cavestack/` directory itself. Run `./setup` to create them:
 
 ```bash
-cd .claude/skills/jstack && bun install && bun run build && ./setup
+cd .claude/skills/cavestack && bun install && bun run build && ./setup
 ```
 
-Setup will ask whether you want short names (`/qa`) or namespaced (`/jstack-qa`).
-Your choice is saved to `~/.jstack/config.yaml` and remembered for future runs.
+Setup will ask whether you want short names (`/qa`) or namespaced (`/cavestack-qa`).
+Your choice is saved to `~/.cavestack/config.yaml` and remembered for future runs.
 To skip the prompt, pass `--no-prefix` (short names) or `--prefix` (namespaced).
 
 ### Step 3: Develop
@@ -356,22 +356,22 @@ call picks it up immediately. No restart needed.
 
 ### Going back to the stable global install
 
-Remove the project-local symlink. Claude Code falls back to `~/.claude/skills/jstack/`:
+Remove the project-local symlink. Claude Code falls back to `~/.claude/skills/cavestack/`:
 
 ```bash
-rm .claude/skills/jstack
+rm .claude/skills/cavestack
 ```
 
 The per-skill directories (`qa/`, `ship/`, etc.) contain SKILL.md symlinks that point
-to `jstack/...`, so they'll resolve to the global install automatically.
+to `cavestack/...`, so they'll resolve to the global install automatically.
 
 ### Switching prefix mode
 
-If you installed jstack with one prefix setting and want to switch:
+If you installed cavestack with one prefix setting and want to switch:
 
 ```bash
-cd .claude/skills/jstack && ./setup --no-prefix   # switch to /qa, /ship
-cd .claude/skills/jstack && ./setup --prefix       # switch to /jstack-qa, /jstack-ship
+cd .claude/skills/cavestack && ./setup --no-prefix   # switch to /qa, /ship
+cd .claude/skills/cavestack && ./setup --prefix       # switch to /cavestack-qa, /cavestack-ship
 ```
 
 Setup cleans up the old symlinks automatically. No manual cleanup needed.
@@ -381,7 +381,7 @@ Setup cleans up the old symlinks automatically. No manual cleanup needed.
 If you don't want per-project symlinks, you can switch the global install:
 
 ```bash
-cd ~/.claude/skills/jstack
+cd ~/.claude/skills/cavestack
 git fetch origin
 git checkout origin/<branch>
 bun install && bun run build && ./setup
@@ -415,18 +415,18 @@ users get a clean upgrade.
 ### When to add a migration
 
 - Changed how skill directories are created (symlinks vs real dirs)
-- Renamed or moved config keys in `~/.jstack/config.yaml`
+- Renamed or moved config keys in `~/.cavestack/config.yaml`
 - Need to delete orphaned files from a previous version
-- Changed the format of `~/.jstack/` state files
+- Changed the format of `~/.cavestack/` state files
 
 Don't add a migration for: new features (users get them automatically), new
 skills (setup discovers them), or code-only changes (no on-disk state).
 
 ### How to add one
 
-1. Create `jstack-upgrade/migrations/v{VERSION}.sh` where `{VERSION}` matches
+1. Create `cavestack-upgrade/migrations/v{VERSION}.sh` where `{VERSION}` matches
    the VERSION file for the release that needs the fix.
-2. Make it executable: `chmod +x jstack-upgrade/migrations/v{VERSION}.sh`
+2. Make it executable: `chmod +x cavestack-upgrade/migrations/v{VERSION}.sh`
 3. The script must be **idempotent** (safe to run multiple times) and
    **non-fatal** (failures are logged but don't block the upgrade).
 4. Include a comment block at the top explaining what changed, why the
@@ -440,20 +440,20 @@ Example:
 # Affected: users who installed with --no-prefix before v0.15.2.0
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
-"$SCRIPT_DIR/bin/jstack-relink" 2>/dev/null || true
+"$SCRIPT_DIR/bin/cavestack-relink" 2>/dev/null || true
 ```
 
 ### How it runs
 
-During `/jstack-upgrade`, after `./setup` completes (Step 4.75), the upgrade
-skill scans `jstack-upgrade/migrations/` and runs every `v*.sh` script whose
+During `/cavestack-upgrade`, after `./setup` completes (Step 4.75), the upgrade
+skill scans `cavestack-upgrade/migrations/` and runs every `v*.sh` script whose
 version is newer than the user's old version. Scripts run in version order.
 Failures are logged but never block the upgrade.
 
 ### Testing migrations
 
 Migrations are tested as part of `bun test` (tier 1, free). The test suite
-verifies that all migration scripts in `jstack-upgrade/migrations/` are
+verifies that all migration scripts in `cavestack-upgrade/migrations/` are
 executable and parse without syntax errors.
 
 ## Shipping your changes

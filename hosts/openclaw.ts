@@ -6,8 +6,8 @@ const openclaw: HostConfig = {
   cliCommand: 'openclaw',
   cliAliases: [],
 
-  globalRoot: '.openclaw/skills/jstack',
-  localSkillRoot: '.openclaw/skills/jstack',
+  globalRoot: '.openclaw/skills/cavestack',
+  localSkillRoot: '.openclaw/skills/cavestack',
   hostSubdir: '.openclaw',
   usesEnvVars: true,
 
@@ -27,8 +27,8 @@ const openclaw: HostConfig = {
   },
 
   pathRewrites: [
-    { from: '~/.claude/skills/jstack', to: '~/.openclaw/skills/jstack' },
-    { from: '.claude/skills/jstack', to: '.openclaw/skills/jstack' },
+    { from: '~/.claude/skills/cavestack', to: '~/.openclaw/skills/cavestack' },
+    { from: '.claude/skills/cavestack', to: '.openclaw/skills/cavestack' },
     { from: '.claude/skills', to: '.openclaw/skills' },
     { from: 'CLAUDE.md', to: 'AGENTS.md' },
   ],
@@ -56,7 +56,7 @@ const openclaw: HostConfig = {
   ],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

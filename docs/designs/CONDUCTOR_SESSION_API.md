@@ -2,16 +2,16 @@
 
 ## Problem
 
-When Claude controls your real browser via CDP (jstack `$B connect`), you look at two
+When Claude controls your real browser via CDP (cavestack `$B connect`), you look at two
 windows: **Conductor** (to see Claude's thinking) and **Chrome** (to see Claude's actions).
 
-jstack's Chrome extension Side Panel shows browse activity — every command, result,
+cavestack's Chrome extension Side Panel shows browse activity — every command, result,
 and error. But for *full* session mirroring (Claude's thinking, tool calls, code edits),
 the Side Panel needs Conductor to expose the conversation stream.
 
 ## What this enables
 
-A "Session" tab in the jstack Chrome extension Side Panel that shows:
+A "Session" tab in the cavestack Chrome extension Side Panel that shows:
 - Claude's thinking/content (truncated for performance)
 - Tool call names + icons (Edit, Bash, Read, etc.)
 - Turn boundaries with cost estimates
@@ -54,9 +54,9 @@ Discovery endpoint listing active workspaces.
   "workspaces": [
     {
       "id": "abc123",
-      "name": "jstack",
+      "name": "cavestack",
       "branch": "JerkyJesse/chrome-extension-ctrl",
-      "directory": "/Users/garry/jstack",
+      "directory": "/Users/garry/cavestack",
       "pid": 12345,
       "active": true
     }
@@ -75,7 +75,7 @@ The Chrome extension auto-selects a workspace by matching the browse server's gi
 - **Content truncation** is a privacy feature — long code outputs, file contents, and
   sensitive tool results never leave Conductor's full UI.
 
-## What jstack builds (extension side)
+## What cavestack builds (extension side)
 
 Already scaffolded in the Side Panel "Session" tab (currently shows placeholder).
 

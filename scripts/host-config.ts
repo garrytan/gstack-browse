@@ -25,13 +25,13 @@ export interface HostConfig {
   cliAliases?: string[];
 
   // --- Path Configuration ---
-  /** Global install path relative to $HOME (e.g., '.config/opencode/skills/jstack'). */
+  /** Global install path relative to $HOME (e.g., '.config/opencode/skills/cavestack'). */
   globalRoot: string;
-  /** Project-local skill path relative to repo root (e.g., '.opencode/skills/jstack'). */
+  /** Project-local skill path relative to repo root (e.g., '.opencode/skills/cavestack'). */
   localSkillRoot: string;
   /** Gitignored directory under repo root for generated docs (e.g., '.opencode'). */
   hostSubdir: string;
-  /** Whether preamble generates $JSTACK_ROOT env vars (true for non-Claude hosts). */
+  /** Whether preamble generates $CAVESTACK_ROOT env vars (true for non-Claude hosts). */
   usesEnvVars: boolean;
 
   // --- Frontmatter Transformation ---
@@ -81,9 +81,9 @@ export interface HostConfig {
     /** Dir → explicit file list for selective file linking. */
     globalFiles?: Record<string, string[]>;
   };
-  /** Optional repo-local sidecar config (e.g., Codex uses .agents/skills/jstack). */
+  /** Optional repo-local sidecar config (e.g., Codex uses .agents/skills/cavestack). */
   sidecar?: {
-    /** Sidecar path relative to repo root (e.g., '.agents/skills/jstack'). */
+    /** Sidecar path relative to repo root (e.g., '.agents/skills/cavestack'). */
     path: string;
     /** Assets to symlink into sidecar (different set than global). */
     symlinks: string[];
@@ -91,7 +91,7 @@ export interface HostConfig {
 
   // --- Install Behavior ---
   install: {
-    /** Whether jstack-config skill_prefix applies (Claude only). */
+    /** Whether cavestack-config skill_prefix applies (Claude only). */
     prefixable: boolean;
     /** How skills are linked into the host dir. */
     linkingStrategy: 'real-dir-symlink' | 'symlink-generated';

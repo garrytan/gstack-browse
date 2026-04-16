@@ -1,13 +1,13 @@
-/* jstack browse — ref overlay + status pill styles
+/* cavestack browse — ref overlay + status pill styles
  * Design system: DESIGN.md (amber accent, zinc neutrals)
  */
 
-#jstack-ref-overlays {
+#cavestack-ref-overlays {
   font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace !important;
 }
 
 /* Connection status pill — bottom-right corner */
-#jstack-status-pill {
+#cavestack-status-pill {
   position: fixed;
   bottom: 16px;
   right: 16px;
@@ -32,11 +32,11 @@
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 }
 
-#jstack-status-pill:hover {
+#cavestack-status-pill:hover {
   opacity: 1 !important;
 }
 
-.jstack-pill-dot {
+.cavestack-pill-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -46,12 +46,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  #jstack-status-pill {
+  #cavestack-status-pill {
     transition: none;
   }
 }
 
-.jstack-ref-badge {
+.cavestack-ref-badge {
   position: absolute;
   background: rgba(220, 38, 38, 0.9);
   color: #fff;
@@ -65,7 +65,7 @@
 }
 
 /* Floating ref panel (used when positions are unknown) */
-.jstack-ref-panel {
+.cavestack-ref-panel {
   position: fixed;
   bottom: 12px;
   right: 12px;
@@ -80,7 +80,7 @@
   font-size: 11px;
 }
 
-.jstack-ref-panel-header {
+.cavestack-ref-panel-header {
   padding: 6px 10px;
   background: #141414;
   border-bottom: 1px solid #262626;
@@ -89,12 +89,12 @@
   font-size: 11px;
 }
 
-.jstack-ref-panel-list {
+.cavestack-ref-panel-list {
   max-height: 260px;
   overflow-y: auto;
 }
 
-.jstack-ref-panel-row {
+.cavestack-ref-panel-row {
   padding: 3px 10px;
   border-bottom: 1px solid #1f1f1f;
   white-space: nowrap;
@@ -102,22 +102,22 @@
   text-overflow: ellipsis;
 }
 
-.jstack-ref-panel-id {
+.cavestack-ref-panel-id {
   color: #FBBF24;
   font-weight: 600;
   margin-right: 4px;
 }
 
-.jstack-ref-panel-role {
+.cavestack-ref-panel-role {
   color: #A1A1AA;
   margin-right: 4px;
 }
 
-.jstack-ref-panel-name {
+.cavestack-ref-panel-name {
   color: #e0e0e0;
 }
 
-.jstack-ref-panel-more {
+.cavestack-ref-panel-more {
   padding: 4px 10px;
   color: #52525B;
   font-style: italic;

@@ -18,18 +18,18 @@ export interface HostPaths {
 /**
  * HOST_PATHS — derived from host configs.
  * Each config's globalRoot/localSkillRoot determines the path structure.
- * Non-Claude hosts use $JSTACK_ROOT env vars (set by preamble).
+ * Non-Claude hosts use $CAVESTACK_ROOT env vars (set by preamble).
  */
 function buildHostPaths(): Record<string, HostPaths> {
   const paths: Record<string, HostPaths> = {};
   for (const config of ALL_HOST_CONFIGS) {
     if (config.usesEnvVars) {
       paths[config.name] = {
-        skillRoot: '$JSTACK_ROOT',
+        skillRoot: '$CAVESTACK_ROOT',
         localSkillRoot: config.localSkillRoot,
-        binDir: '$JSTACK_BIN',
-        browseDir: '$JSTACK_BROWSE',
-        designDir: '$JSTACK_DESIGN',
+        binDir: '$CAVESTACK_BIN',
+        browseDir: '$CAVESTACK_BROWSE',
+        designDir: '$CAVESTACK_DESIGN',
       };
     } else {
       const root = `~/${config.globalRoot}`;

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * List eval runs from ~/.jstack-dev/evals/
+ * List eval runs from ~/.cavestack-dev/evals/
  *
  * Usage: bun run eval:list [--branch <name>] [--tier e2e|llm-judge] [--limit N]
  */

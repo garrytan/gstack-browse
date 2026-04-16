@@ -6,8 +6,8 @@ const claude: HostConfig = {
   cliCommand: 'claude',
   cliAliases: [],
 
-  globalRoot: '.claude/skills/jstack',
-  localSkillRoot: '.claude/skills/jstack',
+  globalRoot: '.claude/skills/cavestack',
+  localSkillRoot: '.claude/skills/cavestack',
   hostSubdir: '.claude',
   usesEnvVars: false,
 
@@ -27,7 +27,7 @@ const claude: HostConfig = {
   suppressedResolvers: [],
 
   runtimeRoot: {
-    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'jstack-upgrade', 'ETHOS.md'],
+    globalSymlinks: ['bin', 'browse/dist', 'browse/bin', 'cavestack-upgrade', 'ETHOS.md'],
     globalFiles: {
       'review': ['checklist.md', 'TODOS-format.md'],
     },

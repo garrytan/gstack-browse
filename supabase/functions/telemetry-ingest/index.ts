@@ -1,6 +1,6 @@
-// jstack telemetry-ingest edge function
+// cavestack telemetry-ingest edge function
 // Validates and inserts a batch of telemetry events.
-// Called by bin/jstack-telemetry-sync.
+// Called by bin/cavestack-telemetry-sync.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -10,7 +10,7 @@ interface TelemetryEvent {
   event_type: string;
   skill: string;
   session_id?: string;
-  jstack_version: string;
+  cavestack_version: string;
   os: string;
   arch?: string;
   duration_s?: number;
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
 
     for (const event of events) {
       // Required fields
-      if (!event.ts || !event.jstack_version || !event.os || !event.outcome) {
+      if (!event.ts || !event.cavestack_version || !event.os || !event.outcome) {
         continue; // skip malformed
       }
 
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       rows.push({
         schema_version: event.v,
         event_type: event.event_type,
-        jstack_version: String(event.jstack_version).slice(0, 20),
+        cavestack_version: String(event.cavestack_version).slice(0, 20),
         os: String(event.os).slice(0, 20),
         arch: event.arch ? String(event.arch).slice(0, 20) : null,
         event_timestamp: event.ts,
@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
       // Track installations for upsert
       if (event.installation_id) {
         installationUpserts.set(event.installation_id, {
-          version: event.jstack_version,
+          version: event.cavestack_version,
           os: event.os,
         });
       }
@@ -124,7 +124,7 @@ Deno.serve(async (req) => {
           {
             installation_id: id,
             last_seen: new Date().toISOString(),
-            jstack_version: data.version,
+            cavestack_version: data.version,
             os: data.os,
           },
           { onConflict: "installation_id" }

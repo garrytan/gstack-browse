@@ -14,14 +14,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { safeUnlink } from './error-handling';
 
-const QUEUE = process.env.SIDEBAR_QUEUE_PATH || path.join(process.env.HOME || '/tmp', '.jstack', 'sidebar-agent-queue.jsonl');
+const QUEUE = process.env.SIDEBAR_QUEUE_PATH || path.join(process.env.HOME || '/tmp', '.cavestack', 'sidebar-agent-queue.jsonl');
 const KILL_FILE = path.join(path.dirname(QUEUE), 'sidebar-agent-kill');
 const SERVER_PORT = parseInt(process.env.BROWSE_SERVER_PORT || '34567', 10);
 const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 const POLL_MS = 200;  // 200ms poll — keeps time-to-first-token low
-const B = process.env.BROWSE_BIN || path.resolve(__dirname, '../../.claude/skills/jstack/browse/dist/browse');
+const B = process.env.BROWSE_BIN || path.resolve(__dirname, '../../.claude/skills/cavestack/browse/dist/browse');
 
-const CANCEL_DIR = path.join(process.env.HOME || '/tmp', '.jstack');
+const CANCEL_DIR = path.join(process.env.HOME || '/tmp', '.cavestack');
 function cancelFileForTab(tabId: number): string {
   return path.join(CANCEL_DIR, `sidebar-agent-cancel-${tabId}`);
 }
@@ -115,7 +115,7 @@ async function refreshToken(): Promise<string | null> {
   // Read token from state file (same-user, mode 0o600) instead of /health
   try {
     const stateFile = process.env.BROWSE_STATE_FILE ||
-      path.join(process.env.HOME || '/tmp', '.jstack', 'browse.json');
+      path.join(process.env.HOME || '/tmp', '.cavestack', 'browse.json');
     const data = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
     authToken = data.token || null;
     return authToken;
@@ -152,7 +152,7 @@ function shorten(str: string): string {
     .replace(new RegExp(B.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '$B')
     .replace(/\/Users\/[^/]+/g, '~')
     .replace(/\/conductor\/workspaces\/[^/]+\/[^/]+/g, '')
-    .replace(/\.claude\/skills\/jstack\//g, '')
+    .replace(/\.claude\/skills\/cavestack\//g, '')
     .replace(/browse\/dist\/browse/g, '$B');
 }
 

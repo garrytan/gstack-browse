@@ -1,9 +1,9 @@
 ---
 name: caveman
 description: |
-  Caveman mode for jstack: ultra-compressed responses (~75% token cut) without losing technical substance.
+  Caveman mode for cavestack: ultra-compressed responses (~75% token cut) without losing technical substance.
   Supports intensity lite, full (default), ultra, wenyan-lite, wenyan-full, wenyan-ultra. Vendored from
-  JuliusBrussee/caveman and wired into jstack as an always-on SessionStart hook so every new Claude Code
+  JuliusBrussee/caveman and wired into cavestack as an always-on SessionStart hook so every new Claude Code
   session starts in caveman:full. Use when user says "caveman mode", "talk like caveman", "be brief",
   invokes /caveman, or switches intensity. Exit with "stop caveman" or "normal mode".
 ---

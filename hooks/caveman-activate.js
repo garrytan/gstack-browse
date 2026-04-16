@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Derived from JuliusBrussee/caveman (MIT). See hooks/LICENSE-caveman.
-// Vendored unchanged into jstack — do not modify; pull upstream fixes instead.
+// Vendored unchanged into cavestack — do not modify; pull upstream fixes instead.
 // caveman — Claude Code SessionStart activation hook
 //
 // Runs on every session start:

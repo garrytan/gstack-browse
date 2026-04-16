@@ -11,9 +11,9 @@ import * as path from 'path';
 import * as os from 'os';
 import { getProjectEvalDir } from './eval-store';
 
-const JSTACK_DEV_DIR = path.join(os.homedir(), '.jstack-dev');
-const HEARTBEAT_PATH = path.join(JSTACK_DEV_DIR, 'e2e-live.json'); // heartbeat stays global
-const PROJECT_DIR = path.dirname(getProjectEvalDir()); // ~/.jstack/projects/$SLUG/
+const CAVESTACK_DEV_DIR = path.join(os.homedir(), '.cavestack-dev');
+const HEARTBEAT_PATH = path.join(CAVESTACK_DEV_DIR, 'e2e-live.json'); // heartbeat stays global
+const PROJECT_DIR = path.dirname(getProjectEvalDir()); // ~/.cavestack/projects/$SLUG/
 
 /** Sanitize test name for use as filename: strip leading slashes, replace / with - */
 export function sanitizeTestName(name: string): string {
@@ -317,7 +317,7 @@ export async function runSkillTest(options: {
   // Save failure transcript to persistent run directory (or fallback to workingDirectory)
   if (browseErrors.length > 0 || exitReason !== 'success') {
     try {
-      const failureDir = runDir || path.join(workingDirectory, '.jstack', 'test-transcripts');
+      const failureDir = runDir || path.join(workingDirectory, '.cavestack', 'test-transcripts');
       fs.mkdirSync(failureDir, { recursive: true });
       const failureName = safeName
         ? `${safeName}-failure.json`
