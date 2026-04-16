@@ -8,7 +8,11 @@
 
 **Command prefix:** `cavestack-config` persists the `prefix` flag; setup enables `j-` prefix by default so skills surface as `/jqa`, `/jship`, `/jreview`, etc. Disable with `bin/cavestack-config prefix false && bin/cavestack-relink`.
 
-**Preserving Garry's voice:** the ETHOS.md file, promotional material, and Garry's voice in skill copy are upstream intellectual content and must not be altered in this fork except for the cavestack/caveman branding adjustments already applied. When pulling upstream, preserve gstack's voice in `.tmpl` files even when adding cavestack-specific overlays.
+**Preserving upstream content:** ETHOS.md is upstream intellectual content and must not be altered — it is the canonical source referenced by the preamble resolver. Promotional material and YC references are intentional.
+
+**Caveman voice overhaul:** Skill template (.tmpl) prose has been compressed to caveman voice as part of this fork's identity. The **caveman floor** defines what stays verbose even in compressed templates: AskUserQuestion prompts, diagnostic tables, conditional logic ("if X do Y"), stop/abort conditions, and directional instructions ("merge base into feature"). These are safety-critical and must stay explicit.
+
+**Upstream merge strategy:** After pulling upstream template changes, read the upstream diff for semantic changes, then re-apply in caveman voice. Do not accept either side mechanically — upstream text is verbose English, fork text is caveman fragments. Resolve by understanding what changed and expressing it in caveman.
 
 ## Commands
 
@@ -328,8 +332,8 @@ Accept findings where the "sloppy" pattern is the correct engineering choice.
 When reviewing or merging community PRs, **always AskUserQuestion** before accepting
 any commit that:
 
-1. **Touches ETHOS.md** — this file is Garry's personal builder philosophy. No edits
-   from external contributors or AI agents, period.
+1. **Touches ETHOS.md** — this file is upstream canonical philosophy, referenced by
+   the preamble resolver. No edits from external contributors or AI agents, period.
 2. **Removes or softens promotional material** — YC references, founder perspective,
    and product voice are intentional. PRs that frame these as "unnecessary" or
    "too promotional" must be rejected.
