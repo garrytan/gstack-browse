@@ -826,12 +826,12 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
         BROWSE_HEADED: '1',
         BROWSE_PORT: '34567',
         BROWSE_SIDEBAR_CHAT: '1',
+        // Headed mode: disable parent-process watchdog. The CLI process exits
+        // immediately after printing status, so the watchdog would kill the
+        // server ~15s later. In headed mode the user owns the visible browser
+        // window — it should stay alive until explicitly disconnected.
+        BROWSE_PARENT_PID: '0',
       };
-      // If parent explicitly set BROWSE_PARENT_PID=0 (pair-agent disabling
-      // self-termination), pass it through so startServer doesn't override it.
-      if (process.env.BROWSE_PARENT_PID === '0') {
-        serverEnv.BROWSE_PARENT_PID = '0';
-      }
       const newState = await startServer(serverEnv);
 
       // Print connected status
