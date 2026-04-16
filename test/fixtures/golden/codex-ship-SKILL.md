@@ -89,6 +89,11 @@ if [ -d ".agents/skills/gstack" ] && [ ! -L ".agents/skills/gstack" ]; then
 fi
 echo "VENDORED_GSTACK: $_VENDORED"
 echo "MODEL_OVERLAY: claude"
+# Checkpoint mode (explicit = no auto-commit, continuous = WIP commits as you go)
+_CHECKPOINT_MODE=$($GSTACK_BIN/gstack-config get checkpoint_mode 2>/dev/null || echo "explicit")
+_CHECKPOINT_PUSH=$($GSTACK_BIN/gstack-config get checkpoint_push 2>/dev/null || echo "false")
+echo "CHECKPOINT_MODE: $_CHECKPOINT_MODE"
+echo "CHECKPOINT_PUSH: $_CHECKPOINT_PUSH"
 # Detect spawned session (OpenClaw or other orchestrator)
 [ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
@@ -391,6 +396,50 @@ AI makes completeness near-free. Always recommend the complete option over short
 | Bug fix | 4 hours | 15 min | ~20x |
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
+
+## Continuous Checkpoint Mode
+
+If `CHECKPOINT_MODE` is `"continuous"` (from preamble output): auto-commit work as
+you go with `WIP:` prefix so session state survives crashes and context switches.
+
+**When to commit (continuous mode only):**
+- After creating a new file (not scratch/temp files)
+- After finishing a function/component/module
+- After fixing a bug that's verified by a passing test
+- Before any long-running operation (install, full build, full test suite)
+
+**Commit format** — include structured context in the body:
+
+```
+WIP: <concise description of what changed>
+
+[gstack-context]
+Decisions: <key choices made this step>
+Remaining: <what's left in the logical unit>
+Tried: <failed approaches worth recording> (omit if none)
+Skill: </skill-name-if-running>
+[/gstack-context]
+```
+
+**Rules:**
+- Stage only files you intentionally changed. NEVER `git add -A` in continuous mode.
+- Do NOT commit with known-broken tests. Fix first, then commit. The [gstack-context]
+  example values MUST reflect a clean state.
+- Do NOT commit mid-edit. Finish the logical unit.
+- Push ONLY if `CHECKPOINT_PUSH` is `"true"` (default is false). Pushing WIP commits
+  to a shared remote can trigger CI, deploys, and expose secrets — that is why push
+  is opt-in, not default.
+- Background discipline — do NOT announce each commit to the user. They can see
+  `git log` whenever they want.
+
+**When `/checkpoint resume` runs,** it parses `[gstack-context]` blocks from WIP
+commits on the current branch to reconstruct session state. When `/ship` runs, it
+filter-squashes WIP commits only (preserving non-WIP commits) via
+`git rebase --autosquash` so the PR contains clean bisectable commits.
+
+If `CHECKPOINT_MODE` is `"explicit"` (the default): no auto-commit behavior. Commit
+only when the user explicitly asks, or when a skill workflow (like /ship) runs a
+commit step. Ignore this section entirely.
 
 ## Context Health (soft directive)
 
@@ -1949,6 +1998,73 @@ For each TODO item, check if the changes in this PR complete it by:
 **6. Defensive:** If TODOS.md cannot be written (permission error, disk full), warn the user and continue. Never stop the ship workflow for a TODOS failure.
 
 Save this summary — it goes into the PR body in Step 8.
+
+---
+
+## Step 5.75: WIP Commit Squash (continuous checkpoint mode only)
+
+If `CHECKPOINT_MODE` is `"continuous"`, the branch likely contains `WIP:` commits
+from auto-checkpointing. These must be squashed INTO the corresponding logical
+commits before Step 6 runs. Non-WIP commits on the branch (earlier landed work)
+must be preserved.
+
+**Detection:**
+```bash
+WIP_COUNT=$(git log <base>..HEAD --oneline --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
+echo "WIP_COMMITS: $WIP_COUNT"
+```
+
+If `WIP_COUNT` is 0: skip this step entirely.
+
+If `WIP_COUNT` > 0, collect the WIP context first so it survives the squash:
+
+```bash
+# Export [gstack-context] blocks from all WIP commits on this branch.
+# This file becomes input to the CHANGELOG entry and may inform PR body context.
+mkdir -p "$(git rev-parse --show-toplevel)/.gstack"
+git log <base>..HEAD --grep="^WIP:" --format="%H%n%B%n---END---" > \
+  "$(git rev-parse --show-toplevel)/.gstack/wip-context-before-squash.md" 2>/dev/null || true
+```
+
+**Non-destructive squash strategy:**
+
+`git reset --soft <merge-base>` WOULD uncommit everything including non-WIP commits.
+DO NOT DO THAT. Instead, use `git rebase` scoped to filter WIP commits only.
+
+Option 1 (preferred, if there are non-WIP commits mixed in):
+```bash
+# Interactive rebase with automated WIP squashing.
+# Mark every WIP commit as 'fixup' (drop its message, fold changes into prior commit).
+git rebase -i $(git merge-base HEAD origin/<base>) \
+  --exec 'true' \
+  -X ours 2>/dev/null || {
+    echo "Rebase conflict. Aborting: git rebase --abort"
+    git rebase --abort
+    echo "STATUS: BLOCKED — manual WIP squash required"
+    exit 1
+  }
+```
+
+Option 2 (simpler, if the branch is ALL WIP commits so far — no landed work):
+```bash
+# Branch contains only WIP commits. Reset-soft is safe here because there's
+# nothing non-WIP to preserve. Verify first.
+NON_WIP=$(git log <base>..HEAD --oneline --invert-grep --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$NON_WIP" -eq 0 ]; then
+  git reset --soft $(git merge-base HEAD origin/<base>)
+  echo "WIP-only branch, reset-soft to merge base. Step 6 will create clean commits."
+fi
+```
+
+Decide at runtime which option applies. If unsure, prefer stopping and asking the
+user via AskUserQuestion rather than destroying non-WIP commits.
+
+**Anti-footgun rules:**
+- NEVER blind `git reset --soft` if there are non-WIP commits. Codex flagged this
+  as destructive — it would uncommit real landed work and turn Step 7 into a
+  non-fast-forward push for anyone who already pushed.
+- Only proceed to Step 6 after WIP commits are successfully squashed/absorbed or
+  the branch has been verified to contain only WIP work.
 
 ---
 

@@ -189,6 +189,41 @@ in their frontmatter, so all files in the directory are candidates). This enable
 Conductor workspace handoff — a checkpoint saved on one branch can be resumed from
 another.
 
+### Step 1.5: Check for WIP commit context (continuous checkpoint mode)
+
+If `CHECKPOINT_MODE` was `"continuous"` during prior work, the branch may have
+`WIP:` commits with structured `[gstack-context]` blocks in their bodies. These
+are a second recovery trail alongside the markdown checkpoint files.
+
+```bash
+_BRANCH=$(git branch --show-current 2>/dev/null)
+# Detect if this branch has any WIP commits against the nearest remote ancestor
+_BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null)
+if [ -n "$_BASE" ]; then
+  WIP_COMMITS=$(git log "$_BASE"..HEAD --grep="^WIP:" --format="%H" 2>/dev/null | head -20)
+  if [ -n "$WIP_COMMITS" ]; then
+    echo "WIP_COMMITS_FOUND"
+    # Extract [gstack-context] blocks from each WIP commit body
+    for SHA in $WIP_COMMITS; do
+      echo "--- commit $SHA ---"
+      git log -1 "$SHA" --format="%s%n%n%b" 2>/dev/null | \
+        awk '/\[gstack-context\]/,/\[\/gstack-context\]/ { print }'
+    done
+  else
+    echo "NO_WIP_COMMITS"
+  fi
+fi
+```
+
+If `WIP_COMMITS_FOUND`: Read the extracted `[gstack-context]` blocks. Each block
+represents a logical unit of prior work with Decisions/Remaining/Tried/Skill.
+Merge these with the markdown checkpoint file to reconstruct session state. The
+git history shows the chronological arc; the markdown checkpoint shows the
+intentional save points. Both matter.
+
+**Important:** Do NOT delete WIP commits during resume. They remain the recovery
+trail until /ship squashes them into clean commits during PR creation.
+
 ### Step 2: Load checkpoint
 
 If the user specified a checkpoint (by number, title fragment, or date), find the

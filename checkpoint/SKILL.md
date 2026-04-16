@@ -94,6 +94,11 @@ if [ -d ".claude/skills/gstack" ] && [ ! -L ".claude/skills/gstack" ]; then
 fi
 echo "VENDORED_GSTACK: $_VENDORED"
 echo "MODEL_OVERLAY: claude"
+# Checkpoint mode (explicit = no auto-commit, continuous = WIP commits as you go)
+_CHECKPOINT_MODE=$(~/.claude/skills/gstack/bin/gstack-config get checkpoint_mode 2>/dev/null || echo "explicit")
+_CHECKPOINT_PUSH=$(~/.claude/skills/gstack/bin/gstack-config get checkpoint_push 2>/dev/null || echo "false")
+echo "CHECKPOINT_MODE: $_CHECKPOINT_MODE"
+echo "CHECKPOINT_PUSH: $_CHECKPOINT_PUSH"
 # Detect spawned session (OpenClaw or other orchestrator)
 [ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
@@ -396,6 +401,50 @@ AI makes completeness near-free. Always recommend the complete option over short
 | Bug fix | 4 hours | 15 min | ~20x |
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
+
+## Continuous Checkpoint Mode
+
+If `CHECKPOINT_MODE` is `"continuous"` (from preamble output): auto-commit work as
+you go with `WIP:` prefix so session state survives crashes and context switches.
+
+**When to commit (continuous mode only):**
+- After creating a new file (not scratch/temp files)
+- After finishing a function/component/module
+- After fixing a bug that's verified by a passing test
+- Before any long-running operation (install, full build, full test suite)
+
+**Commit format** — include structured context in the body:
+
+```
+WIP: <concise description of what changed>
+
+[gstack-context]
+Decisions: <key choices made this step>
+Remaining: <what's left in the logical unit>
+Tried: <failed approaches worth recording> (omit if none)
+Skill: </skill-name-if-running>
+[/gstack-context]
+```
+
+**Rules:**
+- Stage only files you intentionally changed. NEVER `git add -A` in continuous mode.
+- Do NOT commit with known-broken tests. Fix first, then commit. The [gstack-context]
+  example values MUST reflect a clean state.
+- Do NOT commit mid-edit. Finish the logical unit.
+- Push ONLY if `CHECKPOINT_PUSH` is `"true"` (default is false). Pushing WIP commits
+  to a shared remote can trigger CI, deploys, and expose secrets — that is why push
+  is opt-in, not default.
+- Background discipline — do NOT announce each commit to the user. They can see
+  `git log` whenever they want.
+
+**When `/checkpoint resume` runs,** it parses `[gstack-context]` blocks from WIP
+commits on the current branch to reconstruct session state. When `/ship` runs, it
+filter-squashes WIP commits only (preserving non-WIP commits) via
+`git rebase --autosquash` so the PR contains clean bisectable commits.
+
+If `CHECKPOINT_MODE` is `"explicit"` (the default): no auto-commit behavior. Commit
+only when the user explicitly asks, or when a skill workflow (like /ship) runs a
+commit step. Ignore this section entirely.
 
 ## Context Health (soft directive)
 
@@ -736,6 +785,41 @@ List checkpoints from **all branches** (checkpoint files contain the branch name
 in their frontmatter, so all files in the directory are candidates). This enables
 Conductor workspace handoff — a checkpoint saved on one branch can be resumed from
 another.
+
+### Step 1.5: Check for WIP commit context (continuous checkpoint mode)
+
+If `CHECKPOINT_MODE` was `"continuous"` during prior work, the branch may have
+`WIP:` commits with structured `[gstack-context]` blocks in their bodies. These
+are a second recovery trail alongside the markdown checkpoint files.
+
+```bash
+_BRANCH=$(git branch --show-current 2>/dev/null)
+# Detect if this branch has any WIP commits against the nearest remote ancestor
+_BASE=$(git merge-base HEAD origin/main 2>/dev/null || git merge-base HEAD origin/master 2>/dev/null)
+if [ -n "$_BASE" ]; then
+  WIP_COMMITS=$(git log "$_BASE"..HEAD --grep="^WIP:" --format="%H" 2>/dev/null | head -20)
+  if [ -n "$WIP_COMMITS" ]; then
+    echo "WIP_COMMITS_FOUND"
+    # Extract [gstack-context] blocks from each WIP commit body
+    for SHA in $WIP_COMMITS; do
+      echo "--- commit $SHA ---"
+      git log -1 "$SHA" --format="%s%n%n%b" 2>/dev/null | \
+        awk '/\[gstack-context\]/,/\[\/gstack-context\]/ { print }'
+    done
+  else
+    echo "NO_WIP_COMMITS"
+  fi
+fi
+```
+
+If `WIP_COMMITS_FOUND`: Read the extracted `[gstack-context]` blocks. Each block
+represents a logical unit of prior work with Decisions/Remaining/Tried/Skill.
+Merge these with the markdown checkpoint file to reconstruct session state. The
+git history shows the chronological arc; the markdown checkpoint shows the
+intentional save points. Both matter.
+
+**Important:** Do NOT delete WIP commits during resume. They remain the recovery
+trail until /ship squashes them into clean commits during PR creation.
 
 ### Step 2: Load checkpoint
 
