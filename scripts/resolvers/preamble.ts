@@ -490,7 +490,18 @@ file you are allowed to edit in plan mode. The plan file review report is part o
 plan's living status.`;
 }
 
-function generateVoiceDirective(tier: number): string {
+function generateVoiceDirective(tier: number, voiceOverride?: string): string {
+  // Voice profiles: read from voices/*.json via the voice resolver module.
+  // Falls back to hardcoded 'none' profile content if voice module unavailable.
+  try {
+    const { getVoiceDirective, getActiveVoice } = require('./voice');
+    const voiceName = voiceOverride ?? getActiveVoice();
+    return getVoiceDirective(tier, voiceName);
+  } catch {
+    // Fallback: voice module not available (e.g., standalone install, missing voices/ dir).
+    // Use the original hardcoded 'none' (verbose) voice.
+  }
+
   if (tier <= 1) {
     return `## Voice
 
@@ -621,7 +632,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateRoutingInjection(ctx),
     generateVendoringDeprecation(ctx),
     generateSpawnedSessionCheck(),
-    generateVoiceDirective(tier),
+    generateVoiceDirective(tier, ctx.voiceProfile),
     ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateZeroShortcutsDirective(), generateTryFirstDirective()] : []),
     ...(tier >= 3 ? [generateRepoModeSection()] : []),
     generateCompletionStatus(ctx),

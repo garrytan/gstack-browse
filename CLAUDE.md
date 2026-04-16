@@ -10,6 +10,8 @@
 
 **Caveman voice overhaul:** Skill template (.tmpl) prose has been compressed to caveman voice as part of CaveStack's identity. The **caveman floor** defines what stays verbose even in compressed templates: AskUserQuestion prompts, diagnostic tables, conditional logic ("if X do Y"), stop/abort conditions, and directional instructions ("merge base into feature"). These are safety-critical and must stay explicit.
 
+**Voice profile system:** `generateVoiceDirective()` in `scripts/resolvers/preamble.ts` reads voice profiles from `voices/*.json` instead of hardcoded strings. Default voice is `caveman-full`. Build with `bun run gen:skill-docs --voice=none` for vanilla verbose output. Per-skill overrides via `--voice-override=skill:voice` CLI flag. Runtime belt-and-suspenders via `hooks/caveman-voice-priority.js` (does NOT modify vendored `caveman-activate.js`). See `voices/schema.json` for profile format.
+
 ## Commands
 
 ```bash

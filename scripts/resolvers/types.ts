@@ -54,6 +54,7 @@ export interface TemplateContext {
   host: Host;
   paths: HostPaths;
   preambleTier?: number;  // 1-4, controls which preamble sections are included
+  voiceProfile?: string;  // Voice profile name override for this skill (from skill_voice_overrides config)
 }
 
 /** Resolver function signature. args is populated for parameterized placeholders like {{INVOKE_SKILL:name}}. */

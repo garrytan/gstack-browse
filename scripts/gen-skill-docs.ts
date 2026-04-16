@@ -43,6 +43,37 @@ const HOST_ARG_VAL: HostArg = (() => {
 // For single-host mode, HOST is the host. For --host all, it's set per iteration below.
 let HOST: Host = HOST_ARG_VAL === 'all' ? 'claude' : HOST_ARG_VAL;
 
+// ─── Voice Profile Detection ───────────────────────────────
+// --voice=<name> selects a voice profile from voices/*.json.
+// Default: caveman-full (CaveStack's identity). Use --voice=none for verbose.
+
+const VOICE_ARG = process.argv.find(a => a.startsWith('--voice'));
+if (VOICE_ARG) {
+  const val = VOICE_ARG.includes('=') ? VOICE_ARG.split('=')[1] : process.argv[process.argv.indexOf(VOICE_ARG) + 1];
+  if (val) {
+    // Validate early — fail fast on unknown voice
+    try {
+      const { getVoiceProfile } = require('./resolvers/voice');
+      getVoiceProfile(val);
+      console.log(`Voice: ${val}`);
+    } catch (err: any) {
+      console.error(err.message);
+      process.exit(1);
+    }
+  }
+}
+
+// Per-skill voice overrides: skill_name → voice_profile_name
+// Populated from --voice-override=skill:voice CLI args
+const SKILL_VOICE_OVERRIDES = new Map<string, string>();
+for (const arg of process.argv) {
+  const m = arg.match(/^--voice-override=([a-z0-9-]+):([a-z0-9-]+)$/);
+  if (m) SKILL_VOICE_OVERRIDES.set(m[1], m[2]);
+}
+if (SKILL_VOICE_OVERRIDES.size > 0) {
+  console.log(`Voice overrides: ${Array.from(SKILL_VOICE_OVERRIDES.entries()).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+}
+
 // HostPaths, HOST_PATHS, and TemplateContext imported from ./resolvers/types (line 7-8)
 
 // ─── Shared Design Constants ────────────────────────────────
@@ -434,7 +465,10 @@ function processTemplate(tmplPath: string, host: Host = 'claude'): { outputPath:
   const tierMatch = tmplContent.match(/^preamble-tier:\s*(\d+)$/m);
   const preambleTier = tierMatch ? parseInt(tierMatch[1], 10) : undefined;
 
-  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host], preambleTier };
+  // Per-skill voice override: check SKILL_VOICE_OVERRIDES map
+  const voiceProfile = SKILL_VOICE_OVERRIDES.get(skillName) ?? undefined;
+
+  const ctx: TemplateContext = { skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host], preambleTier, voiceProfile };
 
   // Replace placeholders (supports parameterized: {{NAME:arg1:arg2}})
   // Config-driven: suppressedResolvers return empty string for this host
