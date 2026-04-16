@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CaveStack Voice Profile",
+  "description": "Defines how generateVoiceDirective() emits voice instructions for skills",
+  "type": "object",
+  "required": ["name", "directive"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Profile identifier (e.g., caveman-full, none)",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "description": {
+      "type": "string",
+      "description": "Human-readable description of this voice profile"
+    },
+    "directive": {
+      "type": "object",
+      "description": "Voice directive content by preamble tier",
+      "required": ["compact", "full"],
+      "properties": {
+        "compact": {
+          "type": "string",
+          "description": "Compact voice directive for tier 1 (browse, benchmark, setup)"
+        },
+        "full": {
+          "type": "string",
+          "description": "Full voice directive for tiers 2-4 (most skills)"
+        }
+      }
+    },
+    "priority_instruction": {
+      "type": "string",
+      "description": "Runtime injection line for caveman-voice-priority.js hook"
+    }
+  },
+  "additionalProperties": false
+}
