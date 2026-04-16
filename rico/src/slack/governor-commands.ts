@@ -8,6 +8,8 @@ export type GovernorCommand =
   | { type: "pause"; projectId: string }
   | { type: "resume"; projectId: string }
   | { type: "reprioritize"; projectId: string; priority: number }
+  | { type: "takeover"; projectId: string }
+  | { type: "reroute"; sourceProjectId: string; targetProjectId: string }
   | { type: "mark_released"; projectId: string }
   | { type: "archive"; projectId: string }
   | { type: "repair"; projectId: string };
@@ -76,6 +78,21 @@ export function parseGovernorCommand(text: string): GovernorCommand | null {
       type: "reprioritize",
       projectId: normalizeProjectKey(reprioritizeMatch[1] ?? ""),
       priority: Number(reprioritizeMatch[2]),
+    };
+  }
+  const takeoverMatch = normalized.match(/^(?:인수|takeover)\s+(.+)$/i);
+  if (takeoverMatch) {
+    return {
+      type: "takeover",
+      projectId: normalizeProjectKey(takeoverMatch[1] ?? ""),
+    };
+  }
+  const rerouteMatch = normalized.match(/^(?:재배정|재라우팅|reroute)\s+(.+?)\s*(?:->|→)\s*(.+)$/i);
+  if (rerouteMatch) {
+    return {
+      type: "reroute",
+      sourceProjectId: normalizeProjectKey(rerouteMatch[1] ?? ""),
+      targetProjectId: normalizeProjectKey(rerouteMatch[2] ?? ""),
     };
   }
   const releaseMatch = normalized.match(/^배포\s*완료\s+(.+)$/);
@@ -314,22 +331,30 @@ export function repairProjectGoals(input: {
 export function recordGovernorPolicyChange(input: {
   repositories: ReturnType<typeof createRepositories>;
   projectId: string;
-  action: "pause" | "resume" | "reprioritize";
+  action: "pause" | "resume" | "reprioritize" | "takeover" | "reroute";
   priority?: number;
+  goalId?: string | null;
+  payload?: Record<string, unknown>;
 }) {
   appendGovernorEvent({
     repositories: input.repositories,
     projectId: input.projectId,
+    goalId: input.goalId ?? null,
     eventType:
       input.action === "pause"
         ? "project_paused"
         : input.action === "resume"
           ? "project_resumed"
-          : "project_reprioritized",
+          : input.action === "takeover"
+            ? "project_taken_over"
+            : input.action === "reroute"
+              ? "goal_rerouted"
+              : "project_reprioritized",
     actor: "governor",
     payload: {
       action: input.action,
       priority: input.priority ?? null,
+      ...(input.payload ?? {}),
     },
   });
 }
@@ -571,4 +596,37 @@ export function buildGovernorRepairText(input: {
     `- 프로젝트: #${input.projectId}`,
     `- 상태: stale state ${input.repaired}건을 복구했어요.`,
   ].join("\n");
+}
+
+export function buildGovernorTakeoverText(input: {
+  projectId: string;
+  goalTitle?: string | null;
+}) {
+  const lines = [
+    "🛰️ 총괄 인수",
+    `- 프로젝트: #${input.projectId}`,
+    "- 상태: 이번 건은 총괄이 직접 추적해요.",
+  ];
+  if (input.goalTitle) {
+    lines.push(`- 목표: ${input.goalTitle}`);
+  }
+  lines.push("- 영향: 이후 마감 요약은 이 스레드에도 함께 남길게요.");
+  return lines.join("\n");
+}
+
+export function buildGovernorRerouteText(input: {
+  sourceProjectId: string;
+  targetProjectId: string;
+  goalTitle?: string | null;
+}) {
+  const lines = [
+    "🧭 총괄 재배정",
+    `- 원래 프로젝트: #${input.sourceProjectId}`,
+    `- 새 프로젝트: #${input.targetProjectId}`,
+    "- 상태: 다음 실행은 새 프로젝트 채널에서 이어가요.",
+  ];
+  if (input.goalTitle) {
+    lines.push(`- 목표: ${input.goalTitle}`);
+  }
+  return lines.join("\n");
 }

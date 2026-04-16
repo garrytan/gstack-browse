@@ -1408,6 +1408,199 @@ test("processSlackPayload applies governor pause, resume, and reprioritize comma
   expect(posted[2]?.text).toContain("재개");
 });
 
+test("processSlackPayload lets governor take over the latest project goal and mirror completion back to ai-ops", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+  store.repositories.goals.create({
+    id: "goal-crypto-takeover",
+    projectId: "crypto",
+    initiativeId: null,
+    title: "원격 저장소와 현재 브랜치 상태 점검",
+    state: "in_progress",
+  });
+
+  const memoryStore = new MemoryStore(store.db);
+  memoryStore.putProjectFact("crypto", "captain.goal.goal-crypto-takeover.thread_ts", "1712900000.009000");
+  memoryStore.putProjectFact("crypto", "captain.thread.1712900000.009000.goal_id", "goal-crypto-takeover");
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: `1710000000.00${600 + posted.length}` };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "인수 crypto",
+        ts: "1712900000.009100",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(
+    posted.some(
+      (message) =>
+        message.channel === "C_CRYPTO"
+        && message.thread_ts === "1712900000.009000"
+        && message.text.includes("총괄 인수"),
+    ),
+  ).toBe(true);
+  expect(
+    posted.some(
+      (message) =>
+        message.channel === "C_TOTAL"
+        && message.thread_ts === "1712900000.009100"
+        && message.text.includes("총괄 인수"),
+    ),
+  ).toBe(true);
+  expect(memoryStore.getProjectMemory("crypto")).toMatchObject({
+    "governor.goal.goal-crypto-takeover.mirror_channel_id": "C_TOTAL",
+    "governor.goal.goal-crypto-takeover.mirror_thread_ts": "1712900000.009100",
+    "governor.goal.goal-crypto-takeover.takeover": "true",
+  });
+  expect(
+    store.repositories.governorEvents.listByProject("crypto").map((event) => event.eventType),
+  ).toContain("project_taken_over");
+});
+
+test("processSlackPayload reroutes the latest goal to a target project and rewrites queued payloads", async () => {
+  const store = openStore(":memory:");
+  store.repositories.projects.create({
+    id: "crypto",
+    slackChannelId: "C_CRYPTO",
+  });
+  store.repositories.projects.create({
+    id: "sherpalabs",
+    slackChannelId: "C_SHERPALABS",
+  });
+  store.repositories.initiatives.create({
+    id: "initiative-crypto",
+    projectId: "crypto",
+    title: "crypto follow-up",
+    status: "active",
+  });
+  store.repositories.goals.create({
+    id: "goal-crypto-reroute",
+    projectId: "crypto",
+    initiativeId: "initiative-crypto",
+    title: "랜딩 UX 후속 점검",
+    state: "planned",
+  });
+  store.repositories.runs.create({
+    id: "run-crypto-reroute",
+    goalId: "goal-crypto-reroute",
+    status: "queued",
+    queuedAt: "2026-04-16T03:00:00.000Z",
+    startedAt: null,
+    finishedAt: null,
+  });
+
+  const memoryStore = new MemoryStore(store.db);
+  memoryStore.putProjectFact("crypto", "captain.goal.goal-crypto-reroute.thread_ts", "1712900000.008900");
+  memoryStore.putProjectFact("crypto", "captain.thread.1712900000.008900.goal_id", "goal-crypto-reroute");
+  memoryStore.putRunFact(
+    "run-crypto-reroute",
+    "queue.payload_json",
+    JSON.stringify({
+      goalId: "goal-crypto-reroute",
+      projectId: "crypto",
+      text: "랜딩 UX 후속 점검",
+      aiOpsChannelId: "C_TOTAL",
+      intakeThreadTs: "1712900000.009200",
+      projectChannelId: "C_CRYPTO",
+      projectThreadTs: "1712900000.008900",
+      sourceChannelId: "C_CRYPTO",
+      isFinalGoal: false,
+      requiresDeployApproval: false,
+    }),
+  );
+
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const result = await processSlackPayload(
+    {
+      db: store.db,
+      aiOpsChannelId: "C_TOTAL",
+      slackClient: {
+        async postMessage(input) {
+          posted.push(input);
+          return { ok: true, ts: `1710000000.01${100 + posted.length}` };
+        },
+      },
+    },
+    "event",
+    {
+      type: "event_callback",
+      event: {
+        type: "message",
+        channel: "C_TOTAL",
+        user: "U_TONY",
+        text: "재배정 crypto -> sherpalabs",
+        ts: "1712900000.009200",
+      },
+    },
+  );
+
+  expect(result).toEqual({ queued: false, handled: true });
+  expect(store.repositories.goals.get("goal-crypto-reroute")).toMatchObject({
+    projectId: "sherpalabs",
+  });
+  expect(store.repositories.initiatives.get("initiative-crypto")).toMatchObject({
+    projectId: "sherpalabs",
+  });
+
+  const targetMemory = memoryStore.getProjectMemory("sherpalabs");
+  const targetThreadTs = targetMemory["captain.goal.goal-crypto-reroute.thread_ts"];
+  expect(targetThreadTs).toBeTruthy();
+  expect(targetMemory[`captain.thread.${targetThreadTs}.goal_id`]).toBe("goal-crypto-reroute");
+  expect(targetMemory["governor.goal.goal-crypto-reroute.mirror_channel_id"]).toBe("C_TOTAL");
+  expect(targetMemory["governor.goal.goal-crypto-reroute.mirror_thread_ts"]).toBe("1712900000.009200");
+
+  const queuePayload = JSON.parse(
+    memoryStore.getRunMemory("run-crypto-reroute")["queue.payload_json"]!,
+  );
+  expect(queuePayload).toMatchObject({
+    projectId: "sherpalabs",
+    projectChannelId: "C_SHERPALABS",
+    projectThreadTs: targetThreadTs,
+    sourceChannelId: "C_SHERPALABS",
+  });
+
+  expect(
+    posted.some(
+      (message) =>
+        message.channel === "C_SHERPALABS"
+        && message.text.includes("총괄 재배정")
+        && message.text.includes("#sherpalabs"),
+    ),
+  ).toBe(true);
+  expect(
+    posted.some(
+      (message) =>
+        message.channel === "C_CRYPTO"
+        && message.thread_ts === "1712900000.008900"
+        && message.text.includes("#sherpalabs"),
+    ),
+  ).toBe(true);
+  expect(
+    store.repositories.governorEvents.listByProject("sherpalabs").map((event) => event.eventType),
+  ).toContain("goal_rerouted");
+});
+
 test("processSlackPayload summarizes queued and pending approval projects in ai-ops", async () => {
   const store = openStore(":memory:");
   store.repositories.projects.create({

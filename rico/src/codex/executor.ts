@@ -470,6 +470,7 @@ export function finalizeSpecialistResultForRuntime(input: {
   role: RoleName;
   playbookMemory: Record<string, string>;
   parsed: Omit<SpecialistResult, "role">;
+  evidenceArtifacts?: Array<{ title: string; body: string }>;
 }) {
   const artifacts = ensureArtifactTemplate({
     role: input.role,
@@ -491,6 +492,11 @@ export function finalizeSpecialistResultForRuntime(input: {
     ...input.parsed,
     artifacts,
     rawFindings,
+    evidenceArtifacts: input.evidenceArtifacts?.map((artifact) => ({
+      kind: "evidence",
+      title: artifact.title,
+      content: artifact.body,
+    })),
   };
 }
 
@@ -932,6 +938,15 @@ function classifyCommandCapabilities(command: string) {
   }
   if (/(^|\s)((bun|npm|pnpm|yarn)\s+(test|run test)|vitest\b|jest\b|pytest\b|playwright\s+test|cypress\b)/.test(normalized)) {
     capabilities.add("verification-log");
+  }
+  if (/(^|\s)(npm|pnpm|yarn|bun)\s+(install|add)\b|pip\s+install\b|poetry\s+add\b|uv\s+add\b|cargo\s+add\b|go\s+get\b|brew\s+install\b|apt(-get)?\s+install\b/.test(normalized)) {
+    capabilities.add("package-install");
+  }
+  if (/(^|\s)git\s+(commit|push|merge|rebase|tag)\b|\bgh\s+(pr|issue|release)\b/.test(normalized)) {
+    capabilities.add("git-publish");
+  }
+  if (/(^|\s)((bun|npm|pnpm|yarn)\s+(run\s+)?dev\b|next\s+dev\b|vite\b|webpack-dev-server\b|docker\s+compose\s+up\b|docker-compose\s+up\b|python\s+-m\s+http\.server\b|uvicorn\b|rails\s+server\b)/.test(normalized)) {
+    capabilities.add("long-running-server");
   }
   if (/(vercel\s+deploy|flyctl\s+deploy|kubectl\s+(apply|rollout|set image)|netlify\s+deploy|render\s+deploy|railway\s+up|serverless\s+deploy)/.test(normalized)) {
     capabilities.add("deploy");
@@ -1456,6 +1471,7 @@ export function createCodexSpecialistExecutor(input: {
     const finalized = finalizeSpecialistResultForRuntime({
       role: specialist.role,
       playbookMemory,
+      evidenceArtifacts: extraArtifacts,
       parsed: {
         ...parsed,
         executionMode,
@@ -1474,6 +1490,7 @@ export function createCodexSpecialistExecutor(input: {
         changedFiles: finalized.changedFiles,
         verificationNotes: finalized.verificationNotes,
         personaLabel: finalized.personaLabel ?? specialist.personaLabel,
+        evidenceArtifacts: finalized.evidenceArtifacts,
       },
       meta: {
         workspacePath,

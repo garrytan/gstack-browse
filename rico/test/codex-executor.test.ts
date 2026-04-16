@@ -611,3 +611,62 @@ test("finalizeSpecialistResultForRuntime marks artifact-only writes explicitly",
   expect(finalized.artifacts).toEqual([{ kind: "report", title: "customer-voice.md" }]);
   expect(finalized.rawFindings.at(-1)).toContain("artifact-only write");
 });
+
+test("finalizeSpecialistResultForRuntime carries dynamic evidence artifacts into the runtime result", () => {
+  const finalized = finalizeSpecialistResultForRuntime({
+    role: "qa",
+    playbookMemory: {
+      artifact_template: "qa-gate.md",
+    },
+    evidenceArtifacts: [
+      {
+        title: "browser-simulation-summary.txt",
+        body: "시뮬레이션: 실행 / http://127.0.0.1:5173\n- /: 통과 / Landing",
+      },
+    ],
+    parsed: {
+      summary: "QA 증적을 정리했어요.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: [],
+      verificationNotes: ["playwright smoke"],
+    },
+  });
+
+  expect(finalized.evidenceArtifacts).toEqual([
+    {
+      kind: "evidence",
+      title: "browser-simulation-summary.txt",
+      content: "시뮬레이션: 실행 / http://127.0.0.1:5173\n- /: 통과 / Landing",
+    },
+  ]);
+});
+
+test("normalizeSpecialistResult blocks package install commands when the playbook disallows them", async () => {
+  const normalized = await normalizeSpecialistResult({
+    role: "backend",
+    executionMode: "write",
+    originalText: '{"summary":"의존성을 먼저 설치했습니다.","impact":"info","artifacts":[],"rawFindings":[],"executionMode":"write","changedFiles":["src/api/client.ts"],"verificationNotes":["pnpm add zod"]}',
+    workspacePath: "/tmp/backend",
+    observedChangedFiles: ["src/api/client.ts"],
+    executedCommands: ["pnpm add zod"],
+    playbookMemory: {
+      disallowed_tools_json: JSON.stringify(["package-install"]),
+      allowed_tools_json: JSON.stringify(["repo-read", "verification-log"]),
+    },
+    parsed: {
+      summary: "의존성을 먼저 설치했습니다.",
+      impact: "info",
+      artifacts: [],
+      rawFindings: [],
+      executionMode: "write",
+      changedFiles: ["src/api/client.ts"],
+      verificationNotes: ["pnpm add zod"],
+    },
+  });
+
+  expect(normalized.impact).toBe("blocking");
+  expect(normalized.rawFindings.join("\n")).toContain("capability violation: package-install");
+});

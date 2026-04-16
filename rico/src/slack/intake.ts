@@ -15,12 +15,14 @@ import {
   archiveProjectGoal,
   buildGovernorApprovalBacklogText,
   buildGovernorArchiveText,
+  buildGovernorRerouteText,
   buildGovernorPolicyChangeText,
   buildGovernorQueueText,
   buildGovernorReleaseText,
   buildGovernorRepairText,
   buildGovernorSnapshot,
   buildGovernorStatusSnapshotText,
+  buildGovernorTakeoverText,
   markProjectGoalReleased,
   parseGovernorCommand,
   recordGovernorPolicyChange,
@@ -276,6 +278,202 @@ function readThreadGoal(input: {
     input.memoryStore.getProjectMemory(input.projectId)[`captain.thread.${input.threadTs}.goal_id`];
   if (!goalId) return null;
   return input.repositories.goals.get(goalId);
+}
+
+const TERMINAL_GOAL_STATES = new Set([
+  "approved",
+  "released",
+  "archived",
+  "rejected",
+]);
+
+function latestGoalTimestamp(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  goalId: string;
+}) {
+  const transitions = input.repositories.stateTransitions.listByGoal(input.goalId);
+  const latestTransition = transitions.at(-1)?.createdAt ?? "";
+  const latestRunTime = input.repositories.runs
+    .listByGoal(input.goalId)
+    .map((run) => run.finishedAt ?? run.startedAt ?? run.queuedAt ?? "")
+    .sort()
+    .at(-1) ?? "";
+  return latestTransition > latestRunTime ? latestTransition : latestRunTime;
+}
+
+function pickLatestGovernableGoal(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  projectId: string;
+}) {
+  const goals = input.repositories.goals.listByProject(input.projectId);
+  if (goals.length === 0) return null;
+  const openGoals = goals.filter((goal) => !TERMINAL_GOAL_STATES.has(goal.state));
+  const source = openGoals.length > 0 ? openGoals : goals;
+  return source.sort((left, right) => {
+    const leftTime = latestGoalTimestamp({ repositories: input.repositories, goalId: left.id });
+    const rightTime = latestGoalTimestamp({ repositories: input.repositories, goalId: right.id });
+    if (leftTime !== rightTime) return rightTime.localeCompare(leftTime);
+    return right.id.localeCompare(left.id);
+  })[0] ?? null;
+}
+
+function governorMirrorChannelKey(goalId: string) {
+  return `governor.goal.${goalId}.mirror_channel_id`;
+}
+
+function governorMirrorThreadKey(goalId: string) {
+  return `governor.goal.${goalId}.mirror_thread_ts`;
+}
+
+function governorTakeoverKey(goalId: string) {
+  return `governor.goal.${goalId}.takeover`;
+}
+
+async function takeOverProjectGoal(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  memoryStore: MemoryStore;
+  projectId: string;
+  mirrorChannelId: string;
+  mirrorThreadTs: string;
+  slackClient?: SlackMessageClient;
+}) {
+  const project = input.repositories.projects.get(input.projectId);
+  if (!project) return null;
+  const goal = pickLatestGovernableGoal({
+    repositories: input.repositories,
+    projectId: input.projectId,
+  });
+  if (!goal) return null;
+
+  input.memoryStore.putProjectFact(project.id, governorTakeoverKey(goal.id), "true");
+  input.memoryStore.putProjectFact(project.id, governorMirrorChannelKey(goal.id), input.mirrorChannelId);
+  input.memoryStore.putProjectFact(project.id, governorMirrorThreadKey(goal.id), input.mirrorThreadTs);
+
+  const threadTs =
+    input.memoryStore.getProjectMemory(project.id)[`captain.goal.${goal.id}.thread_ts`];
+  if (threadTs && input.slackClient) {
+    await input.slackClient.postMessage({
+      channel: project.slackChannelId,
+      thread_ts: threadTs,
+      text: buildGovernorTakeoverText({
+        projectId: project.id,
+        goalTitle: goal.title,
+      }),
+    });
+  }
+
+  recordGovernorPolicyChange({
+    repositories: input.repositories,
+    projectId: project.id,
+    goalId: goal.id,
+    action: "takeover",
+    payload: {
+      goalTitle: goal.title,
+      mirrorChannelId: input.mirrorChannelId,
+      mirrorThreadTs: input.mirrorThreadTs,
+    },
+  });
+
+  return goal;
+}
+
+async function rerouteProjectGoal(input: {
+  repositories: ReturnType<typeof createRepositories>;
+  memoryStore: MemoryStore;
+  sourceProjectId: string;
+  targetProjectId: string;
+  mirrorChannelId: string;
+  mirrorThreadTs: string;
+  slackClient?: SlackMessageClient;
+}) {
+  const sourceProject = input.repositories.projects.get(input.sourceProjectId);
+  const targetProject = input.repositories.projects.get(input.targetProjectId);
+  if (!sourceProject || !targetProject) return null;
+
+  const goal = pickLatestGovernableGoal({
+    repositories: input.repositories,
+    projectId: sourceProject.id,
+  });
+  if (!goal) return null;
+
+  const sourceMemory = input.memoryStore.getProjectMemory(sourceProject.id);
+  const oldThreadTs = sourceMemory[`captain.goal.${goal.id}.thread_ts`];
+  if (oldThreadTs) {
+    input.memoryStore.deleteProjectFact(sourceProject.id, `captain.goal.${goal.id}.thread_ts`);
+    input.memoryStore.deleteProjectFact(sourceProject.id, `captain.thread.${oldThreadTs}.goal_id`);
+  }
+
+  input.repositories.goals.updateProject(goal.id, targetProject.id);
+  if (goal.initiativeId) {
+    input.repositories.initiatives.updateProject(goal.initiativeId, targetProject.id);
+  }
+
+  let targetThreadTs: string | null = null;
+  if (input.slackClient) {
+    const targetRoot = await input.slackClient.postMessage({
+      channel: targetProject.slackChannelId,
+      text: buildGovernorRerouteText({
+        sourceProjectId: sourceProject.id,
+        targetProjectId: targetProject.id,
+        goalTitle: goal.title,
+      }),
+    });
+    if (targetRoot.ok && targetRoot.ts) {
+      targetThreadTs = targetRoot.ts;
+    }
+    if (oldThreadTs) {
+      await input.slackClient.postMessage({
+        channel: sourceProject.slackChannelId,
+        thread_ts: oldThreadTs,
+        text: `🧭 총괄 재배정\n- 상태: 이 건은 이제 #${targetProject.id}에서 이어가요.`,
+      });
+    }
+  }
+
+  if (targetThreadTs) {
+    input.memoryStore.putProjectFact(targetProject.id, `captain.thread.${targetThreadTs}.goal_id`, goal.id);
+    input.memoryStore.putProjectFact(targetProject.id, `captain.goal.${goal.id}.thread_ts`, targetThreadTs);
+  }
+  input.memoryStore.putProjectFact(targetProject.id, governorTakeoverKey(goal.id), "true");
+  input.memoryStore.putProjectFact(targetProject.id, governorMirrorChannelKey(goal.id), input.mirrorChannelId);
+  input.memoryStore.putProjectFact(targetProject.id, governorMirrorThreadKey(goal.id), input.mirrorThreadTs);
+
+  for (const run of input.repositories.runs.listByGoal(goal.id).filter((record) => record.status === "queued")) {
+    const runMemory = input.memoryStore.getRunMemory(run.id);
+    const payloadJson = runMemory["queue.payload_json"];
+    if (!payloadJson) continue;
+    try {
+      const payload = JSON.parse(payloadJson) as Record<string, unknown>;
+      const nextPayload = {
+        ...payload,
+        projectId: targetProject.id,
+        projectChannelId: targetProject.slackChannelId,
+        projectThreadTs: targetThreadTs ?? payload.projectThreadTs ?? null,
+        sourceChannelId: targetProject.slackChannelId,
+      };
+      input.memoryStore.putRunFact(run.id, "queue.payload_json", JSON.stringify(nextPayload));
+    } catch {
+      // ignore malformed queued payloads
+    }
+  }
+
+  recordGovernorPolicyChange({
+    repositories: input.repositories,
+    projectId: targetProject.id,
+    goalId: goal.id,
+    action: "reroute",
+    payload: {
+      fromProjectId: sourceProject.id,
+      toProjectId: targetProject.id,
+      goalTitle: goal.title,
+    },
+  });
+
+  return {
+    goal,
+    sourceProject,
+    targetProject,
+  };
 }
 
 const GOVERNOR_CONVERSATION_SCOPE = "__governor__";
@@ -551,6 +749,7 @@ async function bootstrapAiOpsIntake(
       projectId: normalized.projectId,
       title: normalized.goalText,
       tasks: taskList,
+      preventSplit: looksLikeStatusReport(normalized.goalText),
     });
     enqueueGoals({
       db,
@@ -622,6 +821,7 @@ async function bootstrapAiOpsIntake(
     projectId: project.id,
     title: goalText,
     tasks: taskList,
+    preventSplit: looksLikeStatusReport(goalText),
   });
   enqueueGoals({
     db,
@@ -769,6 +969,75 @@ export async function maybeBuildConversationReply(
           text: buildGovernorApprovalBacklogText(
             buildGovernorSnapshot(repositories, options.maxActiveProjects ?? 2),
           ),
+        } satisfies SlackConversationReply;
+      }
+
+      if (governorCommand.type === "takeover") {
+        const project = await resolveProjectByIdentifier({
+          repositories,
+          projectId: governorCommand.projectId,
+          slackClient: options.slackClient,
+        });
+        if (!project) {
+          return {
+            channelId,
+            threadTs,
+            text: `총괄: #${governorCommand.projectId} 프로젝트를 찾지 못했어요.`,
+          } satisfies SlackConversationReply;
+        }
+        const goal = await takeOverProjectGoal({
+          repositories,
+          memoryStore,
+          projectId: project.id,
+          mirrorChannelId: channelId,
+          mirrorThreadTs: threadTs,
+          slackClient: options.slackClient,
+        });
+        return {
+          channelId,
+          threadTs,
+          text: buildGovernorTakeoverText({
+            projectId: project.id,
+            goalTitle: goal?.title,
+          }),
+        } satisfies SlackConversationReply;
+      }
+
+      if (governorCommand.type === "reroute") {
+        const sourceProject = await resolveProjectByIdentifier({
+          repositories,
+          projectId: governorCommand.sourceProjectId,
+          slackClient: options.slackClient,
+        });
+        const targetProject = await resolveProjectByIdentifier({
+          repositories,
+          projectId: governorCommand.targetProjectId,
+          slackClient: options.slackClient,
+        });
+        if (!sourceProject || !targetProject) {
+          return {
+            channelId,
+            threadTs,
+            text: `총괄: #${governorCommand.sourceProjectId} 또는 #${governorCommand.targetProjectId} 프로젝트를 찾지 못했어요.`,
+          } satisfies SlackConversationReply;
+        }
+        const rerouted = await rerouteProjectGoal({
+          repositories,
+          memoryStore,
+          sourceProjectId: sourceProject.id,
+          targetProjectId: targetProject.id,
+          mirrorChannelId: channelId,
+          mirrorThreadTs: threadTs,
+          slackClient: options.slackClient,
+        });
+        return {
+          channelId,
+          threadTs,
+          text: buildGovernorRerouteText({
+            sourceProjectId: sourceProject.id,
+            targetProjectId: targetProject.id,
+            goalTitle: rerouted?.goal.title,
+          }),
         } satisfies SlackConversationReply;
       }
 

@@ -7,8 +7,9 @@ export function splitOversizedGoal(input: {
   projectId: string;
   title: string;
   tasks: string[];
+  preventSplit?: boolean;
 }) {
-  if (input.tasks.length <= MAX_DIRECT_GOAL_TASKS) {
+  if (input.preventSplit || input.tasks.length <= MAX_DIRECT_GOAL_TASKS) {
     return { kind: "goal" as const, goals: [] };
   }
 

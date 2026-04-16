@@ -15,6 +15,18 @@ test("splitOversizedGoal converts more than eight tasks into initiative phases",
   expect(plan.goals.length).toBeGreaterThan(1);
 });
 
+test("splitOversizedGoal can be forced to keep a status report as a single goal", () => {
+  const plan = splitOversizedGoal({
+    projectId: "crypto",
+    title: "작업 완료했습니다. 아래 보고를 검토해줘",
+    tasks: Array.from({ length: 10 }, (_, index) => `task-${index + 1}`),
+    preventSplit: true,
+  });
+
+  expect(plan.kind).toBe("goal");
+  expect(plan.goals).toHaveLength(0);
+});
+
 test("Captain keeps raw specialist impacts in the summary", () => {
   const captain = new Captain();
 

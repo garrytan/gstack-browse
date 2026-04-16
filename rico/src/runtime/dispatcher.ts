@@ -199,6 +199,7 @@ function shouldPostSpecialistMessage(result: SpecialistResult) {
 
 function shouldPublishArtifact(result: SpecialistResult) {
   if (isLowSignalNoChangeResult(result)) return false;
+  if ((result.evidenceArtifacts?.length ?? 0) > 0) return true;
   if (result.role === "qa") {
     return (result.verificationNotes?.length ?? 0) > 0 || result.impact !== "info";
   }
@@ -209,6 +210,86 @@ function shouldPublishArtifact(result: SpecialistResult) {
     return (result.changedFiles?.length ?? 0) > 0;
   }
   return false;
+}
+
+function normalizeFingerprintText(value: string | undefined | null) {
+  return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function stableUnique(values: Array<string | undefined>) {
+  return [...new Set(values.filter((value): value is string => Boolean(value && value.trim())))]
+    .map((value) => value.trim())
+    .sort();
+}
+
+function specialistPublicationKey(input: {
+  goalId: string;
+  role: string;
+  personaLabel?: string;
+}) {
+  const personaSuffix = input.personaLabel
+    ? `.${input.personaLabel.toLowerCase().replace(/[^a-z0-9-]+/g, "-")}`
+    : "";
+  return `captain.goal.${input.goalId}.specialist.${input.role}${personaSuffix}.published_fingerprint`;
+}
+
+function specialistPublicationFingerprint(result: SpecialistResult) {
+  return JSON.stringify({
+    role: result.role,
+    impact: result.impact,
+    summary: normalizeFingerprintText(result.summary),
+    executionMode: result.executionMode ?? "analyze",
+    changedFiles: stableUnique(result.changedFiles ?? []),
+    verificationNotes: stableUnique(result.verificationNotes ?? []),
+    personaLabel: normalizeFingerprintText(result.personaLabel ?? null),
+    evidenceArtifacts: stableUnique((result.evidenceArtifacts ?? []).map((artifact) => artifact.title)),
+  });
+}
+
+function captainSummaryKey(goalId: string) {
+  return `captain.goal.${goalId}.final_summary_fingerprint`;
+}
+
+function governorMirrorChannelKey(goalId: string) {
+  return `governor.goal.${goalId}.mirror_channel_id`;
+}
+
+function governorMirrorThreadKey(goalId: string) {
+  return `governor.goal.${goalId}.mirror_thread_ts`;
+}
+
+function captainSummaryFingerprint(input: {
+  finalState: string;
+  text: string;
+}) {
+  return JSON.stringify({
+    finalState: input.finalState,
+    text: normalizeFingerprintText(input.text),
+  });
+}
+
+function buildCaptainRepeatSummary(input: {
+  finalState: string;
+  leadSummary?: string | null;
+  nextAction?: string | null;
+}) {
+  const status =
+    input.finalState === "approved" || input.finalState === "released"
+      ? "✅ 캡틴 재확인"
+      : input.finalState === "awaiting_human_approval"
+        ? "🟡 캡틴 재확인"
+        : "⛔ 캡틴 재확인";
+  const lines = [status, "- 새로 바뀐 것: 직전 확인과 같아요."];
+  if (input.leadSummary) {
+    lines.push(`- 유지되는 결론: ${normalizeFingerprintText(input.leadSummary)}`);
+  }
+  if (
+    input.nextAction
+    && (input.finalState === "awaiting_human_approval" || input.finalState === "blocked" || input.finalState === "qa_failed")
+  ) {
+    lines.push(`- 남은 조치: ${input.nextAction}`);
+  }
+  return lines.join("\n");
 }
 
 function supportsArtifactUpload(
@@ -257,6 +338,16 @@ function buildSpecialistArtifactBody(result: SpecialistResult) {
     lines.push("근거");
     for (const finding of result.rawFindings ?? []) {
       lines.push(`- ${finding}`);
+    }
+  }
+
+  if ((result.evidenceArtifacts?.length ?? 0) > 0) {
+    lines.push("");
+    lines.push("부가 증적");
+    for (const artifact of result.evidenceArtifacts ?? []) {
+      lines.push("");
+      lines.push(`[${artifact.title}]`);
+      lines.push((artifact.content ?? "").trim());
     }
   }
 
@@ -520,6 +611,7 @@ export function createRuntimeDispatcher(input: {
       memoryStore.putProjectFact(payload.projectId, `captain.goal.${payload.goalId}.thread_ts`, projectThreadTs);
 
       const specialistResults = [];
+      let postedVisibleUpdate = false;
       for (const role of buildRoleExecutionOrder(captainPlan, specialistRoles)) {
         const roleTasks = captainPlan.taskGraph.filter((task) => task.role === role);
         const now = new Date().toISOString();
@@ -544,9 +636,20 @@ export function createRuntimeDispatcher(input: {
         });
         for (const result of results) {
           specialistResults.push(result);
+          const publicationKey = specialistPublicationKey({
+            goalId: payload.goalId,
+            role: result.role,
+            personaLabel: result.personaLabel,
+          });
+          const publicationFingerprint = specialistPublicationFingerprint(result);
+          const alreadyPublished =
+            memoryStore.getProjectMemory(payload.projectId)[publicationKey] === publicationFingerprint;
           if (
-            shouldPostSpecialistMessage(result)
-            || (compactPresentation === "fact_check" && !isLowSignalNoChangeResult(result))
+            !alreadyPublished
+            && (
+              shouldPostSpecialistMessage(result)
+              || (compactPresentation === "fact_check" && !isLowSignalNoChangeResult(result))
+            )
           ) {
             if (
               input.artifactRoot
@@ -606,6 +709,8 @@ export function createRuntimeDispatcher(input: {
                 throw new Error(`Slack rejected ${result.role} impact message`);
               }
             }
+            postedVisibleUpdate = true;
+            memoryStore.putProjectFact(payload.projectId, publicationKey, publicationFingerprint);
           }
         }
         const roleImpact = results.some((result) => result.impact === "blocking")
@@ -666,22 +771,41 @@ export function createRuntimeDispatcher(input: {
           ? deployDecision.state
           : baseFinalGoalState;
 
+      const leadImpact = [...specialistResults].sort((left, right) => {
+        const rank = { blocking: 0, approval_needed: 1, info: 2 } as const;
+        return rank[left.impact] - rank[right.impact];
+      })[0] ?? null;
+      const rawSummaryText = buildCaptainFinalText({
+        finalState: finalGoalState,
+        impacts: specialistResults.map((result) => ({
+          role: result.role,
+          level: result.impact,
+          message: result.summary,
+          changedFiles: result.changedFiles,
+          verificationNotes: result.verificationNotes,
+        })),
+        nextAction: captainPlan.nextAction,
+      }, {
+        compactMode: compactPresentation,
+      });
+      const summaryFingerprint = captainSummaryFingerprint({
+        finalState: finalGoalState,
+        text: rawSummaryText,
+      });
+      const previousSummaryFingerprint =
+        memoryStore.getProjectMemory(payload.projectId)[captainSummaryKey(payload.goalId)];
+      const summaryText =
+        !postedVisibleUpdate && previousSummaryFingerprint === summaryFingerprint
+          ? buildCaptainRepeatSummary({
+              finalState: finalGoalState,
+              leadSummary: leadImpact?.summary ?? null,
+              nextAction: captainPlan.nextAction,
+            })
+          : rawSummaryText;
       const summary = captain.composeProjectSummary({
         projectId: payload.projectId,
         projectThreadTs: projectThreadTs,
-        summary: buildCaptainFinalText({
-          finalState: finalGoalState,
-          impacts: specialistResults.map((result) => ({
-            role: result.role,
-            level: result.impact,
-            message: result.summary,
-            changedFiles: result.changedFiles,
-            verificationNotes: result.verificationNotes,
-          })),
-          nextAction: captainPlan.nextAction,
-        }, {
-          compactMode: compactPresentation,
-        }),
+        summary: summaryText,
         impacts: specialistResults.map((result) => ({
           role: result.role,
           level: result.impact,
@@ -696,15 +820,16 @@ export function createRuntimeDispatcher(input: {
       if (!summaryResponse.ok) {
         throw new Error("Slack rejected project summary");
       }
+      memoryStore.putProjectFact(
+        payload.projectId,
+        captainSummaryKey(payload.goalId),
+        summaryFingerprint,
+      );
 
       if (
         payload.sourceChannelId
         && payload.sourceChannelId !== payload.projectChannelId
       ) {
-        const leadImpact = [...specialistResults].sort((left, right) => {
-          const rank = { blocking: 0, approval_needed: 1, info: 2 } as const;
-          return rank[left.impact] - rank[right.impact];
-        })[0] ?? null;
         const governorFinal = await input.slackClient.postMessage({
           channel: payload.sourceChannelId,
           thread_ts: payload.intakeThreadTs,
@@ -718,6 +843,29 @@ export function createRuntimeDispatcher(input: {
         });
         if (!governorFinal.ok) {
           throw new Error("Slack rejected governor completion update");
+        }
+      }
+      const mirrorMemory = memoryStore.getProjectMemory(payload.projectId);
+      const mirrorChannelId = mirrorMemory[governorMirrorChannelKey(payload.goalId)];
+      const mirrorThreadTs = mirrorMemory[governorMirrorThreadKey(payload.goalId)];
+      if (
+        mirrorChannelId
+        && mirrorThreadTs
+        && !(mirrorChannelId === payload.sourceChannelId && mirrorThreadTs === payload.intakeThreadTs)
+      ) {
+        const mirroredFinal = await input.slackClient.postMessage({
+          channel: mirrorChannelId,
+          thread_ts: mirrorThreadTs,
+          text: buildGovernorFinalText({
+            projectId: payload.projectId,
+            finalState: finalGoalState,
+            leadSummary: leadImpact?.summary ?? null,
+            changedFiles: specialistResults.flatMap((result) => result.changedFiles ?? []),
+            nextAction: captainPlan.nextAction,
+          }),
+        });
+        if (!mirroredFinal.ok) {
+          throw new Error("Slack rejected mirrored governor completion update");
         }
       }
 

@@ -36,7 +36,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "목표 정의, 범위 고정, 실행 순서 정리가 필요할 때",
     skillPack: ["scope-brief", "dependency-ordering", "initiative-splitting", "decision-logging"],
     allowedTools: ["repo-read", "project-memory", "run-memory"],
-    disallowedTools: ["deploy", "destructive-write"],
+    disallowedTools: ["deploy", "destructive-write", "package-install", "git-publish", "long-running-server"],
   },
   designer: {
     charter: "UX 흐름, 화면 위계, 카피의 모호함을 줄이고 사용자가 한 번에 이해할 경로를 만든다.",
@@ -49,7 +49,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "화면 흐름, UX, 카피, 랜딩 메시지를 점검할 때",
     skillPack: ["ux-flow-review", "copy-critique", "hierarchy-check", "journey-mapping"],
     allowedTools: ["repo-read", "artifact-read", "project-memory"],
-    disallowedTools: ["deploy", "schema-migration"],
+    disallowedTools: ["deploy", "schema-migration", "package-install", "git-publish", "long-running-server"],
   },
   frontend: {
     charter: "사용자에게 보이는 동작, 상태 전이, 컴포넌트 경계를 기준으로 구현 리스크를 본다.",
@@ -62,7 +62,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "클라이언트 동작, 화면 구현, 상호작용 리스크를 볼 때",
     skillPack: ["component-trace", "state-transition-check", "ui-risk-review"],
     allowedTools: ["repo-read", "artifact-read", "browser-check", "verification-log"],
-    disallowedTools: ["deploy", "destructive-write"],
+    disallowedTools: ["deploy", "destructive-write", "package-install", "git-publish", "long-running-server"],
   },
   backend: {
     charter: "데이터 계약, 인증, API, 외부 연동, 실패 모드를 기준으로 서버 측 작업을 본다.",
@@ -75,7 +75,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "저장소, 원격, API, auth, 배포, 환경설정을 볼 때",
     skillPack: ["api-contract-review", "auth-check", "integration-risk-review"],
     allowedTools: ["repo-read", "project-memory", "run-memory", "verification-log"],
-    disallowedTools: ["external-message", "data-delete", "deploy", "destructive-write"],
+    disallowedTools: ["external-message", "data-delete", "deploy", "destructive-write", "package-install", "git-publish", "long-running-server"],
   },
   qa: {
     charter: "완료 선언을 믿지 않고 회귀, 차단 조건, 재현 경로를 기준으로 릴리즈 가능성을 본다.",
@@ -88,7 +88,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "검증, 회귀, 배포 판단, 테스트 범위 점검이 필요할 때",
     skillPack: ["release-gate", "regression-check", "acceptance-criteria-review", "evidence-trace"],
     allowedTools: ["repo-read", "artifact-read", "browser-check", "run-memory", "verification-log"],
-    disallowedTools: ["deploy-approve", "destructive-write"],
+    disallowedTools: ["deploy-approve", "destructive-write", "package-install", "git-publish", "long-running-server"],
   },
   "customer-voice": {
     charter: "내부 효율보다 사용자 가치, 약속, 메시지 선명도를 기준으로 이견을 낸다.",
@@ -101,7 +101,7 @@ const DEFAULT_ROLE_PLAYBOOKS: Record<
     whenToUse: "가치 제안, 카피, JTBD, 사용자 약속을 점검할 때",
     skillPack: ["jtbd-review", "value-prop-check", "message-clarity-review", "persona-simulation", "objection-mapping"],
     allowedTools: ["artifact-read", "project-memory", "run-memory", "browser-check", "test-credentials"],
-    disallowedTools: ["deploy", "schema-migration", "production-write"],
+    disallowedTools: ["deploy", "schema-migration", "production-write", "package-install", "git-publish", "long-running-server"],
   },
 };
 

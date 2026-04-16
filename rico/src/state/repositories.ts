@@ -197,6 +197,9 @@ export function createRepositories(db: Database) {
           status: row.status,
         }));
     },
+    updateProject(id: string, projectId: string) {
+      db.query("update initiatives set project_id = ? where id = ?").run(projectId, id);
+    },
   };
 
   const goals = {
@@ -251,6 +254,9 @@ export function createRepositories(db: Database) {
           title: row.title,
           state: row.state,
         }));
+    },
+    updateProject(goalId: string, projectId: string) {
+      db.query("update goals set project_id = ? where id = ?").run(projectId, goalId);
     },
     updateState(goalId: string, state: string) {
       db.query("update goals set state = ? where id = ?").run(state, goalId);

@@ -4,6 +4,7 @@ export type SpecialistExecutionMode = "analyze" | "write";
 export interface SpecialistArtifact {
   kind: string;
   title: string;
+  content?: string;
 }
 
 export interface SpecialistResult {
@@ -16,6 +17,7 @@ export interface SpecialistResult {
   changedFiles?: string[];
   verificationNotes?: string[];
   personaLabel?: string;
+  evidenceArtifacts?: SpecialistArtifact[];
 }
 
 export function validateSpecialistResult(input: SpecialistResult) {
@@ -51,6 +53,15 @@ export function validateSpecialistResult(input: SpecialistResult) {
     return { ok: false as const };
   }
   if (input.personaLabel != null && !input.personaLabel) {
+    return { ok: false as const };
+  }
+  if (
+    input.evidenceArtifacts != null
+    && (
+      !Array.isArray(input.evidenceArtifacts)
+      || input.evidenceArtifacts.some((artifact) => !artifact.kind || !artifact.title)
+    )
+  ) {
     return { ok: false as const };
   }
 

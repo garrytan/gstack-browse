@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { createRuntimeDispatcher } from "../src/runtime/dispatcher";
+import { MemoryStore } from "../src/memory/store";
 import { openStore } from "../src/state/store";
 import type { LoadedRunContext } from "../src/runtime/job-runner";
 
@@ -779,6 +780,83 @@ test("dispatcher closes the goal with a final report and mirrors completion back
   store.db.close();
 });
 
+test("dispatcher mirrors the final governor summary to a takeover thread even when the source channel is the project channel", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    captainExecutor: async () => ({
+      selectedRoles: ["backend"],
+      nextAction: "원격 저장소와 브랜치 상태를 먼저 정리한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        {
+          id: "task-1",
+          role: "backend",
+          title: "원격 저장소와 브랜치 상태 확인",
+          dependsOn: [],
+        },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: "origin과 upstream 연결 상태를 확인했고 추가 수정은 필요하지 않았어요.",
+        impact: "info",
+        artifacts: [{ kind: "report", title: "backend.md" }],
+        rawFindings: [],
+        executionMode: "analyze",
+        changedFiles: [],
+        verificationNotes: ["git remote -v"],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000008${posted.length}.000100` };
+      },
+    },
+  });
+
+  const context = seedContext({
+    store,
+    projectId: "crypto",
+    projectChannelId: "C_CRYPTO",
+    goalId: "goal-governor-mirror",
+    goalTitle: "원격 저장소 상태만 확인해줘",
+    runId: "run-governor-mirror",
+    payload: {
+      sourceChannelId: "C_CRYPTO",
+      intakeThreadTs: "1710010999.000100",
+      projectThreadTs: "1710010999.000200",
+    },
+  });
+
+  const memoryStore = new MemoryStore(store.db);
+  memoryStore.putProjectFact("crypto", "governor.goal.goal-governor-mirror.mirror_channel_id", "C_TOTAL");
+  memoryStore.putProjectFact("crypto", "governor.goal.goal-governor-mirror.mirror_thread_ts", "1710010999.000500");
+
+  await expect(dispatcher(context)).resolves.toBeUndefined();
+
+  expect(
+    posted.some(
+      (message) =>
+        message.channel === "C_TOTAL"
+        && message.thread_ts === "1710010999.000500"
+        && message.text.includes("총괄 마감"),
+    ),
+  ).toBe(true);
+
+  store.db.close();
+});
+
 test("dispatcher keeps repo-only goals off customer voice fan-out", async () => {
   const store = openStore(":memory:");
   const calledRoles: string[] = [];
@@ -1052,6 +1130,120 @@ test("dispatcher folds no-change backend approval-needed reviews into captain su
   expect(store.repositories.artifacts.listByGoal("goal-no-change-backend-approval")).toHaveLength(0);
   expect(posted.filter((message) => message.text.includes("🧱 백엔드"))).toHaveLength(0);
   expect(posted.some((message) => message.text.includes("캡틴 마감"))).toBe(true);
+
+  store.db.close();
+});
+
+test("dispatcher does not repost an identical no-change backend review for the same goal", async () => {
+  const store = openStore(":memory:");
+  const posted: Array<{ channel: string; thread_ts?: string; text: string }> = [];
+  const dispatcher = createRuntimeDispatcher({
+    db: store.db,
+    maxActiveProjects: 1,
+    captainExecutor: async () => ({
+      selectedRoles: ["backend"],
+      nextAction: "백엔드 쪽 확인 범위만 정리한다.",
+      blockedReason: null,
+      status: "active",
+      taskGraph: [
+        {
+          id: "task-1",
+          role: "backend",
+          title: "원격 저장소와 브랜치 상태 확인",
+          dependsOn: [],
+        },
+      ],
+    }),
+    specialistExecutor: async ({ role }) => ({
+      result: {
+        role,
+        summary: "백엔드 기준으로는 추가 수정이 필요하지 않았어요.",
+        impact: "approval_needed",
+        artifacts: [{ kind: "report", title: "backend-slice.md" }],
+        rawFindings: [],
+        executionMode: "write",
+        changedFiles: [],
+        verificationNotes: [],
+      },
+      meta: {
+        workspacePath: "/tmp/workspace",
+        tokensUsed: 1,
+        inspectedWorkspace: true,
+      },
+    }),
+    slackClient: {
+      async postMessage(input) {
+        posted.push(input);
+        return { ok: true, ts: `171000012${posted.length}.000100` };
+      },
+    },
+  });
+
+  const firstContext = seedContext({
+    store,
+    projectId: "crypto",
+    projectChannelId: "C_CRYPTO",
+    goalId: "goal-backend-repeat",
+    goalTitle: "지금 원격 깃이 연결되어있나?",
+    runId: "run-backend-repeat-1",
+    payload: {
+      sourceChannelId: "C_CRYPTO",
+      intakeThreadTs: "1710012999.000100",
+    },
+  });
+
+  await expect(dispatcher(firstContext)).resolves.toBeUndefined();
+
+  store.repositories.runs.create({
+    id: "run-backend-repeat-2",
+    goalId: "goal-backend-repeat",
+    status: "running",
+    queuedAt: "2026-04-12T16:00:00.000Z",
+    startedAt: "2026-04-12T16:00:05.000Z",
+    finishedAt: null,
+  });
+  const goal = store.repositories.goals.get("goal-backend-repeat");
+  const project = store.repositories.projects.get("crypto");
+  const run = store.repositories.runs.get("run-backend-repeat-2");
+  if (!goal || !project || !run) {
+    throw new Error("Failed to seed second repeat context");
+  }
+  const secondContext: LoadedRunContext = {
+    job: {
+      id: "run-backend-repeat-2",
+      goalId: "goal-backend-repeat",
+      kind: "event",
+      payload: {
+        goalId: "goal-backend-repeat",
+        projectId: "crypto",
+        text: "지금 원격 깃이 연결되어있나?",
+        aiOpsChannelId: "C_AI_OPS",
+        intakeThreadTs: "1710012999.000100",
+        projectChannelId: "C_CRYPTO",
+        projectThreadTs: "1710012999.000100",
+        sourceChannelId: "C_CRYPTO",
+        isFinalGoal: false,
+        requiresDeployApproval: false,
+      },
+    },
+    goal,
+    project,
+    run,
+    target: "governor",
+  };
+
+  const firstPostCount = posted.length;
+  await expect(dispatcher(secondContext)).resolves.toBeUndefined();
+
+  const repeatedBackendMessages = posted
+    .slice(firstPostCount)
+    .filter((message) => message.text.startsWith("🧱 백엔드"));
+  expect(repeatedBackendMessages).toHaveLength(0);
+  expect(
+    posted
+      .slice(firstPostCount)
+      .some((message) => message.text.includes("새로 바뀐 것: 직전 확인과 같아요.")),
+  ).toBe(true);
 
   store.db.close();
 });
