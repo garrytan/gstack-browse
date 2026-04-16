@@ -27,8 +27,7 @@ esac
 if [ ! -f "$JSONL_FILE" ]; then
   echo "cavestack usage — no data yet"
   echo ""
-  echo "Usage data will appear here after you use cavestack skills"
-  echo "with telemetry enabled (cavestack-config set telemetry anonymous)."
+  echo "Usage data will appear here after you use cavestack skills."
   exit 0
 fi
 

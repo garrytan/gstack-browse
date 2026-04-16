@@ -2302,29 +2302,24 @@ describe('discover-skills hidden directory filtering', () => {
   });
 });
 
-describe('telemetry', () => {
-  test('generated SKILL.md contains telemetry start block', () => {
+describe('local analytics', () => {
+  test('generated SKILL.md contains session tracking variables', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
     expect(content).toContain('_TEL_START');
     expect(content).toContain('_SESSION_ID');
-    expect(content).toContain('TELEMETRY:');
-    expect(content).toContain('TEL_PROMPTED:');
-    expect(content).toContain('cavestack-config get telemetry');
   });
 
-  test('generated SKILL.md contains telemetry opt-in prompt', () => {
+  test('generated SKILL.md does NOT contain telemetry opt-in prompt', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('.telemetry-prompted');
-    expect(content).toContain('Help cavestack get better');
-    expect(content).toContain('cavestack-config set telemetry community');
-    expect(content).toContain('cavestack-config set telemetry anonymous');
-    expect(content).toContain('cavestack-config set telemetry off');
+    expect(content).not.toContain('Help cavestack get better');
+    expect(content).not.toContain('cavestack-config set telemetry community');
+    expect(content).not.toContain('cavestack-config set telemetry anonymous');
   });
 
-  test('generated SKILL.md contains telemetry epilogue', () => {
+  test('generated SKILL.md contains completion epilogue', () => {
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Telemetry (run last)');
-    expect(content).toContain('cavestack-telemetry-log');
+    expect(content).toContain('Completion (run last)');
+    expect(content).not.toContain('cavestack-telemetry-log');
     expect(content).toContain('_TEL_END');
     expect(content).toContain('_TEL_DUR');
     expect(content).toContain('SKILL_NAME');
@@ -2332,20 +2327,14 @@ describe('telemetry', () => {
     expect(content).toContain('PLAN MODE EXCEPTION');
   });
 
-  test('generated SKILL.md contains pending marker handling', () => {
-    const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('.pending');
-    expect(content).toContain('_pending_finalize');
-  });
-
-  test('telemetry blocks appear in all skill files that use PREAMBLE', () => {
+  test('completion blocks appear in all skill files that use PREAMBLE', () => {
     const skills = ['qa', 'ship', 'review', 'plan-ceo-review', 'plan-eng-review', 'retro'];
     for (const skill of skills) {
       const skillPath = path.join(ROOT, skill, 'SKILL.md');
       if (fs.existsSync(skillPath)) {
         const content = fs.readFileSync(skillPath, 'utf-8');
         expect(content).toContain('_TEL_START');
-        expect(content).toContain('Telemetry (run last)');
+        expect(content).toContain('Completion (run last)');
       }
     }
   });
@@ -2424,22 +2413,18 @@ describe('community fixes wave', () => {
     }
   });
 
-  // #467 — Telemetry: preamble JSONL writes are gated by telemetry setting
-  test('preamble JSONL writes are inside telemetry conditional', () => {
+  // #467 — Local analytics: preamble JSONL writes are unconditional (no _TEL gate)
+  test('preamble JSONL writes are unconditional', () => {
     const preamble = fs.readFileSync(path.join(ROOT, 'scripts/resolvers/preamble.ts'), 'utf-8');
-    // Find all skill-usage.jsonl write lines
     const lines = preamble.split('\n');
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].includes('skill-usage.jsonl') && lines[i].includes('>>')) {
-        // Look backwards for a telemetry conditional within 5 lines
-        let foundConditional = false;
+        // JSONL writes must NOT be inside a _TEL conditional
         for (let j = i - 1; j >= Math.max(0, i - 5); j--) {
           if (lines[j].includes('_TEL') && lines[j].includes('off')) {
-            foundConditional = true;
-            break;
+            throw new Error(`JSONL write at preamble.ts line ${i + 1} is inside a _TEL conditional — should be unconditional`);
           }
         }
-        expect(foundConditional).toBe(true);
       }
     }
   });

@@ -158,26 +158,6 @@ fi
 # ─── Step 4: Slow path — fetch remote version ────────────────
 mkdir -p "$STATE_DIR"
 
-# Fire Supabase install ping in background (parallel, non-blocking)
-# This logs an update check event for community health metrics via edge function.
-# If Supabase is not configured or telemetry is off, this is a no-op.
-if [ -z "${CAVESTACK_SUPABASE_URL:-}" ] && [ -f "$CAVESTACK_DIR/supabase/config.sh" ]; then
-  . "$CAVESTACK_DIR/supabase/config.sh"
-fi
-_SUPA_URL="${CAVESTACK_SUPABASE_URL:-}"
-_SUPA_KEY="${CAVESTACK_SUPABASE_ANON_KEY:-}"
-# Respect telemetry opt-out — don't ping Supabase if user set telemetry: off
-_TEL_TIER="$("$CAVESTACK_DIR/bin/cavestack-config" get telemetry 2>/dev/null || true)"
-if [ -n "$_SUPA_URL" ] && [ -n "$_SUPA_KEY" ] && [ "${_TEL_TIER:-off}" != "off" ]; then
-  _OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
-  curl -sf --max-time 5 \
-    -X POST "${_SUPA_URL}/functions/v1/update-check" \
-    -H "Content-Type: application/json" \
-    -H "apikey: ${_SUPA_KEY}" \
-    -d "{\"version\":\"$LOCAL\",\"os\":\"$_OS\"}" \
-    >/dev/null 2>&1 &
-fi
-
 # GitHub raw fetch (primary, always reliable)
 REMOTE=""
 REMOTE="$(curl -sf --max-time 5 "$REMOTE_URL" 2>/dev/null || true)"
@@ -199,13 +179,6 @@ fi
 echo "UPGRADE_AVAILABLE $LOCAL $REMOTE" > "$CACHE_FILE"
 if check_snooze "$REMOTE"; then
   exit 0  # snoozed — stay quiet
-fi
-
-# Log upgrade_prompted event (only on slow-path fetch, not cached replays)
-TEL_CMD="$CAVESTACK_DIR/bin/cavestack-telemetry-log"
-if [ -x "$TEL_CMD" ]; then
-  "$TEL_CMD" --event-type upgrade_prompted --skill "" --duration 0 \
-    --outcome success --session-id "update-$$-$(date +%s)" 2>/dev/null &
 fi
 
 echo "UPGRADE_AVAILABLE $LOCAL $REMOTE"
