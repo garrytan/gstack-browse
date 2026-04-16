@@ -6,10 +6,18 @@
 #   cavestack-analytics 7d       # last 7 days
 #   cavestack-analytics 30d      # last 30 days
 #   cavestack-analytics all      # all time
+#   cavestack-analytics dx       # developer-experience metrics (routes to cavestack-dx)
 #
 # Env overrides (for testing):
 #   CAVESTACK_STATE_DIR  — override ~/.cavestack state directory
 set -uo pipefail
+
+# Route `dx` subcommand to cavestack-dx (sibling CLI, local-only DX metrics).
+if [ "${1:-}" = "dx" ]; then
+  _here="$(cd "$(dirname "$0")" && pwd)"
+  shift
+  exec "$_here/cavestack-dx" "${@:-show}"
+fi
 
 STATE_DIR="${CAVESTACK_STATE_DIR:-$HOME/.cavestack}"
 JSONL_FILE="$STATE_DIR/analytics/skill-usage.jsonl"

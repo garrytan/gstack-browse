@@ -1,0 +1,206 @@
+#!/usr/bin/env bash
+# cavestack-dx — personal developer-experience metrics (local-only)
+#
+# Writes and reads ~/.cavestack/analytics/dx-metrics.jsonl
+# Zero network, never sent anywhere.
+#
+# Events tracked:
+#   install_completed   — setup finished successfully
+#   first_skill_run     — user's first skill invocation
+#   skill_list_viewed   — user ran cavestack-skills list
+#
+# Usage:
+#   cavestack-dx record install_completed
+#   cavestack-dx record first_skill_run <skill_name>
+#   cavestack-dx record skill_list_viewed
+#   cavestack-dx show              # formatted dashboard
+#   cavestack-dx show --raw        # raw JSONL
+#   cavestack-dx tthw              # Time To Hello World (seconds)
+set -uo pipefail
+
+STATE_DIR="${CAVESTACK_STATE_DIR:-$HOME/.cavestack}"
+DX_FILE="$STATE_DIR/analytics/dx-metrics.jsonl"
+mkdir -p "$STATE_DIR/analytics" 2>/dev/null
+
+_iso_now() {
+  date -u +%Y-%m-%dT%H:%M:%SZ
+}
+
+_epoch_now() {
+  date +%s
+}
+
+_first_ts_for_event() {
+  local event="$1"
+  [ ! -f "$DX_FILE" ] && return 1
+  grep "\"event\":\"$event\"" "$DX_FILE" 2>/dev/null | head -1 | awk -F'"' '{
+    for (i=1; i<=NF; i++) {
+      if ($i == "ts" && $(i+1) ~ /^:/) { print $(i+2); exit }
+    }
+  }'
+}
+
+cmd_record() {
+  local event="$1"
+  shift || true
+  local detail="${1:-}"
+
+  # Idempotency: install_completed and first_skill_run are one-time events
+  case "$event" in
+    install_completed|first_skill_run)
+      local existing
+      existing="$(_first_ts_for_event "$event")"
+      if [ -n "$existing" ]; then
+        # Already recorded, skip silently (idempotent)
+        return 0
+      fi
+      ;;
+  esac
+
+  local ts
+  ts="$(_iso_now)"
+  local entry
+  if [ -n "$detail" ]; then
+    entry="{\"event\":\"$event\",\"ts\":\"$ts\",\"detail\":\"$detail\"}"
+  else
+    entry="{\"event\":\"$event\",\"ts\":\"$ts\"}"
+  fi
+  echo "$entry" >> "$DX_FILE"
+}
+
+_seconds_between() {
+  local start="$1"
+  local end="$2"
+  # Try bun/node for ISO date parsing (more portable than date -d on Windows)
+  if command -v bun >/dev/null 2>&1; then
+    bun -e "console.log(Math.round((new Date('$end') - new Date('$start')) / 1000))" 2>/dev/null
+  elif command -v node >/dev/null 2>&1; then
+    node -e "console.log(Math.round((new Date('$end') - new Date('$start')) / 1000))" 2>/dev/null
+  else
+    echo "0"
+  fi
+}
+
+cmd_tthw() {
+  if [ ! -f "$DX_FILE" ]; then
+    echo "No DX data yet. Install cavestack and run your first skill."
+    return 0
+  fi
+  local install_ts first_skill_ts
+  install_ts="$(_first_ts_for_event install_completed)"
+  first_skill_ts="$(_first_ts_for_event first_skill_run)"
+
+  if [ -z "$install_ts" ]; then
+    echo "install_completed event missing — run ./setup to record it"
+    return 1
+  fi
+  if [ -z "$first_skill_ts" ]; then
+    echo "first_skill_run event missing — run any skill to record it"
+    return 1
+  fi
+
+  local secs
+  secs="$(_seconds_between "$install_ts" "$first_skill_ts")"
+  echo "Time to Hello World: ${secs}s"
+  echo "  install_completed:  $install_ts"
+  echo "  first_skill_run:    $first_skill_ts"
+
+  # Classify against tiers
+  if [ "$secs" -lt 120 ] 2>/dev/null; then
+    echo "  tier:               CHAMPION (<2 min) 🔥"
+  elif [ "$secs" -lt 300 ] 2>/dev/null; then
+    echo "  tier:               Competitive (2-5 min)"
+  elif [ "$secs" -lt 600 ] 2>/dev/null; then
+    echo "  tier:               Needs Work (5-10 min)"
+  else
+    echo "  tier:               Red Flag (>10 min)"
+  fi
+}
+
+cmd_show() {
+  local mode="${1:-formatted}"
+  if [ ! -f "$DX_FILE" ]; then
+    echo "No DX data yet at $DX_FILE"
+    return 0
+  fi
+
+  if [ "$mode" = "--raw" ]; then
+    cat "$DX_FILE"
+    return
+  fi
+
+  echo "cavestack DX metrics (local-only, never sent)"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  local install_ts first_skill_ts list_viewed_ts
+  install_ts="$(_first_ts_for_event install_completed)"
+  first_skill_ts="$(_first_ts_for_event first_skill_run)"
+  list_viewed_ts="$(_first_ts_for_event skill_list_viewed)"
+
+  [ -n "$install_ts" ]      && echo "  install_completed    $install_ts" || echo "  install_completed    (not recorded)"
+  [ -n "$first_skill_ts" ]  && echo "  first_skill_run      $first_skill_ts" || echo "  first_skill_run      (not recorded)"
+  [ -n "$list_viewed_ts" ]  && echo "  skill_list_viewed    $list_viewed_ts" || echo "  skill_list_viewed    (not recorded)"
+
+  echo ""
+
+  if [ -n "$install_ts" ] && [ -n "$first_skill_ts" ]; then
+    local secs
+    secs="$(_seconds_between "$install_ts" "$first_skill_ts")"
+    echo "  Time to Hello World: ${secs}s"
+  fi
+
+  echo ""
+  echo "  All events:"
+  local total
+  total="$(wc -l < "$DX_FILE" | tr -d ' ')"
+  echo "    total recorded:  $total"
+
+  # Count by event type
+  for ev in install_completed first_skill_run skill_list_viewed; do
+    local c
+    c="$(grep -c "\"event\":\"$ev\"" "$DX_FILE" 2>/dev/null || echo 0)"
+    c="${c:-0}"
+    echo "    $ev: $c"
+  done
+
+  echo ""
+  echo "  Data location: $DX_FILE"
+  echo "  Purge: rm $DX_FILE"
+}
+
+case "${1:-show}" in
+  record)
+    shift
+    [ -z "${1:-}" ] && echo "usage: cavestack-dx record <event> [detail]" >&2 && exit 1
+    cmd_record "$@"
+    ;;
+  show)
+    shift || true
+    cmd_show "${1:-}"
+    ;;
+  tthw)
+    cmd_tthw
+    ;;
+  --help|-h|help)
+    cat <<EOF
+cavestack-dx — personal developer-experience metrics (local-only)
+
+USAGE:
+  cavestack-dx record <event> [detail]  Record a DX event
+  cavestack-dx show                     Show formatted dashboard
+  cavestack-dx show --raw               Show raw JSONL
+  cavestack-dx tthw                     Show Time to Hello World
+
+EVENTS:
+  install_completed    Recorded by ./setup on success
+  first_skill_run      Recorded on first skill invocation
+  skill_list_viewed    Recorded when user runs cavestack-skills list
+
+PRIVACY:
+  All data local at ~/.cavestack/analytics/dx-metrics.jsonl.
+  Never sent anywhere. Purge: rm \$HOME/.cavestack/analytics/dx-metrics.jsonl
+EOF
+    ;;
+  *) echo "Unknown subcommand: $1" >&2; exit 1 ;;
+esac
