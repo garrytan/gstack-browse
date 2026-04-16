@@ -1,0 +1,122 @@
+{
+  "CS001": {
+    "message": "bun runtime not found",
+    "fix": "Run: curl -fsSL https://bun.sh/install | bash",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS001"
+  },
+  "CS002": {
+    "message": "git not found",
+    "fix": "Install git: https://git-scm.com/downloads",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS002"
+  },
+  "CS003": {
+    "message": "node runtime not found (optional for some skills)",
+    "fix": "Install Node.js 18+: https://nodejs.org/",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS003"
+  },
+  "CS100": {
+    "message": "install directory already exists with conflicting content",
+    "fix": "Back up and remove: mv ~/.claude/skills/cavestack ~/.claude/skills/cavestack.bak && rerun setup",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS100"
+  },
+  "CS101": {
+    "message": "setup requires Claude Code",
+    "fix": "Install Claude Code first: https://docs.anthropic.com/en/docs/claude-code",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS101"
+  },
+  "CS102": {
+    "message": "SHA256 checksum mismatch on install script",
+    "fix": "Do not trust this installer. Report at https://github.com/JerkyJesse/cavestack/issues",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS102"
+  },
+  "CS200": {
+    "message": "config key not recognized",
+    "fix": "Run: cavestack-config list — see valid keys",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS200"
+  },
+  "CS201": {
+    "message": "config value invalid for key",
+    "fix": "Check expected type. Boolean keys accept true/false. Run: cavestack-config get KEY to see current value",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS201"
+  },
+  "CS300": {
+    "message": "skill not found",
+    "fix": "Run: cavestack-skills list — see all available skills",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS300"
+  },
+  "CS301": {
+    "message": "skill SKILL.md exceeds 100KB ceiling",
+    "fix": "Extract sections into separate resolver files or trim voice markup",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS301"
+  },
+  "CS302": {
+    "message": "skill discovery blocked — symlink target missing",
+    "fix": "Run: cd ~/.claude/skills/cavestack && ./setup to rebuild symlinks",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS302"
+  },
+  "CS400": {
+    "message": "browse binary not built",
+    "fix": "Run: cd ~/.claude/skills/cavestack/browse && bun install && bun run build",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS400"
+  },
+  "CS401": {
+    "message": "browse server-node bundle missing (Windows)",
+    "fix": "Run: cd ~/.claude/skills/cavestack/browse && bun run build",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS401"
+  },
+  "CS402": {
+    "message": "design binary needs OpenAI API key",
+    "fix": "Run: design setup — or set OPENAI_API_KEY in environment",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS402"
+  },
+  "CS600": {
+    "message": "cavestack run could not intercept Claude Code session",
+    "fix": "Update Claude Code to latest. Check: claude --version",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS600"
+  },
+  "CS601": {
+    "message": "token budget exceeded",
+    "fix": "Raise with --budget N, or run task in smaller steps",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS601"
+  },
+  "CS602": {
+    "message": "session replay transcript unreadable",
+    "fix": "Check file exists and has right permissions: chmod 600 ~/.cavestack/sessions/*.replay",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS602"
+  },
+  "CS603": {
+    "message": "share command refused — non-redacted record detected",
+    "fix": "Re-record with redaction enabled (default), or review the record and manually remove secrets before retrying",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS603"
+  },
+  "CS700": {
+    "message": "migration script failed",
+    "fix": "Revert to backup: ./setup --restore-backup. Report at https://github.com/JerkyJesse/cavestack/issues",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS700"
+  },
+  "CS701": {
+    "message": "migration ran but is not idempotent on this install",
+    "fix": "Remove marker: rm ~/.cavestack/.migrations/v1.0.0.0.done && rerun ./setup",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS701"
+  },
+  "CS800": {
+    "message": "update check failed (network unreachable)",
+    "fix": "Proceed offline. Upgrade manually later: cd ~/.claude/skills/cavestack && git pull && ./setup",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS800"
+  },
+  "CS801": {
+    "message": "upgrade aborted — uncommitted changes in cavestack dir",
+    "fix": "Commit or stash: cd ~/.claude/skills/cavestack && git stash",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS801"
+  },
+  "CS900": {
+    "message": "internal invariant violated",
+    "fix": "Report with steps to reproduce: https://github.com/JerkyJesse/cavestack/issues",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS900"
+  },
+  "CS901": {
+    "message": "feature not yet implemented",
+    "fix": "Track progress in docs/roadmap.md. Request priority via GitHub Issues.",
+    "docs": "https://cavestack.jerkyjesse.io/docs/errors/CS901"
+  }
+}
