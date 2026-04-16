@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+# cavestack-skills — skill catalog + discovery CLI
+#
+# Usage:
+#   cavestack-skills list            # show all skills, hero first
+#   cavestack-skills list --hero     # only the 6 hero skills
+#   cavestack-skills list --all      # all skills, alphabetical
+#   cavestack-skills info <skill>    # show description + link
+#   cavestack-skills search <term>   # fuzzy match name or description
+#   cavestack-skills count           # number of installed skills
+set -uo pipefail
+
+# Resolve cavestack install dir
+_here="$(cd "$(dirname "$0")" && pwd)"
+CAVESTACK_ROOT="$(dirname "$_here")"
+[ -f "$CAVESTACK_ROOT/VERSION" ] || CAVESTACK_ROOT="$HOME/.claude/skills/cavestack"
+
+# Source error helper if available (non-fatal if missing)
+if [ -f "$CAVESTACK_ROOT/lib/error.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$CAVESTACK_ROOT/lib/error.sh"
+fi
+
+# Hero skills — the six featured on README + github.io (per design doc v1.0)
+HERO_SKILLS="office-hours investigate plan-eng-review plan-design-review plan-devex-review cso"
+
+# ANSI helpers (disabled if not TTY)
+if [ -t 1 ]; then
+  C_AMBER=$'\033[38;5;214m'
+  C_DIM=$'\033[38;5;244m'
+  C_BOLD=$'\033[1m'
+  C_RESET=$'\033[0m'
+else
+  C_AMBER=""; C_DIM=""; C_BOLD=""; C_RESET=""
+fi
+
+# Extract description from a SKILL.md (single line, first 80 chars of first description line)
+_desc_for() {
+  local skill="$1"
+  local skill_md="$CAVESTACK_ROOT/$skill/SKILL.md"
+  [ ! -f "$skill_md" ] && printf '[skill file missing]' && return
+  # Description field is markdown YAML frontmatter, can be multi-line with | pipe
+  # Extract first non-frontmatter, non-empty prose line after description:
+  awk '
+    /^description:[[:space:]]*\|/ { in_desc=1; next }
+    /^description:[[:space:]]*["'"'"']?/ {
+      line=$0
+      sub(/^description:[[:space:]]*["'"'"']?/, "", line)
+      sub(/["'"'"']?[[:space:]]*$/, "", line)
+      print line
+      exit
+    }
+    in_desc && /^[[:space:]]+[A-Za-z]/ {
+      sub(/^[[:space:]]+/, "")
+      print
+      exit
+    }
+  ' "$skill_md" 2>/dev/null | head -c 80
+}
+
+_is_hero() {
+  local skill="$1"
+  case " $HERO_SKILLS " in *" $skill "*) return 0 ;; *) return 1 ;; esac
+}
+
+# List all skills on disk (excluding hidden dirs + non-skill subdirs)
+_list_all_skill_dirs() {
+  find "$CAVESTACK_ROOT" -maxdepth 2 -name SKILL.md -not -path "*/node_modules/*" 2>/dev/null \
+    | while read -r f; do
+      d="$(dirname "$f")"
+      basename "$d"
+    done | sort -u
+}
+
+cmd_list() {
+  local mode="$1"
+  local all_skills
+  all_skills="$(_list_all_skill_dirs)"
+  [ -z "$all_skills" ] && echo "No skills found at $CAVESTACK_ROOT" >&2 && exit 1
+
+  if [ "$mode" = "--hero" ]; then
+    echo "${C_BOLD}HERO SKILLS (featured)${C_RESET}"
+    echo
+    for s in $HERO_SKILLS; do
+      if echo "$all_skills" | grep -qx "$s"; then
+        desc="$(_desc_for "$s")"
+        printf "  ${C_AMBER}%-22s${C_RESET}  %s\n" "/$s" "$desc"
+      fi
+    done
+    return
+  fi
+
+  if [ "$mode" = "--all" ]; then
+    echo "${C_BOLD}ALL SKILLS (alphabetical)${C_RESET}"
+    echo
+    for s in $all_skills; do
+      desc="$(_desc_for "$s")"
+      if _is_hero "$s"; then
+        printf "  ${C_AMBER}%-22s${C_RESET}  %s\n" "/$s" "$desc"
+      else
+        printf "  ${C_DIM}%-22s${C_RESET}  %s\n" "/$s" "$desc"
+      fi
+    done
+    return
+  fi
+
+  # Default: hero first, then rest
+  echo "${C_BOLD}HERO SKILLS${C_RESET} (featured — think before code)"
+  echo
+  for s in $HERO_SKILLS; do
+    if echo "$all_skills" | grep -qx "$s"; then
+      desc="$(_desc_for "$s")"
+      printf "  ${C_AMBER}%-22s${C_RESET}  %s\n" "/$s" "$desc"
+    fi
+  done
+  echo
+  echo "${C_DIM}OTHER SKILLS${C_RESET} (type full name to invoke)"
+  echo
+  for s in $all_skills; do
+    _is_hero "$s" && continue
+    desc="$(_desc_for "$s")"
+    printf "  ${C_DIM}%-22s  %s${C_RESET}\n" "/$s" "$desc"
+  done
+  echo
+  echo "${C_DIM}Total: $(echo "$all_skills" | wc -l | tr -d ' ') skills. Use 'cavestack-skills info <skill>' for details.${C_RESET}"
+}
+
+cmd_info() {
+  local skill="$1"
+  [ -z "$skill" ] && echo "usage: cavestack-skills info <skill>" >&2 && exit 1
+  skill="${skill#/}"
+  local skill_md="$CAVESTACK_ROOT/$skill/SKILL.md"
+  if [ ! -f "$skill_md" ]; then
+    if type cavestack_error >/dev/null 2>&1; then
+      cavestack_error CS300 "skill '$skill' not found at $skill_md"
+    else
+      echo "Error[CS300]: skill '$skill' not found" >&2
+      echo "   fix: run 'cavestack-skills list' to see available skills" >&2
+      exit 1
+    fi
+  fi
+  echo "${C_BOLD}/$skill${C_RESET}"
+  _is_hero "$skill" && echo "${C_AMBER}  [HERO]${C_RESET}"
+  echo
+  echo "${C_DIM}Description:${C_RESET}"
+  _desc_for "$skill"
+  echo
+  echo
+  echo "${C_DIM}Docs:${C_RESET} $skill_md"
+}
+
+cmd_search() {
+  local term="$1"
+  [ -z "$term" ] && echo "usage: cavestack-skills search <term>" >&2 && exit 1
+  local all_skills
+  all_skills="$(_list_all_skill_dirs)"
+  local found=0
+  for s in $all_skills; do
+    desc="$(_desc_for "$s")"
+    # Case-insensitive match in name or description
+    if echo "$s $desc" | grep -qi "$term"; then
+      if _is_hero "$s"; then
+        printf "  ${C_AMBER}%-22s${C_RESET}  %s\n" "/$s" "$desc"
+      else
+        printf "  %-22s  %s\n" "/$s" "$desc"
+      fi
+      found=$((found + 1))
+    fi
+  done
+  if [ "$found" -eq 0 ]; then
+    echo "No skills match '$term'. Try 'cavestack-skills list' for all." >&2
+    exit 1
+  fi
+}
+
+cmd_count() {
+  _list_all_skill_dirs | wc -l | tr -d ' '
+}
+
+cmd_help() {
+  cat <<EOF
+${C_BOLD}cavestack-skills${C_RESET} — skill catalog + discovery
+
+${C_BOLD}USAGE${C_RESET}
+  cavestack-skills list            # hero first, then others
+  cavestack-skills list --hero     # only the 6 featured skills
+  cavestack-skills list --all      # all skills, alphabetical
+  cavestack-skills info <skill>    # description + docs path
+  cavestack-skills search <term>   # fuzzy match name or description
+  cavestack-skills count           # number of installed skills
+
+${C_BOLD}ALIAS${C_RESET}
+  cs-skills                        # shorter form (same CLI)
+
+${C_BOLD}EXAMPLES${C_RESET}
+  cavestack-skills list
+  cavestack-skills info office-hours
+  cavestack-skills search debug
+EOF
+}
+
+# ─── Dispatch ─────────────────────────────────────────────────
+case "${1:-}" in
+  list|"")
+    shift || true
+    cmd_list "${1:-}"
+    ;;
+  info)
+    shift
+    cmd_info "${1:-}"
+    ;;
+  search)
+    shift
+    cmd_search "${1:-}"
+    ;;
+  count)
+    cmd_count
+    ;;
+  --help|-h|help)
+    cmd_help
+    ;;
+  *)
+    echo "Unknown subcommand: $1" >&2
+    cmd_help >&2
+    exit 1
+    ;;
+esac

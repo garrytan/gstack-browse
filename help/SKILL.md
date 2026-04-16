@@ -1,0 +1,66 @@
+---
+name: help
+description: |
+  In-session skill catalog. Shows all CaveStack skills with one-line descriptions,
+  grouped by hero (featured) and full list. Use when user asks "what skills exist",
+  "list skills", "/help", or is new to CaveStack and needs discovery without
+  leaving Claude Code.
+---
+<!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
+<!-- Regenerate: bun run gen:skill-docs -->
+
+# /help — In-session skill discovery
+
+When the user invokes `/help`, show them the skill catalog.
+
+## Quick path
+
+Run:
+
+```bash
+~/.claude/skills/cavestack/bin/cavestack-skills list 2>&1
+```
+
+Then present the output to the user.
+
+If that CLI is unavailable, fall back to the list below.
+
+## Hero skills (featured in v1.0.0.0)
+
+These six embody the "think before code" moat:
+
+| Skill | What it does |
+|-------|--------------|
+| `/office-hours` | Premise challenge + design doc before building. Six forcing questions. |
+| `/investigate` | Systematic root-cause debugging. Reproduce → isolate → diagnose → fix. |
+| `/plan-eng-review` | Architecture + tests + coverage lock before implementation. |
+| `/plan-design-review` | UI/UX audit with mockups before implementation. |
+| `/plan-devex-review` | Developer-experience critique with personas + benchmarks. |
+| `/cso` | Security audit: OWASP Top 10, STRIDE, supply chain. |
+
+## Other skills (34+ available by full name)
+
+Any skill not in the hero list is still fully installed and invokable by its
+full `/name`. Run `cavestack-skills list --all` (or `cs-skills list --all`)
+for the complete alphabetical list.
+
+Commonly used: `/ship`, `/review`, `/qa`, `/checkpoint`, `/health`, `/retro`,
+`/document-release`, `/land-and-deploy`, `/autoplan`, `/codex`, `/investigate`.
+
+## After presenting
+
+If the user asked `/help` because they want to DO something, ask them what
+they're trying to accomplish and route to the best-fit skill. Don't just dump
+the list and stop — help them pick.
+
+Common routing:
+- "I'm starting a new feature" → `/office-hours`
+- "Something broke" → `/investigate`
+- "I'm ready to ship" → `/ship`
+- "My code has bugs" → `/qa`
+- "I need a review before merging" → `/review`
+
+## Completion
+
+This skill has no persistent side effect. Do not write telemetry, review log,
+or any other file. It is pure discovery.
