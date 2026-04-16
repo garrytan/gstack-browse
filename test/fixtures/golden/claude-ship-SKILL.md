@@ -86,6 +86,14 @@ fi
 _ROUTING_DECLINED=$(~/.claude/skills/gstack/bin/gstack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+# Vendoring deprecation: detect if CWD has a vendored gstack copy
+_VENDORED="no"
+if [ -d ".claude/skills/gstack" ] && [ ! -L ".claude/skills/gstack" ]; then
+  if [ -f ".claude/skills/gstack/VERSION" ] || [ -d ".claude/skills/gstack/.git" ]; then
+    _VENDORED="yes"
+  fi
+fi
+echo "VENDORED_GSTACK: $_VENDORED"
 # Detect spawned session (OpenClaw or other orchestrator)
 [ -n "$OPENCLAW_SESSION" ] && echo "SPAWNED_SESSION: true" || true
 ```
@@ -213,6 +221,38 @@ If B: run `~/.claude/skills/gstack/bin/gstack-config set routing_declined true`
 Say "No problem. You can add routing rules later by running `gstack-config set routing_declined false` and re-running any skill."
 
 This only happens once per project. If `HAS_ROUTING` is `yes` or `ROUTING_DECLINED` is `true`, skip this entirely.
+
+If `VENDORED_GSTACK` is `yes`: This project has a vendored copy of gstack at
+`.claude/skills/gstack/`. Vendoring is deprecated. We will not keep vendored copies
+up to date, so this project's gstack will fall behind.
+
+Use AskUserQuestion (one-time per project, check for `~/.gstack/.vendoring-warned-$SLUG` marker):
+
+> This project has gstack vendored in `.claude/skills/gstack/`. Vendoring is deprecated.
+> We won't keep this copy up to date, so you'll fall behind on new features and fixes.
+>
+> Want to migrate to team mode? It takes about 30 seconds.
+
+Options:
+- A) Yes, migrate to team mode now
+- B) No, I'll handle it myself
+
+If A:
+1. Run `git rm -r .claude/skills/gstack/`
+2. Run `echo '.claude/skills/gstack/' >> .gitignore`
+3. Run `~/.claude/skills/gstack/bin/gstack-team-init required` (or `optional`)
+4. Run `git add .claude/ .gitignore CLAUDE.md && git commit -m "chore: migrate gstack from vendored to team mode"`
+5. Tell the user: "Done. Each developer now runs: `cd ~/.claude/skills/gstack && ./setup --team`"
+
+If B: say "OK, you're on your own to keep the vendored copy up to date."
+
+Always run (regardless of choice):
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" 2>/dev/null || true
+touch ~/.gstack/.vendoring-warned-${SLUG:-unknown}
+```
+
+This only happens once per project. If the marker file exists, skip entirely.
 
 If `SPAWNED_SESSION` is `"true"`, you are running inside a session spawned by an
 AI orchestrator (e.g., OpenClaw). In spawned sessions:
@@ -1989,10 +2029,13 @@ DIFF_INS=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ insertion'
 DIFF_DEL=$(git diff origin/<base> --stat | tail -1 | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || echo "0")
 DIFF_TOTAL=$((DIFF_INS + DIFF_DEL))
 which codex 2>/dev/null && echo "CODEX_AVAILABLE" || echo "CODEX_NOT_AVAILABLE"
+which coderabbit 2>/dev/null && echo "CODERABBIT_AVAILABLE" || echo "CODERABBIT_NOT_AVAILABLE"
 # Legacy opt-out — only gates Codex passes, Claude always runs
 OLD_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || true)
 echo "DIFF_SIZE: $DIFF_TOTAL"
 echo "OLD_CFG: ${OLD_CFG:-not_set}"
+# Detect commit state for CodeRabbit flag selection
+git diff --quiet && git diff --cached --quiet && echo "CHANGES_COMMITTED" || echo "CHANGES_UNCOMMITTED"
 ```
 
 If `OLD_CFG` is `disabled`: skip Codex passes only. Claude adversarial subagent still runs (it's free and fast). Jump to the "Claude adversarial subagent" section.
@@ -2042,6 +2085,39 @@ If Codex is NOT available: "Codex CLI not found — running Claude adversarial o
 
 ---
 
+### CodeRabbit review (always runs when available)
+
+If `CODERABBIT_AVAILABLE`: run CodeRabbit CLI review. The flag depends on whether changes are committed or uncommitted at the time this step runs.
+
+**If `CHANGES_UNCOMMITTED`** (Step 3.8 runs before Step 6 commits):
+
+```bash
+coderabbit review --prompt-only -t uncommitted 2>&1
+```
+
+`--prompt-only` outputs the review as plain text (no interactive mode). `-t uncommitted` scopes the review to unstaged/staged changes only.
+
+**If `CHANGES_COMMITTED`** (re-running after Step 6, or all changes already committed):
+
+```bash
+coderabbit review --base <base> 2>&1
+```
+
+This reviews committed changes against the base branch. CodeRabbit may take 1-3 minutes for large diffs. Set the Bash tool's `timeout` parameter to `300000` (5 minutes).
+
+Present findings under a `CODERABBIT SAYS:` header. This is informational — it never blocks shipping. FIXABLE findings flow into the Fix-First pipeline alongside Claude and Codex findings.
+
+**Error handling:** All errors are non-blocking.
+- **Auth failure:** If output contains "auth", "login", "unauthorized", or "API key": "CodeRabbit authentication failed. Run \`coderabbit auth login\` to authenticate."
+- **Timeout:** "CodeRabbit timed out after 5 minutes."
+- **Empty response:** "CodeRabbit returned no findings."
+
+If CodeRabbit is NOT available: "CodeRabbit CLI not found — skipping. Install: `npm install -g coderabbit`"
+
+**Parallelism:** CodeRabbit can run in parallel with the Claude adversarial subagent and Codex adversarial challenge. Launch all three simultaneously when possible.
+
+---
+
 ### Codex structured review (large diffs only, 200+ lines)
 
 If `DIFF_TOTAL >= 200` AND Codex is available AND `OLD_CFG` is NOT `disabled`:
@@ -2080,7 +2156,7 @@ After all passes complete, persist:
 ```bash
 ~/.claude/skills/gstack/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"always","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 ```
-Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
+Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = comma-separated list of tools that ran (e.g., "claude,codex,coderabbit" or "claude,coderabbit" or "claude"). GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
 
 ---
 
@@ -2095,7 +2171,8 @@ ADVERSARIAL REVIEW SYNTHESIS (always-on, N lines):
   Unique to Claude structured review: [from earlier step]
   Unique to Claude adversarial: [from subagent]
   Unique to Codex: [from codex adversarial or code review, if ran]
-  Models used: Claude structured ✓  Claude adversarial ✓/✗  Codex ✓/✗
+  Unique to CodeRabbit: [from coderabbit review, if ran]
+  Models used: Claude structured ✓  Claude adversarial ✓/✗  Codex ✓/✗  CodeRabbit ✓/✗
 ════════════════════════════════════════════════════════════
 ```
 
