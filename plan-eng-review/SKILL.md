@@ -1269,6 +1269,11 @@ Rules:
    - `X-Yh human time`
    - `A-Bh CC time`
 
+   Arithmetic rule:
+   - every subtotal or total must equal the direct sum of the table ranges above it
+   - do not silently add coordination or contingency buffer into those totals
+   - if a buffer is warranted, show it separately under wall-clock planning or as an explicit buffer line item
+
 6. **Dependency-aware execution map**
    Include:
    - the critical path
