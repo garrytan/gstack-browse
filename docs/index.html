@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaveStack — Why use many word when few do?</title>
+<meta name="description" content="Claude Code skills that shut up by default. 40 skills, caveman mode, 75% less talking.">
+<meta property="og:title" content="CaveStack">
+<meta property="og:description" content="Why use many word when few do? Claude Code skills with caveman mode baked in.">
+<meta property="og:image" content="images/social-preview.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --base: #0C0C0C;
+    --surface: #141414;
+    --panel: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --heading: #e8d5b7;
+    --accent: #c4956a;
+    --amber: #F59E0B;
+    --green: #3fb950;
+    --red: #f85149;
+    --cave-brown: rgba(139,69,19,0.08);
+  }
+
+  body {
+    background: var(--base);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Grain texture */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Cave wall radial overlays */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 10% 20%, var(--cave-brown) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 80%, var(--cave-brown) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(60,40,20,0.05) 0%, transparent 70%);
+  }
+
+  a { color: var(--amber); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center;
+    padding: 100px 0 80px;
+    position: relative;
+  }
+
+  .hero-cave-elements {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .cave-el {
+    position: absolute;
+    opacity: 0.1;
+    font-size: 36px;
+  }
+  .cave-el.h1 { top: 60px; left: 8%; transform: rotate(-20deg); }
+  .cave-el.h2 { top: 40px; right: 12%; transform: rotate(10deg); font-size: 28px; }
+  .cave-el.t1 { bottom: 100px; left: 5%; font-size: 32px; opacity: 0.15; }
+  .cave-el.t2 { bottom: 80px; right: 6%; font-size: 32px; opacity: 0.15; }
+  .cave-el.a1 { top: 50%; left: 3%; font-size: 24px; }
+  .cave-el.a2 { top: 40%; right: 4%; font-size: 24px; }
+  .cave-el.s1 { top: 30%; left: 15%; opacity: 0.06; font-size: 48px; transform: rotate(-30deg); }
+  .cave-el.s2 { bottom: 30%; right: 15%; opacity: 0.06; font-size: 48px; transform: rotate(20deg); }
+
+  .hero-title {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    font-size: clamp(48px, 8vw, 96px);
+    color: var(--heading);
+    letter-spacing: 6px;
+    text-shadow: 3px 3px 0 #3d2b1f, 6px 6px 20px rgba(0,0,0,0.5);
+    margin-bottom: 16px;
+  }
+
+  .hero-tagline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: clamp(16px, 2.5vw, 24px);
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+
+  .hero-sub {
+    font-size: 18px;
+    color: var(--text-dim);
+    margin-bottom: 40px;
+  }
+
+  .install-box {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .install-box .prompt { color: var(--green); user-select: none; }
+  .install-box .cmd { color: var(--text); white-space: nowrap; }
+  .install-box .copy-btn {
+    background: var(--amber);
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .install-box .copy-btn:hover { background: #d99a08; }
+
+  .hero-links {
+    margin-top: 24px;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .hero-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .hero-links a:hover { color: var(--amber); }
+
+  /* ── SECTION ── */
+  section {
+    padding: 80px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 32px;
+    color: var(--heading);
+    margin-bottom: 12px;
+  }
+
+  .section-subtitle {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin-bottom: 40px;
+  }
+
+  /* ── BEFORE/AFTER ── */
+  .comparison-img {
+    width: 100%;
+    max-width: 1000px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    display: block;
+    margin: 0 auto 20px;
+  }
+
+  .comparison-caption {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .comparison-caption em { color: var(--accent); }
+
+  /* ── SKILLS GRID ── */
+  .skills-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 16px;
+  }
+
+  .skill-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    transition: border-color 0.15s ease-out;
+  }
+  .skill-card:hover { border-color: var(--amber); }
+
+  .skill-card .skill-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .skill-card .skill-desc {
+    font-size: 14px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .skills-more {
+    text-align: center;
+    margin-top: 24px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  /* ── HOW IT WORK ── */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .step-num {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    font-size: 40px;
+    color: var(--amber);
+    opacity: 0.3;
+    margin-bottom: 8px;
+  }
+
+  .step-title {
+    font-weight: 600;
+    font-size: 18px;
+    color: var(--heading);
+    margin-bottom: 8px;
+  }
+
+  .step-text { color: var(--text-dim); font-size: 14px; }
+
+  .step code {
+    display: block;
+    background: var(--panel);
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text);
+    overflow-x: auto;
+  }
+
+  /* ── CAVEMAN CONTROL ── */
+  .intensity {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .intensity-level {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px 32px;
+    text-align: center;
+    min-width: 200px;
+    flex: 1;
+    max-width: 320px;
+    transition: border-color 0.15s ease-out;
+  }
+  .intensity-level:hover { border-color: var(--accent); }
+
+  .intensity-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--amber);
+    margin-bottom: 8px;
+  }
+
+  .intensity-label {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: var(--heading);
+    margin-bottom: 4px;
+  }
+
+  .intensity-desc {
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  .intensity-example {
+    margin-top: 16px;
+    background: var(--panel);
+    border-radius: 6px;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: left;
+    line-height: 1.6;
+  }
+
+  .intensity-level.active {
+    border-color: var(--amber);
+    box-shadow: 0 0 20px rgba(245,158,11,0.1);
+  }
+  .intensity-level.active .intensity-label::after {
+    content: ' (default)';
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px 0;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  footer .footer-tagline {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    font-size: 16px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+
+  footer .footer-links {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  footer .credit {
+    font-size: 13px;
+    color: #484f58;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .hero { padding: 60px 0 50px; }
+    section { padding: 50px 0; }
+    .install-box { flex-direction: column; align-items: stretch; text-align: center; }
+    .install-box .cmd { white-space: normal; word-break: break-all; font-size: 12px; }
+    .skills-grid { grid-template-columns: 1fr; }
+    .intensity { flex-direction: column; align-items: center; }
+    .intensity-level { max-width: 100%; }
+    .cave-el { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══ -->
+<div class="hero">
+  <div class="hero-cave-elements">
+    <span class="cave-el h1">&#9995;</span>
+    <span class="cave-el h2">&#9995;</span>
+    <span class="cave-el t1">&#128293;</span>
+    <span class="cave-el t2">&#128293;</span>
+    <span class="cave-el a1">&#129420;</span>
+    <span class="cave-el a2">&#128100;</span>
+    <span class="cave-el s1">///</span>
+    <span class="cave-el s2">///</span>
+  </div>
+  <div class="container">
+    <h1 class="hero-title">CAVESTACK</h1>
+    <p class="hero-tagline">Why use many word when few do?</p>
+    <p class="hero-sub">Claude Code skills that shut up by default. 40 skills. Caveman mode. 75% less talking.</p>
+    <div class="install-box">
+      <span class="prompt">$</span>
+      <span class="cmd">git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup');this.textContent='Done'">Copy</button>
+    </div>
+    <div class="hero-links">
+      <a href="https://github.com/JerkyJesse/cavestack">GitHub</a>
+      <a href="https://github.com/JerkyJesse/cavestack/issues">Issues</a>
+      <a href="https://github.com/JerkyJesse/cavestack#readme">README</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ BEFORE / AFTER ═══ -->
+<section>
+  <div class="container">
+    <h2 class="section-title">Before / After</h2>
+    <p class="section-subtitle">Same /review. Same patch. Same findings. Different word count.</p>
+    <img src="images/sidebyside-review.png" alt="Verbose review vs CaveStack review side by side" class="comparison-img" loading="lazy">
+    <p class="comparison-caption">Left: <em>~250 words</em> of preamble, summaries, recommendations. Right: <em>~40 words</em>. Bug found. Fix shown. Done.</p>
+  </div>
+</section>
+
+<!-- ═══ WHAT YOU GET ═══ -->
+<section>
+  <div class="container">
+    <h2 class="section-title">What You Get</h2>
+    <p class="section-subtitle">40 skills. All work. No fluff.</p>
+    <div class="skills-grid">
+      <div class="skill-card">
+        <div class="skill-cmd">/review</div>
+        <div class="skill-desc">Analyze diff. Find bugs, security holes, style problems. Report findings with line numbers and fixes.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/ship</div>
+        <div class="skill-desc">Test, review, version bump, push, create PR. One command, whole pipeline.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/qa</div>
+        <div class="skill-desc">QA test web app with headless browser. Find bugs. Fix them. Re-verify. Loop until clean.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/investigate</div>
+        <div class="skill-desc">Systematic root-cause debugging. Four phases: investigate, analyze, hypothesize, implement. No fix without root cause.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/office-hours</div>
+        <div class="skill-desc">Brainstorm ideas. Startup mode: hard questions. Builder mode: enthusiastic collaborator. Output: design doc.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/cso</div>
+        <div class="skill-desc">Security audit. OWASP Top 10 + STRIDE threat modeling. Secrets archaeology. Dependency supply chain.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/browse</div>
+        <div class="skill-desc">Headless browser. Navigate pages, take screenshots, test interactions, verify page state.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/design-review</div>
+        <div class="skill-desc">Visual QA. Find spacing issues, hierarchy problems, AI slop. Fix in source code. Before/after proof.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/autoplan</div>
+        <div class="skill-desc">Run CEO + design + eng reviews in sequence. Auto-decisions on clear calls. Surface taste decisions.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/retro</div>
+        <div class="skill-desc">Weekly eng retrospective. Commit history analysis, work patterns, code quality metrics. Trend tracking.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/codex</div>
+        <div class="skill-desc">Second opinion from OpenAI Codex. Independent diff review. Adversarial challenge mode. Consult mode.</div>
+      </div>
+      <div class="skill-card">
+        <div class="skill-cmd">/checkpoint</div>
+        <div class="skill-desc">Save work state. Resume exactly where you left off. Survives session boundaries and branch switches.</div>
+      </div>
+    </div>
+    <p class="skills-more">...and 28 more. Run <code style="background:var(--panel);padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px">/caveman-help</code> for full list.</p>
+  </div>
+</section>
+
+<!-- ═══ HOW IT WORK ═══ -->
+<section>
+  <div class="container">
+    <h2 class="section-title">How It Work</h2>
+    <p class="section-subtitle">Three grunt. That all.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title">Clone</div>
+        <div class="step-text">Grab repo. Put in Claude skills folder.</div>
+        <code>git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack</code>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">Setup</div>
+        <div class="step-text">Build binaries. Wire hooks. Create symlinks.</div>
+        <code>cd ~/.claude/skills/cavestack && ./setup</code>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">Use</div>
+        <div class="step-text">Open Claude Code. Caveman mode active. No command needed.</div>
+        <code>claude  # that it. just use it.</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ CAVEMAN CONTROL ═══ -->
+<section>
+  <div class="container">
+    <h2 class="section-title">Caveman Control</h2>
+    <p class="section-subtitle">Three intensity. Pick grunt level.</p>
+    <div class="intensity">
+      <div class="intensity-level">
+        <div class="intensity-name">/caveman lite</div>
+        <div class="intensity-label">Lite</div>
+        <div class="intensity-desc">Gentle compression. Drop filler words. Keep articles.</div>
+        <div class="intensity-example">
+          "The bug is in the authentication<br>
+          middleware. Token expiry check<br>
+          uses wrong operator."
+        </div>
+      </div>
+      <div class="intensity-level active">
+        <div class="intensity-name">/caveman full</div>
+        <div class="intensity-label">Full</div>
+        <div class="intensity-desc">Classic caveman. Fragments OK. No articles. Short synonyms.</div>
+        <div class="intensity-example">
+          "Bug in auth middleware. Token<br>
+          expiry check use wrong operator."
+        </div>
+      </div>
+      <div class="intensity-level">
+        <div class="intensity-name">/caveman ultra</div>
+        <div class="intensity-label">Ultra</div>
+        <div class="intensity-desc">Maximum grunt. Fragments only. Bare minimum.</div>
+        <div class="intensity-example">
+          "auth middleware:47. Token expiry.<br>
+          &lt; not &lt;=. Fix."
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <div class="footer-tagline">Why use many word when few do?</div>
+    <div class="footer-links">
+      <a href="https://github.com/JerkyJesse/cavestack">GitHub</a>
+      <a href="https://github.com/JerkyJesse/cavestack/issues">Report Bug</a>
+      <a href="https://github.com/JerkyJesse/cavestack#readme">README</a>
+    </div>
+    <div class="credit">
+      MIT. Upstream: <a href="https://github.com/garrytan/gstack" style="color:#484f58">gstack</a>.
+      Caveman: <a href="https://github.com/JuliusBrussee/caveman" style="color:#484f58">Julius Brussee</a>.
+      Fork: <a href="https://github.com/JerkyJesse" style="color:#484f58">JerkyJesse</a>.
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
