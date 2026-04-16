@@ -376,6 +376,21 @@ AI makes completeness near-free. Always recommend the complete option over short
 
 Include `Completeness: X/10` for each option (10=all edge cases, 7=happy path, 3=shortcut).
 
+## Context Health (soft directive)
+
+During long-running skill sessions, periodically write a brief `[PROGRESS]` summary
+(2-3 sentences: what's done, what's next, any surprises). Example:
+
+`[PROGRESS] Found 3 auth bugs. Fixed 2. Remaining: session expiry race in auth.ts:147. Next: write regression test.`
+
+If you notice you're going in circles — repeating the same diagnostic, re-reading the
+same file, or trying variants of a failed fix — STOP and reassess. Consider escalating
+or calling /checkpoint to save progress and start fresh.
+
+This is a soft nudge, not a measurable feature. No thresholds, no enforcement. The
+goal is self-awareness during long sessions. If the session stays short, skip it.
+Progress summaries must NEVER mutate git state — they are reporting, not committing.
+
 ## Repo Ownership — See Something, Say Something
 
 `REPO_MODE` controls how to handle issues outside your branch:
