@@ -14,9 +14,13 @@ DIST_DIR="$CAVESTACK_DIR/browse/dist"
 echo "Building Node-compatible server bundle..."
 
 # Step 1: Transpile server.ts to a single .mjs bundle (externalize runtime deps)
+# Bun 1.3+ emits .node asset files (ngrok native bindings) alongside, which
+# requires --outdir instead of --outfile. Use --entry-naming to control the
+# emitted bundle filename.
 bun build "$SRC_DIR/server.ts" \
   --target=node \
-  --outfile "$DIST_DIR/server-node.mjs" \
+  --outdir "$DIST_DIR" \
+  --entry-naming "server-node.mjs" \
   --external playwright \
   --external playwright-core \
   --external diff \
