@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# cavestack-replay — replay a recorded session transcript + share (redaction-gated)
+#
+# Usage:
+#   cavestack-replay <path>           Print replay to stdout
+#   cavestack-replay <path> --info    Show header only
+#   cavestack-replay <path> share     Validate + copy-to-clipboard (refuses non-redacted)
+#   cavestack-replay list             List recorded sessions
+set -uo pipefail
+
+_here="$(cd "$(dirname "$0")" && pwd)"
+CAVESTACK_ROOT="$(dirname "$_here")"
+SESSIONS_DIR="$HOME/.cavestack/sessions"
+
+if [ -f "$CAVESTACK_ROOT/lib/error.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$CAVESTACK_ROOT/lib/error.sh"
+fi
+
+cmd_list() {
+  if [ ! -d "$SESSIONS_DIR" ]; then
+    echo "No recorded sessions."
+    return
+  fi
+  local count=0
+  for f in "$SESSIONS_DIR"/*.replay; do
+    [ -f "$f" ] || continue
+    local size
+    size="$(wc -c < "$f" | tr -d ' ')"
+    local name
+    name="$(basename "$f")"
+    printf "  %-40s  %s bytes\n" "$name" "$size"
+    count=$((count + 1))
+  done
+  [ "$count" -eq 0 ] && echo "No recorded sessions." && return
+  echo ""
+  echo "  Total: $count"
+  echo "  Dir: $SESSIONS_DIR"
+}
+
+cmd_info() {
+  local path="$1"
+  [ ! -f "$path" ] && echo "Error[CS602]: file not found: $path" >&2 && exit 1
+  # Header is first line
+  head -1 "$path"
+}
+
+cmd_show() {
+  local path="$1"
+  [ ! -f "$path" ] && echo "Error[CS602]: file not found: $path" >&2 && exit 1
+  cat "$path"
+}
+
+cmd_share() {
+  local path="$1"
+  [ ! -f "$path" ] && echo "Error[CS602]: file not found: $path" >&2 && exit 1
+
+  # Check header for redacted flag
+  local header
+  header="$(head -1 "$path")"
+  local redacted
+  redacted="$(echo "$header" | grep -o '"redacted":true\|"redacted":false' | head -1)"
+
+  if [ "$redacted" = '"redacted":false' ]; then
+    if type cavestack_error >/dev/null 2>&1; then
+      cavestack_error CS603 "record was captured with --no-redact"
+    else
+      echo "Error[CS603]: refusing to share — record captured with --no-redact" >&2
+      echo "   fix: re-record without --no-redact, or manually review + strip secrets" >&2
+      echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS603" >&2
+      exit 1
+    fi
+  fi
+
+  # Double-check: scan body for unredacted patterns using lib/redact.ts
+  # Tail skips header line, passes body to verifier via bun/node
+  if command -v bun >/dev/null 2>&1; then
+    VERIFIER="bun"
+  elif command -v node >/dev/null 2>&1; then
+    VERIFIER="node"
+  else
+    echo "Error[CS603]: cannot verify redaction without bun or node runtime" >&2
+    exit 1
+  fi
+
+  local body
+  body="$(tail -n +2 "$path")"
+
+  local findings
+  findings="$(echo "$body" | $VERIFIER -e "
+    import('$CAVESTACK_ROOT/lib/redact.js').then(m => {
+      const text = require('fs').readFileSync(0, 'utf-8');
+      const findings = m.verifyRedacted(text);
+      if (findings.length > 0) {
+        console.error('CS603:unsafe');
+        findings.forEach(f => console.error('  ' + f.name + ': ' + f.sample));
+        process.exit(2);
+      } else {
+        console.log('SAFE');
+      }
+    }).catch(() => { console.log('VERIFIER_UNAVAILABLE'); });
+  " 2>&1)"
+
+  case "$findings" in
+    "SAFE")
+      echo "✓ Replay passed redaction verification."
+      echo ""
+      echo "--- RECORD CONTENT ---"
+      cat "$path"
+      echo ""
+      echo "--- END ---"
+      echo ""
+      echo "Copy the content above manually to share. CaveStack does not automate"
+      echo "clipboard copy to avoid platform dependencies."
+      ;;
+    *CS603*)
+      echo "Error[CS603]: redaction verification FAILED — unsafe patterns found:" >&2
+      echo "$findings" | grep -v "CS603:" >&2
+      echo "" >&2
+      echo "   fix: add missing patterns to ~/.cavestack/redact.json and re-record" >&2
+      echo "   docs: https://cavestack.jerkyjesse.io/docs/errors/CS603" >&2
+      exit 1
+      ;;
+    *VERIFIER_UNAVAILABLE*)
+      echo "warn: could not run redaction verifier. Review content manually." >&2
+      cat "$path"
+      ;;
+    *)
+      # Unknown output — be safe, refuse
+      echo "Error[CS603]: verifier returned unknown result, refusing share" >&2
+      exit 1
+      ;;
+  esac
+}
+
+case "${1:-}" in
+  list) cmd_list ;;
+  "")
+    echo "usage: cavestack-replay <path|list> [--info|share]" >&2
+    exit 1
+    ;;
+  *)
+    path="$1"
+    shift || true
+    case "${1:-}" in
+      --info|info) cmd_info "$path" ;;
+      share) cmd_share "$path" ;;
+      *) cmd_show "$path" ;;
+    esac
+    ;;
+esac

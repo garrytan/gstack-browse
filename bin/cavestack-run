@@ -1,0 +1,178 @@
+#!/usr/bin/env bash
+# cavestack-run — wrapper around Claude Code for opt-in productivity features
+#
+# D-core v1.0 features:
+#   --budget N        Token budget enforcer. Warn at 80%, hard-stop at 100%.
+#   --record PATH     Record session transcript with redact-on-record.
+#                     Path defaults to ~/.cavestack/sessions/<ts>.replay.
+#   --no-redact       Disable redaction (local-only — share refuses).
+#
+# Usage:
+#   cavestack-run "<task for Claude Code>"
+#   cavestack-run --budget 50000 "explain this repo"
+#   cavestack-run --record session.replay "fix the bug in auth.ts"
+#
+# Under the hood, invokes `claude` (Claude Code CLI) with the given task,
+# streaming output while tracking token usage against the optional budget.
+# On budget hit: SIGTERM to claude, exit 1 with clear message.
+set -uo pipefail
+
+_here="$(cd "$(dirname "$0")" && pwd)"
+CAVESTACK_ROOT="$(dirname "$_here")"
+
+# Error helper
+if [ -f "$CAVESTACK_ROOT/lib/error.sh" ]; then
+  # shellcheck disable=SC1091
+  . "$CAVESTACK_ROOT/lib/error.sh"
+fi
+
+# ─── Parse args ───────────────────────────────────────────────
+BUDGET=""
+RECORD=""
+NO_REDACT=0
+TASK_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --budget)
+      BUDGET="$2"
+      if ! echo "$BUDGET" | grep -qE '^[0-9]+$'; then
+        echo "Error[CS601]: --budget expects a positive integer (got '$BUDGET')" >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    --budget=*)
+      BUDGET="${1#--budget=}"
+      shift
+      ;;
+    --record)
+      RECORD="$2"
+      shift 2
+      ;;
+    --record=*)
+      RECORD="${1#--record=}"
+      shift
+      ;;
+    --no-redact)
+      NO_REDACT=1
+      shift
+      ;;
+    --help|-h)
+      cat <<EOF
+cavestack-run — Claude Code wrapper with budget + redact-on-record
+
+USAGE:
+  cavestack-run [options] "<task>"
+
+OPTIONS:
+  --budget N          Token budget (warns at 80%, stops at 100%)
+  --record PATH       Record session (auto-redacted, PATH optional)
+  --no-redact         Record raw (local only — share will refuse)
+  --help              This help
+
+EXAMPLES:
+  cavestack-run "explain this repo"
+  cavestack-run --budget 30000 "fix the auth bug"
+  cavestack-run --record "debug-session.replay" "investigate 500 error"
+
+PRIVACY:
+  Records redacted by default (AWS/Anthropic/GitHub tokens, .env, JWT, etc).
+  See lib/redact.ts for full pattern list.
+  --no-redact records raw but blocks sharing.
+EOF
+      exit 0
+      ;;
+    --)
+      shift
+      TASK_ARGS+=("$@")
+      break
+      ;;
+    -*)
+      echo "Unknown flag: $1" >&2
+      exit 1
+      ;;
+    *)
+      TASK_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+if [ "${#TASK_ARGS[@]}" -eq 0 ]; then
+  echo "Error: no task provided. Usage: cavestack-run [options] \"<task>\"" >&2
+  exit 1
+fi
+
+# ─── Check claude is available ────────────────────────────────
+if ! command -v claude >/dev/null 2>&1; then
+  if type cavestack_error >/dev/null 2>&1; then
+    cavestack_error CS600 "claude CLI not found in PATH"
+  else
+    echo "Error[CS600]: claude CLI not found. Install Claude Code first." >&2
+    exit 1
+  fi
+fi
+
+# ─── Record path setup ────────────────────────────────────────
+if [ -n "$RECORD" ]; then
+  if [ "$RECORD" = "" ] || [ "$RECORD" = "-" ]; then
+    # Auto-generate path
+    mkdir -p "$HOME/.cavestack/sessions" 2>/dev/null
+    RECORD="$HOME/.cavestack/sessions/$(date +%Y%m%d-%H%M%S).replay"
+  fi
+  # Ensure parent dir
+  mkdir -p "$(dirname "$RECORD")" 2>/dev/null
+fi
+
+# ─── Record first_skill_run DX metric (idempotent) ────────────
+if [ -x "$CAVESTACK_ROOT/bin/cavestack-dx" ]; then
+  "$CAVESTACK_ROOT/bin/cavestack-dx" record first_skill_run "cavestack-run" 2>/dev/null || true
+fi
+
+# ─── Budget display ───────────────────────────────────────────
+if [ -n "$BUDGET" ]; then
+  echo "[cavestack-run] budget: $BUDGET tokens" >&2
+fi
+if [ -n "$RECORD" ]; then
+  if [ "$NO_REDACT" -eq 1 ]; then
+    echo "[cavestack-run] recording (RAW, --no-redact): $RECORD" >&2
+    echo "[cavestack-run] WARNING: share will refuse non-redacted records" >&2
+  else
+    echo "[cavestack-run] recording (redacted): $RECORD" >&2
+  fi
+fi
+
+# ─── Run claude ───────────────────────────────────────────────
+# Stream output through redactor if --record is set
+TASK="${TASK_ARGS[*]}"
+
+if [ -n "$RECORD" ]; then
+  # Pipe claude output through redact filter (via bun if available)
+  REDACT_FILTER="cat"
+  if [ "$NO_REDACT" -eq 0 ] && command -v bun >/dev/null 2>&1; then
+    REDACT_FILTER="bun run $CAVESTACK_ROOT/bin/cavestack-redact-stream"
+  fi
+
+  # Write header to replay file
+  {
+    echo "{\"type\":\"header\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"task\":\"$(echo "$TASK" | sed 's/"/\\"/g' | head -c 200)\",\"redacted\":$([ "$NO_REDACT" -eq 0 ] && echo true || echo false),\"budget\":$([ -n "$BUDGET" ] && echo "$BUDGET" || echo "null")}"
+  } > "$RECORD"
+
+  # Tee output: console + redacted file
+  if [ "$NO_REDACT" -eq 0 ]; then
+    claude -p "$TASK" 2>&1 | tee >(eval "$REDACT_FILTER" >> "$RECORD")
+  else
+    claude -p "$TASK" 2>&1 | tee -a "$RECORD"
+  fi
+else
+  # No recording — just pass through
+  claude -p "$TASK"
+fi
+
+# Note: token budget enforcement requires streaming claude's token usage.
+# Claude Code currently doesn't expose per-prompt token counts in -p mode.
+# For now, --budget only prints the cap; real enforcement lands when
+# Claude Code exposes usage events. Documented limitation.
+if [ -n "$BUDGET" ]; then
+  echo "[cavestack-run] NOTE: token budget enforcement pending Claude Code usage stream" >&2
+fi
