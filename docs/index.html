@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CaveStack — Why use many word when few do?</title>
-<meta name="description" content="Claude Code skills that shut up by default. 40 skills, caveman mode, 75% less talking.">
-<meta property="og:title" content="CaveStack">
-<meta property="og:description" content="Why use many word when few do? Claude Code skills with caveman mode baked in.">
+<meta name="description" content="Claude Code skills that prevent bad work before it ships. 40 skills. Caveman voice. Finished product.">
+<meta property="og:title" content="CaveStack v1.0">
+<meta property="og:description" content="Claude Code skills that prevent bad work before it ships. Judgment layer, think before code. Free OSS.">
 <meta property="og:image" content="images/social-preview.png">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -128,25 +128,44 @@
     position: relative;
   }
 
-  .hero-cave-elements {
+  /* SVG cave-painting silhouettes (replaced emoji decoration 2026-04-16 per /plan-design-review) */
+  .cave-svg {
     position: absolute;
-    inset: 0;
+    color: var(--amber);
     pointer-events: none;
-    overflow: hidden;
+    user-select: none;
   }
-  .cave-el {
+  .cave-svg-a {
+    top: 4%;
+    right: -40px;
+    width: 240px;
+    height: 280px;
+    transform: rotate(8deg);
+  }
+  .cave-svg-b {
+    bottom: -30px;
+    left: -40px;
+    width: 180px;
+    height: 200px;
+    transform: rotate(-5deg);
+  }
+  .cave-slash {
     position: absolute;
-    opacity: 0.1;
-    font-size: 36px;
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    font-size: 140px;
+    color: var(--amber);
+    opacity: 0.06;
+    pointer-events: none;
+    user-select: none;
+    line-height: 1;
   }
-  .cave-el.h1 { top: 60px; left: 8%; transform: rotate(-20deg); }
-  .cave-el.h2 { top: 40px; right: 12%; transform: rotate(10deg); font-size: 28px; }
-  .cave-el.t1 { bottom: 100px; left: 5%; font-size: 32px; opacity: 0.15; }
-  .cave-el.t2 { bottom: 80px; right: 6%; font-size: 32px; opacity: 0.15; }
-  .cave-el.a1 { top: 50%; left: 3%; font-size: 24px; }
-  .cave-el.a2 { top: 40%; right: 4%; font-size: 24px; }
-  .cave-el.s1 { top: 30%; left: 15%; opacity: 0.06; font-size: 48px; transform: rotate(-30deg); }
-  .cave-el.s2 { bottom: 30%; right: 15%; opacity: 0.06; font-size: 48px; transform: rotate(20deg); }
+  .cave-slash.s1 { top: 18%; left: 10%; transform: rotate(-28deg); }
+  .cave-slash.s2 { bottom: 18%; right: 10%; transform: rotate(18deg); }
+  @media (max-width: 768px) {
+    .cave-svg-a, .cave-svg-b { display: none; }
+    .cave-slash { font-size: 80px; }
+  }
 
   .hero-title {
     font-family: 'Satoshi', sans-serif;
@@ -234,6 +253,62 @@
     flex-shrink: 0;
   }
   .install-box .copy-btn:hover { background: #d99a08; }
+
+  .hero-title .hero-dot {
+    color: var(--amber);
+  }
+
+  .sha-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 12px;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
+  }
+  .sha-chip .verify-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    flex-shrink: 0;
+  }
+
+  .proof-row {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 20px 28px;
+    margin-top: 8px;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    flex-wrap: wrap;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+  }
+  .proof-num {
+    font-size: 20px;
+    color: var(--yellow);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .proof-label { color: var(--text-dim); }
+  .proof-sep { color: var(--text-dim); opacity: 0.5; }
+  .proof-link {
+    color: var(--yellow);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .proof-link:hover { color: var(--amber); }
 
   .hero-links {
     margin-top: 24px;
@@ -398,39 +473,110 @@
     min-height: 180px;
   }
 
-  /* ── SKILLS GRID ── */
-  .skills-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-  }
-
-  .skill-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 20px;
-    transition: border-color 0.15s ease-out;
-  }
-  .skill-card:hover { border-color: var(--amber); }
-
-  .skill-card .skill-cmd {
+  /* ── SKILLS TYPESET LIST (v1.0 anti-slop) ── */
+  .section-eyebrow {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
+    font-size: 11px;
     color: var(--amber);
-    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    margin-bottom: 16px;
   }
-  .skill-card .skill-desc {
+
+  .skill-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 64px;
+    border-top: 1px solid var(--border);
+    margin-top: 24px;
+  }
+  @media (max-width: 768px) {
+    .skill-list { grid-template-columns: 1fr; gap: 0; }
+  }
+
+  .skill-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 24px;
+    align-items: baseline;
+    padding: 20px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .skill-row .skill-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    color: var(--yellow);
+    font-weight: 500;
+  }
+  .skill-row .skill-desc {
+    font-family: 'DM Sans', sans-serif;
     font-size: 14px;
-    color: var(--text-dim);
+    color: var(--text);
     line-height: 1.5;
   }
+  .skill-row.primary {
+    background: linear-gradient(90deg, rgba(245,158,11,0.05) 0%, transparent 100%);
+    border-radius: 6px;
+    border-bottom: 1px solid transparent;
+    padding: 20px 16px;
+    margin: 0 -16px;
+  }
+  .skill-row.primary .skill-cmd {
+    color: var(--amber);
+    font-size: 18px;
+    font-weight: 600;
+  }
+  @media (max-width: 480px) {
+    .skill-row { grid-template-columns: 1fr; gap: 6px; }
+    .skill-row.primary { margin: 0; padding: 16px; }
+  }
 
-  .skills-more {
-    text-align: center;
-    margin-top: 24px;
+  .skills-note {
+    margin-top: 48px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border-left: 3px solid var(--amber);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
     color: var(--text-dim);
-    font-size: 14px;
+    line-height: 1.8;
+    max-width: 720px;
+  }
+  .skills-note code {
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--yellow);
+  }
+  .skills-more-list {
+    color: var(--yellow);
+    word-spacing: 4px;
+  }
+  .skills-cta {
+    display: inline-block;
+    margin-left: 8px;
+  }
+  .skills-cta a {
+    color: var(--amber);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ── BREATHER (quiet section between anchors) ── */
+  .breather {
+    text-align: center;
+    padding: 64px 0;
+    border-top: none;
+  }
+  .breather-line {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: clamp(18px, 3vw, 28px);
+    color: var(--heading);
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
   }
 
   /* ── HOW IT WORK ── */
@@ -464,6 +610,20 @@
   }
 
   .step-text { color: var(--text-dim); font-size: 14px; }
+
+  .steps-aside {
+    margin-top: 32px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .steps-aside code {
+    background: var(--panel);
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: var(--yellow);
+  }
 
   .step code {
     display: block;
@@ -593,37 +753,47 @@
 <body>
 <div class="torch-glow" id="torch-glow"></div>
 
-<!-- ═══ HERO ═══ -->
+<!-- ═══ HERO (v1.0 identity-first) ═══ -->
 <div class="hero">
-  <div class="hero-cave-elements">
-    <span class="cave-el h1">&#9995;</span>
-    <span class="cave-el h2">&#9995;</span>
-    <span class="cave-el t1">&#128293;</span>
-    <span class="cave-el t2">&#128293;</span>
-    <span class="cave-el a1">&#129420;</span>
-    <span class="cave-el a2">&#128100;</span>
-    <span class="cave-el s1">///</span>
-    <span class="cave-el s2">///</span>
-  </div>
+  <!-- SVG cave-painting silhouettes replace emoji decoration (design review F4) -->
+  <svg class="cave-svg cave-svg-a" viewBox="0 0 240 280" fill="none" aria-hidden="true">
+    <path d="M120 30 Q95 50 90 85 Q85 110 80 130 L75 150 Q72 160 78 170 L85 180 Q90 190 85 200 L80 220 Q85 235 95 245 L110 250 Q115 230 110 210 L105 190 Q115 180 125 175 L140 170 Q150 165 155 155 L165 140 Q170 125 168 110 L165 90 Q160 70 150 55 Q140 40 120 30 Z" fill="currentColor" opacity="0.08"/>
+    <circle cx="120" cy="115" r="4" fill="currentColor" opacity="0.12"/>
+  </svg>
+  <svg class="cave-svg cave-svg-b" viewBox="0 0 180 200" fill="none" aria-hidden="true">
+    <path d="M90 20 L80 45 L60 40 L55 70 L40 80 L50 105 L40 130 L60 135 L70 160 L90 150 L110 165 L120 140 L140 135 L130 110 L140 85 L125 75 L130 45 L110 50 L100 25 Z" fill="currentColor" opacity="0.06"/>
+  </svg>
+  <div class="cave-slash s1">///</div>
+  <div class="cave-slash s2">///</div>
+
   <div class="container">
-    <h1 class="hero-title">CAVESTACK</h1>
+    <h1 class="hero-title">CAVESTACK<span class="hero-dot">.</span></h1>
     <p class="hero-tagline">Why use many word when few do?</p>
-    <div class="hero-mini-terminal">
-      <span class="mini-prompt">$</span>
-      <span class="mini-output" id="hero-typewriter"></span>
-      <span class="mini-cursor">&#9611;</span>
-    </div>
-    <br>
-    <p class="hero-sub">Claude Code skills that shut up by default. 40 skills. Caveman mode. 75% less talking.</p>
+    <p class="hero-sub">Claude Code skills that prevent bad work before it ships. 40 skills. Caveman voice. Finished product.</p>
+
     <div class="install-box">
       <span class="prompt">$</span>
-      <span class="cmd">git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup</span>
-      <button class="copy-btn">Copy</button>
+      <span class="cmd">curl -fsSL https://cavestack.jerkyjesse.io/install | sh</span>
+      <button class="copy-btn" aria-label="Copy install command">Copy</button>
     </div>
+    <div class="sha-chip" role="note">
+      <span class="verify-dot" aria-hidden="true"></span>
+      <span>sha256-verified install &middot; zero telemetry &middot; MIT</span>
+    </div>
+
+    <div class="proof-row">
+      <span class="proof-num" id="proof-num">see benchmarks</span>
+      <span class="proof-label">tokens saved on 10-task benchmark</span>
+      <span class="proof-sep">&middot;</span>
+      <a class="proof-link" href="methodology.html">methodology &rarr;</a>
+    </div>
+
     <div class="hero-links">
-      <a href="https://github.com/JerkyJesse/cavestack">GitHub</a>
-      <a href="https://github.com/JerkyJesse/cavestack/issues">Issues</a>
-      <a href="https://github.com/JerkyJesse/cavestack#readme">README</a>
+      <a href="https://github.com/JerkyJesse/cavestack">GITHUB</a>
+      <a href="methodology.html">METHODOLOGY</a>
+      <a href="#demo">BEFORE / AFTER</a>
+      <a href="skills.html">ALL SKILLS</a>
+      <a href="https://github.com/JerkyJesse/cavestack/issues">ISSUES</a>
     </div>
   </div>
 </div>
@@ -716,62 +886,52 @@ Status: Fix #1, merge.</pre>
   </div>
 </section>
 
-<!-- ═══ 40 SKILLS. ALL WORK. ═══ -->
-<section>
+<!-- ═══ SIX HERO SKILLS (v1.0 typeset list, anti-slop) ═══ -->
+<section id="skills">
   <div class="container">
-    <h2 class="section-title">40 Skills. All Work.</h2>
-    <p class="section-subtitle">No fluff. Each one = one slash command.</p>
-    <div class="skills-grid">
-      <div class="skill-card">
-        <div class="skill-cmd">/review</div>
-        <div class="skill-desc">Analyze diff. Find bugs, security holes, style problems. Report findings with line numbers and fixes.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/ship</div>
-        <div class="skill-desc">Test, review, version bump, push, create PR. One command, whole pipeline.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/qa</div>
-        <div class="skill-desc">QA test web app with headless browser. Find bugs. Fix them. Re-verify. Loop until clean.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/investigate</div>
-        <div class="skill-desc">Systematic root-cause debugging. Four phases: investigate, analyze, hypothesize, implement. No fix without root cause.</div>
-      </div>
-      <div class="skill-card">
+    <div class="section-eyebrow">SIX FEATURED SKILLS</div>
+    <h2 class="section-title">Think before code.</h2>
+    <p class="section-subtitle">Six judgment-layer skills prevent bad work before it ships. 34 more under /skills.</p>
+    <div class="skill-list">
+      <div class="skill-row primary">
         <div class="skill-cmd">/office-hours</div>
-        <div class="skill-desc">Brainstorm ideas. Startup mode: hard questions. Builder mode: enthusiastic collaborator. Output: design doc.</div>
+        <div class="skill-desc">Six forcing questions. Kill bad ideas before you build.</div>
       </div>
-      <div class="skill-card">
+      <div class="skill-row primary">
+        <div class="skill-cmd">/investigate</div>
+        <div class="skill-desc">Root-cause systematic debug. Reproduce, isolate, diagnose, fix.</div>
+      </div>
+      <div class="skill-row">
+        <div class="skill-cmd">/plan-eng-review</div>
+        <div class="skill-desc">Architecture gate. Finds hidden coupling, tests, failure modes.</div>
+      </div>
+      <div class="skill-row">
+        <div class="skill-cmd">/plan-design-review</div>
+        <div class="skill-desc">UI/UX audit before implementation. Kills slop patterns early.</div>
+      </div>
+      <div class="skill-row">
+        <div class="skill-cmd">/plan-devex-review</div>
+        <div class="skill-desc">Developer experience critique. Finds friction in your tooling.</div>
+      </div>
+      <div class="skill-row">
         <div class="skill-cmd">/cso</div>
-        <div class="skill-desc">Security audit. OWASP Top 10 + STRIDE threat modeling. Secrets archaeology. Dependency supply chain.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/browse</div>
-        <div class="skill-desc">Headless browser. Navigate pages, take screenshots, test interactions, verify page state.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/design-review</div>
-        <div class="skill-desc">Visual QA. Find spacing issues, hierarchy problems, AI slop. Fix in source code. Before/after proof.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/autoplan</div>
-        <div class="skill-desc">Run CEO + design + eng reviews in sequence. Auto-decisions on clear calls. Surface taste decisions.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/retro</div>
-        <div class="skill-desc">Weekly eng retrospective. Commit history analysis, work patterns, code quality metrics. Trend tracking.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/codex</div>
-        <div class="skill-desc">Second opinion from OpenAI Codex. Independent diff review. Adversarial challenge mode. Consult mode.</div>
-      </div>
-      <div class="skill-card">
-        <div class="skill-cmd">/checkpoint</div>
-        <div class="skill-desc">Save work state. Resume exactly where you left off. Survives session boundaries and branch switches.</div>
+        <div class="skill-desc">Security audit: OWASP Top 10, STRIDE, supply chain.</div>
       </div>
     </div>
-    <p class="skills-more">...and 28 more. Run <code style="background:var(--panel);padding:2px 8px;border-radius:4px;font-family:'JetBrains Mono',monospace;font-size:13px">/caveman-help</code> for full list.</p>
+
+    <div class="skills-note">
+      34 more skills ship with CaveStack.
+      <span class="skills-more-list">/ship /review /qa /checkpoint /health /retro /document-release /land-and-deploy /autoplan /codex /browse &middot; &middot; &middot;</span><br>
+      Run any by full name, or type <code>/help</code> inside Claude Code to list them. No flag needed.
+      <span class="skills-cta"><a href="skills.html">see all &rarr;</a></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ QUIET BREATHER (design-review P3 — breaks section rhythm) ═══ -->
+<section class="breather">
+  <div class="container">
+    <p class="breather-line">Keep all gstack functionality. Upgrade it. Ship it finished.</p>
   </div>
 </section>
 
@@ -779,27 +939,24 @@ Status: Fix #1, merge.</pre>
 <section>
   <div class="container">
     <h2 class="section-title">How It Work</h2>
-    <p class="section-subtitle">Three grunt. That all.</p>
+    <p class="section-subtitle">Two grunt. That all.</p>
     <div class="steps">
       <div class="step">
         <div class="step-num">1</div>
-        <div class="step-title">Clone</div>
-        <div class="step-text">Grab repo. Put in Claude skills folder.</div>
-        <code>git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack</code>
+        <div class="step-title">Install</div>
+        <div class="step-text">One line. Auto-detect bun. No signup.</div>
+        <code>curl -fsSL https://cavestack.jerkyjesse.io/install | sh</code>
       </div>
       <div class="step">
         <div class="step-num">2</div>
-        <div class="step-title">Setup</div>
-        <div class="step-text">Build binaries. Wire hooks. Create symlinks.</div>
-        <code>cd ~/.claude/skills/cavestack && ./setup</code>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div class="step-title">Use</div>
-        <div class="step-text">Open Claude Code. Caveman mode active. No command needed.</div>
-        <code>claude  # that it. just use it.</code>
+        <div class="step-title">Open Claude Code</div>
+        <div class="step-text">Caveman active. Try <code>/help</code> or <code>/office-hours</code>. Done.</div>
+        <code>claude  # caveman hooks fire on SessionStart</code>
       </div>
     </div>
+    <p class="steps-aside">
+      Already have gstack/cavestack? <code>/cavestack-upgrade</code> handles the migration.
+    </p>
   </div>
 </section>
 

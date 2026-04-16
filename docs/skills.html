@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaveStack — All Skills</title>
+<meta name="description" content="All 40 CaveStack skills. Hero skills featured. Everything else fully invokable by full /name.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --base: #0C0C0C;
+    --surface: #141414;
+    --panel: #1a1a1a;
+    --border: #262626;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --heading: #e8d5b7;
+    --amber: #F59E0B;
+    --yellow: #FBBF24;
+  }
+  body {
+    background: var(--base);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    padding: 64px 24px 96px;
+    min-height: 100vh;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  .back-link {
+    display: inline-flex; gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; color: var(--text-dim); text-decoration: none;
+    margin-bottom: 32px;
+  }
+  .back-link:hover { color: var(--amber); }
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--amber);
+    text-transform: uppercase; letter-spacing: 0.18em;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    font-size: clamp(36px, 6vw, 64px);
+    color: var(--heading);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+  .lede {
+    font-size: 18px; color: var(--text-dim);
+    max-width: 640px; margin-bottom: 48px;
+  }
+  h2 {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 22px; color: var(--heading);
+    margin-top: 56px; margin-bottom: 20px;
+  }
+  .skill-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 48px;
+    border-top: 1px solid var(--border);
+  }
+  @media (max-width: 768px) { .skill-list { grid-template-columns: 1fr; gap: 0; } }
+  .skill-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    align-items: baseline;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .skill-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px; color: var(--yellow); font-weight: 500;
+  }
+  .skill-desc {
+    font-size: 13px; color: var(--text); line-height: 1.5;
+  }
+  .skill-row.hero .skill-cmd { color: var(--amber); font-weight: 600; }
+  .skill-row.hero {
+    background: linear-gradient(90deg, rgba(245,158,11,0.04), transparent);
+    padding: 16px 12px;
+    margin: 0 -12px;
+    border-bottom: 1px solid transparent;
+    border-radius: 4px;
+  }
+  @media (max-width: 480px) {
+    .skill-row { grid-template-columns: 1fr; gap: 4px; }
+    .skill-row.hero { margin: 0; }
+  }
+  .footnote {
+    margin-top: 48px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border-left: 3px solid var(--amber);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .footnote code {
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: var(--yellow);
+  }
+  footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex; gap: 24px; flex-wrap: wrap;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--amber); }
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back-link" href="index.html">&larr; cavestack</a>
+
+  <div class="eyebrow">ALL 40 SKILLS</div>
+  <h1>Every skill, one list.</h1>
+  <p class="lede">Six skills are featured on the home page because they embody the judgment-layer moat. The other 34 are fully invokable by full <code>/name</code>. Nothing is hidden behind a flag.</p>
+
+  <h2>Hero Six (featured)</h2>
+  <div class="skill-list">
+    <div class="skill-row hero"><div class="skill-cmd">/office-hours</div><div class="skill-desc">Six forcing questions. Kill bad ideas before you build.</div></div>
+    <div class="skill-row hero"><div class="skill-cmd">/investigate</div><div class="skill-desc">Root-cause systematic debug. Reproduce, isolate, diagnose, fix.</div></div>
+    <div class="skill-row hero"><div class="skill-cmd">/plan-eng-review</div><div class="skill-desc">Architecture gate. Finds hidden coupling, tests, failure modes.</div></div>
+    <div class="skill-row hero"><div class="skill-cmd">/plan-design-review</div><div class="skill-desc">UI/UX audit before implementation. Kills slop patterns early.</div></div>
+    <div class="skill-row hero"><div class="skill-cmd">/plan-devex-review</div><div class="skill-desc">Developer experience critique. Finds friction in your tooling.</div></div>
+    <div class="skill-row hero"><div class="skill-cmd">/cso</div><div class="skill-desc">Security audit: OWASP Top 10, STRIDE, supply chain.</div></div>
+  </div>
+
+  <h2>Workflow skills</h2>
+  <div class="skill-list">
+    <div class="skill-row"><div class="skill-cmd">/ship</div><div class="skill-desc">Test, review, version bump, push, create PR.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/review</div><div class="skill-desc">Pre-landing PR review. SQL safety, LLM trust, side effects.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/qa</div><div class="skill-desc">QA test web app with headless browser. Find + fix bugs, re-verify.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/qa-only</div><div class="skill-desc">Report-only QA. Tests and lists bugs, doesn't fix.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/checkpoint</div><div class="skill-desc">Save work state. Resume exactly where you left off.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/health</div><div class="skill-desc">Code quality dashboard. Weighted composite score, trends.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/retro</div><div class="skill-desc">Weekly engineering retrospective. Commit history + metrics.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/document-release</div><div class="skill-desc">Post-ship docs: README, ARCHITECTURE, CHANGELOG, CLAUDE.md.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/autoplan</div><div class="skill-desc">Auto-review pipeline: CEO → design → eng → DX reviews.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/land-and-deploy</div><div class="skill-desc">Merge, wait for CI, deploy, verify production via canary.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/benchmark</div><div class="skill-desc">Performance regression detection. Web Vitals, bundle sizes.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/canary</div><div class="skill-desc">Post-deploy canary monitoring for console errors + regressions.</div></div>
+  </div>
+
+  <h2>Planning + review skills</h2>
+  <div class="skill-list">
+    <div class="skill-row"><div class="skill-cmd">/plan-ceo-review</div><div class="skill-desc">CEO-mode plan review. Rethink scope. Find 10-star product.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/design-review</div><div class="skill-desc">Visual QA. Spacing, hierarchy, AI-slop fixes in source code.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/devex-review</div><div class="skill-desc">Live DX audit. Tests developer flow, TTHW, CLI help quality.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/design-consultation</div><div class="skill-desc">Design system from scratch. Aesthetic, typography, color.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/design-shotgun</div><div class="skill-desc">Generate multiple AI design variants, compare, iterate.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/design-html</div><div class="skill-desc">Generate production-quality HTML/CSS from approved mockups.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/codex</div><div class="skill-desc">Second opinion from OpenAI Codex. Review, challenge, consult.</div></div>
+  </div>
+
+  <h2>Setup + utility skills</h2>
+  <div class="skill-list">
+    <div class="skill-row"><div class="skill-cmd">/office-hours</div><div class="skill-desc">Brainstorm. Hard questions or enthusiastic collaborator.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/setup-browser-cookies</div><div class="skill-desc">Import real Chrome cookies into headless session.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/setup-deploy</div><div class="skill-desc">Configure deploy platform for /land-and-deploy.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/open-cavestack-browser</div><div class="skill-desc">Launch AI-controlled Chromium with sidebar extension.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/pair-agent</div><div class="skill-desc">Pair remote AI agent with your browser session.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/browse</div><div class="skill-desc">Headless browser: navigate, screenshot, test, diff.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/cavestack-upgrade</div><div class="skill-desc">Upgrade CaveStack to latest version. Runs migrations.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/learn</div><div class="skill-desc">Review/prune/export learnings CaveStack accumulated across sessions.</div></div>
+  </div>
+
+  <h2>Caveman voice + safety</h2>
+  <div class="skill-list">
+    <div class="skill-row"><div class="skill-cmd">/caveman</div><div class="skill-desc">Toggle intensity: lite / full / ultra. Configure terseness.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/caveman-commit</div><div class="skill-desc">Ultra-compressed commit messages, Conventional Commits.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/caveman-review</div><div class="skill-desc">Ultra-compressed PR review comments, one line per finding.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/caveman-help</div><div class="skill-desc">Reference card for caveman modes and commands.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/careful</div><div class="skill-desc">Warn before rm -rf, DROP TABLE, force-push, destructive ops.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/freeze</div><div class="skill-desc">Lock edits to a directory. Prevents accidental cross-module changes.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/unfreeze</div><div class="skill-desc">Clear freeze boundary. Restore full edit access.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/guard</div><div class="skill-desc">Full safety: /careful + /freeze combined.</div></div>
+    <div class="skill-row"><div class="skill-cmd">/help</div><div class="skill-desc">In-Claude-Code skill catalog. This page inside the terminal.</div></div>
+  </div>
+
+  <div class="footnote">
+    Total: 40 skills installed. Every one is invokable by full <code>/name</code>. No flags, no hidden paths.<br>
+    From the terminal: <code>cavestack-skills list</code> or <code>cs-skills list --all</code>.<br>
+    From inside Claude Code: <code>/help</code>.
+  </div>
+
+  <footer>
+    <a href="index.html">&larr; cavestack</a>
+    <a href="https://github.com/JerkyJesse/cavestack">github</a>
+    <a href="methodology.html">methodology</a>
+    <a href="https://github.com/JerkyJesse/cavestack/issues">report issue</a>
+  </footer>
+</div>
+</body>
+</html>

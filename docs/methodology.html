@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaveStack — Benchmark Methodology</title>
+<meta name="description" content="How CaveStack's token-savings number was measured. Tasks, hardware, reproduction steps, honest caveats.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --base: #0C0C0C;
+    --surface: #141414;
+    --panel: #1a1a1a;
+    --border: #262626;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --heading: #e8d5b7;
+    --amber: #F59E0B;
+    --yellow: #FBBF24;
+    --green: #22C55E;
+  }
+  body {
+    background: var(--base);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    padding: 64px 24px 96px;
+    min-height: 100vh;
+  }
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .paper { max-width: 720px; margin: 0 auto; }
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-decoration: none;
+    margin-bottom: 40px;
+  }
+  .back-link:hover { color: var(--amber); }
+
+  .meta-bar {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .meta-bar .k { color: var(--amber); margin-right: 6px; }
+  h1 {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 900;
+    font-size: clamp(32px, 5vw, 48px);
+    color: var(--heading);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 24px;
+  }
+  .lede {
+    font-size: 19px;
+    color: var(--text);
+    margin-bottom: 48px;
+  }
+  h2 {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 26px;
+    color: var(--heading);
+    margin-top: 56px;
+    margin-bottom: 16px;
+  }
+  p { margin-bottom: 16px; color: var(--text); }
+  ul, ol { margin: 16px 0 24px 24px; }
+  li { margin-bottom: 8px; }
+
+  code.inline {
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--yellow);
+  }
+
+  .status-card {
+    margin: 32px 0;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: 6px;
+  }
+  .status-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 8px;
+  }
+
+  .rerun-box {
+    padding: 20px 24px;
+    border-left: 3px solid var(--amber);
+    background: var(--surface);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    margin: 24px 0;
+    border-radius: 3px;
+  }
+  .rerun-box .prompt { color: var(--amber); margin-right: 8px; }
+
+  .caveat {
+    margin: 32px 0;
+    padding: 20px 24px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  footer {
+    margin-top: 96px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  footer a { color: var(--text-dim); text-decoration: none; }
+  footer a:hover { color: var(--amber); }
+
+  .download-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 20px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin: 32px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+  }
+  .download-row a {
+    color: var(--yellow);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .trust-tiers {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin: 24px 0;
+  }
+  .tier {
+    padding: 14px 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .tier .name {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--amber);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    margin-right: 8px;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="paper">
+  <a class="back-link" href="index.html">&larr; cavestack</a>
+
+  <div class="meta-bar">
+    <span><span class="k">version:</span>1.0.0.0</span>
+    <span><span class="k">tasks:</span>10</span>
+    <span><span class="k">frameworks:</span>up to 2</span>
+    <span><span class="k">status:</span>pending run</span>
+  </div>
+
+  <h1>Benchmark methodology</h1>
+
+  <p class="lede">
+    How CaveStack's savings claim is measured. What tasks we ran.
+    What hardware. How to rerun yourself. Where the numbers are honest,
+    where they are probabilistic, where they can't be audited at all.
+  </p>
+
+  <div class="status-card">
+    <div class="label">v1.0.0.0 — pending first run</div>
+    <p>CaveStack v1.0.0.0 ships with the benchmark harness but not yet with numbers.
+      The maintainer runs <code class="inline">bun run bench</code> once before tagging
+      the release, which populates <code class="inline">docs/benchmarks/v1.0.0.0.json</code>
+      and updates the hero counter above. Until then the site shows
+      <code class="inline">see benchmarks</code> with a link here.</p>
+  </div>
+
+  <h2>The task set</h2>
+
+  <p>Ten fixed software engineering tasks spanning common Claude Code workloads. Each task has a well-defined success criterion. The full list lives at <a href="https://github.com/JerkyJesse/cavestack/blob/main/test/benchmarks/tasks.md">test/benchmarks/tasks.md</a>.</p>
+
+  <ul>
+    <li><strong>feature</strong> — dark-mode toggle, migration, etc.</li>
+    <li><strong>debug</strong> — investigate 500 error, debug flaky test</li>
+    <li><strong>refactor</strong> — rename function across files</li>
+    <li><strong>review</strong> — SQL injection audit</li>
+    <li><strong>deploy</strong> — ship feature branch</li>
+    <li><strong>security</strong> — OWASP Top 10 audit</li>
+    <li><strong>design</strong> — pricing page review</li>
+    <li><strong>tests</strong> — billing module coverage</li>
+  </ul>
+
+  <p>Tasks change only between major versions. Every version freezes its own task set, so v1.0.0.0 always reproduces with the same inputs.</p>
+
+  <h2>Frameworks measured</h2>
+
+  <ol>
+    <li><strong>Raw Claude Code</strong> — vanilla install, default settings, no CaveStack.</li>
+    <li><strong>CaveStack</strong> — current version installed normally.</li>
+    <li><strong>SuperClaude</strong> — included only if <code class="inline">SUPERCLAUDE_DIR</code> is set during the benchmark run AND SuperClaude's license permits publication. If license blocks, column is null and hero copy adjusts accordingly.</li>
+  </ol>
+
+  <h2>Hardware + environment</h2>
+  <ul>
+    <li>Claude Opus 4.7 (pinned model snapshot per release)</li>
+    <li>Anthropic API with maintainer-owned key (not user-paid)</li>
+    <li>macOS 14.5, M3 MacBook Pro, 32GB RAM (reference; actual recorded in results JSON)</li>
+    <li>CaveStack installed globally, cold session per task</li>
+    <li>Residential fiber, April 2026</li>
+  </ul>
+
+  <h2>Re-run it yourself</h2>
+
+  <p>Every number is reproducible. Clone the repo, install CaveStack, run the harness with your own API key:</p>
+
+  <div class="rerun-box">
+    <div><span class="prompt">$</span>git clone https://github.com/JerkyJesse/cavestack</div>
+    <div><span class="prompt">$</span>cd cavestack &amp;&amp; ./setup</div>
+    <div><span class="prompt">$</span>export ANTHROPIC_API_KEY="sk-ant-..."</div>
+    <div><span class="prompt">$</span>bun run bench</div>
+    <div><span class="prompt">$</span>cat docs/benchmarks/v1.0.0.0.json</div>
+  </div>
+
+  <p>Your numbers will differ slightly. Post the diff on <a href="https://github.com/JerkyJesse/cavestack/issues">Issues</a> if it deviates more than 15% from the published results.</p>
+
+  <h2>Three trust tiers</h2>
+
+  <p>This matters. Different claims on this site come with different levels of verifiability. We label them explicitly instead of pretending they are all the same.</p>
+
+  <div class="trust-tiers">
+    <div class="tier">
+      <span class="name">Verifiable</span> Benchmark task set, harness code, per-task token counts, reproduction steps. Anyone with an API key can rerun and compare.
+    </div>
+    <div class="tier">
+      <span class="name">Probabilistic</span> The "typical user saves X" framing. Your workload differs from our task set. Real savings depend on what YOU ask Claude Code to do. We publish the task distribution so you can judge fit.
+    </div>
+    <div class="tier">
+      <span class="name">Unaudited</span> Anecdotes, social media screenshots, individual users' claims. Useful signal, not proof. Treat as "someone said this" not "measured fact."
+    </div>
+  </div>
+
+  <h2>What this does NOT prove</h2>
+
+  <div class="caveat">
+    Task set is maintainer-selected. Different tasks produce different ratios. We pick tasks we consider representative, not tasks that maximize CaveStack's advantage. If your workload differs, your savings differ. Add tasks via PR; we re-run on the next release.
+  </div>
+
+  <div class="caveat">
+    Model revisions shift baselines. Anthropic updates Opus periodically. We pin the benchmark to a specific model snapshot and document it in each results JSON. A later release might show different numbers because the model changed, not because CaveStack did.
+  </div>
+
+  <div class="caveat">
+    No continuous monitoring. We do not run weekly cron benchmarks on user machines or maintainer machines. Results are taken once per release. If a later CaveStack release regresses savings, the next benchmark catches it; we don't see it instantly.
+  </div>
+
+  <h2>Zero telemetry promise</h2>
+
+  <p>CaveStack never phones home. The benchmark runs only on the maintainer's machine, once per release. Your install does not participate. The numbers on this page come from controlled runs, not aggregated user data. If you want to verify, the full harness output is downloadable and the harness code is in the public repo.</p>
+
+  <h2>Downloads</h2>
+
+  <div class="download-row">
+    <a href="https://github.com/JerkyJesse/cavestack/blob/main/docs/benchmarks/v1.0.0.0.json">v1.0.0.0.json</a>
+    <a href="https://github.com/JerkyJesse/cavestack/blob/main/test/benchmarks/tasks.md">tasks.md</a>
+    <a href="https://github.com/JerkyJesse/cavestack/blob/main/test/benchmarks/run.ts">harness source</a>
+  </div>
+
+  <footer>
+    <a href="index.html">&larr; cavestack</a>
+    <a href="https://github.com/JerkyJesse/cavestack">github</a>
+    <a href="skills.html">all skills</a>
+    <a href="https://github.com/JerkyJesse/cavestack/issues">report issue</a>
+  </footer>
+</div>
+</body>
+</html>
