@@ -2,14 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;1,14..32,400&display=swap');
+
+:root {
+  --navy: #0F172A;
+  --navy-800: #1E293B;
+  --navy-700: #334155;
+  --teal: #14B8A6;
+  --teal-light: #2DD4BF;
+  --teal-dark: #0D9488;
+  --offwhite: #F8FAFC;
+}
 
 html {
   scroll-behavior: smooth;
 }
 
 body {
-  background-color: #F8FAFC;
+  background-color: var(--offwhite);
+  color: var(--navy);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background-color: rgba(20, 184, 166, 0.2);
   color: #0F172A;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
 }
