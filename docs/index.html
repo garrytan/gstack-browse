@@ -28,6 +28,7 @@
     --amber: #F59E0B;
     --green: #3fb950;
     --red: #f85149;
+    --yellow: #FBBF24;
     --cave-brown: rgba(139,69,19,0.08);
   }
 
@@ -74,10 +75,34 @@
     z-index: 1;
   }
 
+  /* ── FIRELIGHT FLICKER ── */
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes firelight {
+      0%, 100% { opacity: 0.03; }
+      15% { opacity: 0.05; }
+      30% { opacity: 0.04; }
+      45% { opacity: 0.06; }
+      60% { opacity: 0.03; }
+      75% { opacity: 0.055; }
+      90% { opacity: 0.04; }
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse at 50% 80%, rgba(245,158,11,0.4) 0%, transparent 60%);
+      opacity: 0.04;
+      animation: firelight 4s ease-in-out infinite;
+      z-index: 0;
+    }
+  }
+
   /* ── HERO ── */
   .hero {
     text-align: center;
-    padding: 100px 0 80px;
+    padding: 80px 0 60px;
     position: relative;
   }
 
@@ -109,6 +134,8 @@
     letter-spacing: 6px;
     text-shadow: 3px 3px 0 #3d2b1f, 6px 6px 20px rgba(0,0,0,0.5);
     margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
   }
 
   .hero-tagline {
@@ -116,13 +143,43 @@
     font-size: clamp(16px, 2.5vw, 24px);
     color: var(--accent);
     letter-spacing: 2px;
-    margin-bottom: 12px;
+    margin-bottom: 20px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HERO MINI TERMINAL ── */
+  .hero-mini-terminal {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    margin-bottom: 24px;
+    position: relative;
+    z-index: 1;
+    min-height: 42px;
+  }
+  .mini-prompt { color: var(--green); user-select: none; }
+  .mini-output { color: var(--text-dim); }
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    .mini-cursor {
+      color: var(--amber);
+      animation: blink 1s step-end infinite;
+    }
   }
 
   .hero-sub {
     font-size: 18px;
     color: var(--text-dim);
-    margin-bottom: 40px;
+    margin-bottom: 32px;
+    position: relative;
+    z-index: 1;
   }
 
   .install-box {
@@ -137,6 +194,8 @@
     font-size: 14px;
     max-width: 100%;
     overflow-x: auto;
+    position: relative;
+    z-index: 1;
   }
   .install-box .prompt { color: var(--green); user-select: none; }
   .install-box .cmd { color: var(--text); white-space: nowrap; }
@@ -160,6 +219,8 @@
     justify-content: center;
     gap: 24px;
     flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
   }
   .hero-links a {
     display: inline-flex;
@@ -190,22 +251,200 @@
     margin-bottom: 40px;
   }
 
-  /* ── BEFORE/AFTER ── */
-  .comparison-img {
-    width: 100%;
-    max-width: 1000px;
-    border-radius: 12px;
+  /* ── TERMINAL DEMO ── */
+  .demo-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .demo-tabs [role="tab"] {
+    background: var(--surface);
     border: 1px solid var(--border);
-    display: block;
-    margin: 0 auto 20px;
+    border-radius: 6px;
+    padding: 8px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .demo-tabs [role="tab"]:hover { border-color: var(--accent); color: var(--text); }
+  .demo-tabs [role="tab"][aria-selected="true"],
+  .demo-tabs [role="tab"].active {
+    border-color: var(--amber);
+    color: var(--amber);
+    background: rgba(245,158,11,0.08);
   }
 
-  .comparison-caption {
+  .terminal-frame {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .terminal-titlebar {
+    display: flex;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,0,0,0.2);
+  }
+  .terminal-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  .terminal-dot.red { background: var(--red); }
+  .terminal-dot.yellow { background: var(--yellow); }
+  .terminal-dot.green { background: var(--green); }
+
+  .terminal-content {
+    min-height: 300px;
+  }
+
+  .terminal-split {
+    display: flex;
+  }
+  .terminal-divider {
+    width: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  .pane-verbose, .pane-caveman, .pane-single {
+    flex: 1;
+    padding: 16px;
+    overflow-y: auto;
+    max-height: 400px;
+    position: relative;
+  }
+  .pane-verbose { background: rgba(0,0,0,0.15); }
+
+  .pane-label {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .pane-verbose .pane-label { color: var(--red); }
+  .pane-caveman .pane-label { color: var(--green); }
+
+  .terminal-content pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: var(--text-dim);
+  }
+
+  /* Scanline overlay on terminal */
+  .terminal-frame::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      transparent 0px,
+      transparent 1px,
+      rgba(0,0,0,0.03) 1px,
+      rgba(0,0,0,0.03) 2px
+    );
+    border-radius: 12px;
+  }
+  .terminal-frame { position: relative; }
+
+  .word-counter {
+    text-align: center;
+    padding: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--amber);
+    border-top: 1px solid var(--border);
+    background: rgba(245,158,11,0.04);
+  }
+
+  /* ── CAVEROCK COMPARISON ── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+
+  .compare-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+  }
+  .compare-card.primary {
+    border-color: var(--amber);
+    box-shadow: 0 0 30px rgba(245,158,11,0.06);
+  }
+
+  .compare-card h3 {
+    font-family: 'Satoshi', sans-serif;
+    font-weight: 700;
+    font-size: 24px;
+    color: var(--heading);
+    margin-bottom: 16px;
+  }
+  .compare-card.primary h3::after {
+    content: ' (full)';
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  .compare-card.secondary h3::after {
+    content: ' (lite)';
+    font-size: 14px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  .compare-card ul {
+    list-style: none;
+    margin-bottom: 24px;
+  }
+  .compare-card ul li {
+    padding: 6px 0;
+    font-size: 15px;
+    color: var(--text-dim);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .compare-card.primary ul li { color: var(--text); }
+
+  .compare-card .install-box {
+    display: flex;
+    width: 100%;
+    font-size: 12px;
+    padding: 10px 14px;
+  }
+  .compare-card .install-box .cmd {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .caverock-demo-label {
     text-align: center;
     color: var(--text-dim);
     font-size: 14px;
+    margin-bottom: 12px;
   }
-  .comparison-caption em { color: var(--accent); }
+
+  .terminal-frame.small {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+  .terminal-frame.small .terminal-content {
+    min-height: 180px;
+  }
 
   /* ── SKILLS GRID ── */
   .skills-grid {
@@ -390,6 +629,12 @@
     .intensity { flex-direction: column; align-items: center; }
     .intensity-level { max-width: 100%; }
     .cave-el { display: none; }
+    .terminal-split { flex-direction: column; }
+    .terminal-divider { width: 100%; height: 1px; }
+    .pane-verbose, .pane-caveman { max-height: 250px; }
+    .compare-grid { grid-template-columns: 1fr; }
+    .hero-mini-terminal { font-size: 12px; padding: 8px 14px; }
+    .demo-tabs { flex-wrap: wrap; }
   }
 </style>
 </head>
@@ -410,11 +655,17 @@
   <div class="container">
     <h1 class="hero-title">CAVESTACK</h1>
     <p class="hero-tagline">Why use many word when few do?</p>
+    <div class="hero-mini-terminal">
+      <span class="mini-prompt">$</span>
+      <span class="mini-output" id="hero-typewriter"></span>
+      <span class="mini-cursor">&#9611;</span>
+    </div>
+    <br>
     <p class="hero-sub">Claude Code skills that shut up by default. 40 skills. Caveman mode. 75% less talking.</p>
     <div class="install-box">
       <span class="prompt">$</span>
       <span class="cmd">git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup</span>
-      <button class="copy-btn" onclick="navigator.clipboard.writeText('git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup');this.textContent='Done'">Copy</button>
+      <button class="copy-btn">Copy</button>
     </div>
     <div class="hero-links">
       <a href="https://github.com/JerkyJesse/cavestack">GitHub</a>
@@ -424,21 +675,166 @@
   </div>
 </div>
 
-<!-- ═══ BEFORE / AFTER ═══ -->
-<section>
+<!-- ═══ BEFORE / AFTER — LIVE TERMINAL DEMO ═══ -->
+<section id="demo">
   <div class="container">
     <h2 class="section-title">Before / After</h2>
-    <p class="section-subtitle">Same /review. Same patch. Same findings. Different word count.</p>
-    <img src="images/sidebyside-review.png" alt="Verbose review vs CaveStack review side by side" class="comparison-img" loading="lazy">
-    <p class="comparison-caption">Left: <em>~250 words</em> of preamble, summaries, recommendations. Right: <em>~40 words</em>. Bug found. Fix shown. Done.</p>
+    <p class="section-subtitle">Same /review. Same patch. Watch the difference.</p>
+    <div class="demo-tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-scenario="0" tabindex="0">/review</button>
+      <button role="tab" aria-selected="false" data-scenario="1" tabindex="-1">/investigate</button>
+      <button role="tab" aria-selected="false" data-scenario="2" tabindex="-1">CaveRock</button>
+    </div>
+    <div id="cave-terminal" class="terminal-frame">
+      <div class="terminal-titlebar">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+      </div>
+      <!-- Pre-rendered scenario 1 for progressive enhancement (JS replaces this) -->
+      <div class="terminal-content">
+        <div class="terminal-split">
+          <div class="pane-verbose" role="log" aria-label="Verbose output">
+            <div class="pane-label">Default verbose</div>
+            <pre># patch /review
+
+Analyzing your changes...
+
+I'll review the changes in auth/middleware.ts and provide
+comprehensive feedback on the implementation.
+
+## Summary
+
+This pull request modifies the authentication middleware
+to add token expiry validation. The changes look generally
+good, but I have several observations and recommendations
+that I'd like to share with you.
+
+## Detailed Analysis
+
+### Finding 1: Token Expiry Check (Medium)
+
+In auth/middleware.ts:47, the token expiry comparison
+uses a strict less-than operator (&lt;) when it should
+use less-than-or-equal-to (&lt;=). This means tokens
+that expire at exactly the current timestamp will
+incorrectly be treated as valid.
+
+Recommendation: Change the comparison operator from
+&lt; to &lt;= to ensure tokens are invalidated at exactly
+their expiry time.
+
+### Finding 2: Missing Error Context (Low)
+
+The error response at line 52 returns a generic 401
+without diagnostic information. Consider adding a
+"reason" field to the error response.
+
+## Overall Assessment
+
+The changes demonstrate a solid understanding of the
+authentication flow. With the operator fix applied,
+this should be ready to merge.</pre>
+          </div>
+          <div class="terminal-divider"></div>
+          <div class="pane-caveman" role="log" aria-label="Caveman output" aria-live="polite">
+            <div class="pane-label">CaveStack (caveman mode)</div>
+            <pre># patch /review
+
+## Findings: 2
+
+1. auth/middleware.ts:47 — token expiry check
+   use &lt; not &lt;=. Token at exact expiry time
+   passes validation. Fix:
+
+   - if (token.exp &lt; now) {
+   + if (token.exp &lt;= now) {
+
+2. auth/middleware.ts:52 — 401 response
+   missing reason field. Add:
+
+   { error: "unauthorized", reason: "token_expired" }
+
+Status: Fix #1, merge.</pre>
+          </div>
+        </div>
+      </div>
+      <div class="word-counter">187 fewer words (82% less)</div>
+    </div>
   </div>
 </section>
 
-<!-- ═══ WHAT YOU GET ═══ -->
+<!-- ═══ CAVESTACK vs CAVEROCK ═══ -->
+<section id="caverock">
+  <div class="container">
+    <h2 class="section-title">CaveStack vs CaveRock</h2>
+    <p class="section-subtitle">Full cave or just the voice? Pick your path.</p>
+    <div class="compare-grid">
+      <div class="compare-card primary">
+        <h3>CaveStack</h3>
+        <ul>
+          <li>40 skills</li>
+          <li>Headless browser</li>
+          <li>Design tools</li>
+          <li>Caveman mode &#10003;</li>
+        </ul>
+        <div class="install-box">
+          <span class="prompt">$</span>
+          <span class="cmd">git clone https://github.com/JerkyJesse/cavestack.git ~/.claude/skills/cavestack && cd ~/.claude/skills/cavestack && ./setup</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+      </div>
+      <div class="compare-card secondary">
+        <h3>CaveRock</h3>
+        <ul>
+          <li>0 skills</li>
+          <li>No browser</li>
+          <li>No design tools</li>
+          <li>Caveman mode &#10003;</li>
+        </ul>
+        <div class="install-box">
+          <span class="prompt">$</span>
+          <span class="cmd">git clone https://github.com/JerkyJesse/caverock.git ~/.claude/skills/caverock && cd ~/.claude/skills/caverock && ./setup</span>
+          <button class="copy-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+    <p class="caverock-demo-label">CaveRock in action:</p>
+    <div id="caverock-terminal" class="terminal-frame small">
+      <div class="terminal-titlebar">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+      </div>
+      <div class="terminal-content">
+        <div class="terminal-single">
+          <div class="pane-single" role="log" aria-label="CaveRock demo" aria-live="polite">
+            <pre>$ claude
+
+CAVEMAN MODE ACTIVE — level: full
+
+&gt; Explain database connection pooling.
+
+Pool reuse open DB connections. No new
+connection per request. Skip handshake
+overhead. Config: min=5, max=20,
+idle_timeout=30s.
+
+&gt; stop caveman
+
+Caveman mode deactivated.</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ 40 SKILLS. ALL WORK. ═══ -->
 <section>
   <div class="container">
-    <h2 class="section-title">What You Get</h2>
-    <p class="section-subtitle">40 skills. All work. No fluff.</p>
+    <h2 class="section-title">40 Skills. All Work.</h2>
+    <p class="section-subtitle">No fluff. Each one = one slash command.</p>
     <div class="skills-grid">
       <div class="skill-card">
         <div class="skill-cmd">/review</div>
@@ -575,5 +971,6 @@
   </div>
 </footer>
 
+<script src="cave-terminal.js"></script>
 </body>
 </html>

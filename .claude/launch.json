@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "cavestack-landing",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "docs", "-p", "5179", "-c-1"],
+      "port": 5179
+    },
+    {
       "name": "cavestack-sidebyside",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["scripts/serve-sidebyside.mjs", "docs/images", "5178"],
