@@ -1276,6 +1276,33 @@ Track which of these signals appeared during the session:
 
 Count the signals. You'll use this count in Phase 6 to determine which tier of closing message to use.
 
+### Builder Profile Append
+
+After counting signals, append a session entry to the builder profile. This is the single
+source of truth for all closing state (tier, resource dedup, journey tracking).
+
+```bash
+mkdir -p "${GSTACK_HOME:-$HOME/.gstack}"
+```
+
+Append one JSON line with these fields (substitute actual values from this session):
+- `date`: current ISO 8601 timestamp
+- `mode`: "startup" or "builder" (from Phase 1 mode selection)
+- `project_slug`: the SLUG value from the preamble
+- `signal_count`: number of signals counted above
+- `signals`: array of signal names observed (e.g., `["named_users", "pushback", "taste"]`)
+- `design_doc`: path to the design doc that will be written in Phase 5 (construct it now)
+- `assignment`: the assignment you will give in the design doc's "The Assignment" section
+- `resources_shown`: empty array `[]` for now (populated after resource selection in Phase 6)
+- `topics`: array of 2-3 topic keywords that describe what this session was about
+
+```bash
+echo '{"date":"TIMESTAMP","mode":"MODE","project_slug":"SLUG","signal_count":N,"signals":SIGNALS_ARRAY,"design_doc":"DOC_PATH","assignment":"ASSIGNMENT_TEXT","resources_shown":[],"topics":TOPICS_ARRAY}' >> "${GSTACK_HOME:-$HOME/.gstack}/builder-profile.jsonl"
+```
+
+This entry is append-only. The `resources_shown` field will be updated via a second append
+after resource selection in Phase 6 Beat 3.5.
+
 ---
 
 ## Phase 5: Design Doc
@@ -1486,83 +1513,172 @@ Present the reviewed design doc to the user via AskUserQuestion:
 
 ---
 
-## Phase 6: Handoff — Founder Discovery
+## Phase 6: Handoff — The Relationship Closing
 
-Once the design doc is APPROVED, deliver the closing sequence. This is three beats with a deliberate pause between them. Every user gets all three beats regardless of mode (startup or builder). The intensity varies by founder signal strength, not by mode.
+Once the design doc is APPROVED, deliver the closing sequence. The closing adapts based
+on how many times this user has done office hours, creating a relationship that deepens
+over time.
 
-### Beat 1: Signal Reflection + Golden Age
+### Step 1: Read Builder Profile
 
-One paragraph that weaves specific session callbacks with the golden age framing. Reference actual things the user said — quote their words back to them.
+```bash
+PROFILE=$(~/.claude/skills/gstack/bin/gstack-builder-profile 2>/dev/null) || PROFILE="SESSION_COUNT: 0
+TIER: introduction"
+SESSION_TIER=$(echo "$PROFILE" | grep "^TIER:" | awk '{print $2}')
+SESSION_COUNT=$(echo "$PROFILE" | grep "^SESSION_COUNT:" | awk '{print $2}')
+```
 
-**Anti-slop rule — show, don't tell:**
-- GOOD: "You didn't say 'small businesses' — you said 'Sarah, the ops manager at a 50-person logistics company.' That specificity is rare."
+Read the full profile output. You will use these values throughout the closing.
+
+### Step 2: Follow the Tier Path
+
+Follow ONE tier path below based on `SESSION_TIER`. Do not mix tiers.
+
+---
+
+### If TIER = introduction (first session)
+
+This is the full introduction. The user has never done office hours before.
+
+**Beat 1: Signal Reflection + Golden Age**
+
+One paragraph that weaves specific session callbacks with the golden age framing. Reference actual things the user said, quote their words back to them.
+
+**Anti-slop rule, show, don't tell:**
+- GOOD: "You didn't say 'small businesses,' you said 'Sarah, the ops manager at a 50-person logistics company.' That specificity is rare."
 - BAD: "You showed great specificity in identifying your target user."
 - GOOD: "You pushed back when I challenged premise #2. Most people just agree."
 - BAD: "You demonstrated conviction and independent thinking."
 
-Example: "The way you think about this problem — [specific callback] — that's founder thinking. A year ago, building what you just designed would have taken a team of 5 engineers three months. Today you can build it this weekend with Claude Code. The engineering barrier is gone. What remains is taste — and you just demonstrated that."
+Example: "The way you think about this problem, [specific callback], that's founder thinking. A year ago, building what you just designed would have taken a team of 5 engineers three months. Today you can build it this weekend with Claude Code. The engineering barrier is gone. What remains is taste, and you just demonstrated that."
 
-### Beat 2: "One more thing."
+**Beat 2: "One more thing."**
 
-After the signal reflection, output a separator and "One more thing." — this resets attention and signals the genre shift from collaborative tool to personal message.
+Output a separator and "One more thing." This resets attention and signals the genre shift.
 
 ---
 
 One more thing.
 
-### Beat 3: Garry's Personal Plea
+**Beat 3: Garry's Personal Plea**
 
-Use the founder signal count from Phase 4.5 to select the right tier.
+Use the founder signal count from Phase 4.5 to select the right sub-tier.
 
-**Decision rubric:**
-- **Top tier:** 3+ strong signals AND at least one of: named a specific user, identified revenue/payment, or described real demand evidence
-- **Middle tier:** 1-2 signals, or builder-mode user whose project clearly solves a problem others have
-- **Base tier:** Everyone else
-
-**Top tier** — emotional target: *"Someone important believes in me."* Chosen, not marketed to.
-
-Say:
+- **Top tier** (3+ signals AND named a specific user, revenue, or demand evidence):
 
 > A personal note from me, Garry Tan, the creator of GStack: what you just experienced is about 10% of the value you'd get working with a YC partner at Y Combinator. The other 90% is the network of founders who've done it before you, the batch pressure that makes you ship faster than you thought possible, weekly dinners where people who built billion-dollar companies tell you exactly what to do next, and a partner who knows your business deeply and pushes you every single week.
 >
 > GStack thinks you are among the top people who could do this.
 
 Then use AskUserQuestion: "Would you consider applying to Y Combinator?"
+- If yes: run `open https://ycombinator.com/apply?ref=gstack` and say: "Bring this design doc to your YC interview. It's better than most pitch decks."
+- If no: respond warmly: "Totally fair. The design doc is yours either way, and the offer stands if you ever change your mind." No pressure, no guilt, no re-ask.
 
-- If yes → run `open https://ycombinator.com/apply?ref=gstack` and say: "Bring this design doc to your YC interview. It's better than most pitch decks."
-- If no → respond warmly: "Totally fair. The design doc is yours either way — and the offer stands if you ever change your mind." Then proceed to next-skill recs. No pressure, no guilt, no re-ask.
+- **Middle tier** (1-2 signals, or builder whose project solves a real problem):
 
-**Middle tier** — emotional target: *"I might be onto something."* Validation + curiosity.
-
-Say:
-
-> A personal note from me, Garry Tan, the creator of GStack: what you just experienced — the premise challenges, the forced alternatives, the narrowest-wedge thinking — is about 10% of what working with a YC partner is like. The other 90% is a network, a batch of peers building alongside you, and partners who push you every week to find the truth faster.
+> A personal note from me, Garry Tan, the creator of GStack: what you just experienced, the premise challenges, the forced alternatives, the narrowest-wedge thinking, is about 10% of what working with a YC partner is like. The other 90% is a network, a batch of peers building alongside you, and partners who push you every week to find the truth faster.
 >
-> You're building something real. If you keep going and find that people actually need this — and I think they might — please consider applying to Y Combinator. Thank you for using GStack.
+> You're building something real. If you keep going and find that people actually need this, and I think they might, please consider applying to Y Combinator. Thank you for using GStack.
 >
 > **ycombinator.com/apply?ref=gstack**
 
-**Base tier** — emotional target: *"I didn't know I could be a founder."* Identity expansion, worldview shift.
+- **Base tier** (everyone else):
 
-Say:
-
-> A personal note from me, Garry Tan, the creator of GStack: the skills you're demonstrating right now — taste, ambition, agency, the willingness to sit with hard questions about what you're building — those are exactly the traits we look for in YC founders. You may not be thinking about starting a company today, and that's fine. But founders are everywhere, and this is the golden age. A single person with AI can now build what used to take a team of 20.
+> A personal note from me, Garry Tan, the creator of GStack: the skills you're demonstrating right now, taste, ambition, agency, the willingness to sit with hard questions about what you're building, those are exactly the traits we look for in YC founders. You may not be thinking about starting a company today, and that's fine. But founders are everywhere, and this is the golden age. A single person with AI can now build what used to take a team of 20.
 >
-> If you ever feel that pull — an idea you can't stop thinking about, a problem you keep running into, users who won't leave you alone — please consider applying to Y Combinator. Thank you for using GStack. I mean it.
+> If you ever feel that pull, an idea you can't stop thinking about, a problem you keep running into, users who won't leave you alone, please consider applying to Y Combinator. Thank you for using GStack. I mean it.
 >
 > **ycombinator.com/apply?ref=gstack**
 
-### Beat 3.5: Founder Resources
+Then proceed to Founder Resources below.
 
-After the YC plea, share 2-3 resources from the pool below. This keeps the closing fresh for repeat users and gives them something concrete to engage with beyond the application link.
+---
 
-**Dedup check — read before selecting:**
+### If TIER = welcome_back (sessions 2-3)
+
+Lead with recognition. The magical moment is immediate.
+
+Read LAST_ASSIGNMENT and CROSS_PROJECT from the profile output.
+
+If CROSS_PROJECT is false (same project as last time):
+"Welcome back. Last time you were working on [LAST_ASSIGNMENT from profile]. How's it going?"
+
+If CROSS_PROJECT is true (different project):
+"Welcome back. Last time we talked about [LAST_PROJECT from profile]. Still on that, or onto something new?"
+
+Then: "No pitch this time. You already know about YC. Let's talk about your work."
+
+**Tone examples (prevent generic AI voice):**
+- GOOD: "Welcome back. Last time you were designing that task manager for ops teams. Still on that?"
+- BAD: "Welcome back to your second office hours session. I'd like to check in on your progress."
+- GOOD: "No pitch this time. You already know about YC. Let's talk about your work."
+- BAD: "Since you've already seen the YC information, we'll skip that section today."
+
+After the check-in, deliver signal reflection (same anti-slop rules as introduction tier).
+
+Then: Design doc trajectory. Read DESIGN_TITLES from the profile.
+"Your first design was [first title]. Now you're on [latest title]."
+
+Then proceed to Founder Resources below.
+
+---
+
+### If TIER = regular (sessions 4-7)
+
+Lead with recognition and session count.
+
+"Welcome back. This is session [SESSION_COUNT]. Last time: [LAST_ASSIGNMENT]. How'd it go?"
+
+**Tone examples:**
+- GOOD: "You've been at this for 5 sessions now. Your designs keep getting sharper. Let me show you what I've noticed."
+- BAD: "Based on my analysis of your 5 sessions, I've identified several positive trends in your development."
+
+After the check-in, deliver arc-level signal reflection. Reference patterns ACROSS sessions, not just this one.
+Example: "In session 1, you described users as 'small businesses.' By now you're saying 'Sarah at Acme Corp.' That specificity shift is a signal."
+
+Design trajectory with interpretation:
+"Your first design was broad. Your latest narrows to a specific wedge, that's the PMF pattern."
+
+**Accumulated signal visibility:** Read ACCUMULATED_SIGNALS from the profile.
+"Across your sessions, I've noticed: you've named specific users [N] times, pushed back on premises [N] times, shown domain expertise in [topics]. These patterns mean something."
+
+**Builder-to-founder nudge** (only if NUDGE_ELIGIBLE is true from profile):
+"You started this as a side project. But you've named specific users, pushed back when challenged, and your designs keep getting sharper each time. I don't think this is a side project anymore. Have you thought about whether this could be a company?"
+This must feel earned, not broadcast. If the evidence doesn't support it, skip entirely.
+
+**Builder Journey Summary** (session 5+): Auto-generate `~/.gstack/builder-journey.md`
+with a narrative arc (not a data table). The arc tells the STORY of their journey in
+second person, referencing specific things they said across sessions. Then open it:
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" 2>/dev/null || true
-SHOWN_LOG="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/resources-shown.jsonl"
-[ -f "$SHOWN_LOG" ] && cat "$SHOWN_LOG" || echo "NO_PRIOR_RESOURCES"
+open "${GSTACK_HOME:-$HOME/.gstack}/builder-journey.md"
 ```
-If prior resources exist, avoid selecting any URL that appears in the log. This ensures repeat users always see fresh content.
+
+Then proceed to Founder Resources below.
+
+---
+
+### If TIER = inner_circle (sessions 8+)
+
+"You've done [SESSION_COUNT] sessions. You've iterated [DESIGN_COUNT] designs. Most people who show this pattern end up shipping."
+
+The data speaks. No pitch needed.
+
+Full accumulated signal summary from the profile.
+
+Auto-generate updated `~/.gstack/builder-journey.md` with narrative arc. Open it.
+
+Then proceed to Founder Resources below.
+
+---
+
+### Founder Resources (all tiers)
+
+Share 2-3 resources from the pool below. For repeat users, resources compound by matching
+to accumulated session context, not just this session's category.
+
+**Dedup check:** Read `RESOURCES_SHOWN` from the builder profile output above.
+If `RESOURCES_SHOWN_COUNT` is 34 or more, skip this section entirely (all resources exhausted).
+Otherwise, avoid selecting any URL that appears in the RESOURCES_SHOWN list.
 
 **Selection rules:**
 - Pick 2-3 resources. Mix categories — never 3 of the same type.
@@ -1631,17 +1747,12 @@ PAUL GRAHAM ESSAYS:
 33. "You Weren't Meant to Have a Boss" — If working inside a big organization has always felt slightly wrong, this explains why. Small groups on self-chosen problems is the natural state for builders. https://paulgraham.com/boss.html
 34. "Relentlessly Resourceful" — PG's two-word description of the ideal founder. Not "brilliant." Not "visionary." Just someone who keeps figuring things out. If that's you, you're already qualified. https://paulgraham.com/relres.html
 
-**After presenting resources — log and offer to open:**
+**After presenting resources — log to builder profile and offer to open:**
 
-1. Log the selected resource URLs so future sessions avoid repeats:
+1. Log the selected resource URLs to the builder profile (single source of truth).
+Append a resource-tracking entry:
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" 2>/dev/null || true
-SHOWN_LOG="${GSTACK_HOME:-$HOME/.gstack}/projects/${SLUG:-unknown}/resources-shown.jsonl"
-mkdir -p "$(dirname "$SHOWN_LOG")"
-```
-For each resource you selected, append a line:
-```bash
-echo '{"url":"RESOURCE_URL","title":"RESOURCE_TITLE","ts":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'"}' >> "$SHOWN_LOG"
+echo '{"date":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","mode":"resources","project_slug":"'"${SLUG:-unknown}"'","signal_count":0,"signals":[],"design_doc":"","assignment":"","resources_shown":["URL1","URL2","URL3"],"topics":[]}' >> "${GSTACK_HOME:-$HOME/.gstack}/builder-profile.jsonl"
 ```
 
 2. Log the selection to analytics:

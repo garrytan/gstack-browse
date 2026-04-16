@@ -16,6 +16,7 @@ export const READ_COMMANDS = new Set([
   'console', 'network', 'cookies', 'storage', 'perf',
   'dialog', 'is',
   'inspect',
+  'media', 'data',
 ]);
 
 export const WRITE_COMMANDS = new Set([
@@ -24,6 +25,7 @@ export const WRITE_COMMANDS = new Set([
   'viewport', 'cookie', 'cookie-import', 'cookie-import-browser', 'header', 'useragent',
   'upload', 'dialog-accept', 'dialog-dismiss',
   'style', 'cleanup', 'prettyscreenshot',
+  'download', 'scrape', 'archive',
 ]);
 
 export const META_COMMANDS = new Set([
@@ -38,6 +40,7 @@ export const META_COMMANDS = new Set([
   'watch',
   'state',
   'frame',
+  'ux-audit',
 ]);
 
 export const ALL_COMMANDS = new Set([...READ_COMMANDS, ...WRITE_COMMANDS, ...META_COMMANDS]);
@@ -46,6 +49,8 @@ export const ALL_COMMANDS = new Set([...READ_COMMANDS, ...WRITE_COMMANDS, ...MET
 export const PAGE_CONTENT_COMMANDS = new Set([
   'text', 'html', 'links', 'forms', 'accessibility', 'attrs',
   'console', 'dialog',
+  'media', 'data',
+  'ux-audit',
 ]);
 
 /** Wrap output from untrusted-content commands with trust boundary markers */
@@ -70,6 +75,8 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   'links':   { category: 'Reading', description: 'All links as "text → href"' },
   'forms':   { category: 'Reading', description: 'Form fields as JSON' },
   'accessibility': { category: 'Reading', description: 'Full ARIA tree' },
+  'media':   { category: 'Reading', description: 'All media elements (images, videos, audio) with URLs, dimensions, types', usage: 'media [--images|--videos|--audio] [selector]' },
+  'data':    { category: 'Reading', description: 'Structured data: JSON-LD, Open Graph, Twitter Cards, meta tags', usage: 'data [--jsonld|--og|--meta|--twitter]' },
   // Inspection
   'js':      { category: 'Inspection', description: 'Run JavaScript expression and return result as string', usage: 'js <expr>' },
   'eval':    { category: 'Inspection', description: 'Run JavaScript from file and return result as string (path must be under /tmp or cwd)', usage: 'eval <file>' },
@@ -100,6 +107,10 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   'useragent': { category: 'Interaction', description: 'Set user agent', usage: 'useragent <string>' },
   'dialog-accept': { category: 'Interaction', description: 'Auto-accept next alert/confirm/prompt. Optional text is sent as the prompt response', usage: 'dialog-accept [text]' },
   'dialog-dismiss': { category: 'Interaction', description: 'Auto-dismiss next dialog' },
+  // Data extraction
+  'download': { category: 'Extraction', description: 'Download URL or media element to disk using browser cookies', usage: 'download <url|@ref> [path] [--base64]' },
+  'scrape':   { category: 'Extraction', description: 'Bulk download all media from page. Writes manifest.json', usage: 'scrape <images|videos|media> [--selector sel] [--dir path] [--limit N]' },
+  'archive':  { category: 'Extraction', description: 'Save complete page as MHTML via CDP', usage: 'archive [path]' },
   // Visual
   'screenshot': { category: 'Visual', description: 'Save screenshot (supports element crop via CSS/@ref, --clip region, --viewport)', usage: 'screenshot [--viewport] [--clip x,y,w,h] [selector|@ref] [path]' },
   'pdf':     { category: 'Visual', description: 'Save as PDF', usage: 'pdf [path]' },
@@ -137,6 +148,8 @@ export const COMMAND_DESCRIPTIONS: Record<string, { category: string; descriptio
   'style':   { category: 'Interaction', description: 'Modify CSS property on element (with undo support)', usage: 'style <sel> <prop> <value> | style --undo [N]' },
   'cleanup': { category: 'Interaction', description: 'Remove page clutter (ads, cookie banners, sticky elements, social widgets)', usage: 'cleanup [--ads] [--cookies] [--sticky] [--social] [--all]' },
   'prettyscreenshot': { category: 'Visual', description: 'Clean screenshot with optional cleanup, scroll positioning, and element hiding', usage: 'prettyscreenshot [--scroll-to sel|text] [--cleanup] [--hide sel...] [--width px] [path]' },
+  // UX Audit
+  'ux-audit': { category: 'Inspection', description: 'Extract page structure for UX behavioral analysis — site ID, nav, headings, text blocks, interactive elements. Returns JSON for agent interpretation.', usage: 'ux-audit' },
 };
 
 // Load-time validation: descriptions must cover exactly the command sets
