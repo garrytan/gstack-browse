@@ -6,8 +6,8 @@ description: |
   Report-only QA testing. Systematically tests a web application and produces a
   structured report with health score, screenshots, and repro steps — but never
   fixes anything. Use when asked to "just report bugs", "qa report only", or
-  "test but don't fix". For the full test-fix-verify loop, use /qa instead.
-  Proactively suggest when the user wants a bug report without any code changes. (cavestack)
+  "test but don't fix". For full test-and-fix loop, use /qa instead.
+  Proactively suggest when user wants a bug report without code changes. (cavestack)
   Voice triggers (speech-to-text aliases): "bug report", "just check for bugs".
 allowed-tools:
   - Bash
@@ -551,13 +551,13 @@ Then write a `## CAVESTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /qa-only: Report-Only QA Testing
+# /qa-only: Report-Only QA
 
-You are a QA engineer. Test web applications like a real user — click everything, fill every form, check every state. Produce a structured report with evidence. **NEVER fix anything.**
+Test like real user — click everything, fill forms, check states. Structured report w/ evidence. **NEVER fix.**
 
 ## Setup
 
-**Parse the user's request for these parameters:**
+**Parse parameters:**
 
 | Parameter | Default | Override example |
 |-----------|---------|-----------------:|
@@ -567,9 +567,9 @@ You are a QA engineer. Test web applications like a real user — click everythi
 | Scope | Full app (or diff-scoped) | `Focus on the billing page` |
 | Auth | None | `Sign in to user@example.com`, `Import cookies from cookies.json` |
 
-**If no URL is given and you're on a feature branch:** Automatically enter **diff-aware mode** (see Modes below). This is the most common case — the user just shipped code on a branch and wants to verify it works.
+**No URL + feature branch:** Auto **diff-aware mode**. Common case — user shipped code, wants to verify.
 
-**Find the browse binary:**
+**Browse binary:**
 
 ## SETUP (run this check BEFORE any browse command)
 
@@ -607,7 +607,7 @@ If `NEEDS_SETUP`:
    fi
    ```
 
-**Create output directories:**
+**Output dirs:**
 
 ```bash
 REPORT_DIR=".cavestack/qa-reports"
@@ -656,16 +656,16 @@ smarter on their codebase over time.
 
 ## Test Plan Context
 
-Before falling back to git diff heuristics, check for richer test plan sources:
+Check richer sources before git diff heuristics:
 
-1. **Project-scoped test plans:** Check `~/.cavestack/projects/` for recent `*-test-plan-*.md` files for this repo
+1. **Project test plans:** `~/.cavestack/projects/` for `*-test-plan-*.md`
    ```bash
    setopt +o nomatch 2>/dev/null || true  # zsh compat
    eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)"
    ls -t ~/.cavestack/projects/$SLUG/*-test-plan-*.md 2>/dev/null | head -1
    ```
-2. **Conversation context:** Check if a prior `/plan-eng-review` or `/plan-ceo-review` produced test plan output in this conversation
-3. **Use whichever source is richer.** Fall back to git diff analysis only if neither is available.
+2. **Conversation:** Prior `/plan-eng-review` or `/plan-ceo-review` test plan output?
+3. Fall back to git diff only if neither available.
 
 ---
 
@@ -951,30 +951,26 @@ Minimum 0 per category.
 
 ## Output
 
-Write the report to both local and project-scoped locations:
+Write to both local + project-scoped:
 
 **Local:** `.cavestack/qa-reports/qa-report-{domain}-{YYYY-MM-DD}.md`
-
-**Project-scoped:** Write test outcome artifact for cross-session context:
+**Project:** Cross-session test outcome:
 ```bash
 eval "$(~/.claude/skills/cavestack/bin/cavestack-slug 2>/dev/null)" && mkdir -p ~/.cavestack/projects/$SLUG
 ```
 Write to `~/.cavestack/projects/{slug}/{user}-{branch}-test-outcome-{datetime}.md`
 
-### Output Structure
+### Structure
 
 ```
 .cavestack/qa-reports/
-├── qa-report-{domain}-{YYYY-MM-DD}.md    # Structured report
-├── screenshots/
-│   ├── initial.png                        # Landing page annotated screenshot
-│   ├── issue-001-step-1.png               # Per-issue evidence
-│   ├── issue-001-result.png
+├── qa-report-{domain}-{YYYY-MM-DD}.md    # Report
+├── screenshots/                           # Evidence
+│   ├── initial.png
+│   ├── issue-001-step-1.png
 │   └── ...
-└── baseline.json                          # For regression mode
+└── baseline.json                          # Regression mode
 ```
-
-Report filenames use the domain and date: `qa-report-myapp-com-2026-03-12.md`
 
 ---
 
@@ -1003,7 +999,7 @@ staleness detection: if those files are later deleted, the learning can be flagg
 **Only log genuine discoveries.** Don't log obvious things. Don't log things the user
 already knows. A good test: would this insight save time in a future session? If yes, log it.
 
-## Additional Rules (qa-only specific)
+## Rules (qa-only)
 
-11. **Never fix bugs.** Find and document only. Do not read source code, edit files, or suggest fixes in the report. Your job is to report what's broken, not to fix it. Use `/qa` for the test-fix-verify loop.
-12. **No test framework detected?** If the project has no test infrastructure (no test config files, no test directories), include in the report summary: "No test framework detected. Run `/qa` to bootstrap one and enable regression test generation."
+11. **Never fix.** Find + document only. No source code reading, no edits, no fix suggestions. Report what's broken. Use `/qa` for fix loop.
+12. **No test framework?** Report: "No test framework detected. Run `/qa` to bootstrap."

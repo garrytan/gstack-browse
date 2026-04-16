@@ -643,7 +643,7 @@ describe('office-hours skill structure', () => {
   });
 
   test('contains Garry Tan personal plea', () => {
-    expect(content).toContain('Garry Tan, the creator of CaveStack');
+    expect(content).toContain('Garry Tan, creator of CaveStack');
   });
 
   test('contains founder signal synthesis phase', () => {
@@ -667,11 +667,11 @@ describe('office-hours skill structure', () => {
 
   // Operating principles per mode
   test('contains startup operating principles', () => {
-    expect(content).toContain('Specificity is the only currency');
+    expect(content).toContain('Specificity only currency');
   });
 
   test('contains builder operating principles', () => {
-    expect(content).toContain('Delight is the currency');
+    expect(content).toContain('Delight = currency');
   });
 
   // Spec Review Loop (Phase 5.5)
@@ -1092,7 +1092,7 @@ describe('Phase 8e.5 regression test generation', () => {
 
   test('regression test uses auto-incrementing names', () => {
     const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('auto-incrementing');
+    expect(content).toMatch(/[Aa]uto-incrementing/);
     expect(content).toContain('max number + 1');
   });
 });
@@ -1127,8 +1127,8 @@ describe('Step 3.4 test coverage audit', () => {
 
   test('ship rules include test generation rule', () => {
     const content = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('Step 3.4 generates coverage tests');
-    expect(content).toContain('Never commit failing tests');
+    expect(content).toContain('Step 3.4');
+    expect(content).toMatch(/[Nn]ever commit.*fail/);
   });
 
   test('Step 3.4 includes vibe coding philosophy', () => {
