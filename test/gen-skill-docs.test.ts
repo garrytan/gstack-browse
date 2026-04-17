@@ -638,6 +638,30 @@ describe('build philosophy directive', () => {
     expect(oh).toContain('### Musk 5-Step Algorithm');
   });
 
+  test('tier-2 skill (boundary check) includes full Musk directive', () => {
+    const inv = fs.readFileSync(path.join(ROOT, 'investigate', 'SKILL.md'), 'utf-8');
+    expect(inv).toContain('## Musk 5-Step Algorithm');
+    expect(inv).toContain('reinstate <10%');
+  });
+
+  test('CLAUDE.md template H2 was demoted to H3 (.replace() invariant)', () => {
+    // Verifies BUILD_PHILOSOPHY_CLAUDE_MD_SECTION's .replace() call actually fired.
+    // If MUSK_RULES_COMPACT first line drifts, replace silently no-ops.
+    // The marker appears twice in the rendered preamble: once in the bash grep
+    // check, once in the template block. We want the template block — find it
+    // by locating the markdown code fence that wraps it.
+    const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    const fenceStart = oh.indexOf('```markdown\n<!-- cavestack-build-philosophy -->');
+    expect(fenceStart).toBeGreaterThan(-1);
+    const fenceEnd = oh.indexOf('```', fenceStart + 3);
+    expect(fenceEnd).toBeGreaterThan(fenceStart);
+    const innerTemplate = oh.slice(fenceStart, fenceEnd);
+    expect(innerTemplate).toContain('### Musk 5-Step Algorithm');
+    // The H2 form must NOT appear inside the template body (only H3).
+    // Use line-anchored regex — "## Musk" is a substring of "### Musk".
+    expect(innerTemplate).not.toMatch(/^## Musk 5-Step Algorithm/m);
+  });
+
   test('build philosophy injection prose includes opt-in flow', () => {
     const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
     expect(oh).toContain('HAS_BUILD_PHIL');
