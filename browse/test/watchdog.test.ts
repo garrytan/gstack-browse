@@ -5,16 +5,28 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 // End-to-end regression tests for the parent-process watchdog in server.ts.
-// Proves three invariants that the v0.18.1.0 fix depends on:
+// The watchdog has layered behavior since v0.18.1.0 (#1025) and v0.18.2.0
+// (community wave #994 + our mode-gating follow-up):
 //
-//   1. BROWSE_PARENT_PID=0 disables the watchdog (opt-in used by CI and pair-agent).
-//   2. BROWSE_HEADED=1 disables the watchdog (server-side defense-in-depth).
-//   3. Default headless mode still kills the server when its parent dies
-//      (the original orphan-prevention must keep working).
+//   1. BROWSE_PARENT_PID=0 disables the watchdog entirely (opt-in for CI + pair-agent).
+//   2. BROWSE_HEADED=1 disables the watchdog entirely (server-side defense for headed
+//      mode, where the user controls window lifecycle).
+//   3. Default headless mode + parent dies: server STAYS ALIVE. The original
+//      "kill on parent death" was inverted by #994 because Claude Code's Bash
+//      sandbox kills the parent shell between every tool invocation, and #994
+//      makes browse persist across $B calls. Idle timeout (30 min) handles
+//      eventual cleanup.
 //
-// Each test spawns the real server.ts, not a mock. Tests 1 and 2 verify the
-// code path via stdout log line (fast). Test 3 waits for the watchdog's 15s
-// poll cycle to actually fire (slow — ~25s).
+// Tunnel mode coverage (parent dies → shutdown because idle timeout doesn't
+// apply) is not covered by an automated test here — tunnelActive is a runtime
+// variable set by /pair-agent's tunnel-create flow, not an env var, so faking
+// it would require invasive test-only hooks. The mode check is documented
+// inline at the watchdog and SIGTERM handlers, and would regress visibly for
+// /pair-agent users (server lingers after disconnect).
+//
+// Each test spawns the real server.ts. Tests 1 and 2 verify behavior via
+// stdout log line (fast). Test 3 waits for the watchdog poll cycle to confirm
+// the server REMAINS alive after parent death (slow — ~20s observation window).
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const SERVER_SCRIPT = path.join(ROOT, 'src', 'server.ts');
@@ -117,7 +129,7 @@ describe('parent-process watchdog (v0.18.1.0)', () => {
     expect(out).not.toContain('Parent process 999999 exited');
   }, 15_000);
 
-  test('default headless mode: watchdog fires when parent dies', async () => {
+  test('default headless mode: server STAYS ALIVE when parent dies (#994)', async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'watchdog-default-'));
 
     // Spawn a real, short-lived "parent" that the watchdog will poll.
@@ -133,15 +145,13 @@ describe('parent-process watchdog (v0.18.1.0)', () => {
     expect(isProcessAlive(serverPid)).toBe(true);
 
     // Kill the parent. The watchdog polls every 15s, so first tick after
-    // parent death lands within ~15s, plus shutdown() cleanup time.
+    // parent death lands within ~15s. Pre-#994 the server would shutdown
+    // here. Post-#994 the server logs the parent exit and stays alive.
     parentProc.kill('SIGKILL');
 
-    // Poll for up to 25s for the server to exit.
-    const deadline = Date.now() + 25_000;
-    while (Date.now() < deadline) {
-      if (!isProcessAlive(serverPid)) break;
-      await Bun.sleep(500);
-    }
-    expect(isProcessAlive(serverPid)).toBe(false);
+    // Wait long enough for at least one watchdog tick (15s) plus margin.
+    // Server should still be alive — that's the whole point of #994.
+    await Bun.sleep(20_000);
+    expect(isProcessAlive(serverPid)).toBe(true);
   }, 45_000);
 });
