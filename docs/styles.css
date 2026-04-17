@@ -1,0 +1,568 @@
+/* ─────────────────────────────────────────────────────────────
+   CaveStack — Cave Mural styles
+   Palette: 8 core tokens. Amber RESTRICTED to torch, install border,
+   <details> marker. Glyphs use bone/cave-brown.
+   ───────────────────────────────────────────────────────────── */
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --base:       #0C0C0C;
+  --surface:    #141414;
+  --border:     #2a2a2a;
+  --text:       #c9d1d9;
+  --text-dim:   #8b949e;
+  --heading:    #e8d5b7;  /* bone */
+  --cave-brown: #c4956a;  /* ochre */
+  --amber:      #F59E0B;  /* RARE: torch, install border, details marker */
+  /* Terminal-only status (never in page chrome): */
+  --term-green:  #3fb950;
+  --term-red:    #f85149;
+  --term-yellow: #FBBF24;
+
+  --cave-wash: rgba(139,69,19,0.05);
+  --torch-shadow: 0 0 40px rgba(245,158,11,0.6);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --line: 1px solid var(--border);
+
+  --container: 1120px;
+  --pad: clamp(16px, 4vw, 32px);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--base);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Cave-wall grain + radial firelight wash (fixed, decorative) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 12% 18%, var(--cave-wash) 0%, transparent 55%),
+    radial-gradient(ellipse at 88% 82%, var(--cave-wash) 0%, transparent 55%),
+    radial-gradient(ellipse at 50% 50%, rgba(60,40,20,0.04) 0%, transparent 70%);
+}
+
+/* ───────── SKIP LINK (WCAG 2.4.1) ───────── */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 16px;
+  background: var(--amber);
+  color: var(--base);
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  text-decoration: none;
+  z-index: 10000;
+  transition: top 0.15s;
+}
+.skip-link:focus {
+  top: 16px;
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+
+/* ───────── TORCH CURSOR GLOW (pointer: fine only) ───────── */
+.torch-glow {
+  position: fixed;
+  width: 460px;
+  height: 460px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(circle,
+      rgba(245,158,11,0.14) 0%,
+      rgba(245,158,11,0.09) 18%,
+      rgba(196,149,106,0.05) 38%,
+      transparent 72%);
+  transition: opacity 0.3s;
+  will-change: transform;
+}
+@media (hover: none), (pointer: coarse) {
+  .torch-glow { display: none; }
+}
+
+/* ───────── CAVE WALL (background petroglyphs, torch-lit) ─────────
+   Default: barely visible (ghost hints on wall).
+   Under torch: revealed via radial mask tied to cursor (--mx, --my).
+   Mask alpha: 0.85 at center (glyph shows ~85% of rendered opacity),
+               0.06 at edges (glyph shows ~6% — faint shadow).
+   ──────────────────────────────────────────────────────────────── */
+.cave-wall {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  color: var(--heading);
+  overflow: hidden;
+  -webkit-mask: radial-gradient(circle 360px at var(--mx, 50%) var(--my, 50%),
+      rgba(0,0,0,0.85) 0%,
+      rgba(0,0,0,0.55) 32%,
+      rgba(0,0,0,0.20) 65%,
+      rgba(0,0,0,0.06) 100%);
+          mask: radial-gradient(circle 360px at var(--mx, 50%) var(--my, 50%),
+      rgba(0,0,0,0.85) 0%,
+      rgba(0,0,0,0.55) 32%,
+      rgba(0,0,0,0.20) 65%,
+      rgba(0,0,0,0.06) 100%);
+  transition: -webkit-mask-image 0.05s, mask-image 0.05s;
+}
+.cw-glyph {
+  position: absolute;
+  color: var(--heading);
+  opacity: 0.55;
+  filter: drop-shadow(0 0 18px rgba(245,158,11,0.18));
+  pointer-events: none;
+}
+.cw-glyph.ochre { color: var(--cave-brown); }
+@media (hover: none), (pointer: coarse) {
+  /* Touch devices: no torch, so show glyphs at low static opacity */
+  .cave-wall {
+    -webkit-mask: none;
+            mask: none;
+    opacity: 0.07;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cave-wall {
+    -webkit-mask: none;
+            mask: none;
+    opacity: 0.05;
+  }
+}
+
+/* ───────── LAYOUT ───────── */
+.container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding-left: var(--pad);
+  padding-right: var(--pad);
+}
+
+main { position: relative; z-index: 2; }
+footer { position: relative; z-index: 2; }
+
+section {
+  padding: clamp(64px, 10vw, 120px) 0;
+  position: relative;
+}
+
+.eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 16px;
+}
+
+/* ───────── TYPOGRAPHY ───────── */
+h1 {
+  font-family: 'Satoshi', 'DM Sans', sans-serif;
+  font-weight: 900;
+  font-size: clamp(40px, 6vw, 72px);
+  line-height: 0.98;
+  letter-spacing: -0.03em;
+  color: var(--heading);
+  text-wrap: balance;
+}
+h2 {
+  font-family: 'Satoshi', 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: clamp(28px, 3.5vw, 44px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--heading);
+  margin-bottom: 20px;
+  text-wrap: balance;
+}
+p { max-width: 62ch; }
+a {
+  color: var(--heading);
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s, color 0.15s;
+}
+a:hover { text-decoration-color: var(--cave-brown); color: var(--cave-brown); }
+a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 2px; }
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.92em;
+}
+
+/* ───────── HERO ───────── */
+.hero {
+  min-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: clamp(80px, 12vw, 140px);
+  padding-bottom: clamp(48px, 8vw, 80px);
+  position: relative;
+}
+.hero-inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: clamp(32px, 6vw, 80px);
+  align-items: center;
+}
+@media (max-width: 760px) {
+  .hero-inner { grid-template-columns: 1fr; }
+  .hero-glyph { order: -1; max-width: 160px; }
+}
+.hero-copy .lede {
+  font-size: clamp(18px, 2.2vw, 22px);
+  color: var(--text);
+  margin-top: 24px;
+  max-width: 56ch;
+}
+.hero-glyph {
+  width: clamp(180px, 18vw, 240px);
+  height: auto;
+  opacity: 0.85;
+}
+
+/* ───────── INSTALL BOX (amber border — one of three amber uses) ───────── */
+.install {
+  margin-top: 40px;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  max-width: 640px;
+  border: 1.5px solid var(--amber);
+  border-radius: var(--radius-md);
+  background: rgba(245,158,11,0.04);
+  box-shadow: var(--torch-shadow);
+  overflow: hidden;
+}
+.install code {
+  flex: 1;
+  padding: 18px 20px;
+  font-size: 15px;
+  color: var(--heading);
+  background: transparent;
+  white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.install-copy {
+  background: var(--amber);
+  color: var(--base);
+  border: 0;
+  padding: 0 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.install-copy:hover { background: #FDB738; }
+.install-copy:active { background: #D97F07; }
+.install-copy:focus-visible { outline: 2px solid var(--heading); outline-offset: -4px; }
+.install-copy[data-copied="1"] { background: var(--term-green); color: var(--base); }
+
+/* ───────── DEMO / TERMINAL ───────── */
+.demo {
+  background: var(--surface);
+  border-top: var(--line);
+  border-bottom: var(--line);
+}
+.terminal {
+  margin-top: 32px;
+  background: #0A0A0A;
+  border: var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+}
+.terminal-chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: var(--line);
+  background: #121212;
+}
+.terminal-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #333;
+}
+.terminal-dot.r { background: #f85149; }
+.terminal-dot.y { background: #FBBF24; }
+.terminal-dot.g { background: #3fb950; }
+.terminal-title {
+  margin-left: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.terminal-body {
+  padding: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 320px;
+  color: var(--text);
+}
+.term-prompt { color: var(--term-green); }
+.term-ok { color: var(--term-green); }
+.term-warn { color: var(--term-yellow); }
+.term-err { color: var(--term-red); }
+.term-dim { color: var(--text-dim); }
+.cursor::after {
+  content: '▊';
+  animation: blink 1s step-end infinite;
+  color: var(--amber);
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* ───────── SKILLS GRID ───────── */
+.skills-grid {
+  margin-top: 48px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.skill-card {
+  position: relative;
+  background: var(--surface);
+  border: var(--line);
+  border-radius: var(--radius-md);
+  padding: 28px 24px;
+  transition: border-color 0.2s, transform 0.2s;
+  overflow: hidden;
+}
+.skill-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 20%, rgba(196,149,106,0.03), transparent 60%);
+  pointer-events: none;
+}
+.skill-card:hover {
+  border-color: var(--cave-brown);
+  transform: translateY(-2px);
+}
+.skill-card:focus-within {
+  outline: 2px solid var(--amber);
+  outline-offset: 2px;
+}
+.skill-slash {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--heading);
+  margin-bottom: 8px;
+}
+.skill-desc {
+  font-size: 14.5px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+
+/* Glyph accents on skill cards — bone color, low opacity */
+.skill-glyph {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 48px;
+  height: 48px;
+  opacity: 0.12;
+  color: var(--heading);
+  pointer-events: none;
+}
+
+/* ───────── DETAILS (verbose docs, collapsed) ───────── */
+.docs-details {
+  margin-top: 48px;
+  border: var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.docs-details[open] { border-color: var(--cave-brown); }
+.docs-details > summary {
+  list-style: none;
+  padding: 24px 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 700;
+  font-size: clamp(20px, 2.5vw, 28px);
+  color: var(--heading);
+  user-select: none;
+  transition: background 0.15s;
+}
+.docs-details > summary::-webkit-details-marker { display: none; }
+.docs-details > summary::before {
+  content: '▸';
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--amber);   /* one of three amber uses */
+  font-size: 20px;
+  transition: transform 0.2s;
+}
+.docs-details[open] > summary::before { transform: rotate(90deg); }
+.docs-details > summary:hover { background: rgba(196,149,106,0.04); }
+.docs-details > summary:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: -2px;
+}
+.docs-body {
+  padding: 8px 28px 32px;
+  border-top: var(--line);
+  display: grid;
+  gap: 32px;
+}
+.docs-body h3 {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--heading);
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+.docs-body h3:first-child { margin-top: 0; }
+.docs-body ul { padding-left: 24px; }
+.docs-body li { margin-bottom: 8px; color: var(--text); }
+.docs-body code {
+  background: #0A0A0A;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  border: var(--line);
+  color: var(--heading);
+  font-size: 0.9em;
+}
+.docs-body pre {
+  background: #0A0A0A;
+  border: var(--line);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+  overflow-x: auto;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 12px 0;
+}
+.docs-body pre code { background: transparent; border: 0; padding: 0; }
+
+/* ───────── FOOTER ───────── */
+footer {
+  border-top: var(--line);
+  padding: 48px 0 64px;
+  background: linear-gradient(180deg, var(--base) 0%, #060606 100%);
+  position: relative;
+}
+footer .container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px 48px;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.foot-brand {
+  font-family: 'Satoshi', sans-serif;
+  font-weight: 900;
+  font-size: 24px;
+  color: var(--heading);
+  letter-spacing: -0.02em;
+}
+.foot-tag {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.foot-links {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.foot-links a {
+  font-size: 14px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.foot-links a:hover { color: var(--heading); }
+.foot-meta {
+  width: 100%;
+  padding-top: 24px;
+  margin-top: 24px;
+  border-top: var(--line);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* ───────── FIRELIGHT FLICKER (hero glyph + install box) ───────── */
+@keyframes flicker {
+  0%, 100% { opacity: 0.85; }
+  25%      { opacity: 0.78; }
+  50%      { opacity: 0.92; }
+  75%      { opacity: 0.82; }
+}
+.flicker { animation: flicker 6s ease-in-out infinite; }
+
+/* ───────── REDUCED MOTION ───────── */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .torch-glow { display: none !important; }
+  .cursor::after { animation: none; }
+  .flicker { animation: none; }
+}
+
+/* ───────── RESPONSIVE ───────── */
+@media (max-width: 640px) {
+  section { padding: 56px 0; }
+  .install { flex-direction: column; max-width: 100%; }
+  .install code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .install-copy { padding: 14px 24px; }
+  .terminal-body { font-size: 12.5px; padding: 18px; min-height: 260px; }
+  .docs-details > summary { padding: 18px 20px; }
+  .docs-body { padding: 8px 20px 24px; }
+  footer .container { flex-direction: column; }
+}

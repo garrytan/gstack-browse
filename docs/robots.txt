@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://cavestack.jerkyjesse.com/sitemap.xml

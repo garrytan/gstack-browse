@@ -3,1017 +3,462 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CaveStack — Why use many word when few do?</title>
-<meta name="description" content="Claude Code skills that prevent bad work before it ships. 40 skills. Caveman voice. Measured in characters — model-agnostic. Finished product.">
-<meta property="og:title" content="CaveStack v1.0">
-<meta property="og:description" content="Claude Code skills that prevent bad work before it ships. Savings measured in characters (model-agnostic). Judgment layer, think before code. Free OSS.">
-<meta property="og:image" content="images/social-preview.png">
+<title>CaveStack — Claude Code skills that think before code</title>
+<meta name="description" content="40 Claude Code skills. Caveman voice. Measured in characters — model-agnostic. Judgment layer that prevents bad work before it ships. Free OSS.">
+<meta name="theme-color" content="#0C0C0C">
+<link rel="canonical" href="https://cavestack.jerkyjesse.com/">
+
+<!-- Open Graph -->
+<meta property="og:title" content="CaveStack — skills that think before code">
+<meta property="og:description" content="40 Claude Code skills. Caveman voice. Judgment layer that prevents bad work before it ships.">
+<meta property="og:image" content="https://cavestack.jerkyjesse.com/images/social-preview.png">
+<meta property="og:url" content="https://cavestack.jerkyjesse.com/">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="CaveStack">
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="CaveStack — skills that think before code">
+<meta name="twitter:description" content="40 Claude Code skills. Caveman voice. Judgment layer that prevents bad work before it ships.">
+<meta name="twitter:image" content="https://cavestack.jerkyjesse.com/images/social-preview.png">
+
+<!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,900&display=swap" rel="stylesheet">
-<style>
-  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-  :root {
-    --base: #0C0C0C;
-    --surface: #141414;
-    --panel: #1a1a1a;
-    --border: #2a2a2a;
-    --text: #c9d1d9;
-    --text-dim: #8b949e;
-    --heading: #e8d5b7;
-    --accent: #c4956a;
-    --amber: #F59E0B;
-    --green: #3fb950;
-    --red: #f85149;
-    --yellow: #FBBF24;
-    --cave-brown: rgba(139,69,19,0.08);
-  }
+<link rel="stylesheet" href="styles.css">
 
-  body {
-    background: var(--base);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
-    line-height: 1.6;
-    overflow-x: hidden;
-  }
-
-  /* Grain texture */
-  body::after {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 9999;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  }
-
-  /* Cave wall radial overlays */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(ellipse at 10% 20%, var(--cave-brown) 0%, transparent 50%),
-      radial-gradient(ellipse at 90% 80%, var(--cave-brown) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 50%, rgba(60,40,20,0.05) 0%, transparent 70%);
-  }
-
-  /* ── TORCH CURSOR GLOW ── */
-  .torch-glow {
-    position: fixed;
-    width: 400px;
-    height: 400px;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9998;
-    opacity: 0;
-    transform: translate(-50%, -50%);
-    background: radial-gradient(circle, rgba(245,158,11,0.07) 0%, rgba(196,149,106,0.03) 30%, transparent 70%);
-    transition: opacity 0.3s;
-    will-change: transform;
-  }
-  .torch-glow.visible { opacity: 1; }
-  @media (hover: none), (max-width: 768px) {
-    .torch-glow { display: none; }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .torch-glow { display: none; }
-  }
-
-  a { color: var(--amber); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 24px;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* ── FIRELIGHT FLICKER ── */
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes firelight {
-      0%, 100% { opacity: 0.03; }
-      15% { opacity: 0.05; }
-      30% { opacity: 0.04; }
-      45% { opacity: 0.06; }
-      60% { opacity: 0.03; }
-      75% { opacity: 0.055; }
-      90% { opacity: 0.04; }
-    }
-
-    .hero::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background: radial-gradient(ellipse at 50% 80%, rgba(245,158,11,0.4) 0%, transparent 60%);
-      opacity: 0.04;
-      animation: firelight 4s ease-in-out infinite;
-      z-index: 0;
-    }
-  }
-
-  /* ── HERO ── */
-  .hero {
-    text-align: center;
-    padding: 80px 0 60px;
-    position: relative;
-  }
-
-  /* SVG cave-painting silhouettes (replaced emoji decoration 2026-04-16 per /plan-design-review) */
-  .cave-svg {
-    position: absolute;
-    color: var(--amber);
-    pointer-events: none;
-    user-select: none;
-  }
-  .cave-svg-a {
-    top: 4%;
-    right: -40px;
-    width: 240px;
-    height: 280px;
-    transform: rotate(8deg);
-  }
-  .cave-svg-b {
-    bottom: -30px;
-    left: -40px;
-    width: 180px;
-    height: 200px;
-    transform: rotate(-5deg);
-  }
-  .cave-slash {
-    position: absolute;
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 900;
-    font-size: 140px;
-    color: var(--amber);
-    opacity: 0.06;
-    pointer-events: none;
-    user-select: none;
-    line-height: 1;
-  }
-  .cave-slash.s1 { top: 18%; left: 10%; transform: rotate(-28deg); }
-  .cave-slash.s2 { bottom: 18%; right: 10%; transform: rotate(18deg); }
-  @media (max-width: 768px) {
-    .cave-svg-a, .cave-svg-b { display: none; }
-    .cave-slash { font-size: 80px; }
-  }
-
-  .hero-title {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 900;
-    font-size: clamp(48px, 8vw, 96px);
-    color: var(--heading);
-    letter-spacing: 6px;
-    text-shadow: 3px 3px 0 #3d2b1f, 6px 6px 20px rgba(0,0,0,0.5);
-    margin-bottom: 16px;
-    position: relative;
-    z-index: 1;
-  }
-
-  .hero-tagline {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: clamp(16px, 2.5vw, 24px);
-    color: var(--accent);
-    letter-spacing: 2px;
-    margin-bottom: 20px;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* ── HERO MINI TERMINAL ── */
-  .hero-mini-terminal {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 10px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    margin-bottom: 24px;
-    position: relative;
-    z-index: 1;
-    min-height: 42px;
-  }
-  .mini-prompt { color: var(--green); user-select: none; }
-  .mini-output { color: var(--text-dim); }
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
-    .mini-cursor {
-      color: var(--amber);
-      animation: blink 1s step-end infinite;
-    }
-  }
-
-  .hero-sub {
-    font-size: 18px;
-    color: var(--text-dim);
-    margin-bottom: 32px;
-    position: relative;
-    z-index: 1;
-  }
-
-  .install-box {
-    display: inline-flex;
-    align-items: center;
-    gap: 12px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px 20px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    max-width: 100%;
-    overflow-x: auto;
-    position: relative;
-    z-index: 1;
-  }
-  .install-box .prompt { color: var(--green); user-select: none; }
-  .install-box .cmd { color: var(--text); white-space: nowrap; }
-  .install-box .copy-btn {
-    background: var(--amber);
-    color: #000;
-    border: none;
-    border-radius: 4px;
-    padding: 4px 12px;
-    font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    flex-shrink: 0;
-  }
-  .install-box .copy-btn:hover { background: #d99a08; }
-
-  .hero-title .hero-dot {
-    color: var(--amber);
-  }
-
-  .sha-chip {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--text-dim);
-    margin-top: 12px;
-    margin-bottom: 32px;
-    position: relative;
-    z-index: 1;
-  }
-  .sha-chip .verify-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    flex-shrink: 0;
-  }
-
-  .proof-row {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 12px;
-    padding: 20px 28px;
-    margin-top: 8px;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    flex-wrap: wrap;
-    justify-content: center;
-    position: relative;
-    z-index: 1;
-  }
-  .proof-num {
-    font-size: 20px;
-    color: var(--yellow);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .proof-label { color: var(--text-dim); }
-  .proof-sep { color: var(--text-dim); opacity: 0.5; }
-  .proof-link {
-    color: var(--yellow);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .proof-link:hover { color: var(--amber); }
-
-  .hero-links {
-    margin-top: 24px;
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    flex-wrap: wrap;
-    position: relative;
-    z-index: 1;
-  }
-  .hero-links a {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    color: var(--text-dim);
-  }
-  .hero-links a:hover { color: var(--amber); }
-
-  /* ── SECTION ── */
-  section {
-    padding: 80px 0;
-    border-top: 1px solid var(--border);
-  }
-
-  .section-title {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 700;
-    font-size: 32px;
-    color: var(--heading);
-    margin-bottom: 12px;
-  }
-
-  .section-subtitle {
-    color: var(--text-dim);
-    font-size: 16px;
-    margin-bottom: 40px;
-  }
-
-  /* ── TERMINAL DEMO ── */
-  .demo-tabs {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-  .demo-tabs [role="tab"] {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .demo-tabs [role="tab"]:hover { border-color: var(--accent); color: var(--text); }
-  .demo-tabs [role="tab"][aria-selected="true"],
-  .demo-tabs [role="tab"].active {
-    border-color: var(--amber);
-    color: var(--amber);
-    background: rgba(245,158,11,0.08);
-  }
-
-  .terminal-frame {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-
-  .terminal-titlebar {
-    display: flex;
-    gap: 6px;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(0,0,0,0.2);
-  }
-  .terminal-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-  .terminal-dot.red { background: var(--red); }
-  .terminal-dot.yellow { background: var(--yellow); }
-  .terminal-dot.green { background: var(--green); }
-
-  .terminal-content {
-    min-height: 300px;
-  }
-
-  .terminal-split {
-    display: flex;
-  }
-  .terminal-divider {
-    width: 1px;
-    background: var(--border);
-    flex-shrink: 0;
-  }
-  .pane-verbose, .pane-caveman, .pane-single {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
-    max-height: 400px;
-    position: relative;
-  }
-  .pane-verbose { background: rgba(0,0,0,0.15); }
-
-  .pane-label {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-  }
-  .pane-verbose .pane-label { color: var(--red); }
-  .pane-caveman .pane-label { color: var(--green); }
-
-  .terminal-content pre {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    color: var(--text-dim);
-  }
-
-  /* Scanline overlay on terminal */
-  .terminal-frame::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: repeating-linear-gradient(
-      transparent 0px,
-      transparent 1px,
-      rgba(0,0,0,0.03) 1px,
-      rgba(0,0,0,0.03) 2px
-    );
-    border-radius: 12px;
-  }
-  .terminal-frame { position: relative; }
-
-  .word-counter {
-    text-align: center;
-    padding: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    color: var(--amber);
-    border-top: 1px solid var(--border);
-    background: rgba(245,158,11,0.04);
-  }
-
-  .terminal-frame.small {
-    max-width: 600px;
-    margin: 0 auto;
-  }
-  .terminal-frame.small .terminal-content {
-    min-height: 180px;
-  }
-
-  /* ── SKILLS TYPESET LIST (v1.0 anti-slop) ── */
-  .section-eyebrow {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px;
-    color: var(--amber);
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    margin-bottom: 16px;
-  }
-
-  .skill-list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0 64px;
-    border-top: 1px solid var(--border);
-    margin-top: 24px;
-  }
-  @media (max-width: 768px) {
-    .skill-list { grid-template-columns: 1fr; gap: 0; }
-  }
-
-  .skill-row {
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 24px;
-    align-items: baseline;
-    padding: 20px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .skill-row .skill-cmd {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 16px;
-    color: var(--yellow);
-    font-weight: 500;
-  }
-  .skill-row .skill-desc {
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    color: var(--text);
-    line-height: 1.5;
-  }
-  .skill-row.primary {
-    background: linear-gradient(90deg, rgba(245,158,11,0.05) 0%, transparent 100%);
-    border-radius: 6px;
-    border-bottom: 1px solid transparent;
-    padding: 20px 16px;
-    margin: 0 -16px;
-  }
-  .skill-row.primary .skill-cmd {
-    color: var(--amber);
-    font-size: 18px;
-    font-weight: 600;
-  }
-  @media (max-width: 480px) {
-    .skill-row { grid-template-columns: 1fr; gap: 6px; }
-    .skill-row.primary { margin: 0; padding: 16px; }
-  }
-
-  .skills-note {
-    margin-top: 48px;
-    padding: 20px 24px;
-    background: var(--surface);
-    border-left: 3px solid var(--amber);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    color: var(--text-dim);
-    line-height: 1.8;
-    max-width: 720px;
-  }
-  .skills-note code {
-    background: var(--panel);
-    padding: 2px 6px;
-    border-radius: 3px;
-    color: var(--yellow);
-  }
-  .skills-more-list {
-    color: var(--yellow);
-    word-spacing: 4px;
-  }
-  .skills-cta {
-    display: inline-block;
-    margin-left: 8px;
-  }
-  .skills-cta a {
-    color: var(--amber);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  /* ── BREATHER (quiet section between anchors) ── */
-  .breather {
-    text-align: center;
-    padding: 64px 0;
-    border-top: none;
-  }
-  .breather-line {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 700;
-    font-size: clamp(18px, 3vw, 28px);
-    color: var(--heading);
-    max-width: 640px;
-    margin: 0 auto;
-    line-height: 1.4;
-    letter-spacing: -0.01em;
-  }
-
-  /* ── HOW IT WORK ── */
-  .steps {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-  }
-
-  .step {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 24px;
-  }
-
-  .step-num {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 900;
-    font-size: 40px;
-    color: var(--amber);
-    opacity: 0.3;
-    margin-bottom: 8px;
-  }
-
-  .step-title {
-    font-weight: 600;
-    font-size: 18px;
-    color: var(--heading);
-    margin-bottom: 8px;
-  }
-
-  .step-text { color: var(--text-dim); font-size: 14px; }
-
-  .steps-aside {
-    margin-top: 32px;
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 13px;
-    font-family: 'JetBrains Mono', monospace;
-  }
-  .steps-aside code {
-    background: var(--panel);
-    padding: 2px 8px;
-    border-radius: 3px;
-    color: var(--yellow);
-  }
-
-  .step code {
-    display: block;
-    background: var(--panel);
-    border-radius: 4px;
-    padding: 10px 14px;
-    margin-top: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 13px;
-    color: var(--text);
-    overflow-x: auto;
-  }
-
-  /* ── CAVEMAN CONTROL ── */
-  .intensity {
-    display: flex;
-    gap: 24px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-
-  .intensity-level {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 28px 32px;
-    text-align: center;
-    min-width: 200px;
-    flex: 1;
-    max-width: 320px;
-    transition: border-color 0.15s ease-out;
-  }
-  .intensity-level:hover { border-color: var(--accent); }
-
-  .intensity-name {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 14px;
-    color: var(--amber);
-    margin-bottom: 8px;
-  }
-
-  .intensity-label {
-    font-family: 'Satoshi', sans-serif;
-    font-weight: 700;
-    font-size: 24px;
-    color: var(--heading);
-    margin-bottom: 4px;
-  }
-
-  .intensity-desc {
-    color: var(--text-dim);
-    font-size: 14px;
-  }
-
-  .intensity-example {
-    margin-top: 16px;
-    background: var(--panel);
-    border-radius: 6px;
-    padding: 12px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px;
-    color: var(--text-dim);
-    text-align: left;
-    line-height: 1.6;
-  }
-
-  .intensity-level.active {
-    border-color: var(--amber);
-    box-shadow: 0 0 20px rgba(245,158,11,0.1);
-  }
-  .intensity-level.active .intensity-label::after {
-    content: ' (default)';
-    font-size: 12px;
-    color: var(--text-dim);
-    font-weight: 400;
-  }
-
-  /* ── FOOTER ── */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 40px 0;
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 14px;
-  }
-
-  footer .footer-tagline {
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--accent);
-    font-size: 16px;
-    margin-bottom: 16px;
-    letter-spacing: 1px;
-  }
-
-  footer .footer-links {
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-  }
-
-  footer .credit {
-    font-size: 13px;
-    color: #484f58;
-  }
-
-  /* ── RESPONSIVE ── */
-  @media (max-width: 768px) {
-    .hero { padding: 60px 0 50px; }
-    section { padding: 50px 0; }
-    .install-box { flex-direction: column; align-items: stretch; text-align: center; }
-    .install-box .cmd { white-space: normal; word-break: break-all; font-size: 12px; }
-    .skills-grid { grid-template-columns: 1fr; }
-    .intensity { flex-direction: column; align-items: center; }
-    .intensity-level { max-width: 100%; }
-    .cave-el { display: none; }
-    .terminal-split { flex-direction: column; }
-    .terminal-divider { width: 100%; height: 1px; }
-    .pane-verbose, .pane-caveman { max-height: 250px; }
-    .compare-grid { grid-template-columns: 1fr; }
-    .hero-mini-terminal { font-size: 12px; padding: 8px 14px; }
-    .demo-tabs { flex-wrap: wrap; }
-  }
-</style>
+<!-- JSON-LD: SoftwareApplication -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "CaveStack",
+  "operatingSystem": "macOS, Linux, Windows",
+  "applicationCategory": "DeveloperApplication",
+  "description": "40 Claude Code skills with caveman voice. Judgment layer that prevents bad work before it ships. Savings measured in characters — model-agnostic.",
+  "url": "https://cavestack.jerkyjesse.com/",
+  "downloadUrl": "https://cavestack.jerkyjesse.com/install",
+  "softwareVersion": "1.0.1.0",
+  "author": {
+    "@type": "Person",
+    "name": "JerkyJesse",
+    "url": "https://github.com/JerkyJesse"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://opensource.org/licenses/MIT"
+}
+</script>
 </head>
 <body>
-<div class="torch-glow" id="torch-glow"></div>
 
-<!-- ═══ HERO (v1.0 identity-first) ═══ -->
-<div class="hero">
-  <!-- SVG cave-painting silhouettes replace emoji decoration (design review F4) -->
-  <svg class="cave-svg cave-svg-a" viewBox="0 0 240 280" fill="none" aria-hidden="true">
-    <path d="M120 30 Q95 50 90 85 Q85 110 80 130 L75 150 Q72 160 78 170 L85 180 Q90 190 85 200 L80 220 Q85 235 95 245 L110 250 Q115 230 110 210 L105 190 Q115 180 125 175 L140 170 Q150 165 155 155 L165 140 Q170 125 168 110 L165 90 Q160 70 150 55 Q140 40 120 30 Z" fill="currentColor" opacity="0.08"/>
-    <circle cx="120" cy="115" r="4" fill="currentColor" opacity="0.12"/>
-  </svg>
-  <svg class="cave-svg cave-svg-b" viewBox="0 0 180 200" fill="none" aria-hidden="true">
-    <path d="M90 20 L80 45 L60 40 L55 70 L40 80 L50 105 L40 130 L60 135 L70 160 L90 150 L110 165 L120 140 L140 135 L130 110 L140 85 L125 75 L130 45 L110 50 L100 25 Z" fill="currentColor" opacity="0.06"/>
-  </svg>
-  <div class="cave-slash s1">///</div>
-  <div class="cave-slash s2">///</div>
+<!-- Skip link (WCAG 2.4.1) -->
+<a class="skip-link" href="#main">Skip to content</a>
 
-  <div class="container">
-    <h1 class="hero-title">CAVESTACK<span class="hero-dot">.</span></h1>
-    <p class="hero-tagline">Why use many word when few do?</p>
-    <p class="hero-sub">Claude Code skills that prevent bad work before it ships. 40 skills. Caveman voice. Finished product.</p>
+<!-- Torch cursor glow -->
+<div class="torch-glow" id="torchGlow" aria-hidden="true"></div>
 
-    <div class="install-box">
-      <span class="prompt">$</span>
-      <span class="cmd">curl -fsSL https://cavestack.jerkyjesse.com/install | sh</span>
-      <button class="copy-btn" aria-label="Copy install command">Copy</button>
-    </div>
-    <div class="sha-chip" role="note">
-      <span class="verify-dot" aria-hidden="true"></span>
-      <span>sha256-verified install &middot; zero telemetry &middot; MIT</span>
-    </div>
-
-    <div class="proof-row">
-      <span class="proof-num" id="proof-num">see benchmarks</span>
-      <span class="proof-label">characters saved on 10-task benchmark</span>
-      <span class="proof-sep">&middot;</span>
-      <a class="proof-link" href="methodology.html">methodology &rarr;</a>
-    </div>
-
-    <div class="hero-links">
-      <a href="https://github.com/JerkyJesse/cavestack">GITHUB</a>
-      <a href="methodology.html">METHODOLOGY</a>
-      <a href="#demo">BEFORE / AFTER</a>
-      <a href="skills.html">ALL SKILLS</a>
-      <a href="https://github.com/JerkyJesse/cavestack/issues">ISSUES</a>
-    </div>
-  </div>
+<!-- Cave wall: background petroglyphs, torch-lit via radial mask -->
+<div class="cave-wall" id="caveWall" aria-hidden="true">
+  <svg class="cw-glyph"       style="top: 4%;  left: 6%;  width: 200px; transform: rotate(-8deg);"            viewBox="0 0 180 220"><use href="#glyph-hand"/></svg>
+  <svg class="cw-glyph ochre" style="top: 14%; right: 4%; width: 280px; transform: rotate(4deg);"             viewBox="0 0 240 180"><use href="#glyph-mammoth"/></svg>
+  <svg class="cw-glyph"       style="top: 32%; left: 24%; width: 110px;"                                      viewBox="0 0 100 100"><use href="#glyph-spiral"/></svg>
+  <svg class="cw-glyph ochre" style="top: 46%; left: 2%;  width: 150px; transform: rotate(12deg) scaleX(-1);" viewBox="0 0 180 220"><use href="#glyph-hand"/></svg>
+  <svg class="cw-glyph"       style="top: 56%; right: 18%; width: 220px; transform: scaleX(-1);"              viewBox="0 0 240 180"><use href="#glyph-mammoth"/></svg>
+  <svg class="cw-glyph ochre" style="top: 72%; left: 40%; width: 130px; transform: rotate(-12deg);"           viewBox="0 0 100 100"><use href="#glyph-spiral"/></svg>
+  <svg class="cw-glyph"       style="bottom: 8%; left: 10%; width: 170px; transform: rotate(6deg);"           viewBox="0 0 180 220"><use href="#glyph-hand"/></svg>
+  <svg class="cw-glyph"       style="bottom: 14%; right: 6%; width: 90px;"                                    viewBox="0 0 60 120"><use href="#glyph-torch"/></svg>
+  <svg class="cw-glyph ochre" style="top: 88%; left: 60%; width: 240px;"                                      viewBox="0 0 240 180"><use href="#glyph-mammoth"/></svg>
 </div>
 
-<!-- ═══ BEFORE / AFTER — LIVE TERMINAL DEMO ═══ -->
-<section id="demo">
-  <div class="container">
-    <h2 class="section-title">Before / After</h2>
-    <p class="section-subtitle">Same /review. Same patch. Watch the difference.</p>
-    <div class="demo-tabs" role="tablist">
-      <button role="tab" aria-selected="true" data-scenario="0" tabindex="0">/review</button>
-      <button role="tab" aria-selected="false" data-scenario="1" tabindex="-1">/investigate</button>
-    </div>
-    <div id="cave-terminal" class="terminal-frame">
-      <div class="terminal-titlebar">
-        <span class="terminal-dot red"></span>
-        <span class="terminal-dot yellow"></span>
-        <span class="terminal-dot green"></span>
-      </div>
-      <!-- Pre-rendered scenario 1 for progressive enhancement (JS replaces this) -->
-      <div class="terminal-content">
-        <div class="terminal-split">
-          <div class="pane-verbose" role="log" aria-label="Verbose output">
-            <div class="pane-label">Default verbose</div>
-            <pre># patch /review
+<!-- Inline petroglyph sprite (4 hand-authored glyphs, variable stroke) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
 
-Analyzing your changes...
+    <!-- GLYPH 1: Handprint (fill, not stroke — negative-space stencil over ochre smear) -->
+    <symbol id="glyph-hand" viewBox="0 0 180 220">
+      <!-- Ochre smear halo (the "blown pigment" halo around stencils in Lascaux/El Castillo) -->
+      <ellipse cx="90" cy="120" rx="88" ry="96" fill="currentColor" opacity="0.14"/>
+      <ellipse cx="90" cy="118" rx="70" ry="82" fill="currentColor" opacity="0.22"/>
+      <!-- Hand silhouette: negative space, irregular/asymmetric -->
+      <path d="M70 210
+               C 52 196, 44 174, 46 158
+               C 40 142, 32 120, 38 100
+               C 30 82, 28 58, 42 50
+               C 50 46, 56 58, 58 78
+               C 56 58, 54 30, 68 24
+               C 80 22, 82 42, 82 66
+               C 82 40, 86 18, 102 18
+               C 116 22, 114 44, 110 72
+               C 114 50, 124 32, 138 36
+               C 150 44, 144 68, 134 92
+               C 144 82, 158 78, 166 90
+               C 170 104, 156 122, 140 138
+               C 138 156, 130 180, 118 200
+               C 110 212, 88 218, 70 210 Z"
+            fill="var(--base)" opacity="0.98"/>
+    </symbol>
 
-I'll review the changes in auth/middleware.ts and provide
-comprehensive feedback on the implementation.
+    <!-- GLYPH 2: Mammoth (single-line silhouette, heavy belly curve — Rouffignac-inspired) -->
+    <symbol id="glyph-mammoth" viewBox="0 0 240 180">
+      <path d="M 22 108
+               Q 18 86 34 70
+               Q 52 58 74 60
+               L 84 44
+               Q 92 36 98 44
+               L 100 58
+               Q 122 52 148 54
+               Q 180 58 206 74
+               Q 222 86 220 106
+               L 222 132
+               Q 216 138 210 132
+               L 204 118
+               L 190 120
+               L 186 138
+               Q 182 144 176 138
+               L 172 122
+               L 128 124
+               L 124 144
+               Q 118 150 112 144
+               L 110 128
+               L 66 130
+               L 62 148
+               Q 56 154 50 148
+               L 48 130
+               L 34 128
+               Q 24 122 22 108 Z
+               M 58 76 Q 48 70 38 74
+               M 100 50 Q 96 40 92 38
+               M 148 66 L 154 48 Q 156 40 160 46 L 160 62
+               M 172 66 L 178 48 Q 180 40 184 46 L 184 62"
+            fill="currentColor" opacity="0.72"
+            stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <!-- Tusk -->
+      <path d="M 30 116 Q 24 124 32 130" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      <!-- Eye -->
+      <circle cx="48" cy="92" r="2.5" fill="var(--base)"/>
+    </symbol>
 
-## Summary
+    <!-- GLYPH 3: Spiral (Mesolithic concentric — irregular, hand-drawn wobble, not Memphis geometric) -->
+    <symbol id="glyph-spiral" viewBox="0 0 100 100">
+      <path d="M 50 50
+               m 0 -2
+               c 2 0 4 1 4 3
+               c 0 3 -3 5 -6 5
+               c -5 0 -8 -4 -8 -9
+               c 0 -7 5 -12 12 -12
+               c 9 0 15 7 15 16
+               c 0 11 -9 19 -20 19
+               c -13 0 -23 -10 -23 -24
+               c 0 -16 13 -28 29 -28"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            opacity="0.8"/>
+      <!-- Hand-drawn wobble dots along path -->
+      <circle cx="50" cy="48" r="1.5" fill="currentColor" opacity="0.6"/>
+    </symbol>
 
-This pull request modifies the authentication middleware
-to add token expiry validation. The changes look generally
-good, but I have several observations and recommendations
-that I'd like to share with you.
+    <!-- GLYPH 4: Torch (flame + shaft — the brand anchor) -->
+    <symbol id="glyph-torch" viewBox="0 0 60 120">
+      <!-- Flame (amber, flickers) -->
+      <path d="M 30 8
+               Q 18 20 20 38
+               Q 22 52 30 56
+               Q 38 52 40 38
+               Q 42 20 30 8 Z"
+            fill="var(--amber)" opacity="0.92" class="flicker"/>
+      <!-- Inner flame -->
+      <path d="M 30 20
+               Q 24 30 26 42
+               Q 28 50 30 50
+               Q 32 50 34 42
+               Q 36 30 30 20 Z"
+            fill="var(--term-yellow)" opacity="0.7" class="flicker"/>
+      <!-- Shaft -->
+      <rect x="26" y="54" width="8" height="58" fill="currentColor" opacity="0.75" rx="1"/>
+      <!-- Binding -->
+      <path d="M 22 64 L 38 64 M 22 74 L 38 74" stroke="var(--base)" stroke-width="1.2" opacity="0.5"/>
+    </symbol>
 
-## Detailed Analysis
+  </defs>
+</svg>
 
-### Finding 1: Token Expiry Check (Medium)
+<main id="main">
 
-In auth/middleware.ts:47, the token expiry comparison
-uses a strict less-than operator (&lt;) when it should
-use less-than-or-equal-to (&lt;=). This means tokens
-that expire at exactly the current timestamp will
-incorrectly be treated as valid.
-
-Recommendation: Change the comparison operator from
-&lt; to &lt;= to ensure tokens are invalidated at exactly
-their expiry time.
-
-### Finding 2: Missing Error Context (Low)
-
-The error response at line 52 returns a generic 401
-without diagnostic information. Consider adding a
-"reason" field to the error response.
-
-## Overall Assessment
-
-The changes demonstrate a solid understanding of the
-authentication flow. With the operator fix applied,
-this should be ready to merge.</pre>
+  <!-- ═══════════════════════ HERO ═══════════════════════ -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <div class="eyebrow">CaveStack · v1.0 shipped</div>
+          <h1>Skills that<br>think before code.</h1>
+          <p class="lede">
+            40 Claude Code skills. Caveman voice. Catch bad work before ship.
+            Savings in characters, not tokens — model-agnostic. Free OSS.
+          </p>
+          <div class="install" role="group" aria-label="Install command">
+            <code id="installCmd">curl -fsSL cavestack.jerkyjesse.com/install | sh</code>
+            <button class="install-copy" type="button" id="copyBtn" aria-label="Copy install command">Copy</button>
           </div>
-          <div class="terminal-divider"></div>
-          <div class="pane-caveman" role="log" aria-label="Caveman output" aria-live="polite">
-            <div class="pane-label">CaveStack (caveman mode)</div>
-            <pre># patch /review
-
-## Findings: 2
-
-1. auth/middleware.ts:47 — token expiry check
-   use &lt; not &lt;=. Token at exact expiry time
-   passes validation. Fix:
-
-   - if (token.exp &lt; now) {
-   + if (token.exp &lt;= now) {
-
-2. auth/middleware.ts:52 — 401 response
-   missing reason field. Add:
-
-   { error: "unauthorized", reason: "token_expired" }
-
-Status: Fix #1, merge.</pre>
-          </div>
         </div>
-      </div>
-      <div class="word-counter">187 fewer words (82% less)</div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ SIX HERO SKILLS (v1.0 typeset list, anti-slop) ═══ -->
-<section id="skills">
-  <div class="container">
-    <div class="section-eyebrow">SIX FEATURED SKILLS</div>
-    <h2 class="section-title">Think before code.</h2>
-    <p class="section-subtitle">Six judgment-layer skills prevent bad work before it ships. 34 more under /skills.</p>
-    <div class="skill-list">
-      <div class="skill-row primary">
-        <div class="skill-cmd">/office-hours</div>
-        <div class="skill-desc">Six forcing questions. Kill bad ideas before you build.</div>
-      </div>
-      <div class="skill-row primary">
-        <div class="skill-cmd">/investigate</div>
-        <div class="skill-desc">Root-cause systematic debug. Reproduce, isolate, diagnose, fix.</div>
-      </div>
-      <div class="skill-row">
-        <div class="skill-cmd">/plan-eng-review</div>
-        <div class="skill-desc">Architecture gate. Finds hidden coupling, tests, failure modes.</div>
-      </div>
-      <div class="skill-row">
-        <div class="skill-cmd">/plan-design-review</div>
-        <div class="skill-desc">UI/UX audit before implementation. Kills slop patterns early.</div>
-      </div>
-      <div class="skill-row">
-        <div class="skill-cmd">/plan-devex-review</div>
-        <div class="skill-desc">Developer experience critique. Finds friction in your tooling.</div>
-      </div>
-      <div class="skill-row">
-        <div class="skill-cmd">/cso</div>
-        <div class="skill-desc">Security audit: OWASP Top 10, STRIDE, supply chain.</div>
+        <svg class="hero-glyph flicker" role="img" aria-label="Cave handprint glyph">
+          <use href="#glyph-hand"/>
+        </svg>
       </div>
     </div>
+  </section>
 
-    <div class="skills-note">
-      34 more skills ship with CaveStack.
-      <span class="skills-more-list">/ship /review /qa /checkpoint /health /retro /document-release /land-and-deploy /autoplan /codex /browse &middot; &middot; &middot;</span><br>
-      Run any by full name, or type <code>/help</code> inside Claude Code to list them. No flag needed.
-      <span class="skills-cta"><a href="skills.html">see all &rarr;</a></span>
-    </div>
-  </div>
-</section>
+  <!-- ═══════════════════════ DEMO ═══════════════════════ -->
+  <section class="demo" id="demo">
+    <div class="container">
+      <div class="eyebrow">What it feel like</div>
+      <h2>One command. Clear verdict.</h2>
+      <p>
+        Every skill run preflight. Dual-voice review. Write artifacts to disk.
+        <code>/ship</code> go from "ready?" to receipts. Under a minute.
+      </p>
 
-<!-- ═══ QUIET BREATHER (design-review P3 — breaks section rhythm) ═══ -->
-<section class="breather">
-  <div class="container">
-    <p class="breather-line">Keep all gstack functionality. Upgrade it. Ship it finished.</p>
-  </div>
-</section>
-
-<!-- ═══ HOW IT WORK ═══ -->
-<section>
-  <div class="container">
-    <h2 class="section-title">How It Work</h2>
-    <p class="section-subtitle">Two grunt. That all.</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div class="step-title">Install</div>
-        <div class="step-text">One line. Auto-detect bun. No signup.</div>
-        <code>curl -fsSL https://cavestack.jerkyjesse.com/install | sh</code>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div class="step-title">Open Claude Code</div>
-        <div class="step-text">Caveman active. Try <code>/help</code> or <code>/office-hours</code>. Done.</div>
-        <code>claude  # caveman hooks fire on SessionStart</code>
-      </div>
-    </div>
-    <p class="steps-aside">
-      Already have gstack/cavestack? <code>/cavestack-upgrade</code> handles the migration.
-    </p>
-  </div>
-</section>
-
-<!-- ═══ CAVEMAN CONTROL ═══ -->
-<section>
-  <div class="container">
-    <h2 class="section-title">Caveman Control</h2>
-    <p class="section-subtitle">Three intensity. Pick grunt level.</p>
-    <div class="intensity">
-      <div class="intensity-level">
-        <div class="intensity-name">/caveman lite</div>
-        <div class="intensity-label">Lite</div>
-        <div class="intensity-desc">Gentle compression. Drop filler words. Keep articles.</div>
-        <div class="intensity-example">
-          "The bug is in the authentication<br>
-          middleware. Token expiry check<br>
-          uses wrong operator."
+      <div class="terminal">
+        <div class="terminal-chrome">
+          <span class="terminal-dot r"></span>
+          <span class="terminal-dot y"></span>
+          <span class="terminal-dot g"></span>
+          <span class="terminal-title">claude-code — cavestack</span>
         </div>
-      </div>
-      <div class="intensity-level active">
-        <div class="intensity-name">/caveman full</div>
-        <div class="intensity-label">Full</div>
-        <div class="intensity-desc">Classic caveman. Fragments OK. No articles. Short synonyms.</div>
-        <div class="intensity-example">
-          "Bug in auth middleware. Token<br>
-          expiry check use wrong operator."
-        </div>
-      </div>
-      <div class="intensity-level">
-        <div class="intensity-name">/caveman ultra</div>
-        <div class="intensity-label">Ultra</div>
-        <div class="intensity-desc">Maximum grunt. Fragments only. Bare minimum.</div>
-        <div class="intensity-example">
-          "auth middleware:47. Token expiry.<br>
-          &lt; not &lt;=. Fix."
+        <div class="terminal-body" id="term" aria-live="off">
+<span class="term-prompt">$</span> /ship
+<span class="term-dim">→ Running preflight (git, tests, CHANGELOG)...</span>
+<span class="term-ok">✓</span> 12 commits on branch, base is main
+<span class="term-ok">✓</span> Tests pass (47 files, 0 fail)
+<span class="term-warn">⚠</span> CHANGELOG entry missing for this branch
+<span class="term-dim">→ Generating entry + version bump...</span>
+<span class="term-ok">✓</span> v1.0.1.0 — Cave Mural redesign
+<span class="term-dim">→ Opening PR via gh...</span>
+<span class="term-ok">✓</span> PR #42 opened: cavestack.jerkyjesse.com/pr/42
+<span class="term-prompt">$</span> <span class="cursor"></span>
         </div>
       </div>
     </div>
-  </div>
-</section>
+  </section>
 
-<!-- ═══ FOOTER ═══ -->
+  <!-- ═══════════════════════ SKILLS ═══════════════════════ -->
+  <section id="skills">
+    <div class="container">
+      <div class="eyebrow">40 skills · ship-ready</div>
+      <h2>Workflow you already want.</h2>
+      <p>Each skill: prompt + bash + review logic. Type slash. Get answer. No config.</p>
+
+      <div class="skills-grid">
+
+        <article class="skill-card">
+          <div class="skill-slash">/ship</div>
+          <div class="skill-desc">PR-ready check. Tests, changelog, version bump, dual review. Open PR when green.</div>
+          <svg class="skill-glyph"><use href="#glyph-mammoth"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/investigate</div>
+          <div class="skill-desc">Root-cause debug. Hypothesis → evidence → fix. Never guess.</div>
+          <svg class="skill-glyph"><use href="#glyph-spiral"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/qa</div>
+          <div class="skill-desc">Headless browser test real site. Find bug before user do.</div>
+          <svg class="skill-glyph"><use href="#glyph-hand"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/review</div>
+          <div class="skill-desc">Code review on diff. Dual voices: Claude + Codex. Mark decisions.</div>
+          <svg class="skill-glyph"><use href="#glyph-mammoth"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/office-hours</div>
+          <div class="skill-desc">Brainstorm + validate. Challenge premise. Adversarial review. Score 1-10.</div>
+          <svg class="skill-glyph"><use href="#glyph-spiral"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/autoplan</div>
+          <div class="skill-desc">Full auto pipeline: CEO → Design → Eng → DX. Write plan + logs to disk.</div>
+          <svg class="skill-glyph"><use href="#glyph-hand"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/design-review</div>
+          <div class="skill-desc">Visual audit + fix loop. Screenshot site. Flag kitsch. Enforce tokens.</div>
+          <svg class="skill-glyph"><use href="#glyph-mammoth"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/checkpoint</div>
+          <div class="skill-desc">Save progress mid-session. Resume anywhere. Context survive compaction.</div>
+          <svg class="skill-glyph"><use href="#glyph-spiral"/></svg>
+        </article>
+
+        <article class="skill-card">
+          <div class="skill-slash">/retro</div>
+          <div class="skill-desc">Weekly retro across projects. What shipped. What slipped. What to fix.</div>
+          <svg class="skill-glyph"><use href="#glyph-hand"/></svg>
+        </article>
+      </div>
+
+      <p style="margin-top: 32px; color: var(--text-dim); font-size: 14px;">
+        + 31 more. <a href="skills.html">See all 40 skills →</a>
+      </p>
+      <p style="margin-top: 8px; color: var(--text-dim); font-size: 13px;">
+        Move cursor slow. Cave wall light up. Old paintings hide in dark.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ DETAILS (verbose docs, collapsed) ═══════════════════════ -->
+  <section id="docs">
+    <div class="container">
+      <div class="eyebrow">Deep dive</div>
+      <h2>How it work.</h2>
+
+      <details class="docs-details">
+        <summary>Install, voice, philosophy, troubleshooting</summary>
+        <div class="docs-body">
+
+          <h3>Install</h3>
+          <pre><code>curl -fsSL cavestack.jerkyjesse.com/install | sh</code></pre>
+          <p>Works on macOS, Linux, Windows (WSL or git bash). Script install skills to
+             <code>~/.claude/skills/cavestack/</code>. Symlinks them top-level so Claude Code
+             find them as <code>/qa</code>, <code>/ship</code>, rest.</p>
+
+          <h3>Caveman voice</h3>
+          <p>Every skill speak compressed caveman. Drop articles. Drop filler. Fragments OK.
+             Code, commits, PRs stay normal prose. Levels: <code>/caveman lite</code>,
+             <code>/caveman full</code>, <code>/caveman ultra</code>. Kill per-session:
+             <code>stop caveman</code>.</p>
+
+          <h3>Philosophy: judgment before code</h3>
+          <ul>
+            <li><strong>Completeness (P1):</strong> no partial work as done.</li>
+            <li><strong>Blast radius (P2):</strong> fix at root, not symptom.</li>
+            <li><strong>Pragmatic (P3):</strong> ship working, iterate later.</li>
+            <li><strong>DRY (P4):</strong> one source of truth.</li>
+            <li><strong>Explicit over clever (P5):</strong> no hidden magic.</li>
+            <li><strong>Bias toward action (P6):</strong> pick, commit, verify.</li>
+          </ul>
+
+          <h3>Model-agnostic metrics</h3>
+          <p>Savings measured in <strong>characters</strong>, not tokens. Numbers survive model
+             switch. 2,400-char answer stay 2,400 chars on Opus, Sonnet, Haiku, GPT, Gemini.
+             Token math lie across providers. Character math honest.</p>
+
+          <h3>What's on disk</h3>
+          <pre><code>~/.claude/skills/cavestack/   # 40 skills
+~/.cavestack/projects/&lt;slug&gt;/ # plans, reviews, checkpoints, timeline
+~/.cavestack/analytics/       # local-only usage log
+~/.cavestack/config.yaml      # prefix, proactive mode, voice</code></pre>
+          <p>Nothing leave your machine. No telemetry. No calls to cavestack servers. No servers.</p>
+
+          <h3>Team mode</h3>
+          <p>Install once. Share via <code>./setup --team</code>. Teammate run same command.
+             Same skills. No vendoring into repo.</p>
+
+          <h3>Troubleshooting</h3>
+          <ul>
+            <li><strong>Skill not found:</strong> <code>bin/cavestack-relink</code> — rewrite symlinks.</li>
+            <li><strong>Caveman too terse:</strong> <code>/caveman lite</code> — keep more prose.</li>
+            <li><strong>Upgrade:</strong> <code>/cavestack-upgrade</code> or <code>cd ~/.claude/skills/cavestack &amp;&amp; git pull &amp;&amp; bun run build</code>.</li>
+            <li><strong>Proactive prompts annoy:</strong> <code>bin/cavestack-config set proactive false</code>.</li>
+          </ul>
+
+          <h3>License</h3>
+          <p>MIT. Source: <a href="https://github.com/JerkyJesse/CaveStack">github.com/JerkyJesse/CaveStack</a>.
+             Issues, ideas, PRs welcome.</p>
+
+        </div>
+      </details>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════════ FOOTER ═══════════════════════ -->
 <footer>
   <div class="container">
-    <div class="footer-tagline">Why use many word when few do?</div>
-    <div class="footer-links">
-      <a href="https://github.com/JerkyJesse/cavestack">GitHub</a>
-      <a href="https://github.com/JerkyJesse/cavestack/issues">Report Bug</a>
-      <a href="https://github.com/JerkyJesse/cavestack#readme">README</a>
+    <div>
+      <div class="foot-brand">CaveStack</div>
+      <div class="foot-tag">skills that think before code</div>
     </div>
-    <div class="credit">
-      MIT. Caveman: <a href="https://github.com/JuliusBrussee/caveman" style="color:#484f58">Julius Brussee</a>.
-      Built by <a href="https://github.com/JerkyJesse" style="color:#484f58">JerkyJesse</a>.
+    <nav class="foot-links" aria-label="Footer">
+      <a href="skills.html">40 skills</a>
+      <a href="#docs">Docs</a>
+      <a href="https://github.com/JerkyJesse/CaveStack">GitHub</a>
+      <a href="https://github.com/JerkyJesse/CaveStack/issues">Issues</a>
+      <a href="https://github.com/JerkyJesse/CaveStack/blob/main/CHANGELOG.md">Changelog</a>
+    </nav>
+    <div class="foot-meta">
+      <span>v1.0.1.0 · MIT</span>
+      <span>Built by JerkyJesse</span>
+      <span>Fire kept burning since 2026</span>
     </div>
   </div>
 </footer>
 
-<script src="cave-terminal.js"></script>
+<script>
+  // Torch cursor (pointer: fine only)
+  (function(){
+    if (matchMedia('(pointer: coarse)').matches) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const glow = document.getElementById('torchGlow');
+    const wall = document.getElementById('caveWall');
+    const root = document.documentElement;
+    let x = innerWidth / 2, y = innerHeight / 2;
+    let tx = x, ty = y;
+    addEventListener('pointermove', (e) => {
+      tx = e.clientX; ty = e.clientY;
+      glow.style.opacity = '1';
+    });
+    addEventListener('pointerleave', () => { glow.style.opacity = '0'; });
+    function tick() {
+      x += (tx - x) * 0.18;
+      y += (ty - y) * 0.18;
+      glow.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+      // Feed cursor to cave-wall mask (percentages for responsive masking)
+      root.style.setProperty('--mx', (x / innerWidth * 100) + '%');
+      root.style.setProperty('--my', (y / innerHeight * 100) + '%');
+      requestAnimationFrame(tick);
+    }
+    tick();
+  })();
+
+  // Install copy button
+  (function(){
+    const btn = document.getElementById('copyBtn');
+    const cmd = document.getElementById('installCmd');
+    if (!btn || !cmd) return;
+    btn.addEventListener('click', async () => {
+      const text = cmd.textContent.trim();
+      try { await navigator.clipboard.writeText(text); }
+      catch { /* fallback */
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy'); ta.remove();
+      }
+      const orig = btn.textContent;
+      btn.textContent = 'Copied';
+      btn.dataset.copied = '1';
+      setTimeout(() => { btn.textContent = orig; btn.removeAttribute('data-copied'); }, 1800);
+    });
+  })();
+</script>
+
 </body>
 </html>
