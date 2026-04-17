@@ -824,18 +824,32 @@ if [ "$NO_TEAM_MODE" -eq 1 ]; then
 fi
 
 # 11. Caveman always-on mode: register SessionStart + UserPromptSubmit hooks
-#     (opt out with --no-caveman)
+#     + caveman-voice-verify Stop hook (closed-loop voice enforcement).
+#     Opt out with --no-caveman.
 if [ "$CAVEMAN_INSTALL" -eq 1 ] && [ "$NO_CAVEMAN" -eq 0 ]; then
   if [ -x "$SETTINGS_HOOK" ]; then
     if command -v node >/dev/null 2>&1; then
       "$SETTINGS_HOOK" install-caveman 2>/dev/null && \
         log "Caveman always-on registered: terse mode activates on every session start." || \
         log "Caveman registration failed (non-fatal)."
+
+      # Register voice-verify Stop hook (requires hooks/caveman-voice-verify.js
+      # built via bun run build:hook during bun run build above).
+      if [ -f "$SOURCE_CAVESTACK_DIR/hooks/caveman-voice-verify.js" ]; then
+        "$SETTINGS_HOOK" install-voice-verify 2>/dev/null && \
+          log "Voice-verify Stop hook registered: closed-loop density enforcement on every assistant turn." || \
+          log "Voice-verify registration failed (non-fatal)."
+        log "  Opt out this hook only: cavestack-config set voice_verify false (or CAVESTACK_VOICE_VERIFY=0)"
+      else
+        log "Skipped voice-verify registration: hooks/caveman-voice-verify.js not built yet."
+        log "  After bun run build:hook, run: $SETTINGS_HOOK install-voice-verify"
+      fi
+
       log "  Toggle per session: /caveman lite | /caveman full | /caveman ultra | stop caveman"
-      log "  Uninstall: $SETTINGS_HOOK remove-caveman"
+      log "  Uninstall: $SETTINGS_HOOK remove-caveman && $SETTINGS_HOOK remove-voice-verify"
     else
       log "Skipped caveman hook registration: Node.js not found (install from https://nodejs.org/)."
-      log "After installing Node.js, run: $SETTINGS_HOOK install-caveman"
+      log "After installing Node.js, run: $SETTINGS_HOOK install-caveman && $SETTINGS_HOOK install-voice-verify"
     fi
   fi
 fi
@@ -843,6 +857,7 @@ fi
 if [ "$NO_CAVEMAN" -eq 1 ]; then
   if [ -x "$SETTINGS_HOOK" ]; then
     "$SETTINGS_HOOK" remove-caveman 2>/dev/null || true
-    log "Caveman hooks removed from Claude Code settings."
+    "$SETTINGS_HOOK" remove-voice-verify 2>/dev/null || true
+    log "Caveman hooks removed from Claude Code settings (including voice-verify)."
   fi
 fi
