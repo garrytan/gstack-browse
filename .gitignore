@@ -14,7 +14,7 @@ bin/gstack-global-discover
 .opencode/
 .slate/
 .cursor/
-.copilot-cli/
+.copilot/
 .openclaw/
 .hermes/
 .gbrain/
