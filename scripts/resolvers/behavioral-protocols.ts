@@ -1,9 +1,10 @@
 /**
- * Behavioral protocol resolvers — Zero-Shortcuts + Try-First.
+ * Behavioral protocol resolvers — Zero-Shortcuts + Try-First + Musk.
  *
  * Caveman-compressed versions of the standalone protocols from
- * github.com/JerkyJesse/ClaudeSkills. Injected into the preamble
- * at Tier 2+ via generatePreamble().
+ * github.com/JerkyJesse/ClaudeSkills, plus the Musk 5-step algorithm
+ * (Walter Isaacson 2023). Injected into the preamble at Tier 2+ via
+ * generatePreamble().
  *
  * Caveman floor: taxonomy categories and stop conditions stay verbose.
  * Only surrounding prose is compressed.
@@ -80,4 +81,63 @@ When categories overlap, prefer the one that results in attempting the task.
 - Name exact constraint, not class of being.
 
 *Adapted from Try-First by JerkyJesse.*`;
+}
+
+/**
+ * Musk 5-Step Algorithm: process discipline for scoping work.
+ * Apply IN ORDER. Skipping or reordering = wasted effort.
+ *
+ * Caveman floor: rule numbering + anti-pattern bullets stay explicit.
+ * Surrounding prose drops articles where pattern allows so the directive
+ * passes the caveman-voice-verify density floor (articlesPerHundred <= 2.0).
+ */
+export const MUSK_RULES_FULL = `## Musk 5-Step Algorithm
+
+Apply IN STRICT ORDER, 1 through 5. **NEVER reverse. NEVER skip ahead.** Doing
+step 5 (automate) before step 2 (delete) is the canonical Tesla-factory mistake
+Musk himself called out: he wasted years automating processes that should have
+been deleted. Order is load-bearing — same as a checklist on an aircraft, not a
+buffet you pick from.
+
+If caught mid-task on step 4 or 5 without finishing 1-3 first: STOP, restart at 1.
+No partial credit for jumping ahead.
+
+1. **Question every requirement.** Each requirement attaches to person — name them.
+   "Need X because Y said so" beats "need X." No name = requirement suspect.
+2. **Delete part or process.** Reinstate <10% of cuts = didn't cut enough.
+   Default delete. Add back only when forced.
+3. **Simplify and optimize.** Only AFTER deletion. Optimizing thing that should not
+   exist = second-most-common mistake.
+4. **Accelerate cycle time.** Speed up what survived steps 1-3. Never speed up what
+   should have been deleted.
+5. **Automate.** Last. Automating broken process = broken process at scale.
+
+**Anti-patterns (stop and redo if caught):**
+- Adding feature without naming who asked for it.
+- Optimizing code next step would delete.
+- Automating workflow not yet simplified.
+- Building Phase 2 before Phase 1 ships.
+- **Skipping ahead to step 4 or 5 because step 2 (delete) felt scary.**
+- **Reordering "to fit context" — order is the algorithm. Reorder = different algorithm.**
+
+*Adapted from Walter Isaacson's Elon Musk biography (2023).*`;
+
+export const MUSK_RULES_COMPACT = `## Musk 5-Step Algorithm
+
+Apply IN STRICT ORDER. **NEVER reverse. NEVER skip ahead.** 1) Question every requirement (name asker). 2) Delete (reinstate <10% = didn't cut enough). 3) Simplify (only after deletion). 4) Accelerate. 5) Automate (last). Caught on step 4-5 without finishing 1-3 = stop, restart at 1. Reordering = different algorithm.`;
+
+/**
+ * CLAUDE.md template content for the opt-in `## Build philosophy` section.
+ * Derived from MUSK_RULES_COMPACT via H2->H3 demotion to nest under the
+ * parent `## Build philosophy` header. Single source of truth: editing
+ * MUSK_RULES_COMPACT propagates here automatically.
+ *
+ * Gate marker is the HTML comment, not the H2 header — avoids false
+ * positives from CHANGELOG/doc quotes of "## Build philosophy".
+ */
+export const BUILD_PHILOSOPHY_CLAUDE_MD_SECTION = `<!-- cavestack-build-philosophy -->
+${MUSK_RULES_COMPACT.replace('## Musk 5-Step Algorithm', '## Build philosophy\n\n### Musk 5-Step Algorithm')}`;
+
+export function generateMuskAlgorithmDirective(tier: number): string {
+  return tier >= 4 ? MUSK_RULES_COMPACT : MUSK_RULES_FULL;
 }

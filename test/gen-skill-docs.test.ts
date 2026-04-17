@@ -608,6 +608,49 @@ describe('REVIEW_DASHBOARD resolver', () => {
   });
 });
 
+// ─── Build Philosophy directive (Musk 5-step) ─────────────────────
+
+describe('build philosophy directive', () => {
+  test('tier-3 skill includes full Musk directive', () => {
+    const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    expect(oh).toContain('## Musk 5-Step Algorithm');
+    expect(oh).toContain('reinstate <10%');
+    expect(oh).toContain('Anti-patterns (stop and redo if caught)');
+  });
+
+  test('tier-4 skill includes compact Musk variant', () => {
+    const ship = fs.readFileSync(path.join(ROOT, 'ship', 'SKILL.md'), 'utf-8');
+    expect(ship).toContain('## Musk 5-Step Algorithm');
+    expect(ship).toContain('Apply IN STRICT ORDER');
+    expect(ship).toContain('NEVER reverse');
+  });
+
+  test('tier-1 skill does NOT include Musk directive', () => {
+    const browse = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
+    expect(browse).not.toContain('## Musk 5-Step Algorithm');
+    expect(browse).not.toContain('Apply IN STRICT ORDER');
+  });
+
+  test('tier-2+ skills include build philosophy CLAUDE.md template', () => {
+    const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    expect(oh).toContain('<!-- cavestack-build-philosophy -->');
+    expect(oh).toContain('## Build philosophy');
+    expect(oh).toContain('### Musk 5-Step Algorithm');
+  });
+
+  test('build philosophy injection prose includes opt-in flow', () => {
+    const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    expect(oh).toContain('HAS_BUILD_PHIL');
+    expect(oh).toContain('BUILD_PHIL_DECLINED');
+    expect(oh).toContain('build_philosophy_declined');
+  });
+
+  test('preamble bash gates on HTML comment marker, not H2 header', () => {
+    const oh = fs.readFileSync(path.join(ROOT, 'office-hours', 'SKILL.md'), 'utf-8');
+    expect(oh).toContain('grep -q "<!-- cavestack-build-philosophy -->"');
+  });
+});
+
 // ─── Test Coverage Audit Resolver Tests ─────────────────────
 
 describe('TEST_COVERAGE_AUDIT placeholders', () => {
@@ -1475,7 +1518,7 @@ describe('DESIGN_REVIEW_LITE extended with Codex', () => {
 describe('Codex generation (--host codex)', () => {
   const AGENTS_DIR = path.join(ROOT, '.agents', 'skills');
 
-  // .agents/ is gitignored (v0.11.2.0) — generate on demand for tests
+  // .agents/ is gitignored — generate on demand for tests
   Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex'], {
     cwd: ROOT, stdout: 'pipe', stderr: 'pipe',
   });

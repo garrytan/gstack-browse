@@ -1,6 +1,11 @@
 import type { TemplateContext } from './types';
 import { getHostConfig } from '../../hosts/index';
-import { generateZeroShortcutsDirective, generateTryFirstDirective } from './behavioral-protocols';
+import {
+  generateZeroShortcutsDirective,
+  generateTryFirstDirective,
+  generateMuskAlgorithmDirective,
+  BUILD_PHILOSOPHY_CLAUDE_MD_SECTION,
+} from './behavioral-protocols';
 
 /**
  * Preamble architecture — why every skill needs this
@@ -70,6 +75,15 @@ fi
 _ROUTING_DECLINED=$(${ctx.paths.binDir}/cavestack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+# Build philosophy injection: gate on HTML comment marker (not H2 header)
+# to avoid false positives from CHANGELOG/doc quotes of the heading.
+_HAS_BUILD_PHIL="no"
+if [ -f CLAUDE.md ] && grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null; then
+  _HAS_BUILD_PHIL="yes"
+fi
+_BUILD_PHIL_DECLINED=$(${ctx.paths.binDir}/cavestack-config get build_philosophy_declined 2>/dev/null || echo "false")
+echo "HAS_BUILD_PHIL: $_HAS_BUILD_PHIL"
+echo "BUILD_PHIL_DECLINED: $_BUILD_PHIL_DECLINED"
 # Vendoring deprecation: detect if CWD has a vendored cavestack copy
 _VENDORED="no"
 if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; then
@@ -166,6 +180,60 @@ If B: run \`${ctx.paths.binDir}/cavestack-config set routing_declined true\`
 Say "No problem. You can add routing rules later by running \`cavestack-config set routing_declined false\` and re-running any skill."
 
 This only happens once per project. If \`HAS_ROUTING\` is \`yes\` or \`ROUTING_DECLINED\` is \`true\`, skip this entirely.`;
+}
+
+function generateBuildPhilosophyInjection(ctx: TemplateContext): string {
+  return `If \`HAS_BUILD_PHIL\` is \`no\` AND \`BUILD_PHIL_DECLINED\` is \`false\` AND \`PROACTIVE_PROMPTED\` is \`yes\`:
+
+**Pre-flight checks (before AskUserQuestion):**
+
+1. **Re-check marker (idempotency).** \`grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null && echo "ALREADY_PRESENT"\`. If \`ALREADY_PRESENT\`, skip entirely — a previous partial run already wrote the marker.
+
+2. **H2 collision.** \`grep -q "^## Build philosophy" CLAUDE.md 2>/dev/null && echo "H2_EXISTS"\`. If \`H2_EXISTS\`, project already has its own \`## Build philosophy\` section. Use AskUserQuestion:
+   > Your CLAUDE.md already has a \`## Build philosophy\` section (without our marker). Adding ours would create a duplicate H2.
+   > A) Add ours as \`## Build philosophy (CaveStack)\` (recommended)
+   > B) Skip and remember (set declined=true)
+
+   If A: substitute \`## Build philosophy\` with \`## Build philosophy (CaveStack)\` in the appended block.
+   If B: run \`${ctx.paths.binDir}/cavestack-config set build_philosophy_declined true\` and stop.
+
+3. **Dirty / untracked CLAUDE.md.** \`git status --porcelain CLAUDE.md 2>/dev/null\`. If output is non-empty (any of \`?? \`, \` M\`, \`M \`, \`MM\`, \`A \`, \`AM\`), tell user: "Your CLAUDE.md has uncommitted changes (or is untracked). Committing the build philosophy section now would mix it with your work. Stage and commit your edits first, then re-run any cavestack skill. Skipping this session." Then stop. Do NOT set \`build_philosophy_declined\` — this is a transient skip, not a refusal.
+
+If all pre-flight checks pass, use AskUserQuestion:
+
+> Add CaveStack Musk 5-step algorithm to project CLAUDE.md? One-time, ~10 lines.
+> A) Add (recommended)  B) Skip
+
+If A:
+1. **Append the block below to CLAUDE.md using the Bash tool.** This handles trailing-newline correctness and works on empty / frontmatter-only files where the Edit tool struggles. Run:
+
+   \`\`\`bash
+   # Ensure trailing newline before append (Windows CRLF safe)
+   if [ -s CLAUDE.md ] && [ -n "$(tail -c1 CLAUDE.md 2>/dev/null)" ]; then
+     printf '\\n' >> CLAUDE.md
+   fi
+   # Append the build philosophy block (use a unique heredoc terminator to avoid collisions)
+   cat >> CLAUDE.md << 'CAVESTACK_BUILD_PHIL_EOF'
+
+   ${BUILD_PHILOSOPHY_CLAUDE_MD_SECTION.split('\n').join('\n   ')}
+   CAVESTACK_BUILD_PHIL_EOF
+   \`\`\`
+
+   Replace the indented block above with the literal block (un-indented). The 3-space indent in the prose above is for markdown rendering; the actual heredoc body must be flush-left.
+
+2. **Verify the marker landed:** \`grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md\`. If grep fails, the write was rejected (read-only filesystem, full disk, locked file). Tell user: "CLAUDE.md write failed (file may be read-only or locked). Skipping this session — restore write access and re-run any cavestack skill." Do NOT auto-set \`build_philosophy_declined\` — this is transient.
+
+3. **Commit:** \`git add CLAUDE.md && git commit -m "chore: add cavestack build philosophy to CLAUDE.md"\`. Commit failure (hook reject, signing required): leave file edit; tell user "commit failed: <reason>, stage when ready".
+
+For reference, the block content to append (between the heredoc markers above):
+
+\`\`\`markdown
+${BUILD_PHILOSOPHY_CLAUDE_MD_SECTION}
+\`\`\`
+
+If B: \`${ctx.paths.binDir}/cavestack-config set build_philosophy_declined true\`.
+
+Skip entirely if \`HAS_BUILD_PHIL\` is \`yes\` or \`BUILD_PHIL_DECLINED\` is \`true\`.`;
 }
 
 function generateVendoringDeprecation(ctx: TemplateContext): string {
@@ -633,7 +701,7 @@ export function generatePreamble(ctx: TemplateContext): string {
     generateVendoringDeprecation(ctx),
     generateSpawnedSessionCheck(),
     generateVoiceDirective(tier, ctx.voiceProfile),
-    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateZeroShortcutsDirective(), generateTryFirstDirective()] : []),
+    ...(tier >= 2 ? [generateContextRecovery(ctx), generateAskUserFormat(ctx), generateZeroShortcutsDirective(), generateTryFirstDirective(), generateMuskAlgorithmDirective(tier), generateBuildPhilosophyInjection(ctx)] : []),
     ...(tier >= 3 ? [generateRepoModeSection()] : []),
     generateCompletionStatus(ctx),
   ];
