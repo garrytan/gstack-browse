@@ -4,8 +4,20 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# System deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Switch apt sources to Hetzner's public mirror over HTTPS.
+# Ubicloud runners (Hetzner FSN1-DC21) hit reliable connection timeouts to
+# archive.ubuntu.com:80 — observed 90+ second outages on multiple builds.
+# Hetzner's mirror is publicly accessible from any cloud and route-local for
+# Ubicloud, so this fixes both reliability and latency. Ubuntu 24.04 uses
+# the deb822 sources format at /etc/apt/sources.list.d/ubuntu.sources.
+RUN sed -i \
+    -e 's|http://archive.ubuntu.com/ubuntu|https://mirror.hetzner.com/ubuntu/packages|g' \
+    -e 's|http://security.ubuntu.com/ubuntu|https://mirror.hetzner.com/ubuntu/packages|g' \
+    /etc/apt/sources.list.d/ubuntu.sources
+
+# System deps (retry apt-get update — even Hetzner can blip occasionally)
+RUN for i in 1 2 3; do apt-get update && break || sleep 5; done \
+    && apt-get install -y --no-install-recommends \
     git curl unzip ca-certificates jq bc gpg \
     && rm -rf /var/lib/apt/lists/*
 
@@ -14,7 +26,8 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | gpg --dearmor -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
     | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && for i in 1 2 3; do apt-get update && break || sleep 5; done \
+    && apt-get install -y --no-install-recommends gh \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js 22 LTS (needed for claude CLI)
