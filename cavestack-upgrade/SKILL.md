@@ -5,7 +5,11 @@ description: |
   Upgrade cavestack to latest version. Detects global vs vendored install,
   runs upgrade, shows what's new. Use when: "upgrade cavestack",
   "update cavestack", "get latest version".
-  Voice triggers (speech-to-text aliases): "upgrade the tools", "update the tools", "gee stack upgrade", "g stack upgrade".
+voice-triggers:
+  - "upgrade the tools"
+  - "update the tools"
+  - "gee stack upgrade"
+  - "g stack upgrade"
 allowed-tools:
   - Bash
   - Read

@@ -67,6 +67,15 @@ fi
 _ROUTING_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+# Build philosophy injection: gate on HTML comment marker (not H2 header)
+# to avoid false positives from CHANGELOG/doc quotes of the heading.
+_HAS_BUILD_PHIL="no"
+if [ -f CLAUDE.md ] && grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null; then
+  _HAS_BUILD_PHIL="yes"
+fi
+_BUILD_PHIL_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get build_philosophy_declined 2>/dev/null || echo "false")
+echo "HAS_BUILD_PHIL: $_HAS_BUILD_PHIL"
+echo "BUILD_PHIL_DECLINED: $_BUILD_PHIL_DECLINED"
 # Vendoring deprecation: detect if CWD has a vendored cavestack copy
 _VENDORED="no"
 if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; then
@@ -343,6 +352,99 @@ When categories overlap, prefer the one that results in attempting the task.
 - Name exact constraint, not class of being.
 
 *Adapted from Try-First by JerkyJesse.*
+
+## Musk 5-Step Algorithm
+
+Apply IN STRICT ORDER, 1 through 5. **NEVER reverse. NEVER skip ahead.** Doing
+step 5 (automate) before step 2 (delete) is the canonical Tesla-factory mistake
+Musk himself called out: he wasted years automating processes that should have
+been deleted. Order is load-bearing — same as a checklist on an aircraft, not a
+buffet you pick from.
+
+If caught mid-task on step 4 or 5 without finishing 1-3 first: STOP, restart at 1.
+No partial credit for jumping ahead.
+
+1. **Question every requirement.** Each requirement attaches to person — name them.
+   "Need X because Y said so" beats "need X." No name = requirement suspect.
+2. **Delete part or process.** Reinstate <10% of cuts = didn't cut enough.
+   Default delete. Add back only when forced.
+3. **Simplify and optimize.** Only AFTER deletion. Optimizing thing that should not
+   exist = second-most-common mistake.
+4. **Accelerate cycle time.** Speed up what survived steps 1-3. Never speed up what
+   should have been deleted.
+5. **Automate.** Last. Automating broken process = broken process at scale.
+
+**Anti-patterns (stop and redo if caught):**
+- Adding feature without naming who asked for it.
+- Optimizing code next step would delete.
+- Automating workflow not yet simplified.
+- Building Phase 2 before Phase 1 ships.
+- **Skipping ahead to step 4 or 5 because step 2 (delete) felt scary.**
+- **Reordering "to fit context" — order is the algorithm. Reorder = different algorithm.**
+
+*Adapted from Walter Isaacson's Elon Musk biography (2023).*
+
+If `HAS_BUILD_PHIL` is `no` AND `BUILD_PHIL_DECLINED` is `false` AND `PROACTIVE_PROMPTED` is `yes`:
+
+**Pre-flight checks (before AskUserQuestion):**
+
+1. **Re-check marker (idempotency).** `grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null && echo "ALREADY_PRESENT"`. If `ALREADY_PRESENT`, skip entirely — a previous partial run already wrote the marker.
+
+2. **H2 collision.** `grep -q "^## Build philosophy" CLAUDE.md 2>/dev/null && echo "H2_EXISTS"`. If `H2_EXISTS`, project already has its own `## Build philosophy` section. Use AskUserQuestion:
+   > Your CLAUDE.md already has a `## Build philosophy` section (without our marker). Adding ours would create a duplicate H2.
+   > A) Add ours as `## Build philosophy (CaveStack)` (recommended)
+   > B) Skip and remember (set declined=true)
+
+   If A: substitute `## Build philosophy` with `## Build philosophy (CaveStack)` in the appended block.
+   If B: run `~/.claude/skills/cavestack/bin/cavestack-config set build_philosophy_declined true` and stop.
+
+3. **Dirty / untracked CLAUDE.md.** `git status --porcelain CLAUDE.md 2>/dev/null`. If output is non-empty (any of `?? `, ` M`, `M `, `MM`, `A `, `AM`), tell user: "Your CLAUDE.md has uncommitted changes (or is untracked). Committing the build philosophy section now would mix it with your work. Stage and commit your edits first, then re-run any cavestack skill. Skipping this session." Then stop. Do NOT set `build_philosophy_declined` — this is a transient skip, not a refusal.
+
+If all pre-flight checks pass, use AskUserQuestion:
+
+> Add CaveStack Musk 5-step algorithm to project CLAUDE.md? One-time, ~10 lines.
+> A) Add (recommended)  B) Skip
+
+If A:
+1. **Append the block below to CLAUDE.md using the Bash tool.** This handles trailing-newline correctness and works on empty / frontmatter-only files where the Edit tool struggles. Run:
+
+   ```bash
+   # Ensure trailing newline before append (Windows CRLF safe)
+   if [ -s CLAUDE.md ] && [ -n "$(tail -c1 CLAUDE.md 2>/dev/null)" ]; then
+     printf '\n' >> CLAUDE.md
+   fi
+   # Append the build philosophy block (use a unique heredoc terminator to avoid collisions)
+   cat >> CLAUDE.md << 'CAVESTACK_BUILD_PHIL_EOF'
+
+   <!-- cavestack-build-philosophy -->
+   ## Build philosophy
+   
+   ### Musk 5-Step Algorithm
+   
+   Apply IN STRICT ORDER. **NEVER reverse. NEVER skip ahead.** 1) Question every requirement (name asker). 2) Delete (reinstate <10% = didn't cut enough). 3) Simplify (only after deletion). 4) Accelerate. 5) Automate (last). Caught on step 4-5 without finishing 1-3 = stop, restart at 1. Reordering = different algorithm.
+   CAVESTACK_BUILD_PHIL_EOF
+   ```
+
+   Replace the indented block above with the literal block (un-indented). The 3-space indent in the prose above is for markdown rendering; the actual heredoc body must be flush-left.
+
+2. **Verify the marker landed:** `grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md`. If grep fails, the write was rejected (read-only filesystem, full disk, locked file). Tell user: "CLAUDE.md write failed (file may be read-only or locked). Skipping this session — restore write access and re-run any cavestack skill." Do NOT auto-set `build_philosophy_declined` — this is transient.
+
+3. **Commit:** `git add CLAUDE.md && git commit -m "chore: add cavestack build philosophy to CLAUDE.md"`. Commit failure (hook reject, signing required): leave file edit; tell user "commit failed: <reason>, stage when ready".
+
+For reference, the block content to append (between the heredoc markers above):
+
+```markdown
+<!-- cavestack-build-philosophy -->
+## Build philosophy
+
+### Musk 5-Step Algorithm
+
+Apply IN STRICT ORDER. **NEVER reverse. NEVER skip ahead.** 1) Question every requirement (name asker). 2) Delete (reinstate <10% = didn't cut enough). 3) Simplify (only after deletion). 4) Accelerate. 5) Automate (last). Caught on step 4-5 without finishing 1-3 = stop, restart at 1. Reordering = different algorithm.
+```
+
+If B: `~/.claude/skills/cavestack/bin/cavestack-config set build_philosophy_declined true`.
+
+Skip entirely if `HAS_BUILD_PHIL` is `yes` or `BUILD_PHIL_DECLINED` is `true`.
 
 ## Completion Status Protocol
 

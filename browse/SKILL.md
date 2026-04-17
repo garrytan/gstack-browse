@@ -63,6 +63,15 @@ fi
 _ROUTING_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get routing_declined 2>/dev/null || echo "false")
 echo "HAS_ROUTING: $_HAS_ROUTING"
 echo "ROUTING_DECLINED: $_ROUTING_DECLINED"
+# Build philosophy injection: gate on HTML comment marker (not H2 header)
+# to avoid false positives from CHANGELOG/doc quotes of the heading.
+_HAS_BUILD_PHIL="no"
+if [ -f CLAUDE.md ] && grep -q "<!-- cavestack-build-philosophy -->" CLAUDE.md 2>/dev/null; then
+  _HAS_BUILD_PHIL="yes"
+fi
+_BUILD_PHIL_DECLINED=$(~/.claude/skills/cavestack/bin/cavestack-config get build_philosophy_declined 2>/dev/null || echo "false")
+echo "HAS_BUILD_PHIL: $_HAS_BUILD_PHIL"
+echo "BUILD_PHIL_DECLINED: $_BUILD_PHIL_DECLINED"
 # Vendoring deprecation: detect if CWD has a vendored cavestack copy
 _VENDORED="no"
 if [ -d ".claude/skills/cavestack" ] && [ ! -L ".claude/skills/cavestack" ]; then
