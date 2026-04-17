@@ -1,5 +1,57 @@
 # Changelog
 
+## [1.1.1.0] - 2026-04-17 — Voice-verify hardening + review comparison relaunch
+
+Patch release on top of v1.1.0.0. Plugs four evasion paths the `/review`
+skill surfaced right after shipping closed-loop voice enforcement, and
+restores the text side-by-side `/review` comparison on the marketing site.
+
+### Voice-verify hardening
+
+- **Unclosed code fences no longer silence density scoring.** Previously,
+  an assistant could emit ```` ```bash ```` and talk prose afterward without
+  ever closing the fence — the rest of the response read as "code" and
+  passed density unchecked. Now an unclosed fence reverts the opening
+  line to prose and the whole body scores normally.
+- **YAML frontmatter bounded to the first 20 lines.** Starting a message
+  with `---` and never closing used to strip everything until the next
+  stray `---`. Now the closing delimiter must appear within 20 lines;
+  otherwise the leading `---` is treated as prose and the rest scores.
+- **Retry detection simplified to Claude Code's authoritative flag.**
+  Dropped the "previous assistant message less than 5 seconds ago"
+  fallback. That fallback false-positived on fast legitimate
+  conversations — a genuinely over-floor turn right after a passing
+  turn got soft-markered instead of blocked. Now `stop_hook_active`
+  from Claude Code is the only retry signal.
+- **Stop hook timeout bumped 1s → 5s.** Matches the other caveman
+  hooks. p95 is 183ms on Windows, but cold-start Node + antivirus
+  scan + a near-cap transcript could previously exceed 1 second and
+  trigger a silent fail-open. 5s absorbs that variance.
+- **Installing caveman now also installs the voice-verify Stop hook.**
+  Previously, a user who ran `./setup --no-caveman` and later enabled
+  caveman via `install-caveman` would end up with SessionStart +
+  UserPromptSubmit hooks registered but no Stop hook, because the
+  v1.1.0.0 migration marker blocked a rerun. Now `install-caveman`
+  bundles `install-voice-verify`, and `remove-caveman` is symmetric.
+- **Minor fixes:** `computeDensity` verbose-phrase count now stays in
+  sync with the flagged-items list when a phrase appears multiple
+  times on one line; `readStdin` clears its safety timeout on
+  success/error instead of leaking a stale callback.
+
+### Marketing site
+
+- Replaced the PNG carousel with a text side-by-side rendition of the
+  exact `/review` output a user sees in default verbose mode vs CaveStack
+  caveman mode. Same findings, 82% less prose, rendered as panes users
+  can scroll independently.
+
+### Tests
+
+Three new regression tests cover the evasion guards (unclosed fence,
+unbounded YAML, bounded YAML). Scenario 4 of the Stop hook integration
+suite rewritten as a regression guard asserting fast legitimate turns
+still block on first attempt. Total suite: 41 pass, 0 fail (up from 38).
+
 ## [1.1.0.0] - 2026-04-17 — Closed-loop voice enforcement
 
 Caveman voice is no longer a suggestion. Every assistant response now passes
