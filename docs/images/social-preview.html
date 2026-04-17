@@ -1,169 +1,254 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body { width: 1280px; height: 720px; overflow: hidden; }
+
   body {
-    width: 1280px;
-    height: 640px;
     background: #0C0C0C;
-    font-family: 'Courier New', monospace;
+    font-family: 'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #c9d1d9;
+    position: relative;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    align-items: center;
-    position: relative;
-    overflow: hidden;
+    padding: 0 80px;
   }
 
-  /* Cave wall texture overlay */
-  body::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse at 10% 20%, rgba(139,69,19,0.15) 0%, transparent 50%),
-      radial-gradient(ellipse at 90% 80%, rgba(139,69,19,0.1) 0%, transparent 50%),
-      radial-gradient(ellipse at 50% 50%, rgba(60,40,20,0.08) 0%, transparent 70%);
-    pointer-events: none;
-  }
-
-  /* Firelight glow */
+  /* Grain */
   body::after {
     content: '';
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse at 50% 85%, rgba(245,158,11,0.12) 0%, transparent 55%);
     pointer-events: none;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 
-  /* Cave handprints */
-  .handprint {
+  /* Cave firelight radial washes */
+  body::before {
+    content: '';
     position: absolute;
-    font-size: 48px;
-    opacity: 0.1;
-    transform: rotate(-15deg);
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 60% 50% at 82% 50%, rgba(245,158,11,0.12) 0%, transparent 70%),
+      radial-gradient(ellipse at 10% 20%, rgba(139,69,19,0.10) 0%, transparent 55%),
+      radial-gradient(ellipse at 92% 88%, rgba(139,69,19,0.08) 0%, transparent 55%);
   }
-  .handprint.left { top: 80px; left: 60px; transform: rotate(-25deg); }
-  .handprint.right { bottom: 80px; right: 60px; transform: rotate(15deg); }
-  .handprint.top { top: 40px; right: 200px; transform: rotate(-5deg); font-size: 36px; }
 
-  /* Torch flames */
-  .torch {
+  /* Background cave-wall SVG layer (mural at low opacity) */
+  .cave-wall {
     position: absolute;
-    font-size: 40px;
-    opacity: 0.2;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
   }
-  .torch.l { left: 30px; top: 280px; }
-  .torch.r { right: 30px; top: 280px; }
+  .cave-wall svg { position: absolute; color: #e8d5b7; opacity: 0.14; }
+  .cave-wall svg.ochre { color: #c4956a; opacity: 0.16; }
 
-  /* Cave art */
-  .cave-art {
-    position: absolute;
-    opacity: 0.08;
-    font-size: 32px;
-  }
-  .cave-art.deer { bottom: 120px; left: 140px; font-size: 28px; }
-  .cave-art.person1 { top: 160px; right: 120px; }
-
-  .title {
-    font-size: 96px;
-    font-weight: bold;
-    color: #e8d5b7;
-    text-shadow:
-      3px 3px 0 #3d2b1f,
-      -1px -1px 0 #3d2b1f,
-      6px 6px 20px rgba(0,0,0,0.5);
-    letter-spacing: 8px;
-    position: relative;
-    z-index: 2;
-  }
-
-  .tagline {
-    font-size: 28px;
-    color: #c4956a;
-    margin-top: 20px;
-    letter-spacing: 4px;
-    position: relative;
-    z-index: 2;
-    text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
-  }
-
-  /* Mini terminal preview */
-  .mini-terminal {
-    margin-top: 28px;
-    background: #141414;
-    border: 1px solid #2a2a2a;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 16px;
+  .eyebrow {
+    font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-size: 18px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
     color: #8b949e;
+    margin-bottom: 28px;
     position: relative;
     z-index: 2;
+  }
+
+  h1 {
+    font-size: 96px;
+    line-height: 0.98;
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    color: #e8d5b7;
+    position: relative;
+    z-index: 2;
+    max-width: 1080px;
+    white-space: nowrap;
+  }
+  h1 .ln { display: block; }
+
+  .sub {
+    margin-top: 20px;
+    font-size: 28px;
+    font-weight: 700;
+    font-style: italic;
+    color: #c4956a;
+    letter-spacing: 0.02em;
+    position: relative;
+    z-index: 2;
+  }
+
+  .lede {
+    margin-top: 26px;
+    font-size: 22px;
+    color: #c9d1d9;
+    max-width: 820px;
+    line-height: 1.5;
+    position: relative;
+    z-index: 2;
+  }
+
+  .install {
+    display: inline-flex;
+    align-items: stretch;
+    margin-top: 40px;
+    border: 2px solid #F59E0B;
+    border-radius: 10px;
+    background: rgba(245,158,11,0.05);
+    box-shadow: 0 0 60px rgba(245,158,11,0.35);
+    overflow: hidden;
+    font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-size: 22px;
+    position: relative;
+    z-index: 2;
+  }
+  .install .cmd {
+    padding: 16px 24px;
+    color: #e8d5b7;
+    letter-spacing: 0.02em;
+  }
+  .install .btn {
+    background: #F59E0B;
+    color: #0C0C0C;
+    padding: 16px 28px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 18px;
     display: flex;
     align-items: center;
-    gap: 10px;
   }
-  .mini-terminal .prompt { color: #3fb950; }
-  .mini-terminal .output { color: #c9d1d9; }
 
-  /* Dots */
-  .dots {
+  /* Brand chip bottom-left */
+  .foot {
     position: absolute;
+    left: 80px;
+    bottom: 56px;
     display: flex;
-    gap: 12px;
-    opacity: 0.12;
+    align-items: center;
+    gap: 16px;
+    font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+    font-size: 16px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8b949e;
+    z-index: 3;
   }
-  .dots.top-row { top: 30px; left: 50%; transform: translateX(-50%); }
-  .dots.bot-row { bottom: 30px; left: 50%; transform: translateX(-50%); }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #c4956a;
+  .foot .brand {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+    color: #e8d5b7;
+    text-transform: none;
   }
+  .foot .sep { color: #2a2a2a; }
 
-  /* Scratches */
-  .scratch {
+  /* Hero handprint in top-right (away from foot chip) */
+  .hero-hand {
     position: absolute;
-    color: #c4956a;
-    opacity: 0.06;
-    font-size: 64px;
-    font-weight: 100;
+    right: 70px;
+    top: 80px;
+    width: 240px;
+    height: 290px;
+    opacity: 0.92;
+    z-index: 2;
+    color: #e8d5b7;
   }
-  .scratch.s1 { top: 100px; left: 400px; transform: rotate(-30deg); }
-  .scratch.s2 { bottom: 100px; right: 400px; transform: rotate(20deg); }
 </style>
 </head>
 <body>
-  <div class="handprint left">&#9995;</div>
-  <div class="handprint right">&#9995;</div>
-  <div class="handprint top">&#9995;</div>
-  <div class="torch l">&#128293;</div>
-  <div class="torch r">&#128293;</div>
-  <div class="cave-art deer">&#129420;</div>
-  <div class="cave-art person1">&#128100;</div>
 
-  <div class="dots top-row">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-  </div>
-  <div class="dots bot-row">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-  </div>
+<!-- Background mural layer -->
+<div class="cave-wall">
+  <!-- Upper-left stag (gets torch-lit in real site, static here) -->
+  <svg style="top: 6%; left: 4%; width: 260px;" viewBox="0 0 280 220">
+    <path d="M 40 140 Q 50 110 84 104 Q 118 100 150 106 Q 184 112 210 124 Q 232 134 242 150 L 246 168 Q 238 174 230 168 L 224 156 L 200 158 L 204 192 Q 200 202 190 196 L 180 168 L 120 166 L 128 200 Q 122 208 114 202 L 100 168 L 72 162 L 66 190 Q 58 196 52 188 L 50 160 Q 38 154 40 140 Z"
+          fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M 228 128 Q 238 112 248 100 Q 256 86 258 72 L 252 60 Q 262 52 266 60 L 270 78 Q 272 94 264 108 Q 258 120 246 130" fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M 258 60 L 250 40 M 250 40 L 240 32 M 250 40 L 252 24 M 258 60 L 266 42 M 266 42 L 276 38 M 266 42 L 268 26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
 
-  <div class="scratch s1">///</div>
-  <div class="scratch s2">///</div>
+  <!-- Auroch upper-right -->
+  <svg class="ochre" style="top: 4%; right: 4%; width: 300px;" viewBox="0 0 280 180">
+    <path d="M 36 120 Q 30 96 46 80 Q 54 64 72 68 Q 80 44 100 48 Q 112 58 110 78 Q 130 72 158 76 Q 196 80 226 94 Q 252 108 252 128 L 254 146 Q 248 152 242 146 L 234 132 L 208 134 L 212 160 Q 206 168 198 162 L 190 134 L 96 136 L 100 160 Q 94 168 86 162 L 78 136 L 48 134 Q 38 128 36 120 Z"
+          fill="currentColor" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M 252 100 Q 268 88 266 72 M 252 100 Q 270 104 276 94" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+  </svg>
 
-  <div class="title">CAVESTACK</div>
-  <div class="tagline">Why use many word when few do?</div>
-  <div class="mini-terminal">
-    <span class="prompt">$</span>
-    <span class="output">/review &rarr; Bug in auth:47. Token expiry. Fix:</span>
-  </div>
+  <!-- Hunter mid-left -->
+  <svg style="top: 40%; left: 2%; width: 90px; opacity: 0.22;" viewBox="0 0 100 180">
+    <circle cx="48" cy="20" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+    <line x1="48" y1="28" x2="52" y2="82" stroke="currentColor" stroke-width="2.4"/>
+    <line x1="52" y1="44" x2="28" y2="58" stroke="currentColor" stroke-width="2.2"/>
+    <line x1="52" y1="44" x2="80" y2="32" stroke="currentColor" stroke-width="2.2"/>
+    <line x1="22" y1="8" x2="96" y2="48" stroke="currentColor" stroke-width="1.8"/>
+    <line x1="52" y1="82" x2="32" y2="140" stroke="currentColor" stroke-width="2.4"/>
+    <line x1="52" y1="82" x2="70" y2="146" stroke="currentColor" stroke-width="2.4"/>
+  </svg>
+
+  <!-- Sun far upper-right corner (behind auroch) -->
+  <svg class="ochre" style="top: 8%; right: 20%; width: 90px; opacity: 0.18;" viewBox="0 0 120 120">
+    <circle cx="60" cy="60" r="18" fill="none" stroke="currentColor" stroke-width="2.2"/>
+    <circle cx="60" cy="60" r="8" fill="currentColor" opacity="0.6"/>
+    <g stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <line x1="60" y1="4" x2="60" y2="28"/><line x1="60" y1="92" x2="60" y2="116"/>
+      <line x1="4" y1="60" x2="28" y2="60"/><line x1="92" y1="60" x2="116" y2="60"/>
+      <line x1="20" y1="20" x2="36" y2="36"/><line x1="84" y1="84" x2="100" y2="100"/>
+      <line x1="100" y1="20" x2="84" y2="36"/><line x1="20" y1="100" x2="36" y2="84"/>
+    </g>
+  </svg>
+
+  <!-- Zigzag river band bottom -->
+  <svg class="ochre" style="bottom: 22%; left: 0; width: 100%; height: 30px; opacity: 0.10;" viewBox="0 0 400 40" preserveAspectRatio="none">
+    <path d="M 0 20 L 20 8 L 40 32 L 60 8 L 80 32 L 100 8 L 120 32 L 140 8 L 160 32 L 180 8 L 200 32 L 220 8 L 240 32 L 260 8 L 280 32 L 300 8 L 320 32 L 340 8 L 360 32 L 380 8 L 400 20"
+          fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round"/>
+  </svg>
+
+  <!-- Fallen auroch bottom-center -->
+  <svg class="ochre" style="bottom: 4%; left: 36%; width: 240px; opacity: 0.12;" viewBox="0 0 240 140">
+    <path d="M 20 100 Q 16 82 32 74 Q 60 66 100 66 Q 150 64 190 70 Q 216 76 220 94 L 216 110 Q 210 114 204 110 L 198 96 L 166 98 Q 160 96 158 104 L 154 110 Q 148 112 144 106 L 146 96 L 92 96 L 90 108 Q 84 112 80 106 L 82 96 L 46 96 L 40 108 Q 34 112 28 106 L 26 96 Q 18 104 20 100 Z"
+          fill="currentColor"/>
+    <path d="M 80 66 L 74 42 M 92 64 L 88 38 M 140 64 L 148 40 M 156 64 L 164 44" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <line x1="100" y1="84" x2="60" y2="28" stroke="currentColor" stroke-width="1.8"/>
+  </svg>
+</div>
+
+<!-- Foreground content -->
+<div class="eyebrow">CaveStack · v1.0 shipped</div>
+<h1><span class="ln">Why use many</span><span class="ln">word when few do?</span></h1>
+<div class="sub">Skills that think before code.</div>
+<p class="lede">40 Claude Code skills. Caveman voice. Catch bad work before ship.<br>Savings in characters, not tokens. Free OSS.</p>
+<div class="install">
+  <span class="cmd">curl -fsSL cavestack.jerkyjesse.com/install | sh</span>
+  <span class="btn">Copy</span>
+</div>
+
+<!-- Hero handprint bottom-right -->
+<svg class="hero-hand" viewBox="0 0 180 220">
+  <ellipse cx="90" cy="120" rx="88" ry="96" fill="currentColor" opacity="0.14"/>
+  <ellipse cx="90" cy="118" rx="70" ry="82" fill="currentColor" opacity="0.22"/>
+  <path d="M70 210 C 52 196, 44 174, 46 158 C 40 142, 32 120, 38 100 C 30 82, 28 58, 42 50 C 50 46, 56 58, 58 78 C 56 58, 54 30, 68 24 C 80 22, 82 42, 82 66 C 82 40, 86 18, 102 18 C 116 22, 114 44, 110 72 C 114 50, 124 32, 138 36 C 150 44, 144 68, 134 92 C 144 82, 158 78, 166 90 C 170 104, 156 122, 140 138 C 138 156, 130 180, 118 200 C 110 212, 88 218, 70 210 Z"
+        fill="#0C0C0C" opacity="0.98"/>
+</svg>
+
+<!-- Footer chip -->
+<div class="foot">
+  <span class="brand">CaveStack</span>
+  <span class="sep">·</span>
+  <span>40 skills</span>
+  <span class="sep">·</span>
+  <span>MIT</span>
+  <span class="sep">·</span>
+  <span>cavestack.jerkyjesse.com</span>
+</div>
+
 </body>
 </html>

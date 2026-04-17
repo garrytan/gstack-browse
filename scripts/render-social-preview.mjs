@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const url = 'http://localhost:5179/images/social-preview.html';
+const out = 'docs/images/social-preview.png';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+await page.goto(url, { waitUntil: 'networkidle' });
+await page.waitForTimeout(400);
+await page.screenshot({ path: out, type: 'png', clip: { x: 0, y: 0, width: 1280, height: 720 } });
+await browser.close();
+console.log('wrote', out);
