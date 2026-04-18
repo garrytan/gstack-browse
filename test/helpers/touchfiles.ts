@@ -110,10 +110,11 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Learnings
   'learnings-show': ['learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts'],
 
-  // Session Intelligence (timeline, context recovery, checkpoint)
-  'timeline-event-flow':         ['bin/gstack-timeline-log', 'bin/gstack-timeline-read'],
-  'context-recovery-artifacts':  ['scripts/resolvers/preamble.ts', 'bin/gstack-timeline-log', 'bin/gstack-slug', 'learn/**'],
-  'checkpoint-save-resume':      ['checkpoint/**', 'bin/gstack-slug'],
+  // Session Intelligence (timeline, context recovery, /context-save + /context-restore)
+  'timeline-event-flow':            ['bin/gstack-timeline-log', 'bin/gstack-timeline-read'],
+  'context-recovery-artifacts':     ['scripts/resolvers/preamble.ts', 'bin/gstack-timeline-log', 'bin/gstack-slug', 'learn/**'],
+  'context-save-writes-file':       ['context-save/**', 'bin/gstack-slug'],
+  'context-restore-loads-latest':   ['context-restore/**', 'bin/gstack-slug'],
 
   // Document-release
   'document-release': ['document-release/**'],
@@ -253,9 +254,10 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
   'codex-offered-eng-review': 'gate',
 
   // Session Intelligence — gate for data flow, periodic for agent integration
-  'timeline-event-flow': 'gate',            // Binary data flow (no LLM needed)
-  'context-recovery-artifacts': 'gate',     // Preamble reads seeded artifacts
-  'checkpoint-save-resume': 'gate',         // Checkpoint round-trip
+  'timeline-event-flow': 'gate',                   // Binary data flow (no LLM needed)
+  'context-recovery-artifacts': 'gate',            // Preamble reads seeded artifacts
+  'context-save-writes-file': 'gate',              // /context-save writes a file
+  'context-restore-loads-latest': 'gate',          // Cross-branch newest-by-filename restore
 
   // Ship — gate (end-to-end ship path)
   'ship-base-branch': 'gate',

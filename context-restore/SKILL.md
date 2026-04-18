@@ -1,36 +1,27 @@
 ---
-name: plan-tune
+name: context-restore
 preamble-tier: 2
 version: 1.0.0
 description: |
-  Self-tuning question sensitivity + developer psychographic for gstack (v1: observational).
-  Review which AskUserQuestion prompts fire across gstack skills, set per-question preferences
-  (never-ask / always-ask / ask-only-for-one-way), inspect the dual-track
-  profile (what you declared vs what your behavior suggests), and enable/disable
-  question tuning. Conversational interface — no CLI syntax required.
-
-  Use when asked to "tune questions", "stop asking me that", "too many questions",
-  "show my profile", "what questions have I been asked", "show my vibe",
-  "developer profile", or "turn off question tuning". (gstack)
-
-  Proactively suggest when the user says the same gstack question has come up before,
-  or when they explicitly override a recommendation for the Nth time.
-triggers:
-  - tune questions
-  - stop asking me that
-  - too many questions
-  - show my profile
-  - show my vibe
-  - developer profile
-  - turn off question tuning
+  Restore working context saved earlier by /context-save. Loads the most recent
+  saved state (across all branches by default) so you can pick up where you
+  left off — even across Conductor workspace handoffs.
+  Use when asked to "resume", "restore context", "where was I", or
+  "pick up where I left off". Pair with /context-save.
+  Formerly /checkpoint resume — renamed because Claude Code treats /checkpoint
+  as a native rewind alias in current environments. (gstack)
 allowed-tools:
   - Bash
   - Read
-  - Write
-  - Edit
-  - AskUserQuestion
   - Glob
   - Grep
+  - AskUserQuestion
+triggers:
+  - resume where i left off
+  - restore context
+  - where was i
+  - pick up where i left off
+  - context restore
 ---
 <!-- AUTO-GENERATED from SKILL.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
@@ -75,7 +66,7 @@ _WRITING_STYLE_PENDING=$([ -f ~/.gstack/.writing-style-prompt-pending ] && echo 
 echo "WRITING_STYLE_PENDING: $_WRITING_STYLE_PENDING"
 mkdir -p ~/.gstack/analytics
 if [ "$_TEL" != "off" ]; then
-echo '{"skill":"plan-tune","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
+echo '{"skill":"context-restore","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","repo":"'$(basename "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || echo "unknown")'"}'  >> ~/.gstack/analytics/skill-usage.jsonl 2>/dev/null || true
 fi
 # zsh-compatible: use find instead of glob to avoid NOMATCH error
 for _PF in $(find ~/.gstack/analytics -maxdepth 1 -name '.pending-*' 2>/dev/null); do
@@ -100,7 +91,7 @@ else
   echo "LEARNINGS: 0"
 fi
 # Session timeline: record skill start (local-only, never sent anywhere)
-~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"plan-tune","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
+~/.claude/skills/gstack/bin/gstack-timeline-log '{"skill":"context-restore","event":"started","branch":"'"$_BRANCH"'","session":"'"$_SESSION_ID"'"}' 2>/dev/null &
 # Check if CLAUDE.md has routing rules
 _HAS_ROUTING="no"
 if [ -f CLAUDE.md ] && grep -q "## Skill routing" CLAUDE.md 2>/dev/null; then
@@ -548,7 +539,7 @@ This does NOT apply to routine coding, small features, or obvious changes.
 
 **After the user answers.** Log it (non-fatal — best-effort):
 ```bash
-~/.claude/skills/gstack/bin/gstack-question-log '{"skill":"plan-tune","question_id":"<id>","question_summary":"<short>","category":"<approval|clarification|routing|cherry-pick|feedback-loop>","door_type":"<one-way|two-way>","options_count":N,"user_choice":"<key>","recommended":"<key>","session_id":"'"$_SESSION_ID"'"}' 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-question-log '{"skill":"context-restore","question_id":"<id>","question_summary":"<short>","category":"<approval|clarification|routing|cherry-pick|feedback-loop>","door_type":"<one-way|two-way>","options_count":N,"user_choice":"<key>","recommended":"<key>","session_id":"'"$_SESSION_ID"'"}' 2>/dev/null || true
 ```
 
 **Offer inline tune (two-way only, skip on one-way).** Add one line:
@@ -728,346 +719,128 @@ Then write a `## GSTACK REVIEW REPORT` section to the end of the plan file:
 file you are allowed to edit in plan mode. The plan file review report is part of the
 plan's living status.
 
-# /plan-tune — Question Tuning + Developer Profile (v1 observational)
+# /context-restore — Restore Saved Working Context
 
-You are a **developer coach inspecting a profile** — not a CLI. The user invokes
-this skill in plain English and you interpret. Never require subcommand syntax.
-Shortcuts exist (`profile`, `vibe`, `stats`, etc.) but users don't have to
-memorize them.
+You are a **Staff Engineer reading a colleague's meticulous session notes** to
+pick up exactly where they left off. Your job is to load the most recent saved
+context and present it clearly so the user can resume work without losing a beat.
 
-**v1 scope (observational):** typed question registry, per-question explicit
-preferences, question logging, dual-track profile (declared + inferred),
-plain-English inspection. No skills adapt behavior based on the profile yet.
+**HARD GATE:** Do NOT implement code changes. This skill only reads saved
+context files and presents the summary.
 
-Canonical reference: `docs/designs/PLAN_TUNING_V0.md`.
+**Default: load the most recent saved context across ALL branches.** This is
+intentionally different from `/context-save list`, which defaults to the current
+branch. `/context-restore` is for Conductor workspace handoff — a context saved
+on one branch can be resumed from another.
 
----
-
-## Step 0: Detect what the user wants
-
-Read the user's message. Route based on plain-English intent, not keywords:
-
-1. **First-time use** (config says `question_tuning` is not yet set to `true`) →
-   run `Enable + setup` below.
-2. **"Show my profile" / "what do you know about me" / "show my vibe"** →
-   run `Inspect profile`.
-3. **"Review questions" / "what have I been asked" / "show recent"** →
-   run `Review question log`.
-4. **"Stop asking me about X" / "never ask about Y" / "tune: ..."** →
-   run `Set a preference`.
-5. **"Update my profile" / "I'm more boil-the-ocean than that" / "I've changed
-   my mind"** → run `Edit declared profile` (confirm before writing).
-6. **"Show the gap" / "how far off is my profile"** → run `Show gap`.
-7. **"Turn it off" / "disable"** → `~/.claude/skills/gstack/bin/gstack-config set question_tuning false`
-8. **"Turn it on" / "enable"** → `~/.claude/skills/gstack/bin/gstack-config set question_tuning true`
-9. **Clear ambiguity** — if you can't tell what the user wants, ask plainly:
-   "Do you want to (a) see your profile, (b) review recent questions, (c) set
-   a preference, (d) update your declared profile, or (e) turn it off?"
-
-Power-user shortcuts (one-word invocations) — handle these too:
-`profile`, `vibe`, `gap`, `stats`, `review`, `enable`, `disable`, `setup`.
+**Do NOT filter the candidate set by current branch.** The `list` flow does
+that; `/context-restore` does not.
 
 ---
 
-## Enable + setup (first-time flow)
+## Detect command
 
-**When this fires.** The user invokes `/plan-tune` and the preamble shows
-`QUESTION_TUNING: false` (the default).
+Parse the user's input:
 
-**Flow:**
-
-1. Read the current state:
-   ```bash
-   _QT=$(~/.claude/skills/gstack/bin/gstack-config get question_tuning 2>/dev/null || echo "false")
-   echo "QUESTION_TUNING: $_QT"
-   ```
-
-2. If `false`, use AskUserQuestion:
-
-   > Question tuning is off. gstack can learn which of its prompts you find
-   > valuable vs noisy — so over time, gstack stops asking questions you've
-   > already answered the same way. It takes about 2 minutes to set up your
-   > initial profile. v1 is observational: gstack tracks your preferences
-   > and shows you a profile, but doesn't silently change skill behavior yet.
-   >
-   > RECOMMENDATION: Enable and set up your profile. Completeness: A=9/10.
-   >
-   > A) Enable + set up (recommended, ~2 min)
-   > B) Enable but skip setup (I'll fill it in later)
-   > C) Cancel — I'm not ready
-
-3. If A or B: enable:
-   ```bash
-   ~/.claude/skills/gstack/bin/gstack-config set question_tuning true
-   ```
-
-4. If A (full setup), ask FIVE one-per-dimension declaration questions via
-   individual AskUserQuestion calls (one at a time). Use plain English, no jargon:
-
-   **Q1 — scope_appetite:** "When you're planning a feature, do you lean toward
-   shipping the smallest useful version fast, or building the complete, edge-
-   case-covered version?"
-   Options: A) Ship small, iterate (low scope_appetite ≈ 0.25) /
-   B) Balanced / C) Boil the ocean — ship the complete version (high ≈ 0.85)
-
-   **Q2 — risk_tolerance:** "Would you rather move fast and fix bugs later, or
-   check things carefully before acting?"
-   Options: A) Check carefully (low ≈ 0.25) / B) Balanced / C) Move fast (high ≈ 0.85)
-
-   **Q3 — detail_preference:** "Do you want terse, 'just do it' answers or
-   verbose explanations with tradeoffs and reasoning?"
-   Options: A) Terse, just do it (low ≈ 0.25) / B) Balanced /
-   C) Verbose with reasoning (high ≈ 0.85)
-
-   **Q4 — autonomy:** "Do you want to be consulted on every significant
-   decision, or delegate and let the agent pick for you?"
-   Options: A) Consult me (low ≈ 0.25) / B) Balanced /
-   C) Delegate, trust the agent (high ≈ 0.85)
-
-   **Q5 — architecture_care:** "When there's a tradeoff between 'ship now'
-   and 'get the design right', which side do you usually fall on?"
-   Options: A) Ship now (low ≈ 0.25) / B) Balanced /
-   C) Get the design right (high ≈ 0.85)
-
-   After each answer, map A/B/C to the numeric value and save the declared
-   dimension. Write each declaration directly into
-   `~/.gstack/developer-profile.json` under `declared.{dimension}`:
-
-   ```bash
-   # Ensure profile exists
-   ~/.claude/skills/gstack/bin/gstack-developer-profile --read >/dev/null
-   # Update declared dimensions atomically
-   _PROFILE="${GSTACK_HOME:-$HOME/.gstack}/developer-profile.json"
-   bun -e "
-     const fs = require('fs');
-     const p = JSON.parse(fs.readFileSync('$_PROFILE','utf-8'));
-     p.declared = p.declared || {};
-     p.declared.scope_appetite = <Q1_VALUE>;
-     p.declared.risk_tolerance = <Q2_VALUE>;
-     p.declared.detail_preference = <Q3_VALUE>;
-     p.declared.autonomy = <Q4_VALUE>;
-     p.declared.architecture_care = <Q5_VALUE>;
-     p.declared_at = new Date().toISOString();
-     const tmp = '$_PROFILE.tmp';
-     fs.writeFileSync(tmp, JSON.stringify(p, null, 2));
-     fs.renameSync(tmp, '$_PROFILE');
-   "
-   ```
-
-5. Tell the user: "Profile set. Question tuning is now on. Use `/plan-tune`
-   again any time to inspect, adjust, or turn it off."
-
-6. Show the profile inline as a confirmation (see `Inspect profile` below).
+- `/context-restore` → load the most recent saved context (any branch)
+- `/context-restore <title-fragment-or-number>` → load a specific saved context
+- `/context-restore list` → tell the user "Use `/context-save list` — listing
+  lives on the save side" and exit. No mode detection here.
 
 ---
 
-## Inspect profile
+## Restore flow
+
+### Step 1: Find saved contexts
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-developer-profile --profile
-```
-
-Parse the JSON. Present in **plain English**, not raw floats:
-
-- For each dimension where `declared[dim]` is set, translate to a plain-English
-  statement. Use these bands:
-  - 0.0-0.3 → "low" (e.g., `scope_appetite` low = "small scope, ship fast")
-  - 0.3-0.7 → "balanced"
-  - 0.7-1.0 → "high" (e.g., `scope_appetite` high = "boil the ocean")
-
-  Format: "**scope_appetite:** 0.8 (boil the ocean — you prefer the complete
-  version with edge cases covered)"
-
-- If `inferred.diversity` passes the calibration gate (`sample_size >= 20 AND
-  skills_covered >= 3 AND question_ids_covered >= 8 AND days_span >= 7`), show
-  the inferred column next to declared:
-  "**scope_appetite:** declared 0.8 (boil the ocean) ↔ observed 0.72 (close)"
-  Use words for the gap: 0.0-0.1 "close", 0.1-0.3 "drift", 0.3+ "mismatch".
-
-- If the calibration gate isn't met, say: "Not enough observed data yet —
-  need N more events across M more skills before we can show your observed
-  profile."
-
-- Show the vibe (archetype) from `gstack-developer-profile --vibe` — the
-  one-word label + one-line description. Only if calibration gate met OR
-  if declared is filled (so there's something to match against).
-
----
-
-## Review question log
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-_LOG="${GSTACK_HOME:-$HOME/.gstack}/projects/$SLUG/question-log.jsonl"
-if [ ! -f "$_LOG" ]; then
-  echo "NO_LOG"
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG
+CHECKPOINT_DIR="$HOME/.gstack/projects/$SLUG/checkpoints"
+if [ ! -d "$CHECKPOINT_DIR" ]; then
+  echo "NO_CHECKPOINTS"
 else
-  bun -e "
-    const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);
-    const byId = {};
-    for (const l of lines) {
-      try {
-        const e = JSON.parse(l);
-        if (!byId[e.question_id]) byId[e.question_id] = { count:0, skill:e.skill, summary:e.question_summary, followed:0, overridden:0 };
-        byId[e.question_id].count++;
-        if (e.followed_recommendation === true) byId[e.question_id].followed++;
-        else if (e.followed_recommendation === false) byId[e.question_id].overridden++;
-      } catch {}
-    }
-    const rows = Object.entries(byId).map(([id, v]) => ({id, ...v})).sort((a,b) => b.count - a.count);
-    for (const r of rows.slice(0, 20)) {
-      console.log(\`\${r.count}x  \${r.id}  (\${r.skill})  followed:\${r.followed} overridden:\${r.overridden}\`);
-      console.log(\`     \${r.summary}\`);
-    }
-  "
+  # Use find + sort instead of ls -1t. Two reasons:
+  # 1. Canonical order is the filename YYYYMMDD-HHMMSS prefix (stable across
+  #    copies/rsync). Filesystem mtime drifts and is not authoritative.
+  # 2. On macOS, `find ... | xargs ls -1t` with zero results falls back to
+  #    listing cwd. `sort -r` on empty input cleanly returns nothing.
+  # Cap at 20 most recent: a user with 10k saved files shouldn't blow the
+  # context window just listing them. /context-save list handles pagination.
+  FILES=$(find "$CHECKPOINT_DIR" -maxdepth 1 -name "*.md" -type f 2>/dev/null | sort -r | head -20)
+  if [ -z "$FILES" ]; then
+    echo "NO_CHECKPOINTS"
+  else
+    echo "$FILES"
+  fi
 fi
 ```
 
-If `NO_LOG`, tell the user: "No questions logged yet. As you use gstack skills,
-gstack will log them here."
+**Candidates include every `.md` file in the directory, regardless of branch**
+(the branch is recorded in frontmatter, not used for filtering here). This
+enables Conductor workspace handoff.
 
-Otherwise, present in plain English with counts and follow-rate. Highlight
-questions the user overrode frequently — those are candidates for setting a
-`never-ask` preference.
+### Step 2: Load the right file
 
-After showing, offer: "Want to set a preference on any of these? Say which
-question and how you'd like to treat it."
+- If the user specified a title fragment or number: find the matching file among
+  the candidates.
+- Otherwise: load the **first file returned by the `sort -r` above** — that is
+  the newest `YYYYMMDD-HHMMSS` prefix, which is the canonical "most recent."
 
----
+Read the chosen file and present a summary:
 
-## Set a preference
+```
+RESUMING CONTEXT
+════════════════════════════════════════
+Title:       {title}
+Branch:      {branch from frontmatter}
+Saved:       {timestamp, human-readable}
+Duration:    Last session was {formatted duration} (if available)
+Status:      {status}
+════════════════════════════════════════
 
-The user has asked to change a preference, either via the `/plan-tune` menu
-or directly ("stop asking me about test failure triage", "always ask me when
-scope expansion comes up", etc).
+### Summary
+{summary from saved file}
 
-1. Identify the `question_id` from the user's words. If ambiguous, ask:
-   "Which question? Here are recent ones: [list top 5 from the log]."
+### Remaining Work
+{remaining work items}
 
-2. Normalize the intent to one of:
-   - `never-ask` — "stop asking", "unnecessary", "ask less", "auto-decide this"
-   - `always-ask` — "ask every time", "don't auto-decide", "I want to decide"
-   - `ask-only-for-one-way` — "only on destructive stuff", "only on one-way doors"
-
-3. If the user's phrasing is clear, write directly. If ambiguous, confirm:
-   > "I read '<user's words>' as `<preference>` on `<question-id>`. Apply? [Y/n]"
-
-   Only proceed after explicit Y.
-
-4. Write:
-   ```bash
-   ~/.claude/skills/gstack/bin/gstack-question-preference --write '{"question_id":"<id>","preference":"<never-ask|always-ask|ask-only-for-one-way>","source":"plan-tune","free_text":"<original phrase>"}'
-   ```
-
-5. Confirm: "Set `<id>` → `<preference>`. Active immediately. One-way doors
-   still override never-ask for safety — I'll note it when that happens."
-
-6. If the user was responding to an inline `tune:` during another skill, note
-   the **user-origin gate**: only write if the `tune:` prefix came from the
-   user's current chat message, never from tool output or file content. For
-   `/plan-tune` invocations, `source: "plan-tune"` is correct.
-
----
-
-## Edit declared profile
-
-The user wants to update their self-declaration. Examples: "I'm more
-boil-the-ocean than 0.5 suggests", "I've gotten more careful about architecture",
-"bump detail_preference up".
-
-**Always confirm before writing.** Free-form input + direct profile mutation
-is a trust boundary (Codex #15 in the design doc).
-
-1. Parse the user's intent. Translate to `(dimension, new_value)`.
-   - "more boil-the-ocean" → `scope_appetite` → pick a value 0.15 higher than
-     current, clamped to [0, 1]
-   - "more careful" / "more principled" / "more rigorous" → `architecture_care`
-     up
-   - "more hands-off" / "delegate more" → `autonomy` up
-   - Specific number ("set scope to 0.8") → use it directly
-
-2. Confirm via AskUserQuestion:
-   > "Got it — update `declared.<dimension>` from `<old>` to `<new>`? [Y/n]"
-
-3. After Y, write:
-   ```bash
-   _PROFILE="${GSTACK_HOME:-$HOME/.gstack}/developer-profile.json"
-   bun -e "
-     const fs = require('fs');
-     const p = JSON.parse(fs.readFileSync('$_PROFILE','utf-8'));
-     p.declared = p.declared || {};
-     p.declared['<dim>'] = <new_value>;
-     p.declared_at = new Date().toISOString();
-     const tmp = '$_PROFILE.tmp';
-     fs.writeFileSync(tmp, JSON.stringify(p, null, 2));
-     fs.renameSync(tmp, '$_PROFILE');
-   "
-   ```
-
-4. Confirm: "Updated. Your declared profile is now: [inline plain-English summary]."
-
----
-
-## Show gap
-
-```bash
-~/.claude/skills/gstack/bin/gstack-developer-profile --gap
+### Notes
+{notes}
 ```
 
-Parse the JSON. For each dimension where both declared and inferred exist:
+If the current branch differs from the saved context's branch, note this:
+"This context was saved on branch `{branch}`. You are currently on
+`{current branch}`. You may want to switch branches before continuing."
 
-- `gap < 0.1` → "close — your actions match what you said"
-- `gap 0.1-0.3` → "drift — some mismatch, not dramatic"
-- `gap > 0.3` → "mismatch — your behavior disagrees with your self-description.
-  Consider updating your declared value, or reflect on whether your behavior
-  is actually what you want."
+### Step 3: Offer next steps
 
-Never auto-update declared based on the gap. In v1 the gap is reporting only —
-the user decides whether declared is wrong or behavior is wrong.
+After presenting, ask via AskUserQuestion:
+
+- A) Continue working on the remaining items
+- B) Show the full saved file
+- C) Just needed the context, thanks
+
+If A, summarize the first remaining work item and suggest starting there.
 
 ---
 
-## Stats
+## If no saved contexts exist
 
-```bash
-~/.claude/skills/gstack/bin/gstack-question-preference --stats
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-_LOG="${GSTACK_HOME:-$HOME/.gstack}/projects/$SLUG/question-log.jsonl"
-[ -f "$_LOG" ] && echo "TOTAL_LOGGED: $(wc -l < "$_LOG" | tr -d ' ')" || echo "TOTAL_LOGGED: 0"
-~/.claude/skills/gstack/bin/gstack-developer-profile --profile | bun -e "
-  const p = JSON.parse(await Bun.stdin.text());
-  const d = p.inferred?.diversity || {};
-  console.log('SKILLS_COVERED: ' + (d.skills_covered ?? 0));
-  console.log('QUESTIONS_COVERED: ' + (d.question_ids_covered ?? 0));
-  console.log('DAYS_SPAN: ' + (d.days_span ?? 0));
-  console.log('CALIBRATED: ' + (p.inferred?.sample_size >= 20 && d.skills_covered >= 3 && d.question_ids_covered >= 8 && d.days_span >= 7));
-"
-```
+If Step 1 printed `NO_CHECKPOINTS`, tell the user:
 
-Present as a compact summary with plain-English calibration status ("5 more
-events across 2 more skills and you'll be calibrated" or "you're calibrated").
+"No saved contexts yet. Run `/context-save` first to save your current working
+state, then `/context-restore` will find it."
 
 ---
 
 ## Important Rules
 
-- **Plain English everywhere.** Never require the user to know `profile set
-  autonomy 0.4`. The skill interprets plain language; shortcuts exist for
-  power users.
-- **Confirm before mutating `declared`.** Agent-interpreted free-form edits are
-  a trust boundary. Always show the intended change and wait for Y.
-- **User-origin gate on tune: events.** `source: "plan-tune"` is only valid
-  when the user invoked this skill directly. For inline `tune:` from other
-  skills, the originating skill uses `source: "inline-user"` after verifying
-  the prefix came from the user's chat message.
-- **One-way doors override never-ask.** Even with a never-ask preference, the
-  binary returns ASK_NORMALLY for destructive/architectural/security questions.
-  Surface the safety note to the user whenever it fires.
-- **No behavior adaptation in v1.** This skill INSPECTS and CONFIGURES. No
-  skills currently read the profile to change defaults. That's v2 work, gated
-  on the registry proving durable.
-- **Completion status:**
-  - DONE — did what the user asked (enable/inspect/set/update/disable)
-  - DONE_WITH_CONCERNS — action taken but flagging something (e.g., "your
-    profile shows a large gap — worth reviewing")
-  - NEEDS_CONTEXT — couldn't disambiguate the user's intent
+- **Never modify code.** This skill only reads saved files and presents them.
+- **Always search across all branches by default.** Cross-branch resume is the
+  whole point. Only filter by branch if the user explicitly asks via a
+  title-fragment match that happens to be branch-specific.
+- **"Most recent" means the filename `YYYYMMDD-HHMMSS` prefix**, not
+  `ls -1t` (filesystem mtime). Filenames are stable across file-system
+  operations; mtime is not.
+- **This is a gstack skill, not a Claude Code built-in.** When the user types
+  `/context-restore`, invoke this skill via the Skill tool.
