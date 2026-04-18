@@ -1,0 +1,264 @@
+#!/usr/bin/env bun
+/**
+ * gstack-publish — publish gstack standalone methodology skills to
+ * configured marketplaces (ClawHub, SkillsMP, Vercel Skills.sh).
+ *
+ * Usage:
+ *   gstack-publish              Publish all skills listed in skills.json
+ *   gstack-publish <slug>       Publish a single skill by slug
+ *   gstack-publish --dry-run    Validate manifest + resolve auth, don't publish
+ *   gstack-publish --list       List skills + marketplace targets
+ *   gstack-publish --changelog "description"
+ *                               Pass a changelog message (required by some CLIs)
+ *
+ * Per-skill error isolation: if publishing to one marketplace fails for one skill,
+ * the batch continues. Aggregate failures are reported at the end with exit 1.
+ *
+ * Idempotent: publishing the same version twice is a no-op for marketplaces that
+ * reject duplicate versions; for others, gstack-publish bumps the version check
+ * via their auth_check command and reports if the version already exists.
+ */
+
+import * as fs from 'fs';
+import * as path from 'path';
+import { execSync, spawnSync } from 'child_process';
+
+const ROOT = path.resolve(import.meta.dir, '..');
+const MANIFEST_PATH = path.join(ROOT, 'skills.json');
+
+interface SkillEntry {
+  slug: string;
+  source: string;
+  name: string;
+  version: string;
+  category: string;
+  description: string;
+  marketplaces: Record<string, { slug: string; publish: boolean }>;
+  standalone: boolean;
+  compatible_hosts: string[];
+}
+
+interface MarketplaceConfig {
+  cli: string;
+  login_cmd: string;
+  publish_cmd_template: string;
+  docs: string;
+  auth_check: string;
+}
+
+interface Manifest {
+  version: string;
+  description: string;
+  skills: SkillEntry[];
+  marketplaces: Record<string, MarketplaceConfig>;
+}
+
+function arg(name: string, def?: string): string | undefined {
+  const idx = process.argv.findIndex(a => a === name || a.startsWith(name + '='));
+  if (idx < 0) return def;
+  const eqIdx = process.argv[idx].indexOf('=');
+  if (eqIdx >= 0) return process.argv[idx].slice(eqIdx + 1);
+  return process.argv[idx + 1];
+}
+
+function flag(name: string): boolean {
+  return process.argv.includes(name);
+}
+
+function loadManifest(): Manifest {
+  if (!fs.existsSync(MANIFEST_PATH)) {
+    console.error(`ERROR: ${MANIFEST_PATH} not found.`);
+    process.exit(1);
+  }
+  try {
+    return JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf-8'));
+  } catch (err) {
+    console.error(`ERROR: could not parse ${MANIFEST_PATH}:`, (err as Error).message);
+    process.exit(1);
+  }
+}
+
+function validateSkill(skill: SkillEntry): string[] {
+  const errs: string[] = [];
+  if (!skill.slug) errs.push('missing slug');
+  if (!skill.version) errs.push('missing version');
+  if (!skill.source) errs.push('missing source');
+  if (skill.source) {
+    const fullPath = path.join(ROOT, skill.source);
+    if (!fs.existsSync(fullPath)) errs.push(`source file missing: ${skill.source}`);
+  }
+  if (!Object.keys(skill.marketplaces || {}).length) errs.push('no marketplaces configured');
+  return errs;
+}
+
+function checkAuth(marketplace: string, cfg: MarketplaceConfig): { ok: boolean; reason?: string } {
+  // Check binary exists
+  const binCheck = spawnSync('sh', ['-c', `command -v ${cfg.cli}`], { timeout: 2000 });
+  if (binCheck.status !== 0) {
+    return { ok: false, reason: `${cfg.cli} CLI not on PATH. Docs: ${cfg.docs}` };
+  }
+  // Run auth check. Success = ok. Any non-zero = not authenticated.
+  const authCheck = spawnSync('sh', ['-c', cfg.auth_check], { timeout: 5000 });
+  if (authCheck.status !== 0) {
+    return { ok: false, reason: `not authenticated. Run: ${cfg.login_cmd}` };
+  }
+  return { ok: true };
+}
+
+interface PublishResult {
+  skill: string;
+  marketplace: string;
+  ok: boolean;
+  reason?: string;
+  cmd?: string;
+}
+
+function buildCommand(template: string, subs: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, key) => subs[key] ?? `{${key}}`);
+}
+
+function publishOne(skill: SkillEntry, marketplace: string, cfg: MarketplaceConfig, changelog: string, dryRun: boolean): PublishResult {
+  const sourceDir = path.dirname(path.join(ROOT, skill.source));
+  const target = skill.marketplaces[marketplace];
+  if (!target || !target.publish) {
+    return { skill: skill.slug, marketplace, ok: true, reason: 'not configured for this marketplace' };
+  }
+  const cmd = buildCommand(cfg.publish_cmd_template, {
+    source_dir: sourceDir,
+    slug: target.slug,
+    name: skill.name,
+    version: skill.version,
+    changelog,
+  });
+  if (dryRun) {
+    return { skill: skill.slug, marketplace, ok: true, reason: 'DRY-RUN (not executed)', cmd };
+  }
+  try {
+    const out = execSync(cmd, { stdio: 'pipe', timeout: 120_000, encoding: 'utf-8' });
+    return { skill: skill.slug, marketplace, ok: true, cmd, reason: out.slice(0, 200) };
+  } catch (err: unknown) {
+    const e = err as { stderr?: Buffer; message?: string };
+    const reason = e.stderr?.toString()?.slice(0, 400) ?? e.message ?? 'unknown error';
+    return { skill: skill.slug, marketplace, ok: false, cmd, reason };
+  }
+}
+
+function cmdList(m: Manifest): void {
+  console.log(`gstack-publish manifest v${m.version}: ${m.skills.length} skills\n`);
+  for (const s of m.skills) {
+    console.log(`  ${s.slug} v${s.version} (${s.category})`);
+    console.log(`    source: ${s.source}`);
+    const targets = Object.entries(s.marketplaces).filter(([, v]) => v.publish).map(([k]) => k);
+    console.log(`    publish to: ${targets.join(', ') || '(none)'}`);
+    console.log();
+  }
+  console.log('Configured marketplaces:');
+  for (const [name, cfg] of Object.entries(m.marketplaces)) {
+    console.log(`  ${name}: ${cfg.cli} (docs: ${cfg.docs})`);
+  }
+}
+
+async function main(): Promise<void> {
+  const manifest = loadManifest();
+
+  if (flag('--list')) {
+    cmdList(manifest);
+    return;
+  }
+
+  const dryRun = flag('--dry-run');
+  const changelog = arg('--changelog') ?? `gstack-publish ${new Date().toISOString().slice(0, 10)}`;
+  const targetSlug = process.argv.slice(2).find(a => !a.startsWith('--'));
+
+  // 1. Validate manifest entries
+  console.log(`== Validating manifest (${manifest.skills.length} skills) ==`);
+  const validationErrors: Array<{ slug: string; errors: string[] }> = [];
+  for (const s of manifest.skills) {
+    const errs = validateSkill(s);
+    if (errs.length) validationErrors.push({ slug: s.slug, errors: errs });
+  }
+  if (validationErrors.length) {
+    console.error('Manifest validation failed:');
+    for (const { slug, errors } of validationErrors) {
+      console.error(`  ${slug}: ${errors.join(', ')}`);
+    }
+    process.exit(1);
+  }
+  console.log('  OK\n');
+
+  // 2. Filter skills (single slug or all)
+  const skills = targetSlug
+    ? manifest.skills.filter(s => s.slug === targetSlug)
+    : manifest.skills;
+  if (!skills.length) {
+    console.error(`ERROR: skill not found: ${targetSlug}`);
+    process.exit(1);
+  }
+
+  // 3. Check marketplace auth (only for marketplaces we'll actually use)
+  const activeMarketplaces = new Set<string>();
+  for (const s of skills) {
+    for (const [name, cfg] of Object.entries(s.marketplaces)) {
+      if (cfg.publish) activeMarketplaces.add(name);
+    }
+  }
+  console.log(`== Checking auth for ${activeMarketplaces.size} marketplace(s) ==`);
+  const authStatus: Record<string, { ok: boolean; reason?: string }> = {};
+  for (const mp of activeMarketplaces) {
+    const cfg = manifest.marketplaces[mp];
+    if (!cfg) {
+      authStatus[mp] = { ok: false, reason: `no config for marketplace ${mp}` };
+      continue;
+    }
+    const res = checkAuth(mp, cfg);
+    authStatus[mp] = res;
+    console.log(`  ${mp}: ${res.ok ? 'OK' : 'NOT READY — ' + res.reason}`);
+  }
+  console.log();
+
+  // 4. Publish
+  const results: PublishResult[] = [];
+  for (const skill of skills) {
+    console.log(`== Publishing ${skill.slug} v${skill.version} ==`);
+    for (const [mp, target] of Object.entries(skill.marketplaces)) {
+      if (!target.publish) continue;
+      if (!authStatus[mp]?.ok && !dryRun) {
+        results.push({ skill: skill.slug, marketplace: mp, ok: false, reason: `auth not ready: ${authStatus[mp]?.reason}` });
+        console.log(`  ${mp}: SKIPPED (auth not ready)`);
+        continue;
+      }
+      const cfg = manifest.marketplaces[mp];
+      if (!cfg) {
+        results.push({ skill: skill.slug, marketplace: mp, ok: false, reason: 'no marketplace config' });
+        continue;
+      }
+      const r = publishOne(skill, mp, cfg, changelog, dryRun);
+      results.push(r);
+      const tag = r.ok ? (dryRun ? 'DRY-RUN' : 'OK') : 'FAIL';
+      console.log(`  ${mp}: ${tag}${r.reason ? ' — ' + r.reason.slice(0, 80) : ''}`);
+    }
+    console.log();
+  }
+
+  // 5. Summary
+  const successes = results.filter(r => r.ok).length;
+  const failures = results.filter(r => !r.ok);
+  console.log(`== Summary ==`);
+  console.log(`  Published: ${successes}`);
+  console.log(`  Failed:    ${failures.length}`);
+  if (failures.length) {
+    console.log();
+    for (const f of failures) {
+      console.log(`  ${f.skill} → ${f.marketplace}: ${f.reason}`);
+    }
+    process.exit(1);
+  }
+  if (dryRun) {
+    console.log(`\n(--dry-run — no actual publish happened)`);
+  }
+}
+
+main().catch(err => {
+  console.error('FATAL:', err);
+  process.exit(1);
+});

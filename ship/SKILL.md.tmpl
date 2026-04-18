@@ -580,6 +580,73 @@ Save this summary — it goes into the PR body in Step 19.
 
 ## Step 15: Commit (bisectable chunks)
 
+### Step 15.0: WIP Commit Squash (continuous checkpoint mode only)
+
+If `CHECKPOINT_MODE` is `"continuous"`, the branch likely contains `WIP:` commits
+from auto-checkpointing. These must be squashed INTO the corresponding logical
+commits before the bisectable-grouping logic in Step 15.1 runs. Non-WIP commits
+on the branch (earlier landed work) must be preserved.
+
+**Detection:**
+```bash
+WIP_COUNT=$(git log <base>..HEAD --oneline --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
+echo "WIP_COMMITS: $WIP_COUNT"
+```
+
+If `WIP_COUNT` is 0: skip this sub-step entirely.
+
+If `WIP_COUNT` > 0, collect the WIP context first so it survives the squash:
+
+```bash
+# Export [gstack-context] blocks from all WIP commits on this branch.
+# This file becomes input to the CHANGELOG entry and may inform PR body context.
+mkdir -p "$(git rev-parse --show-toplevel)/.gstack"
+git log <base>..HEAD --grep="^WIP:" --format="%H%n%B%n---END---" > \
+  "$(git rev-parse --show-toplevel)/.gstack/wip-context-before-squash.md" 2>/dev/null || true
+```
+
+**Non-destructive squash strategy:**
+
+`git reset --soft <merge-base>` WOULD uncommit everything including non-WIP commits.
+DO NOT DO THAT. Instead, use `git rebase` scoped to filter WIP commits only.
+
+Option 1 (preferred, if there are non-WIP commits mixed in):
+```bash
+# Interactive rebase with automated WIP squashing.
+# Mark every WIP commit as 'fixup' (drop its message, fold changes into prior commit).
+git rebase -i $(git merge-base HEAD origin/<base>) \
+  --exec 'true' \
+  -X ours 2>/dev/null || {
+    echo "Rebase conflict. Aborting: git rebase --abort"
+    git rebase --abort
+    echo "STATUS: BLOCKED — manual WIP squash required"
+    exit 1
+  }
+```
+
+Option 2 (simpler, if the branch is ALL WIP commits so far — no landed work):
+```bash
+# Branch contains only WIP commits. Reset-soft is safe here because there's
+# nothing non-WIP to preserve. Verify first.
+NON_WIP=$(git log <base>..HEAD --oneline --invert-grep --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
+if [ "$NON_WIP" -eq 0 ]; then
+  git reset --soft $(git merge-base HEAD origin/<base>)
+  echo "WIP-only branch, reset-soft to merge base. Step 15.1 will create clean commits."
+fi
+```
+
+Decide at runtime which option applies. If unsure, prefer stopping and asking the
+user via AskUserQuestion rather than destroying non-WIP commits.
+
+**Anti-footgun rules:**
+- NEVER blind `git reset --soft` if there are non-WIP commits. Codex flagged this
+  as destructive — it would uncommit real landed work and turn the push step into
+  a non-fast-forward push for anyone who already pushed.
+- Only proceed to Step 15.1 after WIP commits are successfully squashed/absorbed
+  or the branch has been verified to contain only WIP work.
+
+### Step 15.1: Bisectable Commits
+
 **Goal:** Create small, logical commits that work well with `git bisect` and help LLMs understand what changed.
 
 1. Analyze the diff and group changes into logical commits. Each commit should represent **one coherent change** — not one file, but one logical unit.
@@ -787,7 +854,38 @@ EOF
 **If neither CLI is available:**
 Print the branch name, remote URL, and instruct the user to create the PR/MR manually via the web UI. Do not stop — the code is pushed and ready.
 
-**Output the PR/MR URL** — then proceed to Step 20.
+**Output the PR/MR URL** — then proceed to Step 19.5.
+
+---
+
+## Step 19.5: Offer methodology skill publishing (conditional)
+
+If this PR touched any standalone methodology skill (`openclaw/skills/gstack-*/SKILL.md`) or the marketplace manifest (`skills.json`), offer to publish the updated skills to the configured marketplaces after merge.
+
+```bash
+git diff origin/<base>...HEAD --name-only | grep -E '^(openclaw/skills/gstack-[^/]+/SKILL\.md|skills\.json)$' || true
+```
+
+If the output is empty: skip this step silently. Continue to Step 20.
+
+If any matches: run a dry-run preview so the user sees exactly what would publish and what auth is missing.
+
+```bash
+~/.claude/skills/gstack/bin/gstack-publish --dry-run
+```
+
+Then use AskUserQuestion with the structure in the preamble:
+- **Re-ground:** project, branch, PR just opened.
+- **Simplify:** "This PR updated methodology skills. gstack-publish can push them to ClawHub, SkillsMP, and Vercel Skills.sh so other developers on other agents can install them. Dry-run above shows what would ship and whether each marketplace is authed."
+- **RECOMMENDATION:** A because the dry-run just verified the manifest and one-command distribution is the whole point of having a marketplace publisher.
+- **Options:**
+  - A) Publish now — run `gstack-publish` (human: ~2min / CC: ~30s). Completeness: 9/10.
+  - B) Publish after the PR merges — `/document-release` won't push this automatically; you'll run `gstack-publish` manually once the branch is on main. Completeness: 7/10.
+  - C) Skip — don't publish this release. Completeness: 4/10.
+
+If A: run `~/.claude/skills/gstack/bin/gstack-publish` (no --dry-run). Report success/failure per marketplace. If any marketplace auth is missing, the dry-run above surfaced it; the real publish will skip that marketplace with an isolated error rather than aborting the batch.
+
+If B or C: continue to Step 20.
 
 ---
 

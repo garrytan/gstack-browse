@@ -1,0 +1,90 @@
+{
+  "$schema": "https://gstack.dev/schemas/skills-manifest.v1.json",
+  "version": "1.0.0",
+  "description": "Manifest for publishing gstack standalone methodology skills to marketplaces (ClawHub, Vercel Skills.sh, SkillsMP). These skills have NO gstack runtime dependencies — they work as pure Claude Code / OpenClaw skills.",
+  "skills": [
+    {
+      "slug": "gstack-office-hours",
+      "source": "openclaw/skills/gstack-openclaw-office-hours/SKILL.md",
+      "name": "YC Office Hours",
+      "version": "1.0.0",
+      "category": "strategy",
+      "description": "Product interrogation with six forcing questions. Two modes: startup diagnostic and builder brainstorm. Produces a design doc, not code.",
+      "marketplaces": {
+        "clawhub": { "slug": "gstack-office-hours", "publish": true },
+        "skillsmp": { "slug": "gstack-office-hours", "publish": true },
+        "vercel": { "slug": "gstack-office-hours", "publish": true }
+      },
+      "standalone": true,
+      "compatible_hosts": ["claude-code", "openclaw", "cursor"]
+    },
+    {
+      "slug": "gstack-ceo-review",
+      "source": "openclaw/skills/gstack-openclaw-ceo-review/SKILL.md",
+      "name": "CEO Plan Review",
+      "version": "1.0.0",
+      "category": "strategy",
+      "description": "Founder-mode plan review. Rethink the problem, find the 10x product, challenge premises, expand scope when it creates a better product.",
+      "marketplaces": {
+        "clawhub": { "slug": "gstack-ceo-review", "publish": true },
+        "skillsmp": { "slug": "gstack-ceo-review", "publish": true },
+        "vercel": { "slug": "gstack-ceo-review", "publish": true }
+      },
+      "standalone": true,
+      "compatible_hosts": ["claude-code", "openclaw", "cursor"]
+    },
+    {
+      "slug": "gstack-investigate",
+      "source": "openclaw/skills/gstack-openclaw-investigate/SKILL.md",
+      "name": "Root Cause Investigation",
+      "version": "1.0.0",
+      "category": "debugging",
+      "description": "Systematic debugging with root cause investigation. Four phases: investigate, analyze, hypothesize, implement. Iron Law: no fixes without root cause.",
+      "marketplaces": {
+        "clawhub": { "slug": "gstack-investigate", "publish": true },
+        "skillsmp": { "slug": "gstack-investigate", "publish": true },
+        "vercel": { "slug": "gstack-investigate", "publish": true }
+      },
+      "standalone": true,
+      "compatible_hosts": ["claude-code", "openclaw", "cursor"]
+    },
+    {
+      "slug": "gstack-retro",
+      "source": "openclaw/skills/gstack-openclaw-retro/SKILL.md",
+      "name": "Engineering Retrospective",
+      "version": "1.0.0",
+      "category": "process",
+      "description": "Weekly engineering retrospective. Analyzes commit history and work patterns with per-person breakdown.",
+      "marketplaces": {
+        "clawhub": { "slug": "gstack-retro", "publish": true },
+        "skillsmp": { "slug": "gstack-retro", "publish": true },
+        "vercel": { "slug": "gstack-retro", "publish": true }
+      },
+      "standalone": true,
+      "compatible_hosts": ["claude-code", "openclaw", "cursor"]
+    }
+  ],
+  "marketplaces": {
+    "clawhub": {
+      "cli": "clawhub",
+      "login_cmd": "clawhub login",
+      "publish_cmd_template": "clawhub publish {source_dir} --slug {slug} --name \"{name}\" --version {version} --changelog \"{changelog}\"",
+      "docs": "https://clawhub.dev/docs/publishing",
+      "auth_check": "clawhub whoami"
+    },
+    "skillsmp": {
+      "cli": "skillsmp",
+      "login_cmd": "skillsmp login",
+      "publish_cmd_template": "skillsmp publish {source_dir} --name {slug} --version {version}",
+      "docs": "https://skillsmp.com/docs/publish",
+      "auth_check": "skillsmp whoami"
+    },
+    "vercel": {
+      "cli": "skills",
+      "login_cmd": "skills login",
+      "publish_cmd_template": "skills publish {source_dir} --package {slug} --version {version}",
+      "docs": "https://skills.sh/docs",
+      "auth_check": "skills whoami"
+    }
+  }
+}
