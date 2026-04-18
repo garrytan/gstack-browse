@@ -169,6 +169,19 @@ export class BrowserManager {
       launchArgs.push('--no-sandbox');
     }
 
+    // System proxy bypass: on macOS, Chromium inherits the system HTTP/S proxy
+    // by default. Local VPN/proxy apps (Shadowrocket, ClashX, Surge, etc.)
+    // typically MITM TLS via a local proxy — when the proxy's cert handling
+    // breaks, every Chromium navigation fails with net_error -100 /
+    // ERR_ABORTED and the renderer crashes, killing the browse server.
+    // Setting BROWSE_NO_PROXY=1 tells Chromium to route directly, bypassing
+    // the system proxy entirely. curl is unaffected by system proxy by
+    // default, so curl-based health checks can remain working while
+    // Chromium is broken — hence this needs to be explicit.
+    if (process.env.BROWSE_NO_PROXY === '1') {
+      launchArgs.push('--proxy-server=direct://');
+    }
+
     if (extensionsDir) {
       launchArgs.push(
         `--disable-extensions-except=${extensionsDir}`,
