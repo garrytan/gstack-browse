@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+# cavestack-resume — reconstruct last resume prompt from local state
+# Usage: cavestack-resume [--branch <name>] [--project <slug>]
+# Output: two markdown sections (shipped + resume) printed to stdout.
+# Reads: ~/.cavestack/projects/$SLUG/timeline.jsonl, most-recent design/checkpoint MD.
+# Writes: nothing. Pure read + print. Tolerates malformed JSONL lines.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- arg parse ---
+BRANCH=""
+PROJECT=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch) BRANCH="$2"; shift 2 ;;
+    --project) PROJECT="$2"; shift 2 ;;
+    -h|--help) echo "Usage: cavestack-resume [--branch <name>] [--project <slug>]"; exit 0 ;;
+    *) echo "Unknown arg: $1" >&2; exit 1 ;;
+  esac
+done
+
+# --- resolve project ---
+if [ -z "$PROJECT" ]; then
+  if eval "$("$SCRIPT_DIR/cavestack-slug" 2>/dev/null)"; then
+    PROJECT="${SLUG:-}"
+  fi
+fi
+if [ -z "$PROJECT" ]; then
+  # fallback: most recently modified ~/.cavestack/projects/* subdir by mtime (portable)
+  PROJECT=$(find "${CAVESTACK_HOME:-$HOME/.cavestack}/projects" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %f\n' 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
+fi
+[ -z "$PROJECT" ] && { echo "ERROR: no project resolvable" >&2; exit 1; }
+
+PROJ_DIR="${CAVESTACK_HOME:-$HOME/.cavestack}/projects/$PROJECT"
+[ -d "$PROJ_DIR" ] || { echo "ERROR: $PROJ_DIR does not exist" >&2; exit 1; }
+
+# --- resolve branch (empty = no branch filter) ---
+if [ -z "$BRANCH" ]; then
+  BRANCH=$(git branch --show-current 2>/dev/null || true)
+fi
+
+# --- gather state (JSON parse wrapped in try/catch; malformed lines skipped) ---
+TIMELINE="$PROJ_DIR/timeline.jsonl"
+LAST_SKILL="unknown"
+LAST_TS="unknown"
+if [ -f "$TIMELINE" ]; then
+  # If BRANCH is set, filter to that branch; else take any completed event.
+  if [ -n "$BRANCH" ]; then
+    LAST=$(grep "\"branch\":\"$BRANCH\"" "$TIMELINE" 2>/dev/null | grep '"event":"completed"' | tail -1)
+  else
+    LAST=$(grep '"event":"completed"' "$TIMELINE" 2>/dev/null | tail -1)
+  fi
+  if [ -n "${LAST:-}" ]; then
+    PARSED=$(printf '%s' "$LAST" | bun -e '
+      try {
+        const j = JSON.parse(await Bun.stdin.text());
+        console.log((j.skill || "unknown") + "\t" + (j.ts || "unknown"));
+      } catch { console.log("unknown\tunknown"); }
+    ' 2>/dev/null || echo "unknown	unknown")
+    LAST_SKILL=$(printf '%s' "$PARSED" | cut -f1)
+    LAST_TS=$(printf '%s' "$PARSED" | cut -f2)
+  fi
+fi
+
+# --- find latest artifact (design doc for this branch, then any checkpoint) ---
+# Wrap in `|| true` so pipefail doesn't abort when find hits a missing dir.
+LATEST_DESIGN=""
+if [ -n "$BRANCH" ]; then
+  LATEST_DESIGN=$({ find "$PROJ_DIR" -maxdepth 1 -name "*-$BRANCH-design-*.md" -printf '%T@ %p\n' 2>/dev/null || true; } | sort -rn | head -1 | cut -d' ' -f2-)
+fi
+LATEST_CHECKPOINT=$({ find "$PROJ_DIR/checkpoints" -name "*.md" -type f -printf '%T@ %p\n' 2>/dev/null || true; } | sort -rn | head -1 | cut -d' ' -f2-)
+LATEST="${LATEST_DESIGN:-$LATEST_CHECKPOINT}"
+
+# --- emit reconstructed resume block ---
+echo "## Shipped this session"
+echo ""
+if [ -n "$LATEST" ]; then
+  echo "- Last artifact: $(basename "$LATEST")"
+fi
+echo "- Last skill: /$LAST_SKILL (completed $LAST_TS)"
+echo "- Branch: ${BRANCH:-<none>}"
+echo ""
+echo "## Next session resume prompt"
+echo ""
+echo '```text'
+if [ -n "$LATEST" ]; then
+  TITLE=$(head -1 "$LATEST" 2>/dev/null | sed 's/^# //' | head -c 80)
+  BRANCH_PHRASE=""
+  [ -n "$BRANCH" ] && BRANCH_PHRASE=" on branch $BRANCH"
+  echo "Continue $PROJECT$BRANCH_PHRASE. Last completed: /$LAST_SKILL. Latest artifact: $TITLE. Next: (1) Re-read latest artifact for full context. (2) Continue from Status/Next Steps section. (3) Run next recommended skill based on artifact outcome."
+else
+  BRANCH_PHRASE=""
+  [ -n "$BRANCH" ] && BRANCH_PHRASE=" on branch $BRANCH"
+  echo "Continue $PROJECT$BRANCH_PHRASE. Last completed: /$LAST_SKILL at $LAST_TS. No design doc or checkpoint found. Next: (1) Run /checkpoint resume or /office-hours to re-establish context. (2) Check git log for recent commits. (3) Choose next skill based on current state."
+fi
+echo '```'
