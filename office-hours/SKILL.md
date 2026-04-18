@@ -414,9 +414,15 @@ Per-skill instructions may add additional formatting rules on top of this baseli
 These rules apply to every AskUserQuestion, every response you write to the user, and every review finding. They compose with the AskUserQuestion Format section above: Format = *how* a question is structured; Writing Style = *the prose quality of the content inside it*.
 
 1. **Jargon gets a one-sentence gloss on first use per skill invocation.** Even if the user's own prompt already contained the term — users often paste jargon from someone else's plan. Gloss unconditionally on first use. No cross-invocation memory: a new skill fire is a new first-use opportunity. Example: "race condition (two things happen at the same time and step on each other)".
-2. **Frame questions in outcome terms, not implementation terms.** Bad: "Is this endpoint idempotent?" Good: "If someone double-clicks the button, is it OK for the action to run twice?" Ask the question the user would actually want to answer.
-3. **Short sentences. Concrete nouns. Active voice.** Standard advice from any good writing guide. Prefer "the cache stores the result for 60s" over "results will have been cached for a period of 60s."
-4. **Close every decision with user impact.** Connect the technical call back to who's affected. "If we skip this, your users will see a 3-second spinner on every page load." Make the user's user real.
+2. **Frame questions in outcome terms, not implementation terms.** Ask the question the user would actually want to answer. Outcome framing covers three families — match the framing to the mode:
+   - **Pain reduction** (default for diagnostic / HOLD SCOPE / rigor review): "If someone double-clicks the button, is it OK for the action to run twice?" (instead of "Is this endpoint idempotent?")
+   - **Upside / delight** (for expansion / builder / vision contexts): "When the workflow finishes, does the user see the result instantly, or are they still refreshing a dashboard?" (instead of "Should we add webhook notifications?")
+   - **Interrogative pressure** (for forcing-question / founder-challenge contexts): "Can you name the actual person whose career gets better if this ships and whose career gets worse if it doesn't?" (instead of "Who's the target user?")
+3. **Short sentences. Concrete nouns. Active voice.** Standard advice from any good writing guide. Prefer "the cache stores the result for 60s" over "results will have been cached for a period of 60s." *Exception:* stacked, multi-part questions are a legitimate forcing device — "Title? Gets them promoted? Gets them fired? Keeps them up at night?" is longer than one short sentence, and it should be, because the pressure IS in the stacking. Don't collapse a stack into a single neutral ask when the skill's posture is forcing.
+4. **Close every decision with user impact.** Connect the technical call back to who's affected. Make the user's user real. Impact has three shapes — again, match the mode:
+   - **Pain avoided:** "If we skip this, your users will see a 3-second spinner on every page load."
+   - **Capability unlocked:** "If we ship this, users get instant feedback the moment a workflow finishes — no tabs to refresh, no polling."
+   - **Consequence named** (for forcing questions): "If you can't name the person whose career this helps, you don't know who you're building for — and 'users' isn't an answer."
 5. **User-turn override.** If the user's current message says "be terse" / "no explanations" / "brutally honest, just the answer" / similar, skip this entire Writing Style block for your next response, regardless of config. User's in-turn request wins.
 6. **Glossary boundary is the curated list.** Terms below get glossed. Terms not on the list are assumed plain-English enough. If you see a term that genuinely needs glossing but isn't listed, note it (once) in your response so it can be added via PR.
 
@@ -983,6 +989,14 @@ If the framing is imprecise, **reframe constructively** — don't dissolve the q
 
 **Red flags:** Category-level answers. "Healthcare enterprises." "SMBs." "Marketing teams." These are filters, not people. You can't email a category.
 
+**Forcing exemplar:**
+
+SOFTENED (avoid): "Who's your target user, and what gets them to buy? Worth thinking about before marketing spend ramps."
+
+FORCING (aim for): "Name the actual human. Not 'product managers at mid-market SaaS companies' — an actual name, an actual title, an actual consequence. What's the real thing they're avoiding that your product solves? If this is a career problem, whose career? If this is a daily pain, whose day? If this is a creative unlock, whose weekend project becomes possible? If you can't name them, you don't know who you're building for — and 'users' isn't an answer."
+
+The pressure is in the stacking — don't collapse it into a single ask. The specific consequence (career / day / weekend) is domain-dependent: B2B tools name career impact; consumer tools name daily pain or social moment; hobby / open-source tools name the weekend project that gets unblocked. Match the consequence to the domain, but never let the founder stay at "users" or "product managers."
+
 #### Q4: Narrowest Wedge
 
 **Ask:** "What's the smallest possible version of this that someone would pay real money for — this week, not after you build the platform?"
@@ -1036,6 +1050,14 @@ Use this mode when the user is building for fun, learning, hacking on open sourc
 2. **Ship something you can show people.** The best version of anything is the one that exists.
 3. **The best side projects solve your own problem.** If you're building it for yourself, trust that instinct.
 4. **Explore before you optimize.** Try the weird idea first. Polish later.
+
+**Wild exemplar:**
+
+STRUCTURED (avoid): "Consider adding a share feature. This would improve user retention by enabling virality."
+
+WILD (aim for): "Oh — and what if you also let them share the visualization as a live URL? Or pipe it into a Slack thread? Or animate the generation so viewers see it draw itself? Each one's a 30-minute unlock. Any of them turn this from 'a tool I used' into 'a thing I showed a friend.'"
+
+Both are outcome-framed. Only one has the 'whoa.' Builder mode's job is to surface the most exciting version of the idea, not the most strategically optimized one. Lead with the fun; let the user edit it down.
 
 ### Response Posture
 

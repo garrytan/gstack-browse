@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.2.0] - 2026-04-19
+
+### Fixed
+- **`/plan-ceo-review` SCOPE EXPANSION mode stays expansive.** If you asked the CEO review to dream big, proposals were collapsing into dry feature bullets ("Add real-time notifications. Improves retention by Y%"). The V1 writing-style rules steered every outcome into diagnostic-pain framing. Rule 2 and rule 4 in the shared preamble now cover three framings: pain reduction, capability unlocked, and forcing-question pressure. Cathedral language survives the clarity layer. Ask for a 10x vision, get one.
+- **`/office-hours` keeps its edge.** Startup-mode Q3 (Desperate Specificity) stopped collapsing into "Who is your target user?" The forcing question now stacks three pressures, matched to the domain of the idea — career impact for B2B, daily pain for consumer, weekend project unlocked for hobby and open-source. Builder mode stays wild: "what if you also..." riffs and adjacent unlocks come through, not PRD-voice feature roadmaps.
+
+### Added
+- **Gate-tier eval tests catch mode-posture regressions on every PR.** Three new E2E tests fire when the shared preamble, the plan-ceo-review template, or the office-hours template change. A Sonnet judge scores each mode on two axes: felt-experience vs decision-preservation for expansion, stacked-pressure vs domain-matched-consequence for forcing, unexpected-combinations vs excitement-over-optimization for builder. The original V1 regression shipped because nothing caught it. This closes that gap.
+
+### For contributors
+- Writing Style rule 2 and rule 4 in `scripts/resolvers/preamble.ts` each present three paired framing examples instead of one. Rule 3 adds an explicit exception for stacked forcing questions.
+- `plan-ceo-review/SKILL.md.tmpl` gets a new `### 0D-prelude. Expansion Framing` subsection shared by SCOPE EXPANSION and SELECTIVE EXPANSION.
+- `office-hours/SKILL.md.tmpl` gets inline forcing exemplar (Q3) and wild exemplar (builder operating principles). Anchored by stable heading, not line numbers.
+- New `judgePosture(mode, text)` helper in `test/helpers/llm-judge.ts` (Sonnet judge, dual-axis rubric per mode).
+- Three test fixtures in `test/fixtures/mode-posture/` — expansion plan, forcing pitch, builder idea.
+- Three entries registered in `E2E_TOUCHFILES` + `E2E_TIERS`: `plan-ceo-review-expansion-energy`, `office-hours-forcing-energy`, `office-hours-builder-wildness` — all `gate` tier.
+- Review history on this branch: CEO review (HOLD SCOPE) + Codex plan review (30 findings, drove approach pivot from "add new rule #5 taxonomy" to "rewrite rule 2-4 examples"). One eng review pass caught the test-infrastructure target (originally pointed at `test/skill-llm-eval.test.ts`, which does static analysis — actually needs E2E).
+
 ## [1.1.1.0] - 2026-04-18
 
 ### Fixed

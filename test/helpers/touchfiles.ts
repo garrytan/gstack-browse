@@ -69,12 +69,15 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'review-army-consensus':        ['review/**', 'scripts/resolvers/review-army.ts'],
 
   // Office Hours
-  'office-hours-spec-review':  ['office-hours/**', 'scripts/gen-skill-docs.ts'],
+  'office-hours-spec-review':     ['office-hours/**', 'scripts/gen-skill-docs.ts'],
+  'office-hours-forcing-energy':  ['office-hours/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts'],
+  'office-hours-builder-wildness': ['office-hours/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts'],
 
   // Plan reviews
-  'plan-ceo-review':           ['plan-ceo-review/**'],
-  'plan-ceo-review-selective': ['plan-ceo-review/**'],
-  'plan-ceo-review-benefits':  ['plan-ceo-review/**', 'scripts/gen-skill-docs.ts'],
+  'plan-ceo-review':                  ['plan-ceo-review/**'],
+  'plan-ceo-review-selective':        ['plan-ceo-review/**'],
+  'plan-ceo-review-benefits':         ['plan-ceo-review/**', 'scripts/gen-skill-docs.ts'],
+  'plan-ceo-review-expansion-energy': ['plan-ceo-review/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts'],
   'plan-eng-review':           ['plan-eng-review/**'],
   'plan-eng-review-artifact':  ['plan-eng-review/**'],
   'plan-review-report':        ['plan-eng-review/**', 'scripts/gen-skill-docs.ts'],
@@ -233,11 +236,14 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic'> = {
 
   // Office Hours
   'office-hours-spec-review': 'gate',
+  'office-hours-forcing-energy': 'gate',       // V1.1 mode-posture regression gate (Sonnet generator)
+  'office-hours-builder-wildness': 'gate',     // V1.1 mode-posture regression gate (Sonnet generator)
 
   // Plan reviews — gate for cheap functional, periodic for Opus quality
   'plan-ceo-review': 'periodic',
   'plan-ceo-review-selective': 'periodic',
   'plan-ceo-review-benefits': 'gate',
+  'plan-ceo-review-expansion-energy': 'gate',  // V1.1 mode-posture regression gate (Opus generator, Sonnet judge)
   'plan-eng-review': 'periodic',
   'plan-eng-review-artifact': 'periodic',
   'plan-eng-coverage-audit': 'gate',
