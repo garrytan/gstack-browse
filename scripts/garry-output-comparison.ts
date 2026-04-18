@@ -38,6 +38,14 @@ const GARRY_EMAILS = [
 
 const TARGET_YEARS = [2013, 2026];
 
+// Repos to skip entirely because their activity is dominated by imported code
+// (initial commit that vendors an upstream codebase) rather than authored work.
+// When the script is pointed at one of these, it emits a stderr note and exits
+// without writing a per-repo JSON. Add more via PR with a one-line rationale.
+const EXCLUDED_REPOS: Record<string, string> = {
+  'tax-app': 'single 104K-line initial import, not authored code',
+};
+
 type PerYearResult = {
   year: number;
   active: boolean;
@@ -283,6 +291,20 @@ function main() {
   const repoRoot = repoRootIdx >= 0 && args[repoRootIdx + 1]
     ? args[repoRootIdx + 1]
     : process.cwd();
+
+  // Check exclusion list — skip with stderr note if repo basename matches.
+  // Also delete any stale output JSON so aggregation loops don't pick up
+  // numbers from a pre-exclusion run.
+  const repoBasename = path.basename(path.resolve(repoRoot));
+  if (EXCLUDED_REPOS[repoBasename]) {
+    const staleOutput = path.join(repoRoot, 'docs', 'throughput-2013-vs-2026.json');
+    if (fs.existsSync(staleOutput)) fs.unlinkSync(staleOutput);
+    process.stderr.write(
+      `Skipping ${repoBasename}: ${EXCLUDED_REPOS[repoBasename]}\n` +
+      `(add/remove in EXCLUDED_REPOS at the top of this script)\n`
+    );
+    process.exit(0);
+  }
 
   const sccAvailable = hasScc();
   if (!sccAvailable) {

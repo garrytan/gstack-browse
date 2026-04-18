@@ -55,7 +55,9 @@ To compare 2013 me vs 2026 me honestly, I wrote a script: `scripts/garry-output-
 
 I cloned all 41 repos owned by `garrytan/*` on GitHub — 15 public, 26 private — and ran the script against each. Bookface, the YC-internal social network I built in 2013 and 2014, is in the corpus. So are the three 2013-era projects (delicounter, tandong) and the upstream OSS contribution that year (zurb-foundation-wysihtml5).
 
-The one thing the corpus doesn't include: my Posterous-era code from 2012, sold to Twitter along with the company. That's Twitter's private repos now. Can't reach it. If anything, excluding it biases the 2013 numbers UP, because it removes work that would otherwise lower the per-day rate.
+One repo excluded from the 2026 numbers: **tax-app**. A single commit of 104K logical lines, which is an initial import of a codebase I didn't author, not work I shipped. Baked into the script's `EXCLUDED_REPOS` constant so future re-runs skip it automatically. If other repos turn out to have similar import-dominated histories, they go in the same list with a one-line rationale.
+
+The corpus also doesn't include my Posterous-era code from 2012, sold to Twitter along with the company. That's Twitter's private repos now. Can't reach it. If anything, excluding Posterous biases the 2013 numbers UP, because it removes work that would otherwise lower the per-day rate.
 
 ## The numbers
 
@@ -64,8 +66,8 @@ The one thing the corpus doesn't include: my Posterous-era code from 2012, sold 
 2013 was a full year. 2026 is day 108 as of this writing (April 18).
 
 - **2013 full year:** 5,143 logical lines added
-- **2026 through April 18:** 1,337,223 logical lines added
-- **Multiple: 260x**
+- **2026 through April 18:** 1,233,062 logical lines added
+- **Multiple: 240x**
 
 The obvious critique: you're comparing a full year to a partial year, that's apples to oranges. OK, fair, let's do it the fair way.
 
@@ -74,10 +76,10 @@ The obvious critique: you're comparing a full year to a partial year, that's app
 Normalize to **logical SLOC per calendar day**:
 
 - **2013:** 5,143 / 365 = **14 logical lines per day**
-- **2026:** 1,337,223 / 108 = **12,382 logical lines per day**
-- **Multiple: 879x** on daily pace
+- **2026:** 1,233,062 / 108 = **11,417 logical lines per day**
+- **Multiple: 810x** on daily pace
 
-Annualized, if 2026 holds its current pace, I'll finish the year with around **4.5 million logical lines shipped**.
+Annualized, if 2026 holds its current pace, I'll finish the year with around **4.2 million logical lines shipped**.
 
 Both multiples are uncomfortably large. That's the point.
 
@@ -85,11 +87,11 @@ Both multiples are uncomfortably large. That's the point.
 
 | Metric | 2013 | 2026 YTD | To-date | 2026 run rate | Run-rate multiple |
 |---|---:|---:|---:|---:|---:|
-| Logical SLOC | 5,143 | 1,337,223 | 260x | 12,382/day | **879x** |
-| Raw lines added | 6,794 | 1,827,222 | 269x | 16,919/day | 909x |
-| Commits | 71 | 352 | 5.0x | 3.3/day | 16.8x |
-| Files touched | 290 | 14,083 | 48.6x | 130/day | | 
-| Active repos | 4 | 16 | 4x | | |
+| Logical SLOC | 5,143 | 1,233,062 | **240x** | 11,417/day | **810x** |
+| Raw lines added | 6,794 | 1,677,973 | 247x | 15,537/day | 835x |
+| Commits | 71 | 351 | 4.9x | 3.3/day | 16.7x |
+| Files touched | 290 | 13,629 | 47x | 126/day | | 
+| Active repos | 4 | 15 | 3.75x | | |
 
 Logical SLOC, commits, and files all went up. The ratios aren't the same, but they all point the same direction.
 
@@ -101,7 +103,7 @@ Fair question. Here's what I can show:
 
 **Tests.** The 2026 commits include test coverage on every non-trivial branch, because gstack's own `/ship` skill won't let me merge without it. The test count across these repos grew from maybe 100 total in early 2026 to over 2,000 now. They run in CI. They catch regressions. Look at the commit history on any gstack PR and you'll see the coverage audits.
 
-**Shipped, not WIP.** The 2026 repos that account for most of the volume are running. gstack is in 1000+ projects. gbrain is live. resend_robot ships mail daily. brain runs my assistant. tax-app did my taxes. These aren't scaffolds sitting in a drawer.
+**Shipped, not WIP.** The 2026 repos that account for most of the volume are running. gstack is in 1000+ projects. gbrain is live. resend_robot ships mail daily. brain runs my assistant. These aren't scaffolds sitting in a drawer.
 
 **Review rigor.** Every gstack branch I merge goes through CEO review, Codex outside-voice review, DX review, and eng review. Often 2-3 passes of each. You can see the review history baked into the design docs in `docs/designs/`. The scope-reduction from pacing-in-V1 to pacing-in-V1.1 happened because the third eng-review pass caught 10 structural gaps that text editing couldn't fix.
 
@@ -119,7 +121,7 @@ The interesting part of the number isn't the volume. It's the RATE.
 
 2013 me shipped about 14 logical lines per day. That was normal for me at the time. Cofounder at Posterous, then partner at YC, writing code nights and weekends mostly.
 
-2026 me is shipping 12,382 logical lines per day. While still running YC full-time. Same day job. Same free time. Same person.
+2026 me is shipping 11,417 logical lines per day. While still running YC full-time. Same day job. Same free time. Same person.
 
 The delta isn't that I became a better programmer. It's that AI let me actually ship the things I always wanted to build. Small tools. Personal products. Experiments that used to die in my notebook because the time cost to build them was too high relative to their value. The gap between "I want this tool" and "this tool exists and I'm using it" collapsed from 3 weeks to 3 hours.
 
@@ -145,7 +147,7 @@ Take those seriously. Some of the critique is right. The point isn't that the cr
 
 ## So here's the corrected hero line
 
-My 2026 run rate on logical code change, not raw LOC which AI inflates, is about **880x my 2013 pace**. In less than a third of 2026, I've already produced **260x the entire 2013 year**. Measured across 41 of my public and private repos including Bookface.
+My 2026 run rate on logical code change, not raw LOC which AI inflates, is about **810x my 2013 pace**. In less than a third of 2026, I've already produced **240x the entire 2013 year**. Measured across 40 of my public and private repos including Bookface, after excluding one repo (tax-app) whose history is dominated by a single import commit.
 
 Adjusted for real code. Normalized by calendar day. Audited by a script anyone can re-run.
 
