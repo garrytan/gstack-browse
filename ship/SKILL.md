@@ -1339,8 +1339,26 @@ git push -u origin <branch-name>
 
 **PR/MR title invariant (always applies — do not skip even if you don't open the section below):** Any PR or MR you create OR update in the next step MUST have a title that starts with `v$NEW_VERSION` (the version bumped in Step 12), in the format `v<NEW_VERSION> <type>: <summary>`. Never create or edit a PR/MR title without this prefix. Compute the correct title with the single source of truth helper: `~/.claude/skills/gstack/bin/gstack-pr-title-rewrite.sh "$NEW_VERSION" "<current title>"`. The full create/update procedure (idempotency, redaction scan, self-check) is in the section below.
 
+## Step 17.9: verify-ship (acceptance-criteria gate — non-blocking)
+
+Before opening the PR, if this branch closes a Linear ticket, grade shipped reality against that
+ticket's acceptance criteria — not just the passing tests. Run `/verify-ship <ticket>` (or
+`node ~/.claude/skills/verify-ship/evidence.mjs --markdown`, then grade against the ticket) and put
+the PASS/FAIL checklist in the PR body. Non-blocking: a FAIL is a prompt to fix or to note the gap
+explicitly — never open a PR claiming done while a criterion is unmet and unacknowledged. Skip only
+when there's no ticket. (VAS-1377.)
+
 > **STOP.** Before syncing docs and creating or updating the PR/MR (Steps 18-19), Read `~/.claude/skills/gstack/ship/sections/pr-body.md` and execute it
 > in full. Do not work from memory — that section is the source of truth for this step.
+
+## Step 19.5: Refresh CLAUDE.md (anti-drift ratchet)
+
+CLAUDE.md files decay within weeks and nothing watches them (Q2 audit CC-3 — stale files that lie
+cost real rediscovery time and mislead terse-opener sessions). If this branch changed anything a
+CLAUDE.md describes — commands/scripts, directory layout, env vars, deploy/migrations model, or a
+convention — invoke **`claude-md-management:revise-claude-md`** now to fold the change into the repo's
+CLAUDE.md before the PR lands. Non-blocking: skip only when the diff is docs/tests-only or touches
+nothing a CLAUDE.md would describe. Never wave through a stale CLAUDE.md as "not my change."
 
 ## Step 20: Persist ship metrics
 
