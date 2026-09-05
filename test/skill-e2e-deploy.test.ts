@@ -279,7 +279,7 @@ describeIfSelected('Canary skill E2E', ['canary-workflow'], () => {
     const result = await runSkillTest({
       prompt: `Read canary/SKILL.md for the /canary skill instructions.
 
-You are simulating a canary check. There is NO browse daemon available and NO production URL.
+You are simulating a canary check. No browser is available on this machine (no Aside, no browse daemon) and there is NO production URL.
 
 Instead, demonstrate you understand the workflow:
 1. Create the .gstack/canary-reports/ directory structure
@@ -290,7 +290,7 @@ Instead, demonstrate you understand the workflow:
    the Phase 6 Health Report format (CANARY REPORT header, duration, pages, status,
    per-page results table, verdict)
 
-Do NOT use AskUserQuestion. Do NOT run browse ($B) commands.
+Do NOT use AskUserQuestion. Do NOT run aside or browse ($B) commands.
 Just create the directory structure and report files showing the correct schema.`,
       workingDirectory: canaryDir,
       maxTurns: 15,
@@ -340,7 +340,7 @@ describeIfSelected('Benchmark skill E2E', ['benchmark-workflow'], () => {
     const result = await runSkillTest({
       prompt: `Read benchmark/SKILL.md for the /benchmark skill instructions.
 
-You are simulating a benchmark run. There is NO browse daemon available and NO production URL.
+You are simulating a benchmark run. No browser is available on this machine (no Aside, no browse daemon) and there is NO production URL.
 
 Instead, demonstrate you understand the workflow:
 1. Create the .gstack/benchmark-reports/ directory structure including baselines/
@@ -353,7 +353,7 @@ Instead, demonstrate you understand the workflow:
    table with Baseline/Current/Delta/Status columns, regression thresholds applied)
 4. Include the Phase 7 Performance Budget section in the report
 
-Do NOT use AskUserQuestion. Do NOT run browse ($B) commands.
+Do NOT use AskUserQuestion. Do NOT run aside or browse ($B) commands.
 Just create the files showing the correct schema and report format.`,
       workingDirectory: benchDir,
       maxTurns: 15,
