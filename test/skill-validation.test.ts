@@ -64,15 +64,27 @@ describe('SKILL.md command validation', () => {
     expect(result.valid.length).toBe(0); // and no browse commands at all — it routes, not browses
   });
 
-  test('all $B commands in browse/SKILL.md are valid browse commands', () => {
-    const result = validateSkill(path.join(ROOT, 'browse', 'SKILL.md'));
-    expect(result.invalid).toHaveLength(0);
-    expect(result.valid.length).toBeGreaterThan(0);
+  // Browse carve: the $B command reference renders into the on-demand section
+  // browse/sections/command-list.md; the skeleton carries the Aside contract
+  // (Aside is the primary browser, $B its fallback). Validate the union.
+  const BROWSE_DOCS = ['browse/SKILL.md', 'browse/sections/command-list.md']
+    .map((rel) => path.join(ROOT, rel)).filter((p) => fs.existsSync(p));
+
+  test('all $B commands in browse/SKILL.md + command-list section are valid browse commands', () => {
+    let validTotal = 0;
+    for (const doc of BROWSE_DOCS) {
+      const result = validateSkill(doc);
+      expect({ doc, invalid: result.invalid }).toEqual({ doc, invalid: [] });
+      validTotal += result.valid.length;
+    }
+    expect(validTotal).toBeGreaterThan(0);
   });
 
-  test('all snapshot flags in browse/SKILL.md are valid', () => {
-    const result = validateSkill(path.join(ROOT, 'browse', 'SKILL.md'));
-    expect(result.snapshotFlagErrors).toHaveLength(0);
+  test('all snapshot flags in browse/SKILL.md + command-list section are valid', () => {
+    for (const doc of BROWSE_DOCS) {
+      const result = validateSkill(doc);
+      expect({ doc, snapshotFlagErrors: result.snapshotFlagErrors }).toEqual({ doc, snapshotFlagErrors: [] });
+    }
   });
 
   test('all $B commands in qa/SKILL.md are valid browse commands', () => {
@@ -97,15 +109,11 @@ describe('SKILL.md command validation', () => {
     if (!fs.existsSync(secDir)) return; // pre-carve checkout
     const sectionMds = fs.readdirSync(secDir).filter(f => f.endsWith('.md') && !f.endsWith('.md.tmpl'));
     expect(sectionMds.length).toBeGreaterThan(0);
-    let validTotal = 0;
     for (const f of sectionMds) {
       const result = validateSkill(path.join(secDir, f));
       expect({ file: f, invalid: result.invalid }).toEqual({ file: f, invalid: [] });
       expect({ file: f, snapshotFlagErrors: result.snapshotFlagErrors }).toEqual({ file: f, snapshotFlagErrors: [] });
-      validTotal += result.valid.length;
     }
-    // Non-empty guard: the carved methodology must still carry $B examples.
-    expect(validTotal).toBeGreaterThan(0);
   });
 
   test('all $B commands in qa-only/SKILL.md are valid browse commands', () => {
@@ -866,9 +874,9 @@ describe('office-hours skill structure', () => {
     expect(content).toContain('DESIGN.md');
   });
 
-  test('contains browse rendering', () => {
-    expect(content).toContain('$B goto');
-    expect(content).toContain('$B screenshot');
+  test('wireframes render through gstack-render (Aside first)', () => {
+    expect(content).toContain('gstack-render.ts');
+    expect(content).toContain('--screenshot');
   });
 
   test('contains rough aesthetic instruction', () => {
@@ -1721,7 +1729,7 @@ describe('Skill trigger phrases', () => {
     'qa', 'qa-only', 'ship', 'review', 'investigate', 'office-hours',
     'plan-ceo-review', 'plan-eng-review', 'plan-design-review',
     'design-review', 'design-consultation', 'retro', 'document-release',
-    'codex', 'browse', 'setup-browser-cookies',
+    'codex', 'browse', 'setup-browser-cookies', 'scrape',
   ];
 
   for (const skill of SKILLS_REQUIRING_TRIGGERS) {

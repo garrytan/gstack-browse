@@ -14,7 +14,13 @@
  * compares LIVE eval runs (tool calls, turns, cost); this one compares
  * static SKILL.md sizes. Both gate-tier.
  *
- * The baseline lives at test/fixtures/parity-baseline-v1.69.1.0.json,
+ * Baseline rebased v1.69.1.0 → v1.80.0.0: the Aside-first browser contract
+ * ({{ASIDE_SETUP}}) plus the gstack-browser fallback block now ride in every
+ * browsing skill (~9KB), which pushed benchmark and scrape past 1.5× of the
+ * v1.69.1.0 anchor. Deliberate, corpus-wide, receipted in the v1.80.0.0
+ * CHANGELOG; the v1.69.1.0 fixture stays on disk for history.
+ *
+ * The previous baseline lived at test/fixtures/parity-baseline-v1.69.1.0.json,
  * re-captured 2026-08-25 during token-reduction Phase 1 (bash consolidation
  * moved ~11-13KB of inline preamble bash per skill into bin/gstack-skill-start
  * and bin/gstack-skill-end — a deliberate corpus-wide shrink; receipt:
@@ -42,7 +48,7 @@ import { logBudgetOverride } from './helpers/budget-override';
 import { CARVED_SKILLS } from './helpers/carve-guards';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '..');
-const BASELINE_PATH = path.join(REPO_ROOT, 'test', 'fixtures', 'parity-baseline-v1.69.1.0.json');
+const BASELINE_PATH = path.join(REPO_ROOT, 'test', 'fixtures', 'parity-baseline-v1.80.0.0.json');
 
 // Default per-skill ratio is 1.50 (50% growth tolerance). Adjusted v1.52.0.0
 // (cathedral cap audit) from 1.05 → 1.50: a 5% ratio tripped on legitimate
@@ -62,11 +68,11 @@ interface Regression {
 }
 
 describe('SKILL.md size budget regression (gate, free)', () => {
-  test('parity-baseline-v1.69.1.0.json exists', () => {
+  test('parity-baseline-v1.80.0.0.json exists', () => {
     expect(fs.existsSync(BASELINE_PATH)).toBe(true);
   });
 
-  test('no skill exceeds v1.69.1.0 baseline size × ratio', () => {
+  test('no skill exceeds v1.80.0.0 baseline size × ratio', () => {
     const baseline: ParityBaseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf-8'));
     const current = captureBaseline({ repoRoot: REPO_ROOT });
 
@@ -182,10 +188,15 @@ describe('SKILL.md size budget regression (gate, free)', () => {
     //   preamble-tier frontmatter fell through `?? 4`). Their tiers are now
     //   declared correctly (1-2), shedding the tier-2..4 onboarding prose they
     //   never should have carried (-271 lines each for tier 1).
+    // - browse: the baseline measured the headless-browse skill with its ~17 KB
+    //   $B command reference + snapshot-flag tables inline. /browse drives the
+    //   Aside browser first and carries the Aside contract in the skeleton; the
+    //   command tables live in the carved browse/sections/command-list.md.
     const INTENTIONAL_SHRINKS = new Set<string>([
       'spec',
       'scrape', 'diagram', 'open-gstack-browser',
       'landing-report', 'pair-agent', 'skillify',
+      'browse',
     ]);
 
     const undershoots: Array<{

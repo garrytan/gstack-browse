@@ -75,6 +75,18 @@ describe('selectTests', () => {
     expect(result.selected).not.toContain('document-release');
   });
 
+  test('aside resolver change selects the Aside-driven skill tests', () => {
+    const result = selectTests(['scripts/resolvers/aside.ts'], E2E_TOUCHFILES);
+    expect(result.selected).toContain('aside-browse-basic');
+    expect(result.selected).toContain('aside-browse-flow');
+    expect(result.selected).toContain('qa-quick');
+    expect(result.selected).toContain('qa-fix-loop');
+    expect(result.selected).toContain('design-review-fix');
+    expect(result.reason).toBe('diff');
+    expect(result.selected).not.toContain('plan-ceo-review');
+    expect(result.selected).not.toContain('retro');
+  });
+
   test('skill-specific change selects only that skill and related tests', () => {
     const result = selectTests(['plan-ceo-review/SKILL.md'], E2E_TOUCHFILES);
     expect(result.selected).toContain('plan-ceo-review');

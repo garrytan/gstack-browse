@@ -166,8 +166,13 @@ describeIfSelected('LLM-as-judge quality evals', [
     const t0 = Date.now();
     // P2 (v1.2.0): the browse setup block moved from the root router to browse/SKILL.md.
     const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const setupStart = content.indexOf('## SETUP');
-    const setupEnd = content.indexOf('## Core QA Patterns');
+    // The setup block is the Aside contract ('## BROWSER SETUP (Aside ...') with
+    // the browse binary as fallback; older renders headed it '## SETUP'. Slice
+    // from whichever heading is present to the next H2.
+    let setupStart = content.indexOf('## BROWSER SETUP');
+    if (setupStart < 0) setupStart = content.indexOf('## SETUP');
+    const setupEnd = content.indexOf('\n## ', setupStart + 3);
+    if (setupStart < 0 || setupEnd < 0) throw new Error('browse/SKILL.md: setup block not found — regenerate with: bun run gen:skill-docs');
     const section = content.slice(setupStart, setupEnd);
 
     const scores = await judge('setup/binary discovery instructions', section);
@@ -313,7 +318,8 @@ describeIfSelected('QA skill quality evals', ['qa/SKILL.md workflow', 'qa/SKILL.
     const scores = await callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
 
 The agent reads this document to learn how to systematically QA test a web application. The workflow references
-a headless browser CLI ($B commands) that is documented separately — do NOT penalize for missing CLI definitions.
+a browser driver (Aside 'aside repl' scripts, with the headless browse CLI's $B commands as fallback) that is documented
+separately in the skill's BROWSER SETUP section — do NOT penalize for missing driver definitions.
 Instead, evaluate whether the workflow itself is clear, complete, and actionable.
 
 Rate on three dimensions (1-5 scale):
@@ -773,7 +779,7 @@ describeIfSelected('Deploy skill evals', [
       skillPath: 'canary/SKILL.md',
       startMarker: '### Phase 2: Baseline Capture',
       endMarker: '## Important Rules',
-      judgeContext: 'a post-deploy canary monitoring workflow using a headless browser daemon',
+      judgeContext: 'a post-deploy canary monitoring workflow driving a real browser (Aside first, the gstack headless browser as fallback)',
       judgeGoal: 'how to capture baseline screenshots and metrics before deploy, run a continuous monitoring loop checking each page every 60 seconds for console errors and performance regressions, fire alerts with evidence (screenshots), and produce a health report with per-page status and verdict',
     });
   }, 30_000);
@@ -785,7 +791,7 @@ describeIfSelected('Deploy skill evals', [
       skillPath: 'benchmark/SKILL.md',
       startMarker: '### Phase 3: Performance Data Collection',
       endMarker: '## Important Rules',
-      judgeContext: 'a performance regression detection workflow using browser-based Web Vitals measurement',
+      judgeContext: 'a performance regression detection workflow using browser-based Web Vitals measurement (Aside first, the gstack headless browser as fallback)',
       judgeGoal: 'how to collect real performance metrics (TTFB, FCP, LCP, bundle sizes, request counts) via performance.getEntries(), compare against baselines with regression thresholds, produce a performance report with delta analysis, and track trends over time',
     });
   }, 30_000);

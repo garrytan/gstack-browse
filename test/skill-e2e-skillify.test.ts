@@ -22,7 +22,9 @@
  *   5. skillify-approval-reject — /scrape then /skillify but reject in
  *      the approval gate; temp dir is removed, nothing at final path.
  *
- * All five run gate-tier (~$0.50–$1.50 each, ~$5 total per CI).
+ * The three skillify keys run gate-tier; the two scrape keys are periodic
+ * (/scrape is Aside-first and its fallback no longer prescribes the match +
+ * prototype flow they assert — see E2E_TIERS). ~$0.50–$1.50 each.
  * Set EVALS=1 to enable. Set EVALS_MODEL to override (default sonnet-4-6).
  */
 

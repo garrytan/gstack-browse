@@ -356,6 +356,12 @@ describe('gen-skill-docs', () => {
       path.join(ROOT, 'browse', 'sections', 'command-list.md.tmpl'), 'utf-8');
     expect(browseSectionTmpl).toContain('{{COMMAND_REFERENCE}}');
     expect(browseSectionTmpl).toContain('{{SNAPSHOT_FLAGS}}');
+
+    // Aside is the primary browser: every browsing skill renders the Aside
+    // contract ({{ASIDE_SETUP}}); the browse binary is its fallback.
+    const qaTmpl = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md.tmpl'), 'utf-8');
+    expect(qaTmpl).toContain('{{ASIDE_SETUP}}');
+    expect(browseTmpl).toContain('{{ASIDE_SETUP}}');
   });
 
   test('generated SKILL.md contains operational self-improvement (replaced contributor mode)', () => {
@@ -770,7 +776,9 @@ describe('description quality evals', () => {
     // browse/SKILL.md. Guard arrow style on the browse body (sliced from its
     // H1 so the auto-generated `-->` header comments are excluded).
     const content = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const body = content.slice(content.indexOf('# browse: QA Testing'));
+    const h1 = content.search(/^# browse: /m);
+    expect(h1).toBeGreaterThan(-1);
+    const body = content.slice(h1);
     expect(body).toContain('→');
     expect(body).not.toContain('->');
   });
@@ -1381,12 +1389,12 @@ describe('DESIGN_SKETCH resolver', () => {
     expect(content).toMatch(/wireframe|sketch/i);
   });
 
-  test('references browse binary for rendering', () => {
-    expect(content).toContain('$B goto');
+  test('wireframes render through gstack-render (Aside first)', () => {
+    expect(content).toContain('gstack-render.ts');
   });
 
   test('references screenshot capture', () => {
-    expect(content).toContain('$B screenshot');
+    expect(content).toContain('--screenshot');
   });
 
   test('specifies rough aesthetic', () => {
@@ -1815,7 +1823,7 @@ describe('DESIGN_SKETCH extended with outside voices', () => {
 
   test('still contains original wireframe steps', () => {
     expect(content).toContain('wireframe');
-    expect(content).toContain('$B goto');
+    expect(content).toContain('gstack-render.ts');
   });
 });
 

@@ -245,7 +245,7 @@ describe('real-skill pins: body/head extraction used by E2E fixtures', () => {
 
   test('body extraction keeps the sections the skillify/context E2E tests assert on', () => {
     expect(extractSkillBody(path.join(ROOT, 'skillify'))).toContain('## Step 1 — Provenance guard (D1)');
-    expect(extractSkillBody(path.join(ROOT, 'scrape'))).toContain('## Step 4 — Prototype phase');
+    expect(extractSkillBody(path.join(ROOT, 'scrape'))).toContain('## Step 2 — Refuse mutating intents');
     expect(extractSkillBody(path.join(ROOT, 'context-save'))).toContain('## List flow');
     expect(extractSkillBody(path.join(ROOT, 'context-restore'))).toContain('## If no saved contexts exist');
   });
