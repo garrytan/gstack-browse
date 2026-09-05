@@ -42,13 +42,13 @@ Fork it. Improve it. Make it yours. And if you want to hate on free open source 
 
 ## Install — 30 seconds
 
-**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Windows only)
+**Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Windows only). **Recommended on macOS:** the [Aside](https://aside.com) browser (macOS 15+) — browser skills, `/make-pdf`, and `/diagram` drive it first, with your real logged-in sessions. Without it, `./setup` builds gstack's own bundled browser and the same skills use that.
 
 ### Step 1: Install on your machine
 
 Open Claude Code and paste this. Claude does the rest.
 
-> Install gstack: run **`git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review, /setup-browser-cookies, /setup-deploy, /setup-gbrain, /retro, /investigate, /document-release, /document-generate, /codex, /cso, /autoplan, /plan-devex-review, /devex-review, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn. Then ask the user if they also want to add gstack to the current project so teammates get it.
+> Install gstack: run **`git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/.claude/skills/gstack && cd ~/.claude/skills/gstack && ./setup`** then add a "gstack" section to CLAUDE.md that says to use the /browse skill from gstack for all web browsing, never use mcp\_\_claude-in-chrome\_\_\* tools, and lists the available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review, /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy, /canary, /benchmark, /browse, /connect-chrome, /qa, /qa-only, /design-review, /scrape, /setup-browser-cookies, /setup-deploy, /setup-gbrain, /retro, /investigate, /document-release, /document-generate, /codex, /cso, /autoplan, /plan-devex-review, /devex-review, /careful, /freeze, /guard, /unfreeze, /gstack-upgrade, /learn. Then ask the user if they also want to add gstack to the current project so teammates get it.
 
 ### Step 2: Team mode — auto-update for shared repos (recommended)
 
@@ -210,7 +210,7 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/design-html` | **Design Engineer** | Turn a mockup into production HTML that actually works. Pretext computed layout: text reflows, heights adjust, layouts are dynamic. 30KB, zero deps. Detects React/Svelte/Vue. Smart API routing per design type (landing page vs dashboard vs form). The output is shippable, not a demo. |
 | `/qa` | **QA Lead** | Test your app, find bugs, fix them with atomic commits, re-verify. Auto-generates regression tests for every fix. |
 | `/qa-only` | **QA Reporter** | Same methodology as /qa but report only. Pure bug report without code changes. |
-| `/pair-agent` | **Multi-Agent Coordinator** | Share your browser with any AI agent. One command, one paste, connected. Works with OpenClaw, Hermes, Codex, Cursor, or anything that can curl. Each agent gets its own tab. Auto-launches headed mode so you watch everything. Auto-starts ngrok tunnel for remote agents. Scoped tokens, tab isolation, rate limiting, activity attribution. |
+| `/pair-agent` | **Multi-Agent Coordinator** | Share gstack's own browser with any AI agent. One command, one paste, connected. Works with OpenClaw, Hermes, Codex, Cursor, or anything that can curl. Each agent gets its own tab. Auto-launches headed mode so you watch everything. Auto-starts ngrok tunnel for remote agents. Scoped tokens, tab isolation, rate limiting, activity attribution. (Runs on the bundled browser — the fallback engine; agents driving Aside just open their own tabs.) |
 | `/cso` | **Chief Security Officer** | OWASP Top 10 + STRIDE threat model. Zero-noise: 17 false positive exclusions, 8/10+ confidence gate, independent finding verification. Each finding includes a concrete exploit scenario. |
 | `/ship` | **Release Engineer** | Sync main, run tests, audit coverage, push, open PR. Bootstraps test frameworks if you don't have one. |
 | `/land-and-deploy` | **Release Engineer** | Merge the PR, wait for CI and deploy, verify production health. One command from "approved" to "verified in production." |
@@ -219,8 +219,9 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/document-release` | **Technical Writer** | Update all project docs to match what you just shipped. Catches stale READMEs automatically. Builds a Diataxis coverage map (reference / how-to / tutorial / explanation) so gaps are visible in the PR body. |
 | `/document-generate` | **Documentation Author** | Generate missing docs from scratch using the Diataxis framework. Researches the codebase first, then writes reference / how-to / tutorial / explanation docs that actually match the code. Invokable standalone or chained from `/document-release` when the coverage map finds gaps. Learn more: [tutorial](docs/tutorial-document-generate.md) • [how-to](docs/howto-document-a-shipped-feature.md) • [why Diataxis](docs/explanation-diataxis-in-gstack.md). |
 | `/retro` | **Eng Manager** | Team-aware weekly retro. Per-person breakdowns, shipping streaks, test health trends, growth opportunities. `/retro global` runs across all your projects and AI tools (Claude Code, Codex, Gemini). |
-| `/browse` | **QA Engineer** | Give the agent eyes. Real Chromium browser, real clicks, real screenshots. ~100ms per command. `/open-gstack-browser` launches GStack Browser with sidebar, anti-bot stealth, and auto model routing. |
-| `/setup-browser-cookies` | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into the headless session. Test authenticated pages. |
+| `/browse` | **QA Engineer** | Give the agent eyes. Drives your [Aside](https://aside.com) browser first — your real sessions, real clicks, real screenshots — through deterministic `aside repl` scripts. No Aside? It falls back to gstack's own Chromium: real clicks, ~100ms per command, and `/open-gstack-browser` shows it headed with sidebar, anti-bot stealth, and auto model routing. Every other browser skill stands on it. |
+| `/scrape` | **Data Extractor** | Pull structured data off a web page — tables, lists, prices — in your Aside browser with the page's real logged-in state. On the fallback browser, `/skillify` turns the flow into a permanent browser-skill that runs in ~200ms next time. |
+| `/setup-browser-cookies` | **Session Manager** | Import cookies from your real browser (Chrome, Arc, Brave, Edge) into gstack's bundled browser so it can test authenticated pages. Only needed on the fallback path — Aside already has your sessions. |
 | `/autoplan` | **Review Pipeline** | One command, fully reviewed plan. Runs CEO → design → DX → eng review automatically (eng always last, so the shipping gate reviews the final amended plan) with encoded decision principles. Surfaces only taste decisions for your approval. |
 | `/spec` | **Spec Author** | Turn vague intent into a precise, executable spec in five phases (why, scope, technical with mandatory code-reading, draft, file). Codex quality gate before file (blocks below 7/10), fail-closed secret redaction, dedupe against existing issues, archive to `$GSTACK_STATE_ROOT/projects/$SLUG/specs/` for team-corpus recall. `--execute` spawns `claude -p` in a fresh worktree; `/ship` auto-closes the source issue on merge. Plan-mode aware. |
 | `/learn` | **Memory** | Manage what gstack learned across sessions. Review, search, prune, and export project-specific patterns, pitfalls, and preferences. Learnings compound across sessions so gstack gets smarter on your codebase over time. |
@@ -245,7 +246,7 @@ Each skill feeds into the next. `/office-hours` writes a design doc that `/plan-
 | `/freeze` | **Edit Lock** — restrict file edits to one directory. Prevents accidental changes outside scope while debugging. |
 | `/guard` | **Full Safety** — `/careful` + `/freeze` in one command. Maximum safety for prod work. |
 | `/unfreeze` | **Unlock** — remove the `/freeze` boundary. |
-| `/open-gstack-browser` | **GStack Browser** — launch GStack Browser with sidebar, anti-bot stealth, auto model routing (Sonnet for actions, Opus for analysis), one-click cookie import, and Claude Code integration. Clean up pages, take smart screenshots, edit CSS, and pass info back to your terminal. |
+| `/open-gstack-browser` | **GStack Browser** — launch gstack's own browser headed, with sidebar, anti-bot stealth, auto model routing (Sonnet for actions, Opus for analysis), one-click cookie import, and Claude Code integration. Clean up pages, take smart screenshots, edit CSS, and pass info back to your terminal. The visible face of the fallback engine; with Aside open you watch the agent's tabs there instead. |
 | `/setup-deploy` | **Deploy Configurator** — one-time setup for `/land-and-deploy`. Detects your platform, production URL, and deploy commands. |
 | `/setup-gbrain` | **GBrain Onboarding** — from zero to running gbrain in under 5 minutes. PGLite local, Supabase existing URL, or auto-provision a new Supabase project via Management API. MCP registration for Claude Code + per-repo trust triad (read-write/read-only/deny). [Full guide](USING_GBRAIN_WITH_GSTACK.md). |
 | `/sync-gbrain` | **Keep Brain Current** — re-index this repo's code into gbrain via `gbrain sources add` + `gbrain sync --strategy code`, refresh the `## GBrain Search Guidance` block in CLAUDE.md, and auto-remove guidance when the capability check fails. `--incremental` (default), `--full`, `--dry-run`. Idempotent; safe to re-run. |
@@ -297,7 +298,7 @@ Set `gstack-config set checkpoint_mode continuous` and skills auto-commit your w
 
 ### Domain skills + raw CDP escape hatch
 
-Two new browser primitives compound the gstack agent over time:
+Two browser primitives in gstack's own engine (the fallback path when Aside isn't there) compound the agent over time:
 
 - **`$B domain-skill save`** — agent saves a per-site note (e.g., "LinkedIn's Apply button lives in an iframe") that fires automatically next time it visits that hostname. Quarantined → active after 3 successful uses → optional cross-project promotion via `$B domain-skill promote-to-global`. Storage lives alongside `/learn`'s per-project learnings file. Full reference: **[docs/domain-skills.md](docs/domain-skills.md)**.
 - **`$B cdp <Domain.method>`** — raw Chrome DevTools Protocol escape hatch for the rare case curated commands miss. Deny-default: methods must be explicitly added to `browse/src/cdp-allowlist.ts` with a one-line justification. Two-tier mutex serializes browser-scoped CDP calls against per-tab work. Output for data-exfil methods is wrapped in the UNTRUSTED envelope.
@@ -327,6 +328,10 @@ gstack works well with one sprint. It gets interesting with ten running at once.
 **Test everything.** `/ship` bootstraps test frameworks from scratch if your project doesn't have one. Every `/ship` run produces a coverage audit. Every `/qa` bug fix generates a regression test. 100% test coverage is the goal — tests make vibe coding safe instead of yolo coding.
 
 **`/document-release` is the engineer you never had.** It reads every doc file in your project, cross-references the diff, and updates everything that drifted. README, ARCHITECTURE, CONTRIBUTING, CLAUDE.md, TODOS — all kept current automatically. And now `/ship` auto-invokes it — docs stay current without an extra command.
+
+**Aside is the browser gstack drives first.** On a Mac with the [Aside](https://aside.com) AI browser open, `/qa`, `/qa-only`, `/design-review`, `/canary`, `/benchmark`, `/scrape`, and `/browse` all run there — your real browser, with your real logged-in sessions, in tabs the agent opens for itself and closes when it's done. No cookie import, no "open the browser" step, no CAPTCHA handoff dance: hit a sign-in wall, sign in inside Aside, say "done", and the agent continues. Anything a page returns is treated as untrusted content — the agent takes syntax from it, never instructions. `/make-pdf`, `/diagram`, and design previews print and screenshot through Aside too (served from your machine on loopback, one render per script), and the planning skills do their web research through Aside's own agent before reaching for a search tool.
+
+**When Aside isn't there, gstack's own browser takes over — automatically.** Linux, Windows, or a Mac with Aside closed: the same skills use the bundled headless Chromium that `./setup` builds, produce the same evidence, and light up the features below that only make sense when the browser is gstack's rather than yours.
 
 **Real browser mode.** `/open-gstack-browser` launches GStack Browser, an AI-controlled Chromium with anti-bot stealth, custom branding, and the sidebar extension baked in. Sites like Google and NYTimes work without captchas. The menu bar says "GStack Browser" instead of "Chrome for Testing." Your regular Chrome stays untouched. All existing browse commands work unchanged. `$B disconnect` returns to headless. The browser stays alive as long as the window is open... no idle timeout killing it while you're working.
 
@@ -434,6 +439,10 @@ The uninstall script does not edit CLAUDE.md. In each project where gstack was a
 
 `~/Library/Caches/ms-playwright/` (macOS) is left in place because other tools may share it. Remove it if nothing else needs it.
 
+### Aside
+
+gstack never installed Aside, so it never uninstalls it. Keep it or remove it like any other app.
+
 ---
 
 Free, MIT licensed, open source. No premium tier, no waitlist.
@@ -493,7 +502,7 @@ Other references: [docs/gbrain-sync.md](docs/gbrain-sync.md) (sync-specific guid
 | [Using GBrain with GStack](USING_GBRAIN_WITH_GSTACK.md) | Every path, flag, bin helper, and troubleshooting step for `/setup-gbrain` |
 | [GBrain Sync](docs/gbrain-sync.md) | Cross-machine memory setup, privacy modes, troubleshooting |
 | [Architecture](ARCHITECTURE.md) | Design decisions and system internals |
-| [Browser Reference](BROWSER.md) | Full command reference for `/browse` |
+| [Browser](BROWSER.md) | How gstack drives Aside first (the contract, the cookbook, rendering, research), when the fallback engine kicks in, and the fallback's full `$B` command reference |
 | [Contributing](CONTRIBUTING.md) | Dev setup, testing, contributor mode, and dev mode |
 | [Changelog](CHANGELOG.md) | What's new in every version |
 
@@ -516,7 +525,11 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 **Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
 
-**`/browse` fails?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+**`/browse` (or `/qa`, `/design-review`) says `NEEDS_ASIDE` or `ASIDE_NOT_RUNNING`?** That's the probe telling you it's about to use the fallback browser. Want Aside? Open the app and sign in — `aside --version` should print a version and `aside repl 'console.log("ok")'` should print `ok` — then re-run. gstack never installs it for you.
+
+**`/browse` fails on the fallback browser?** `cd ~/.claude/skills/gstack && bun install && bun run build`
+
+**`/make-pdf` or `/diagram` can't render?** Same two paths: with Aside open they print through Aside (`bun run ~/.claude/skills/gstack/bin/gstack-render.ts some.html --screenshot /tmp/out.png` tests it directly); without it they use the bundled browser, so `bun run build` is the fix.
 
 **Stale install?** Run `/gstack-upgrade` — or set `auto_upgrade: true` in `~/.gstack/config.yaml`
 
@@ -526,7 +539,7 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 **Codex says "Skipped loading skill(s) due to invalid SKILL.md"?** Your Codex skill descriptions are stale. Fix: `cd "${CODEX_HOME:-$HOME/.codex}/skills/gstack" && git pull && ./setup --host codex` — or for repo-local installs: `cd "$(readlink -f .agents/skills/gstack)" && git pull && ./setup --host codex`
 
-**Windows users:** gstack works on Windows 11 via Git Bash or WSL. Node.js is required in addition to Bun — Bun has a known bug with Playwright's pipe transport on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). The browse server automatically falls back to Node.js. Make sure both `bun` and `node` are on your PATH.
+**Windows users:** gstack works on Windows 11 via Git Bash or WSL. Aside is macOS-only, so on Windows (and Linux) the browser skills, `/make-pdf`, and `/diagram` always use gstack's bundled browser. Node.js is required in addition to Bun — Bun has a known bug with Playwright's pipe transport on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). The browse server automatically falls back to Node.js. Make sure both `bun` and `node` are on your PATH.
 
 On Windows without Developer Mode (MSYS2 / Git Bash), `setup` falls back to file copies instead of symlinks because `ln -snf` produces frozen copies that don't refresh on `git pull`. **Re-run `cd ~/.claude/skills/gstack && ./setup` after every `git pull`** so your skill files match the repo. `setup` prints a one-line note reminding you. Unix and WSL keep symlinks and don't need the re-run.
 
@@ -537,7 +550,7 @@ On Windows without Developer Mode (MSYS2 / Git Bash), `setup` falls back to file
 Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__* tools.
 Available skills: /office-hours, /plan-ceo-review, /plan-eng-review, /plan-design-review,
 /design-consultation, /design-shotgun, /design-html, /review, /ship, /land-and-deploy,
-/canary, /benchmark, /browse, /open-gstack-browser, /qa, /qa-only, /design-review,
+/canary, /benchmark, /browse, /open-gstack-browser, /qa, /qa-only, /design-review, /scrape,
 /setup-browser-cookies, /setup-deploy, /setup-gbrain, /sync-gbrain, /retro, /investigate,
 /document-release, /document-generate, /codex, /cso, /autoplan, /pair-agent, /careful, /freeze,
 /guard, /unfreeze, /gstack-upgrade, /learn.

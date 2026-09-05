@@ -461,8 +461,13 @@ references — include it in this fix's coverage list.
 
 ### QA logged-in-evidence path via Aside (Phase 2)
 
-**What:** Consent-gated `aside repl` as an alternative evidence source in /qa,
-/qa-only, and /browse when cookie-import can't reach a session (SSO,
+**Landed (Aside-first):** `aside repl` is now the PRIMARY evidence source for
+/qa, /qa-only, and /browse whenever Aside is installed and running; gstack's own
+browser (with cookie import) is the automatic fallback when it is not. Kept for
+the rationale; the remaining loose ends are under "Aside-first follow-ups".
+
+**What:** Consent-gated `aside repl` as the evidence source in /qa, /qa-only,
+and /browse for sessions a headless browser could never reach (SSO,
 device-bound auth, Safari-side logins Chromium export can't see).
 
 **Why:** Fills the exact gap `docs/designs/CHROME_VS_CHROMIUM_EXPLORATION.md`
@@ -3774,7 +3779,7 @@ path to the fixture during the run.
 
 **What:** Cache rendered diagram SVG/PNG in `~/.gstack/cache/diagram-render/`,
 keyed on `sha256(fence source + bundle version + render options)`, so repeat
-`make-pdf` runs skip the browse render tab for unchanged diagrams.
+`make-pdf` runs skip the render (Aside or the fallback browse tab) for unchanged diagrams.
 
 **Why:** Every run currently re-renders every fence (~150-300ms each). Docs with
 10+ diagrams pay seconds per iteration during write-preview loops. Codex
@@ -3951,3 +3956,85 @@ globs (D). What remains, re-filed individually:
 - Playwright bootstrap abort/timeout absorbs (PRs 2233/2359, issues
   1902/2136) — partially superseded by v1.67's bounded bootstrap; verify
   and close or extract the remainder.
+
+## Aside-first follow-ups (filed when Aside became the primary browser)
+
+Every gstack skill that touches a web page drives the Aside AI browser first
+(`scripts/resolvers/aside.ts` is the contract; `lib/aside-render.ts` /
+`bin/gstack-render.ts` render local HTML through it; `{{ASIDE_RESEARCH}}` runs
+web research through it). gstack's own browser engine — the `browse` daemon,
+GStack Browser headed mode, cookie import, `/pair-agent`, browser-skills /
+`/skillify` — is kept as the automatic fallback whenever Aside is not installed
+or not running (Linux, Windows, a closed Aside app), and web research falls
+back to the WebSearch tool when the host provides one. Nothing was removed.
+Loose ends:
+
+### P1: Aside-first fallback parity — keep the `$B` equivalence table in sync with the cookbook
+
+**What:** The fallback block (`BROWSE_FALLBACK` in the browser resolvers) maps
+each verified `aside repl` cookbook shape (read a page, drive a flow, annotated
+screenshot, responsive captures, links + status, performance, PDF, element
+screenshot, `aside exec` research) to its `$B` equivalent so a skill produces
+the same evidence lines on either path. Every time a cookbook shape is added,
+renamed, or changes its output labels (`CONSOLE_ERRORS=`, `DIFF_START`,
+`ASIDE_DIR=`, `GSTACK_STEP_OK`), update the table in the same commit and add a
+pin in `test/aside-driver.test.ts` that the two lists name the same shapes.
+
+**Why:** A skill that reads `DIFF_START` on the Aside path and gets nothing on
+the fallback path "fixes" the missing output blindly. Parity is the whole point
+of keeping the engine; a silent gap is worse than no fallback.
+
+**Effort:** S per change (human ~half day, CC ~15min). **Priority:** P1. **Depends on:** nothing.
+
+### P2: Aside CLI 1.26 lacks subcommands Aside's own skill doc lists
+
+**What:** Aside's skill doc lists `session`, `memory`, `skills`, `host`, and
+`--permission`; Aside CLI 1.26 has none of them (`aside --help`). Skills must
+not depend on them until the CLI ships them. Re-probe on each Aside release;
+when they land, evaluate `session` for multi-script flows and `--permission`
+for the mutating-action consent gate.
+
+**Why:** A skill written against the doc instead of the binary dies at runtime
+on an unknown-command error the agent will then try to "fix" blindly.
+
+**Effort:** S (human ~half day, CC ~20min per re-probe). **Priority:** P2. **Depends on:** Aside releases.
+
+### P2: Aside E2E tests run only where Aside is installed
+
+**What:** The Aside-only E2E lane — `test/skill-e2e-aside.test.ts`, the Aside
+qa/design cases, the live render in `test/aside-render.test.ts` — self-skips
+when `aside` is absent (`asideAvailable()` in `test/helpers/aside-available.ts`),
+so CI's Linux runners never drive Aside; the make-pdf and /diagram render gates
+already run there on the browse binary. The Aside path runs only on macOS dev
+machines.
+Evaluate a self-hosted macOS runner (or a scheduled job on a Mac mini) that
+runs the Aside lane weekly under the same hermetic env as the other E2E lanes.
+
+**Why:** A browser contract nobody runs in CI drifts silently — exactly the
+class `test/aside-driver.test.ts` pins statically but cannot prove live.
+
+**Effort:** M (human ~2 days, CC ~1h plus the machine). **Priority:** P2. **Depends on:** a macOS host with Aside signed in.
+
+### P3: Evaluate `aside mcp` for multi-step flows
+
+**What:** `aside repl` is one flow per script — a fresh session per call, tabs
+closed when it ends. `aside mcp` keeps a persistent REPL page across calls.
+Once the CLI stabilizes, measure whether an MCP path makes long QA audits
+cheaper (no re-navigation per script) without losing the "leave the browser as
+you found it" guarantee.
+
+**Why:** Re-navigating from the URL per script is the honest tax of the current
+model; a persistent page could cut it but adds a session that must be cleaned up.
+
+**Effort:** M (human ~2 days, CC ~1h). **Priority:** P3. **Depends on:** Aside CLI stability.
+
+### P3: Eval that skills treat `aside exec` output as untrusted
+
+**What:** `aside exec "<task>"` returns another agent's answer. Add an LLM-judge
+or E2E eval that plants an instruction inside an `aside exec` result and checks
+the skill takes syntax from it, never scope, permissions, or consent.
+
+**Why:** The rule is pinned as prose; nothing yet proves a skill obeys it when
+the injected text arrives through the one channel that reads like a colleague.
+
+**Effort:** S (human ~1 day, CC ~30min). **Priority:** P3. **Depends on:** the Aside E2E lane above.

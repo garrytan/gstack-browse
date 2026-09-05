@@ -1,5 +1,7 @@
 # Browser / sidebar / server internals
 
+> **Scope:** this is the internals reference for gstack's own browser engine — the `browse` daemon, GStack Browser, the sidebar extension. That engine is the automatic **fallback** when the Aside browser is not installed or not running (Linux, Windows, a closed Aside app); Aside is what every skill drives first. The Aside contract lives in `scripts/resolvers/aside.ts` and [BROWSER.md](../BROWSER.md).
+
 Moved verbatim from CLAUDE.md (token-load reduction). These are the
 load-bearing invariants for `browse/src/server.ts`, the Chrome extension,
 the sidebar PTY, SSE endpoints, CDP sessions, and the sidebar security

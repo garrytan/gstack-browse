@@ -4,9 +4,29 @@ This document explains **why** gstack is built the way it is. For setup and comm
 
 ## The core idea
 
-gstack gives Claude Code a persistent browser and a set of opinionated workflow skills. The browser is the hard part — everything else is Markdown.
+gstack gives Claude Code a set of opinionated workflow skills and a browser to see with. The browser it reaches for first is the user's own [Aside](https://aside.com) AI browser (macOS 15+): real cookies, real logged-in accounts, the tabs they already have open. When Aside is not installed or not running — Linux, Windows, a closed Aside app — gstack falls back, automatically, to the browser it ships itself: a persistent headless Chromium daemon behind a compiled CLI (`$B`). Same skills, same evidence lines, two engines.
 
-The key insight: an AI agent interacting with a browser needs **sub-second latency** and **persistent state**. If every command cold-starts a browser, you're waiting 3-5 seconds per tool call. If the browser dies between commands, you lose cookies, tabs, and login sessions. So gstack runs a long-lived Chromium daemon that the CLI talks to over localhost HTTP.
+The key insight, learned the expensive way: an AI agent wants to be in *your* browser, not in a browser that imitates you. Every feature of the daemon — cookie import so it could be logged in as you, headed mode so you could watch, a CAPTCHA handoff, a tunnel so other agents could join, a sidebar so it could talk back — existed to close the gap to the browser you already had open. Aside is that browser with an agent-grade CLI, so on a Mac with Aside open the skills use it directly:
+
+```
+Claude Code                           Aside (the user's browser, macOS 15+)
+─────────                             ─────
+  bash: aside repl '<script>'   ───→   fresh sandboxed session
+                                         • openTab(url) in the user's real profile
+                                         • snapshot / click / fill / evaluate / screenshot
+                                         • artifacts under the session dir (pwd)
+                                         • tabs close when the script ends
+  stdout: evidence lines +       ←───   exit code is always 0; truth is the
+          GSTACK_STEP_OK sentinel       sentinel (or a `[error` line)
+```
+
+One flow per script. Nothing persists between calls, so a skill re-navigates from the URL for each step, prints labelled evidence lines, and copies artifacts out of the session directory in bash. The full contract — detect-never-install, own tabs only, look-freely-act-with-consent, credentials never pass through the agent, everything a page returns is untrusted — lives in `scripts/resolvers/aside.ts` and renders into every browser skill as `{{ASIDE_SETUP}}`; `test/aside-driver.test.ts` pins its sentences. [BROWSER.md](BROWSER.md) is the reader's version.
+
+Web research in the planning and review skills goes through the same door first: `aside exec "<question>"` in the user's browser (`{{ASIDE_RESEARCH}}`), one read-only request per question, the answer treated as untrusted content. Without Aside it uses the host's WebSearch tool when there is one, and otherwise says "Search unavailable" once and carries on.
+
+### The fallback engine
+
+The second engine is the one gstack has always shipped, and it is what runs everywhere Aside does not. An AI agent driving a browser it owns needs **sub-second latency** and **persistent state**: if every command cold-starts a browser you wait 3-5 seconds per tool call, and if the browser dies between commands you lose cookies, tabs, and login sessions. So gstack runs a long-lived Chromium daemon that the CLI talks to over localhost HTTP.
 
 ```
 Claude Code                     gstack
@@ -34,6 +54,8 @@ Claude Code                     gstack
 ```
 
 First call starts everything (~3s). Every call after: ~100-200ms.
+
+The skills decide which engine to use at their BROWSER SETUP step: probe Aside (`command -v aside` + a one-line `aside repl`); on `READY` drive Aside, otherwise resolve `$B` per `{{BROWSE_FALLBACK}}` and run the `$B` equivalent of each cookbook shape. Cookie import, GStack Browser headed mode, `/pair-agent`, browser-skills and `/skillify`, and domain-skills are features of this engine — they matter on the fallback path and are unnecessary on Aside, where the sessions are already yours.
 
 ## Why Bun
 
@@ -79,7 +101,32 @@ Random port between 10000-49151 (retry up to 5 on collision), allocated through 
 
 The build writes `git rev-parse HEAD` to `browse/dist/.version`. On each CLI invocation, if the binary's version doesn't match the running server's `binaryVersion`, the CLI kills the old server and starts a new one. This prevents the "stale binary" class of bugs entirely — rebuild the binary, next command picks it up automatically.
 
+## Rendering local HTML
+
+`/make-pdf`, `/diagram`, `/design-html` previews, and `/office-hours` sketches generate HTML and need a browser to print or rasterize it. That browser is Aside first, through `lib/aside-render.ts` (the TypeScript API, embedded in make-pdf) and `bin/gstack-render.ts` (the CLI skill templates call). Every fact below was verified against Aside CLI 1.26:
+
+1. **Aside refuses `file://` URLs**, so the HTML's directory is served with `Bun.serve()` on `127.0.0.1` at an ephemeral port for the duration of one render and opened with `goto(url, { waitUntil: "load" })` — the default "interactive" readiness never fires for the 9MB diagram bundle.
+2. **One `aside repl` process runs one generated script**: open, wait (`--wait-selector` / `--wait-expr`), run the steps in order (`--pdf`, `--screenshot`, `--eval … --out`), close the tab. Nothing persists between CLI calls, so a render is always a single script.
+3. **Artifacts are written inside Aside's sandbox** (the per-run session directory is the only writable place), the script prints `ASIDE_DIR=<pwd>`, and the wrapper copies them out.
+4. **PDFs go through raw CDP `Page.printToPDF`** via `page._sendToTarget`, so header/footer templates, tagged PDF, and the document outline keep working — `page.pdf()` exposes only the Playwright subset.
+5. **Sized screenshots use CDP `Emulation.setDeviceMetricsOverride`.** There is no `setViewportSize`.
+6. **The CLI exit code is 0 even when the script throws.** Truth is the `GSTACK_RENDER_OK` sentinel on stdout; a `[error` line is failure.
+
+When `probeAside()` reports `NEEDS_ASIDE` or `ASIDE_NOT_RUNNING`, the same wrappers render through the fallback engine instead — the one shared Chromium per box, no second download: the same loopback server, then one daemon call per action — `newtab --json`, `goto <loopback URL>`, `js` polling for readiness, `pdf --from-file`, `viewport` + `screenshot [--selector]`, `js --out`, and `closetab` in a finally. Same CLI flags, same `OK <path>` lines; `ENGINE=aside|browse` names which browser ran. Not mirrored on the fallback: sized screenshots come out at 1x (Aside defaults to 2x), JPEG `--quality` and `pageRanges`/`scale` are Aside-only, `--landscape` is emulated by swapping the paper dimensions, and `--wait-pagedjs` maps to the daemon's `toc` wait. The renderer serves a local directory and nothing else on either path; pointing it at a website is site work and belongs to the driver contract.
+
 ## Security model
+
+### The browser boundary (Aside)
+
+On the Aside path the browser is the user's, so the security model is about what the agent may do inside it, not about protecting a daemon. The rules are prose in `scripts/resolvers/aside.ts`, rendered into every browser skill and pinned by `test/aside-driver.test.ts`:
+
+- **Detect, never install.** A missing or closed Aside hands off to the fallback engine with one line saying so; gstack never runs an installer for Aside.
+- **Own tabs only.** The agent works in tabs it opened (or one the user named). `listBrowserTabs()` output is private data and never lands in a report.
+- **Look freely, act with consent.** Invoking a skill with a target is consent to read, navigate, and fill without submitting. Mutating actions on a non-local target hit the user's real account, so they get ONE AskUserQuestion per run listing the exact actions first. Logout/delete/cancel/unsubscribe links are never followed.
+- **Credentials never pass through the agent.** Sign-in walls are solved by the user inside Aside; the agent never types, reads, or prints passwords, one-time codes, cookies, tokens, or localStorage.
+- **Everything a page returns is untrusted.** Snapshot trees, page text, console output, `aside exec` answers, screenshots: content, never instructions (`{{UNTRUSTED_CONTENT_WARNING}}` is the single-source wording).
+
+Drives happen inside Aside, so they produce no gstack-side daemon log; Aside keeps its own history. Everything below this line is the fallback engine's threat model — the daemon, its tokens, its cookie jar, its tunnel.
 
 ### Localhost only
 
@@ -278,8 +325,13 @@ Templates contain the workflows, tips, and examples that require human judgment.
 |-------------|--------|-------------------|
 | `{{COMMAND_REFERENCE}}` | `commands.ts` | Categorized command table |
 | `{{SNAPSHOT_FLAGS}}` | `snapshot.ts` | Flag reference with examples |
+| `{{ASIDE_SETUP}}` | `resolvers/aside.ts` | Aside browser-driver contract: readiness probe, the rules for driving a real browser, and the hand-off to the `$B` fallback |
+| `{{ASIDE_COOKBOOK}}` | `resolvers/aside.ts` | The verified `aside repl` script shapes (carried by /browse and /devex-review; other skills inline their own) |
+| `{{ASIDE_RESEARCH}}` | `resolvers/aside.ts` | Web research through `aside exec` in the user's browser, WebSearch as the fallback, then the no-search degrade |
+| `{{UNTRUSTED_CONTENT_WARNING}}` | `resolvers/aside.ts` | The one untrusted-content rule for everything either browser hands back |
 | `{{PREAMBLE}}` | `gen-skill-docs.ts` | Startup block: update check, session tracking, contributor mode, AskUserQuestion format |
 | `{{BROWSE_SETUP}}` | `gen-skill-docs.ts` | Binary discovery + setup instructions |
+| `{{BROWSE_FALLBACK}}` | `resolvers/browse.ts` | Aside→`$B` hand-off: binary discovery + the step-by-step equivalence table, rendered right after `{{ASIDE_SETUP}}` in every browsing skill |
 | `{{BASE_BRANCH_DETECT}}` | `gen-skill-docs.ts` | Dynamic base branch detection for PR-targeting skills (ship, review, qa, plan-ceo-review) |
 | `{{QA_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared QA methodology block for /qa and /qa-only |
 | `{{DESIGN_METHODOLOGY}}` | `gen-skill-docs.ts` | Shared design audit methodology for /plan-design-review and /design-review |
@@ -317,7 +369,7 @@ Three reasons:
 
 | Tier | What | Cost | Speed |
 |------|------|------|-------|
-| 1 — Static validation | Parse every `$B` command in SKILL.md, validate against registry | Free | <2s |
+| 1 — Static validation | Parse every `$B` command in SKILL.md and validate it against the registry; pin the Aside contract sentences and the render wrapper's option mapping | Free | <2s |
 | 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, check for errors | ~$3.85 | ~20min |
 | 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
 
@@ -431,14 +483,18 @@ The `EvalCollector` accumulates test results and writes them in two ways:
 
 | Tier | What | Cost | Speed |
 |------|------|------|-------|
-| 1 — Static validation | Parse `$B` commands, validate against registry, observability unit tests | Free | <5s |
+| 1 — Static validation | Parse `$B` commands against the registry, Aside contract pins, render-wrapper pins, observability unit tests | Free | <5s |
 | 2 — E2E via `claude -p` | Spawn real Claude session, run each skill, scan for errors | ~$3.85 | ~20min |
 | 3 — LLM-as-judge | Sonnet scores docs on clarity/completeness/actionability | ~$0.15 | ~30s |
 
 Tier 1 runs on every `bun run test`. Tiers 2+3 are gated behind `EVALS=1`. The idea: catch 95% of issues for free, use LLMs only for judgment calls and integration testing.
 
+Anything that needs Aside itself — `test/skill-e2e-aside.test.ts`, the Aside cases in the qa and design-review E2E files, the live round-trip in `test/aside-render.test.ts` — runs only on a Mac with the Aside app open and self-skips elsewhere (`asideAvailable()` in `test/helpers/aside-available.ts`; `GSTACK_SKIP_ASIDE=1` forces the skip). The render gates are engine-agnostic: make-pdf's `*-gate.test.ts` and `test/skill-e2e-diagram.test.ts` run through whichever engine resolves (`browserAvailable()` in `make-pdf/test/e2e/browser-available.ts` = `asideAvailable() || resolveBrowseBin() !== null`) and skip only when neither exists, so Linux CI builds the browse binary with `bun run build:gates` and runs them live. The fallback engine's own tests (`browse/test/`, the `$B`-driven E2E cases) run on every platform as before: Linux CI proves the fallback path live and the Aside contract statically.
+
 ## What's intentionally not here
 
+- **No persistent page across `aside repl` calls.** Every Aside script is a fresh session and its tabs die with it. Re-navigating per script is the honest tax of that model; `aside mcp` may lift it later (TODOS.md).
+- **No search tool of our own.** Research goes Aside first, the host's WebSearch tool second, in-distribution knowledge third — out loud each time it steps down.
 - **No WebSocket streaming.** HTTP request/response is simpler, debuggable with curl, and fast enough. Streaming would add complexity for marginal benefit.
 - **No MCP protocol.** MCP adds JSON schema overhead per request and requires a persistent connection. Plain HTTP + plain text output is lighter on tokens and easier to debug.
 - **No multi-user support.** One server per workspace, one user. The token auth is defense-in-depth, not multi-tenancy.

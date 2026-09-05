@@ -44,6 +44,32 @@ a baseline, so a run can't compare against itself).
 
 ## Runners: how the suites execute (2026-08 overhaul)
 
+**Aside-driven E2E tests self-skip without a live Aside.** Every skill that
+opens a web page drives the Aside AI browser first (`scripts/resolvers/aside.ts`)
+and falls back to gstack's own browse engine when Aside is absent. The E2E
+cases that exercise the Aside path (`test/skill-e2e-aside.test.ts`, the Aside
+`qa-*` cases in `test/skill-e2e-qa-workflow.test.ts` / `skill-e2e-qa-bugs.test.ts`,
+`design-review-fix` in `test/skill-e2e-design.test.ts`) call `asideAvailable()`
+from `test/helpers/aside-available.ts` (the same probe the skills run in BROWSER
+SETUP) and skip when the `aside` CLI or the Aside app is absent. CI runners have
+no Aside, so those run only on macOS dev machines and sit in the periodic tier;
+set `GSTACK_SKIP_ASIDE=1` to force the skip locally (which also exercises the
+fallback hand-off). The `$B`-driven E2E cases and `browse/test/` run on every
+platform as before, so Linux CI proves the fallback engine live.
+
+**The renderer picks the same way, so the render gates are engine-agnostic.**
+`/make-pdf`, `/diagram`, and design previews print and screenshot their local
+HTML through `lib/aside-render.ts` / `bin/gstack-render.ts`, which render in
+Aside when `probeAside()` says `READY` and through the browse engine otherwise.
+make-pdf's `*-gate.test.ts` and `test/skill-e2e-diagram.test.ts` (periodic,
+paid) gate on `browserAvailable()` (`make-pdf/test/e2e/browser-available.ts`:
+`asideAvailable() || resolveBrowseBin() !== null`) — on a Mac they print
+through Aside, on Linux CI through the browse binary `bun run build:gates`
+compiles, and they skip only when neither exists. Only
+`test/aside-render.test.ts`'s single live round-trip is Aside-only (its option
+mapping and generated-script pins run everywhere). A green gate on Linux proves
+the fallback engine, not Aside; the Mac run is the Aside evidence.
+
 **Free suite (`bun run test:free`).** `scripts/test-free-shards.ts` runs N
 concurrent shard processes (serial within each) with strict-output
 classification per shard. Full-suite shards are packed by RECORDED PER-FILE
