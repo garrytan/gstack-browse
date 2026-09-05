@@ -83,13 +83,15 @@ Core commands:
 - `$P generate --cover --toc essay.md out.pdf` — full publication layout
 - `$P generate --watermark DRAFT memo.md draft.pdf` — diagonal DRAFT watermark
 - `$P preview <input.md>` — render HTML and open in browser (fast iteration)
-- `$P setup` — verify browse + Chromium + pdftotext and run a smoke test
+- `$P setup` — verify the browser (Aside, or gstack's own headless fallback) + pdftotext and run a smoke test
 - `$P --help` — full flag reference
 
 Output contract:
 - `stdout`: ONLY the output path on success. One line.
 - `stderr`: progress (`Rendering HTML... Generating PDF...`) unless `--quiet`.
-- Exit 0 success / 1 bad args / 2 render error / 3 Paged.js timeout / 4 browse unavailable.
+- Exit 0 success / 1 bad args / 2 render error / 3 Paged.js timeout / 4 no browser available (open the Aside app, or run `./setup` to build gstack's own browser).
+
+PDFs print through Aside when it is running and through gstack's own headless browser otherwise; the stderr progress line says which (`Rendering PDF through Aside` / `through gstack's browser`).
 
 ## Plan Mode Safe Operations
 
@@ -207,7 +209,15 @@ Emoji) ship one; most Linux distros and containers ship none, so emoji render as
 empty boxes (▯). `./setup` auto-installs `fonts-noto-color-emoji` on Linux
 (apt/dnf/pacman/apk, best-effort) and the print CSS falls back through Apple /
 Segoe / Noto emoji families. Set `GSTACK_SKIP_FONTS=1` to skip the install (CI
-without sudo, managed or offline machines).
+without sudo, managed or offline machines). These matter on the gstack-browser
+fallback; Aside renders with the fonts already on the Mac.
+
+PDF output prints through the Aside browser (macOS 15+, aside.com) when it is
+running, and falls back to gstack's own headless browser (built by `./setup`;
+`GSTACK_BROWSE_BIN` / `BROWSE_BIN` point at a different build) everywhere
+else — Linux, Windows, or a closed Aside app. Exit 4 means neither browser is
+available. `--to html` and `--to docx` need no browser at all (diagrams in
+DOCX need one to rasterize; without it they embed as source text).
 
 ## Core patterns
 
@@ -383,7 +393,13 @@ If the user has a `.md` file open and says "make it look nice", propose
 
 ## Debugging
 
-- Output looks empty / blank → check browse daemon is running: `$B status`.
+- Exit 4 / "no browser available" → neither the Aside browser (macOS 15+,
+  aside.com) nor gstack's own headless browser is usable. Open Aside, or run
+  `./setup` in the gstack repo to build the fallback, re-run. `$P setup` checks
+  the whole chain and says which browser it found.
+- Diagram shows a red "failed to render" block → the parse error is printed in
+  the block. If EVERY diagram fails with "diagram renderer:", the browser went
+  away mid-run (Aside closed, or the fallback daemon died).
 - Fragmented text on copy-paste → highlight.js output (Phase 4). Retry with
   `--no-syntax` once that flag exists. For now, remove fenced code blocks
   and regenerate.
@@ -398,11 +414,11 @@ If the user has a `.md` file open and says "make it look nice", propose
 ```
 stdout: /tmp/letter.pdf          ← just the path, one line
 stderr: Rendering HTML...        ← progress spinner (unless --quiet)
-        Generating PDF...
-        Done in 1.5s. 43 words · 22KB · /tmp/letter.pdf
+        Rendering PDF through Aside...   ← or "through gstack's browser"
+        Done in 11.2s. 43 words · 22KB · /tmp/letter.pdf
 
 exit code: 0 success / 1 bad args / 2 render error / 3 Paged.js timeout
-           / 4 browse unavailable
+           / 4 no browser available (Aside not open, fallback not built)
 ```
 
 Capture the path: `PDF=$($P generate letter.md)` — then use `$PDF`.

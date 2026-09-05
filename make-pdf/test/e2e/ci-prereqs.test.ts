@@ -25,6 +25,10 @@ const EXPECT_BINARIES = process.env.GSTACK_EXPECT_BINARIES === "1";
 describe("gate prerequisites (CI tripwire)", () => {
   test.skipIf(!EXPECT_BINARIES)("gate artifacts and tools exist when the lane promises them", () => {
     const missing: string[] = [];
+    // Aside itself is deliberately NOT asserted: CI runners have no Aside. The
+    // gates print through gstack's own browse binary there (the fallback in
+    // lib/aside-render), so THAT build artifact is promised alongside the
+    // make-pdf binary, the diagram bundle, and poppler.
     for (const rel of [
       "make-pdf/dist/pdf",
       "browse/dist/browse",
