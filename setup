@@ -134,6 +134,28 @@ _owned_for_windows_refresh() {
   grep -q '<!-- AUTO-GENERATED from' "$dst/SKILL.md" 2>/dev/null
 }
 
+# ─── Helper: prune generated skill dirs whose source is gone ─────────────────
+# gen-skill-docs writes .agents/.factory/.opencode/.cursor/skills but never
+# deletes, so a skill removed from the source tree stays rendered — and the
+# link loops below would re-link it into every host on every run.
+# $1 = install root, $2 = generated tree, $3 = host skills dir (optional): the
+# host's entry for a pruned name goes too,
+# gated by _owned_for_windows_refresh so a user's own dir is never touched.
+_prune_stale_generated() {
+  local gstack_dir="$1" gen_dir="$2" skills_dir="${3:-}" d n
+  for d in "$gen_dir"/gstack-*/; do
+    [ -d "$d" ] || continue
+    n="$(basename "$d")"
+    [ -f "$gstack_dir/${n#gstack-}/SKILL.md.tmpl" ] && continue
+    [ -f "$gstack_dir/$n/SKILL.md.tmpl" ] && continue
+    rm -rf "$d"
+    if [ -n "$skills_dir" ] && { [ -e "$skills_dir/$n" ] || [ -L "$skills_dir/$n" ]; } && _owned_for_windows_refresh "$skills_dir/$n"; then
+      rm -rf "$skills_dir/$n"
+    fi
+    echo "  pruned retired skill: $n"
+  done
+}
+
 # A sidecar/runtime ROOT (…/skills/gstack) is provably USER-owned when it is
 # a real dir whose SKILL.md exists but lacks the generated banner — a
 # hand-written skill squatting on the canonical name. The sidecar installers
@@ -174,6 +196,16 @@ _print_windows_copy_note_once() {
 # ─── Quiet mode helper ────────────────────────────────────────
 QUIET=0
 log() { [ "$QUIET" -eq 0 ] && echo "$@" || true; }
+
+# Aside (aside.com, macOS 15+) is the primary browser; the compiled browse
+# binary is the fallback. Best-effort hint only — no probe of a running app.
+_browser_hint() {
+  if command -v aside >/dev/null 2>&1; then
+    log "  browser: Aside (primary) — gstack browser is the fallback"
+  else
+    log "  browser: gstack browser (fallback). Install Aside for the primary path: aside.com (macOS 15+)"
+  fi
+}
 
 # ─── Parse flags ──────────────────────────────────────────────
 HOST="claude"
@@ -617,11 +649,15 @@ if [ "$INSTALL_CODEX" -eq 1 ] || [ "$CODEX_GENERATION_MODEL" != "gpt" ]; then
   log "Source: $CODEX_GENERATION_MODEL_SOURCE"
 fi
 
-# 1. Build browse binary if needed (smart rebuild: stale sources, package.json, lock)
+# 1. Build browse binary if needed (smart rebuild: stale sources, package.json, lock).
+# One `bun run build` produces every binary (browse, design, make-pdf), so a
+# missing or stale one of any of them triggers the whole build.
+_EXE=""
+if [ "$IS_WINDOWS" -eq 1 ]; then _EXE=".exe"; fi
 NEEDS_BUILD=0
 if [ ! -x "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
-elif [ -n "$(find "$SOURCE_GSTACK_DIR/browse/src" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+elif [ -n "$(find "$SOURCE_GSTACK_DIR/browse/src" "$SOURCE_GSTACK_DIR/make-pdf/src" "$SOURCE_GSTACK_DIR/design/src" "$SOURCE_GSTACK_DIR/lib/aside-render.ts" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
   NEEDS_BUILD=1
 elif [ "$SOURCE_GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
   NEEDS_BUILD=1
@@ -729,6 +765,7 @@ if [ "$NEEDS_AGENTS_GEN" -eq 1 ]; then
     bun_cmd install --frozen-lockfile 2>/dev/null || bun_cmd install
     bun_cmd run gen:skill-docs --host codex --model "$CODEX_GENERATION_MODEL"
   )
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$AGENTS_DIR"
 fi
 
 # 1c. Generate .factory/ Factory Droid skill docs
@@ -1701,6 +1738,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
       log "gstack ready (claude)."
     fi
     log "  browse: $BROWSE_BIN"
+    _browser_hint
   else
     # Not inside a skills/ directory — would symlink the source into
     # ~/.claude/skills/gstack/ and register from there.
@@ -1736,6 +1774,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
       log ""
       log "gstack built (claude registration skipped)."
       log "  browse: $BROWSE_BIN"
+      _browser_hint
     else
       mkdir -p "$CLAUDE_SKILLS_DIR"
       _link_or_copy "$SOURCE_GSTACK_DIR" "$CLAUDE_GSTACK_LINK"
@@ -1769,6 +1808,7 @@ if [ "$INSTALL_CLAUDE" -eq 1 ]; then
       _install_alias_skill_md "$SOURCE_GSTACK_DIR/open-gstack-browser/SKILL.md" "$_OGB_LINK" "$_OGB_ALIAS_NAME"
       log "gstack ready (claude)."
       log "  browse: $BROWSE_BIN"
+      _browser_hint
     fi
   fi
 fi
@@ -1787,10 +1827,12 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
     create_codex_runtime_root "$SOURCE_GSTACK_DIR" "$CODEX_GSTACK"
   fi
   # Install generated Codex-format skills (not Claude source dirs)
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/.agents/skills" "$CODEX_SKILLS"
   link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"
 
   log "gstack ready (codex)."
   log "  browse: $BROWSE_BIN"
+  _browser_hint
   log "  codex skills: $CODEX_SKILLS"
   log "  model profile: $CODEX_GENERATION_MODEL ($CODEX_GENERATION_MODEL_SOURCE)"
   log "  model changes: rerun ./setup --host codex"
@@ -1859,6 +1901,7 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
   if [ ! -d "$AGENTS_DIR" ]; then
     echo "  warning: no .agents/skills/ directory found — run 'bun run build' first" >&2
   else
+    _prune_stale_generated "$SOURCE_GSTACK_DIR" "$AGENTS_DIR" "$KIRO_SKILLS"
     for skill_dir in "$AGENTS_DIR"/gstack*/; do
       [ -f "$skill_dir/SKILL.md" ] || continue
       skill_name="$(basename "$skill_dir")"
@@ -1890,6 +1933,7 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
     done
     echo "gstack ready (kiro)."
     echo "  browse: $BROWSE_BIN"
+    _browser_hint
     echo "  kiro skills: $KIRO_SKILLS"
   fi
 
@@ -1904,9 +1948,11 @@ fi
 if [ "$INSTALL_FACTORY" -eq 1 ]; then
   mkdir -p "$FACTORY_SKILLS"
   create_factory_runtime_root "$SOURCE_GSTACK_DIR" "$FACTORY_GSTACK"
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/.factory/skills" "$FACTORY_SKILLS"
   link_factory_skill_dirs "$SOURCE_GSTACK_DIR" "$FACTORY_SKILLS"
   echo "gstack ready (factory)."
   echo "  browse: $BROWSE_BIN"
+  _browser_hint
   echo "  factory skills: $FACTORY_SKILLS"
 fi
 
@@ -1914,9 +1960,11 @@ fi
 if [ "$INSTALL_OPENCODE" -eq 1 ]; then
   mkdir -p "$OPENCODE_SKILLS"
   create_opencode_runtime_root "$SOURCE_GSTACK_DIR" "$OPENCODE_GSTACK"
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/.opencode/skills" "$OPENCODE_SKILLS"
   link_opencode_skill_dirs "$SOURCE_GSTACK_DIR" "$OPENCODE_SKILLS"
   echo "gstack ready (opencode)."
   echo "  browse: $BROWSE_BIN"
+  _browser_hint
   echo "  opencode skills: $OPENCODE_SKILLS"
 fi
 
@@ -1926,10 +1974,12 @@ if [ "$INSTALL_CURSOR" -eq 1 ]; then
   create_cursor_runtime_root "$SOURCE_GSTACK_DIR" "$CURSOR_GSTACK"
   # Link before sidecar. Sidecar mkdir -p creates .cursor/skills/gstack, which
   # would make link_cursor_skill_dirs' "[ ! -d generated ]" gen fallback a no-op.
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/.cursor/skills" "$CURSOR_SKILLS"
   link_cursor_skill_dirs "$SOURCE_GSTACK_DIR" "$CURSOR_SKILLS"
   create_cursor_sidecar "$SOURCE_GSTACK_DIR"
   echo "gstack ready (cursor)."
   echo "  browse: $BROWSE_BIN"
+  _browser_hint
   echo "  cursor skills: $CURSOR_SKILLS"
 fi
 
