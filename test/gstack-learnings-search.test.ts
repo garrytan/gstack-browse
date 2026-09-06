@@ -15,7 +15,7 @@ const projDir = path.join(tmpHome, 'projects', slug);
 const otherProjDir = path.join(tmpHome, 'projects', 'other-project');
 
 function run(args: string[]): string {
-  return execFileSync(BIN, args, {
+  return execFileSync('bash', [BIN, ...args], {
     timeout: 30_000,
     env: { ...process.env, GSTACK_HOME: tmpHome },
     cwd: tmpCwd,
@@ -137,7 +137,7 @@ function rankedKeys(args: string[]): string[] {
 }
 
 function runRank(args: string[]): string {
-  return execFileSync(BIN, args, {
+  return execFileSync('bash', [BIN, ...args], {
     timeout: 30_000,
     env: { ...process.env, GSTACK_HOME: tmpHome },
     cwd: rankCwd,
@@ -274,7 +274,7 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
   // stdout is the only channel that can reach a caller at all. Assert the notice
   // is on it and that the process still succeeds.
   test('the truncation notice is delivered on stdout with a zero exit', () => {
-    const res = spawnSync(BIN, ['--query', 'preflight project line'], {
+    const res = spawnSync('bash', [BIN, '--query', 'preflight project line'], {
       timeout: 30_000,
       env: { ...process.env, GSTACK_HOME: tmpHome },
       cwd: rankCwd,
