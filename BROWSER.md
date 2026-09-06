@@ -43,7 +43,9 @@ the resolver ever disagree, the resolver wins. The contract in one screen:
    same-origin links.
 4. **Look freely, act with consent.** Invoking a skill with a target is consent
    to read, navigate, and fill forms without submitting. Mutating actions on a
-   LOCAL target (localhost, 127.0.0.1, `*.test`, …) may proceed; on any non-local
+   LOCAL target (localhost, 127.0.0.1, 0.0.0.0, ::1, `*.localhost`, `*.test`;
+   never `*.local`, an mDNS suffix that resolves to other machines on the LAN)
+   may proceed; on any non-local
    target they hit the user's real account, so the skill asks ONE
    AskUserQuestion per run listing the exact actions first. Links matching
    logout/signout/delete/remove/cancel/unsubscribe are never followed.
@@ -115,15 +117,22 @@ is Aside, through two thin wrappers:
 
   ```bash
   bun run ~/.claude/skills/gstack/bin/gstack-render.ts page.html \
-    --wait-selector '#ready' \
+    --wait-selector '#ready' --wait-timeout 30000 \
     --pdf out.pdf --paper letter --margin 0.75in --page-numbers --tagged --outline \
     --screenshot out.png --width 1280 \
     --eval 'window.renderSvg()' --out out.svg
   ```
 
-  `ENGINE=aside|browse` first (which browser printed), then one `OK <path>`
-  line per artifact, `EVAL <i>: …` for inline evals, `PAGE_ERRORS=[…]` when
-  the page logged errors, exit 1 with `ERROR: …` on failure. When neither
+  `ENGINE=aside|browse` first (the engine that actually rendered: if Aside's
+  CLI cannot start, or its private CDP bridge is missing, the render retries
+  once on gstack's own browser and this line says `browse`; a page failure or
+  a timed-out script is never retried), then one `OK <path>` line
+  per artifact, then `EVAL <i>: …` for inline evals and `PAGE_ERRORS=[…]` when
+  the page logged errors, fenced between `═══ BEGIN/END UNTRUSTED WEB CONTENT ═══`
+  lines because they are page-controlled text; exit 1 with `ERROR: …` on
+  failure. `--wait-timeout <ms>` bounds `--wait-selector` / `--wait-expr`
+  (default 30000), `--help` exits 0, and a non-numeric value for any numeric
+  flag is rejected instead of becoming a `NaN` timeout. When neither
   browser resolves, the first line is `NEEDS_ASIDE` / `ASIDE_NOT_RUNNING` (the
   browser skills' readiness contract) and the error names both remedies: open
   Aside, or build gstack's browser with `./setup`.
@@ -131,7 +140,11 @@ is Aside, through two thin wrappers:
 How a render works (every fact verified against Aside CLI 1.26): Aside refuses
 `file://` URLs, so the HTML's directory is served on `127.0.0.1` on an
 ephemeral port for the duration of one render and opened with
-`goto(url, { waitUntil: "load" })`. One `aside repl` script does the whole job
+`goto(url, { waitUntil: "load" })`. The URL carries a per-render secret as its
+first path segment, so another local process gets 404 for everything;
+containment is checked on the real path of every request (a symlink that
+escapes the directory is 403, malformed encoding is 400) and directories are
+never listed. One `aside repl` script does the whole job
 (open, wait, run the steps in order, close the tab) because nothing persists
 between CLI calls. Artifacts are written inside Aside's sandbox (the per-run
 session directory is the only writable place) and copied out afterwards. PDFs
@@ -142,7 +155,7 @@ script throws, so the wrappers trust only the `GSTACK_RENDER_OK` sentinel on
 stdout.
 
 When `probeAside()` says `NEEDS_ASIDE` or `ASIDE_NOT_RUNNING`, the same
-wrappers render through the fallback engine: the same loopback server, then one daemon call per action — `newtab --json`, `goto <loopback URL>`, `js` polling for readiness, `pdf --from-file`, `viewport` + `screenshot [--selector]`, `js --out`, and `closetab` in a finally. Same CLI flags, same `OK <path>` lines; `ENGINE=aside|browse` names which browser ran. Not mirrored on the fallback: sized screenshots come out at 1x (Aside defaults to 2x), JPEG `--quality` and `pageRanges`/`scale` are Aside-only, `--landscape` is emulated by swapping the paper dimensions, and `--wait-pagedjs` maps to the daemon's `toc` wait.
+wrappers render through the fallback engine: the same loopback server, then one daemon call per action — `newtab --json`, `goto <loopback URL>`, `js` polling for readiness, `pdf --from-file`, `viewport` + `screenshot [--selector]`, `js --out`, and `closetab` in a finally. Same CLI flags, same `OK <path>` lines; `ENGINE=aside|browse` names the engine that actually rendered (when Aside was chosen but its CLI could not start, or its private CDP bridge is gone mid-run, `render()` retries the same spec once on this path; a page failure, or a timeout of a script that was already running, is never retried). Not mirrored on the fallback: sized screenshots come out at 1x (Aside defaults to 2x), JPEG `--quality` and `pageRanges`/`scale` are Aside-only, `--landscape` is emulated by swapping the paper dimensions, and `--wait-pagedjs` maps to the daemon's `toc` wait.
 
 Never point the renderer at a website: it serves a local directory and nothing
 else. Site work is the driver contract above.
@@ -150,8 +163,10 @@ else. Site work is the driver contract above.
 ### Cookbook
 
 The verified `aside repl` script shapes — read a page, drive a flow, annotated
-screenshot, responsive captures, links + status, performance, PDF, element
-screenshot, `aside exec` research — live in `generateAsideCookbook()` in
+screenshot, responsive captures, links + status (HEAD-checked only on a LOCAL
+target; on a real site every HEAD request would carry the user's cookies, so
+links print as `LINK ?` unfetched), performance, PDF, element screenshot,
+`aside exec` research — live in `generateAsideCookbook()` in
 [`scripts/resolvers/aside.ts`](scripts/resolvers/aside.ts) and render as
 `{{ASIDE_COOKBOOK}}` into `/browse` and `/devex-review` (read the generated
 [browse/SKILL.md](browse/SKILL.md) for the current copy). Every script there
@@ -164,7 +179,13 @@ The planning, review, and design skills run their "look up the competitors" /
 "check current best practices" steps through Aside's own agent (`aside exec`)
 in your real browser, via `{{ASIDE_RESEARCH}}`: one read-only request per
 question, the answer cited as untrusted content, the query sanitized before it
-leaves the machine (no hostnames, paths, SQL, or secrets). Without Aside the
+leaves the machine (no hostnames, paths, SQL, or secrets). Every `aside exec`
+call goes through the `_aside_exec` wrapper that `{{ASIDE_EXEC_PRELUDE}}`
+renders into the same bash block: it writes an egress receipt
+(`~/.gstack/security/egress.jsonl`) before the prompt leaves the machine, and
+fails open (the call still runs, unreceipted) only when the egress library
+itself is missing from the install; skills never call `aside exec` bare.
+Without Aside the
 same queries go to the host's WebSearch tool when it provides one; without
 that, the skill says "Search unavailable — proceeding with in-distribution
 knowledge only" once and carries on. (Codex keeps its own `web_search` config
@@ -173,7 +194,9 @@ flag; that is Codex's tool, not gstack's.)
 ## When the fallback kicks in
 
 The switch is the readiness probe every browser skill runs at its BROWSER SETUP
-step — `command -v aside && aside repl 'console.log("ASIDE_READY " + pwd)'`:
+step — `command -v aside && aside repl 'console.log("ASIDE_READY " + pwd)'`,
+bounded to 30 seconds by `gtimeout`, `timeout`, or a `perl alarm` on stock
+macOS (which ships neither):
 
 | Probe result | Means | What the skill does |
 |---|---|---|
@@ -182,9 +205,14 @@ step — `command -v aside && aside repl 'console.log("ASIDE_READY " + pwd)'`:
 | `ASIDE_NOT_RUNNING` | CLI present, app closed or not signed in | Ask the user once to open Aside (and sign in), then re-run the probe. If it still fails, quote the probe output and fall back as above for this run. |
 
 The decision is made once per skill run, never per step, so a run never
-straddles two browsers. `lib/aside-render.ts` makes the same call with
-`probeAside()` for `/make-pdf`, `/diagram`, and design previews, and
+straddles two browsers. `lib/aside-render.ts` makes the same decision with
+`probeAside()` (which also requires `aside --version` to exit 0; a CLI that is
+present but failing is `ASIDE_NOT_RUNNING`, never "install it") for
+`/make-pdf`, `/diagram`, and design previews, and
 `{{ASIDE_RESEARCH}}` makes it for research (Aside → WebSearch → say so).
+`GSTACK_SKIP_ASIDE=1` makes all three treat Aside as absent (the probe prints
+`NEEDS_ASIDE`; the renderer and `./setup`'s browser summary follow), which is
+how the fallback path is exercised on a Mac with Aside open.
 
 What changes when the fallback is active:
 
@@ -209,12 +237,16 @@ Known gaps on the Aside path (none of them block the fallback):
   session and its tabs die with it, so a long audit re-navigates from the URL in
   each script and a render is always one script. `aside mcp` may lift this
   later (tracked in `TODOS.md`).
-- **No gstack-side audit trail for Aside drives.** They happen inside Aside, so
-  they produce no daemon logs or egress receipts; Aside keeps its own history.
-- **CI cannot run Aside.** `test/skill-e2e-aside.test.ts`, the Aside cases in
-  the qa and design-review E2E files, and the live Aside round-trip in
+- **No gstack-side audit trail for Aside drives.** `aside repl` scripts run
+  inside Aside, so they produce no daemon logs or egress receipts; Aside keeps
+  its own history. (Only `aside exec` research calls leave a receipt, through
+  `_aside_exec`.)
+- **CI cannot run Aside.** `test/skill-e2e-aside.test.ts`, `design-review-fix`
+  in `test/skill-e2e-design.test.ts`, and the two live Aside cases in
   `test/aside-render.test.ts` self-skip where Aside is absent
-  (`asideAvailable()`; `GSTACK_SKIP_ASIDE=1` forces it); the static contract
+  (`asideAvailable()`; `GSTACK_SKIP_ASIDE=1` forces it); the qa E2E files run
+  on either engine (`asideAvailable() || browse/dist/browse exists`), so Linux
+  CI drives them through the fallback; the static contract
   pins in `test/aside-driver.test.ts` and `test/aside-render.test.ts` are what
   CI proves for Aside. make-pdf's render gates and `test/skill-e2e-diagram.test.ts`
   are not Aside-only: they run through whichever engine resolves

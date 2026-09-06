@@ -44,18 +44,22 @@ a baseline, so a run can't compare against itself).
 
 ## Runners: how the suites execute (2026-08 overhaul)
 
-**Aside-driven E2E tests self-skip without a live Aside.** Every skill that
-opens a web page drives the Aside AI browser first (`scripts/resolvers/aside.ts`)
-and falls back to gstack's own browse engine when Aside is absent (and Chromium bootstrapped). The E2E
-cases that exercise the Aside path (`test/skill-e2e-aside.test.ts`, the Aside
-`qa-*` cases in `test/skill-e2e-qa-workflow.test.ts` / `skill-e2e-qa-bugs.test.ts`,
-`design-review-fix` in `test/skill-e2e-design.test.ts`) call `asideAvailable()`
-from `test/helpers/aside-available.ts` (the same probe the skills run in BROWSER
+**Aside-only E2E tests self-skip without a live Aside; browser-driving tests
+run on either engine.** Every skill that opens a web page drives the Aside AI
+browser first (`scripts/resolvers/aside.ts`) and falls back to gstack's own
+browse engine when Aside is absent (and Chromium bootstrapped). The cases that
+need Aside itself (`test/skill-e2e-aside.test.ts`, `design-review-fix` in
+`test/skill-e2e-design.test.ts`) call `asideAvailable()` from
+`test/helpers/aside-available.ts` (the same probe the skills run in BROWSER
 SETUP) and skip when the `aside` CLI or the Aside app is absent. CI runners have
 no Aside, so those run only on macOS dev machines and sit in the periodic tier;
 set `GSTACK_SKIP_ASIDE=1` to force the skip locally (which also exercises the
-fallback hand-off). The `$B`-driven E2E cases and `browse/test/` run on every
-platform as before, so Linux CI proves the fallback engine live.
+fallback hand-off). The qa E2E files (`test/skill-e2e-qa-workflow.test.ts`,
+`test/skill-e2e-qa-bugs.test.ts`) gate on `asideAvailable() ||
+fs.existsSync(browseBin)`: the skill's own BROWSER SETUP picks the engine, so
+on a Mac they drive Aside and on Linux CI they drive the built browse binary,
+skipping only when neither exists. The `$B`-driven E2E cases and `browse/test/`
+run on every platform as before, so Linux CI proves the fallback engine live.
 
 **The renderer picks the same way, so the render gates are engine-agnostic.**
 `/make-pdf`, `/diagram`, and design previews print and screenshot their local
@@ -66,9 +70,16 @@ paid) gate on `browserAvailable()` (`make-pdf/test/e2e/browser-available.ts`:
 `asideAvailable() || resolveBrowseBin() !== null`) — on a Mac they print
 through Aside, on Linux CI through the browse binary `bun run build:gates`
 compiles, and they skip only when neither exists. Only
-`test/aside-render.test.ts`'s single live round-trip is Aside-only (its option
-mapping and generated-script pins run everywhere). A green gate on Linux proves
-the fallback engine, not Aside; the Mac run is the Aside evidence.
+`test/aside-render.test.ts`'s two live Aside cases (a full round-trip and a
+late-readiness `--wait-expr` poll) are Aside-only: its option
+mapping and generated-script pins run everywhere, and its fake-executable cases
+drive both engines hermetically (fake `aside` / `browse` scripts on PATH pin
+probe classification, the stdout contract, loopback-server policy, the timeout
+kill, engine choice and the mid-run fallback). `test/gstack-render-cli.test.ts`
+does the same for `bin/gstack-render.ts` with `GSTACK_SKIP_ASIDE=1` and
+`GSTACK_BROWSE_BIN` pointed at a fake daemon that logs every argv line. A green
+gate on Linux proves the fallback engine, not Aside; the Mac run is the Aside
+evidence.
 The browse-binary leg presumes Chromium bootstrapped: `resolveBrowseBin()`
 only checks that the binary (or the `find-browse` shim) exists, never that
 Chromium can launch, so on an install where the best-effort Chromium step
@@ -155,8 +166,9 @@ in the test trees must carry a `timeout`, enforced by
 ratchet.
 
 **Anchor-sliced `setup` harnesses.** `setup` is one large bash script, so the
-free tests that pin its linker, cleanup, and Chromium-bootstrap behavior never
-run the whole thing. They slice the source by anchor (`extractFn(name)` takes
+free tests that pin its linker, cleanup, retired-skill prune, browser hint,
+rebuild decision, and Chromium-bootstrap behavior never run the whole thing.
+They slice the source by anchor (`extractFn(name)` takes
 `name() {` through the next `\n}\n`; `test/setup-playwright-best-effort.test.ts`
 slices the `# 2. Ensure Playwright's Chromium is available` block up to
 `# 2b.`), join the extracted functions with stubbed collaborators, and execute
@@ -167,7 +179,14 @@ testing nothing, and `test/setup-link-ownership.test.ts` and
 `test/setup-playwright-best-effort.test.ts` throw on any `command not found` on
 stderr as harness drift (a helper the test forgot to extract) rather than
 letting it degrade into a pass. Files: `test/setup-link-ownership.test.ts`,
-`test/setup-cleanup-orphans.test.ts`, `test/setup-playwright-best-effort.test.ts`.
+`test/setup-cleanup-orphans.test.ts`, `test/setup-playwright-best-effort.test.ts`,
+`test/setup-prune-stale-generated.test.ts` (`_prune_stale_generated` against a
+temp render tree plus host dirs: host cleanup after the generator already
+pruned, symlink targets survive, frontmatter-renamed skills, foreign links),
+`test/setup-browser-hint.test.ts` (`_browser_hint` and the bootstrap summary
+across Aside present/absent, bootstrap ok/failed/skipped, `GSTACK_SKIP_ASIDE`),
+and `test/setup-needs-build.test.ts` (the `NEEDS_BUILD` block sliced between
+two anchors: every binary and source set flips it, Windows `.exe` suffixes).
 `test/relink.test.ts` shells out to a copy of the real `bin/gstack-relink`
 against a temp `GSTACK_INSTALL_DIR` / `GSTACK_SKILLS_DIR`, and
 `test/hook-scripts.test.ts` runs the real `careful/bin/check-careful.sh` and

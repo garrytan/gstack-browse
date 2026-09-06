@@ -36,10 +36,11 @@ gstack/
 │   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts, eval-store.ts, aside-available.ts (Aside self-skip probe)
 │   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines
 │   ├── aside-driver.test.ts      # Tier 1: pins the {{ASIDE_SETUP}} contract sentences + the fallback hand-off
-│   ├── aside-render.test.ts      # Tier 1 pins + a live Aside render (self-skips without Aside)
+│   ├── aside-render.test.ts      # Tier 1 pins + fake-executable runs on both engines + a live Aside render (self-skips without Aside)
+│   ├── gstack-render-cli.test.ts # Tier 1: bin/gstack-render.ts argv guards + output contract against a fake daemon
 │   ├── skill-validation.test.ts  # Tier 1: static validation (free, <1s)
 │   ├── gen-skill-docs.test.ts    # Tier 1: generator quality (free, <1s)
-│   ├── setup-*.test.ts, relink.test.ts, hook-scripts.test.ts  # Tier 1: setup linker ownership + Chromium bootstrap (anchor-sliced from setup), gstack-relink, PreToolUse hooks (free)
+│   ├── setup-*.test.ts, relink.test.ts, hook-scripts.test.ts  # Tier 1: setup linker ownership, retired-skill prune, browser hint, rebuild check + Chromium bootstrap (anchor-sliced from setup), gstack-relink, PreToolUse hooks (free)
 │   ├── skill-llm-eval.test.ts   # Tier 3: LLM-as-judge (~$0.15/run)
 │   └── skill-e2e-*.test.ts       # Tier 2: E2E via claude -p (~$3.85/run, split by category)
 ├── qa-only/         # /qa-only skill (report-only QA, no fixes)
@@ -72,7 +73,7 @@ gstack/
 ├── connect-chrome/  # symlink → open-gstack-browser (backwards compat)
 ├── setup-browser-cookies/, pair-agent/, skillify/  # Fallback-engine skills (cookie import, shared-browser tunnel, codify a /scrape)
 ├── qa/, qa-only/, scrape/  # Browser skills (with design-review/, canary/, benchmark/) — Aside first via {{ASIDE_SETUP}}, $B when Aside is absent
-├── make-pdf/        # /make-pdf skill + compiled `pdf` binary (embeds lib/aside-render.ts)
+├── make-pdf/        # /make-pdf skill + compiled `pdf` binary (embeds lib/aside-render.ts); test/ = unit tests (cli-exit-codes, setup-smoke, render) + e2e/*-gate.test.ts on whichever engine resolves
 ├── diagram/         # /diagram skill (mermaid → SVG/PNG/.excalidraw through bin/gstack-render.ts + lib/diagram-render)
 ├── design/          # Design binary CLI (GPT Image API)
 │   ├── src/         # CLI + commands (generate, variants, compare, serve, etc.)
@@ -90,7 +91,7 @@ gstack/
 │   └── docker/      # Dockerfile.ci (pre-baked toolchain + Playwright/Chromium)
 ├── contrib/         # Contributor-only tools (never installed for users)
 │   └── add-host/    # /gstack-contrib-add-host skill
-├── setup            # One-time setup: build the browse, design + make-pdf binaries + best-effort Chromium bootstrap + link skills (ownership-gated)
+├── setup            # One-time setup: build the browse, design + make-pdf binaries (rebuilds when any is missing or browse/make-pdf/design/lib sources changed) + best-effort Chromium bootstrap + link skills + prune retired-skill renders (both ownership-gated)
 ├── SKILL.md         # Generated from SKILL.md.tmpl (don't edit directly)
 ├── SKILL.md.tmpl    # Template: edit this, run gen:skill-docs
 ├── ETHOS.md         # Builder philosophy (Boil the Ocean, Search Before Building)

@@ -290,18 +290,28 @@ Names are either short (`qa`) or namespaced (`gstack-qa`), controlled by
 skip the interactive prompt.
 
 **Ownership gate (#2119):** `setup` writes a `.gstack-owned` marker into every
-skill directory it creates, and `setup` (the linker, the alias installer, and
-both prefix-flip cleanups) and `bin/gstack-relink` only delete or link over an
-entry they can prove is gstack's. Strong proof (a symlink resolving into gstack,
-or the marker) allows deleting or refreshing the whole directory. Weak proof (a
+skill directory it creates, and `setup` (the linker, the alias installer, both
+prefix-flip cleanups, and the retired-skill prune) and `bin/gstack-relink` only
+delete or link over an entry they can prove is gstack's. Strong proof (a
+symlink resolving into gstack, or the marker) allows deleting or refreshing the
+whole directory. Weak proof (a
 real SKILL.md byte-identical to the source, or carrying gen-skill-docs' two-line
 banner) covers only that one file, and a weakly-proven file that differs is
 moved to `~/.gstack/backups/skills/<ts>/<skill>/SKILL.md` before gstack links
 over it. Anything else is a foreign skill: skipped, and named in setup's final
 summary. The rule lives in two copies (`setup` and `bin/gstack-relink`); keep
-them in sync until the shared helper filed in TODOS.md lands. Pinned by
-`test/setup-link-ownership.test.ts`, `test/setup-cleanup-orphans.test.ts`, and
-`test/relink.test.ts`.
+them in sync until the shared helper filed in TODOS.md lands. The retired-skill
+prune (`_prune_stale_generated`) applies the same strong/weak split to renders
+of skills that no longer exist, through its own gate
+(`_owned_for_windows_refresh`: a real host directory is a candidate only when
+its SKILL.md carries the generated banner; the marker and byte identity are not
+consulted): it scans the render tree and every host skills dir,
+deletes a real render directory, removes a host symlink only when it resolves
+into gstack, cleans a bannered real directory through `_cleanup_weak_dir`,
+never follows a symlink inside the render tree, and recognizes a skill renamed
+through its frontmatter `name:`. Pinned by `test/setup-link-ownership.test.ts`,
+`test/setup-cleanup-orphans.test.ts`, `test/setup-prune-stale-generated.test.ts`,
+and `test/relink.test.ts`.
 
 **Note:** Vendoring gstack into a project's repo is deprecated. Use global install
 + `./setup --team` instead. See README.md for team mode instructions.
