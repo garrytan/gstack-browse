@@ -23,6 +23,26 @@ reviews deliberately deferred, each with rationale:
   `.gstack-owned` marker's recorded install path load-bearing (today any marker
   counts, so a Windows fork copy carrying gstack's generated header is still
   treated as ours on a mode flip). Effort S. Priority P2. Depends on: none.
+- **Non-Claude host loops + stale-render prune under the marker rule** — the
+  Codex, Factory, OpenCode, Cursor and Kiro link loops (setup's
+  `link_*_skill_dirs`, the `_owned_for_windows_refresh` gate at each) still
+  `rm -rf` + re-copy a REAL host directory on banner-only proof, and
+  `_prune_stale_generated` routes a bannered real dir through
+  `_cleanup_weak_dir` only because those hosts never receive a `.gstack-owned`
+  marker. Write the marker for every host's copy install, then switch all five
+  loops and the prune to the strong/weak split the Claude host and
+  `gstack-relink` already use (#2119). Effort M (human ~2 days / CC ~1h).
+  Priority P2. Depends on: the shared `_gstack_owned_link` helper above (same
+  code motion; do them together).
+- **Free test: CHANGELOG top heading equals VERSION** — a fork PR that claimed
+  a version main had since shipped auto-merged VERSION, package.json and the
+  digest header with no git conflict (both sides identical); only
+  `bin/gstack-next-version` and the PR-time queue check saw it. A tiny free
+  test asserting the first `## [X]` in CHANGELOG.md equals VERSION would make
+  the collision a red test on any branch. Decide first whether mid-branch
+  VERSION bumps without a CHANGELOG entry are a workflow the suite must
+  tolerate (`/ship` writes both in one step, so probably not). Effort S
+  (human ~2h / CC ~10min). Priority P3. Depends on: none.
 - **Config-key reader tripwire** — `transcript_ingest_mode=off` sat unread for
   months while setup-gbrain advertised it. A free test that asserts every key
   in bin/gstack-config's default table is read by at least one binary (or is
