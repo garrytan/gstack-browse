@@ -4117,3 +4117,107 @@ the skill takes syntax from it, never scope, permissions, or consent.
 the injected text arrives through the one channel that reads like a colleague.
 
 **Effort:** S (human ~1 day, CC ~30min). **Priority:** P3. **Depends on:** the Aside E2E lane above.
+
+### P1: make-pdf renders user documents inside the real browser profile — add a CSP
+
+**What:** `/make-pdf` prints markdown-derived HTML through Aside (the user's
+signed-in browser) on a `127.0.0.1` origin. The only barrier between a hostile
+document (a README from a cloned repo) and script execution in that profile is
+the regex sanitizer in `make-pdf/src/render.ts`, whose header assumes marked
+output is never malformed — raw-HTML passthrough breaks that assumption. Inject
+gstack's own CSP `<meta>` into the print template (`default-src 'none';
+img-src data: 'self'; style-src 'unsafe-inline' 'self'; font-src data: 'self';
+script-src 'nonce-<per-render>'` for Paged.js), since user `<meta>` is stripped
+and gstack's is not; alternatively keep make-pdf on the bundled engine by
+default.
+
+**Why:** Under the old cookieless headless engine a sanitizer bypass was
+near-harmless; in the real profile it is a CSRF-class primitive. Cross-model
+finding (Claude adversarial + Codex).
+
+**Effort:** M (human ~2 days, CC ~1h). **Priority:** P1. **Depends on:** none.
+
+### P1: diagram pre-pass buffers every oversized image before downscaling
+
+**What:** `make-pdf/src/diagram-prepass.ts` caps each image at 64 MB but keeps
+every pending buffer in `downscales` and duplicates it as base64 before the
+batch runs; a document referencing a few dozen large images can take gigabytes.
+Cap total pending bytes (e.g. 256 MB) and process in bounded batches, or
+downscale sequentially.
+
+**Why:** A hostile or merely image-heavy document crashes the tool instead of
+degrading.
+
+**Effort:** S (human ~1 day, CC ~30min). **Priority:** P1. **Depends on:** none.
+
+### P2: fallback renders die after any cookie import in the daemon's lifetime
+
+**What:** `renderWithBrowse` drives readiness and evals through `$B js`, and the
+daemon's cookie-import JS lock (`browse/src/read-commands.ts`) refuses `js` on
+every origin outside the imported set — `127.0.0.1` included, forever (the set
+is add-only). The renderer now names the remedy (`$B stop`), but the real fix is
+a fresh incognito context for local-HTML renders, or a loopback exemption once
+its threat model is written down.
+
+**Why:** On Linux/Windows (no Aside) one `/setup-browser-cookies` run makes
+every later `/diagram` and `/make-pdf` render fail.
+
+**Effort:** M (human ~2 days, CC ~1h). **Priority:** P2. **Depends on:** none.
+
+### P2: carve the Aside contract + fallback block into one shared section
+
+**What:** `{{ASIDE_SETUP}}` (~5.6 KB) plus `{{BROWSE_FALLBACK}}` (~4.1 KB) are
+rendered verbatim into ten browsing skills (~97 KB of identical prose loaded on
+every invocation). Keep the probe and the three decision steps inline; move
+"Rules for driving a real browser" and the Aside-to-`$B` translation table into
+one carved reference (the `browse/sections/command-list.md` pattern), then
+re-run `capture-context-budget.ts` so the ceilings ratchet back down.
+
+**Why:** Every skill invocation pays for prose that is skill-invariant.
+
+**Effort:** M (human ~2 days, CC ~1h). **Priority:** P2. **Depends on:** none.
+
+### P2: `$B js` / `$B eval` output is not wrapped in the untrusted envelope
+
+**What:** `js` and `eval` are not in `PAGE_CONTENT_COMMANDS`
+(`browse/src/commands.ts`), so page-controlled return values reach the agent
+unfenced while the fallback table routes exactly the page-controlled reads
+through them. `gstack-render` now fences its own `EVAL`/`PAGE_ERRORS` lines and
+the fallback prose says `$B js` is unwrapped; the durable fix is to add both
+commands to the envelope set.
+
+**Why:** A hostile page can deliver injection text through the one channel the
+skills were told is fenced.
+
+**Effort:** S (human ~half day, CC ~15min). **Priority:** P2. **Depends on:** none.
+
+### P3: Aside-first renderer follow-ups (perf and DRY)
+
+- **Readiness polling** spawns a `browse js` process every 150 ms; the daemon's
+  `wait <sel>` command blocks server-side in one spawn — use it for
+  `waitFor.selector`. Effort S.
+- **Bundle re-staging:** every `runScript()` batch copies the ~9 MB diagram
+  bundle into a fresh mkdtemp and starts a new loopback server; stage once per
+  run (content-addressed) and, on the browse engine, keep one tab across the
+  fence/downscale/DOCX batches. Effort M.
+- **Probe cost:** `probeAside()` runs two blocking spawns per process and the
+  engine cache is per-process; persist the outcome with a short TTL under
+  `GSTACK_HOME` and lower the repl probe timeout on the code path. Effort S.
+- **DRY:** the console-error `HOOK` IIFE exists in seven copies across
+  `scripts/resolvers/*.ts` and `lib/aside-render.ts` (two divergent variants);
+  cookbook recipes (responsive loop, links, read-a-page) are duplicated across
+  `aside.ts`, `design.ts`, `utility.ts`; the readiness probe is recovered from
+  rendered markdown by regex in two places instead of a shared constant. Export
+  one source for each. Effort S each.
+- **Egress scanner:** `test/egress-receipt-wiring.test.ts` scans `curl`, `git
+  push`, and `fetch`; add `aside exec` as a sink class so a bare call fails CI
+  the way the others do. Effort S.
+- `_browser_hint` treats any `aside` on PATH as the Aside browser (no version
+  check). Effort S.
+- **`gen-skill-docs --dry-run` is not write-free for external hosts:**
+  `processExternalHost` runs `mkdirSync(outputDir)` and writes
+  `agents/openai.yaml` with no `DRY_RUN` guard (only SKILL.md is skipped), so a
+  dry run against an empty `--out-dir` leaves 54 `openai.yaml` files behind.
+  Guard both writes. Effort S.
+
+**Priority:** P3. **Depends on:** none.

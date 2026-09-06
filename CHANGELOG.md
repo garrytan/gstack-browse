@@ -49,9 +49,18 @@ What this means for anyone running gstack: open Aside on your Mac and run `/qa`,
 - `/browse`: the Aside contract, cookbook, mode choice (`aside repl` by default, `aside exec` for reading), report format, the fallback, and the full `$B` command reference on demand.
 - The root router, README, `BROWSER.md`, `docs/skills.md`, `docs/PROJECT_STRUCTURE.md`, `CONTRIBUTING.md`, `CLAUDE.md`, and `ARCHITECTURE.md` describe the Aside-first, bundled-fallback world.
 
+#### Fixed
+- `./setup`'s retired-skill prune is safe by construction: it never deletes a directory that holds your own files (only gstack's SKILL.md, marker and links go), never follows a symlink into someone else's tree, cleans a host's stale links even after the generator already removed the render, and recognizes a skill renamed through its frontmatter `name:`. The generator's own prune keeps any `gstack-*` directory without the generated banner and skips a host whose generation failed. `./setup` also rebuilds when the design or make-pdf binary is missing or when anything under `lib/` changed.
+- Setup's summary is honest about browsers: with Aside installed and a failed Chromium bootstrap it says only the bundled fallback is missing (and that `/pair-agent` needs it); `GSTACK_SKIP_ASIDE=1` is honored by the skills' probe, by setup, and by the renderer alike.
+- The local render server behind `/make-pdf`, `/diagram`, and design previews serves one per-render secret URL, never follows a symlink out of its directory, and refuses malformed requests; page text can no longer forge its control lines; a hung `aside` process is killed instead of waited on forever; if Aside quits mid-run the render retries on gstack's own browser and reports which engine actually rendered; a shared `/tmp/gstack-render` owned by someone else is never used.
+- Browsing skills check link status only on a LOCAL target (on a real site every HEAD request would carry your cookies); same-origin filtering compares real origins instead of string prefixes; `.local` hosts are no longer treated as your own machine (mDNS names resolve to other devices on the LAN); the Aside readiness probe has a 30-second deadline on stock macOS, which ships neither `timeout` nor `gtimeout`.
+- `aside exec` research requests write an egress receipt before leaving the machine, like every other off-machine send.
+- `gstack-render --help` exits 0, non-numeric flags are rejected instead of becoming `NaN` timeouts, `--wait-timeout` is documented, and page-derived output (`EVAL`, `PAGE_ERRORS`) is fenced as untrusted content.
+
 #### For contributors
 - `test/aside-driver.test.ts` pins the contract's load-bearing sentences and asserts every browsing skill carries `## BROWSER SETUP (Aside` followed by `## Browser fallback`. `test/aside-render.test.ts` pins the renderer's option mapping and script shapes and runs a live render on each engine that is present. `test/helpers/aside-available.ts` is the shared live-Aside probe for E2E gating; `make-pdf/test/e2e/browser-available.ts` gates the make-pdf gates on either engine.
 - `lib/claude-bin.ts` and `lib/error-handling.ts` are now the canonical copies; `browse/src` re-exports them.
+- New free tests pin the review fixes: `test/setup-prune-stale-generated.test.ts` (host cleanup after the generator pruned, symlink targets survive, renamed skills, foreign links), `test/setup-browser-hint.test.ts` (hint and bootstrap summary across Aside present/absent, bootstrap ok/failed, skip-env), `test/setup-needs-build.test.ts`, `test/gstack-render-cli.test.ts`, `test/aside-render.test.ts` (fake `aside`/`browse` executables: probe classification, stdout contract, server policy, failure paths, timeout kill, engine choice and mid-run fallback), `make-pdf/test/cli-exit-codes.test.ts`, `make-pdf/test/setup-smoke.test.ts`. `renderPdf` returns the engine that rendered; `pickEngine(fresh, deps)` and `serveDir` are exported test seams.
 - Size budget re-baselined to `parity-baseline-v1.81.0.0.json` (the Aside contract plus fallback block ride in every browsing skill); parity ceilings ratcheted with measured values; touchfiles, tiers, coverage matrix, eval baselines, ship goldens, and the context-budget fixture refreshed. Follow-ups in TODOS.md: keep the `$B` translation table in sync with the cookbook, Aside CLI 1.26 lacks the commands its own skill doc lists, a macOS runner for the live E2E, an optional MCP path for a persistent page.
 
 ## [1.80.0.0] - 2026-09-04
@@ -98,7 +107,6 @@ What this means for anyone installing or upgrading: run `./setup` anywhere and g
 - The time-attack fork evaluation that surfaced these defects is preserved under `docs/designs/fork-port-residual-2026-09/` (report, residual index, refutation verdicts, hashes). Waves B through E2 of that plan are scheduled work.
 - New free tests: `test/setup-link-ownership.test.ts`, plus large additions to `test/setup-playwright-best-effort.test.ts`, `test/relink.test.ts`, `test/hook-scripts.test.ts`, `test/telemetry.test.ts`. Anchor-sliced harnesses now fail loudly on `command not found` instead of degrading into "foreign, skipped".
 - `bin/gstack-relink` and `setup` carry the same ownership rule in two copies; the shared helper is filed in TODOS.md.
-
 
 ## [1.79.0.0] - 2026-09-01
 
