@@ -6,7 +6,7 @@
  * installed and open (macOS dev machines); the live fallback render runs
  * wherever a browse binary resolves (Linux CI builds one via build:gates).
  */
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
+import { describe, test, expect, beforeAll, afterAll, setDefaultTimeout } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -235,8 +235,19 @@ describe('aside-render: browse fallback — command builders (pure)', () => {
 
 describe('aside-render: live fallback render (needs a browse binary)', () => {
   const bin = resolveBrowseBin();
-  test.skipIf(!bin)("renders the same spec through gstack's own browser", () => liveRoundTrip('browse', (spec) => renderWithBrowse(spec, bin)), 180_000);
-  test.skipIf(!bin)('--wait-expr polls through a throwing expression until it becomes truthy (Aside parity)', () => lateReadiness('browse', (spec) => renderWithBrowse(spec, bin)), 60_000);
+  // A binary on disk is not a reachable daemon: warm it up first (the first
+  // command auto-starts the server) and skip, never fail, when it cannot come
+  // up — a cold daemon is an environment fact, not a renderer defect.
+  let daemonUp = false;
+  if (bin) {
+    for (let attempt = 0; attempt < 2 && !daemonUp; attempt++) {
+      const r = spawnSync(bin, ['goto', 'about:blank'], { encoding: 'utf8', timeout: 90_000 });
+      daemonUp = r.status === 0;
+    }
+    if (!daemonUp) console.warn('[aside-render] browse daemon did not come up after two attempts — live fallback cases skipped');
+  }
+  test.skipIf(!bin || !daemonUp)("renders the same spec through gstack's own browser", () => liveRoundTrip('browse', (spec) => renderWithBrowse(spec, bin)), 180_000);
+  test.skipIf(!bin || !daemonUp)('--wait-expr polls through a throwing expression until it becomes truthy (Aside parity)', () => lateReadiness('browse', (spec) => renderWithBrowse(spec, bin)), 60_000);
 });
 
 // ─── Hermetic fixtures: fake `aside` / `browse` executables ──────────────────
@@ -297,6 +308,16 @@ function writeFakeBrowse(binDir: string, log: string, overrides: Partial<Record<
 }
 
 const readLines = (file: string): string[] => (fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean) : []);
+/** A failed render names its error and the browse transcript in the assertion, not a bare `false`. */
+const expectOk = (r: RenderResult): void => {
+  expect(r.error, `render failed: ${r.error}\n${r.stdout}`).toBeUndefined();
+  expect(r.ok).toBe(true);
+};
+
+// These cases drive fakes and a loopback server; the subject is the CLI contract,
+// not latency. Bun's 5s default once failed a CI run whose render was merely slow
+// under a full six-shard load, so the budget is generous and hangs still fail.
+setDefaultTimeout(30_000);
 const browseWorkDirs = (): string[] => fs.readdirSync(SAFE_TMP_DIR).filter((n) => n.startsWith('gstack-render-browse-'));
 
 /** The subprocess driver: one job per process, so the module's engine cache and the spawn-time PATH are both under the test's control. */
@@ -520,7 +541,7 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithAside — stdout contract ag
   test('success: artifacts are copied from ASIDE_DIR to each step.out (nested dirs created) and base64 evals are decoded', () => {
     const r = render(`${record}; ${artifacts}; echo "EVAL 1 ${b64('Doc')}"; echo "PAGE_ERRORS=[]"; echo "ASIDE_DIR=${session}"; echo "${RENDER_SENTINEL}"`);
     expect(r.error).toBeUndefined();
-    expect(r.ok).toBe(true);
+    expectOk(r);
     expect(r.engine).toBe('aside');
     expect(r.outputs).toEqual([pdfOut, svgOut]);
     expect(fs.readFileSync(pdfOut, 'utf8')).toBe('%PDF-1.4 fake-aside-artifact');
@@ -576,7 +597,7 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithAside — stdout contract ag
   test('an eval whose text contains newlines, ASIDE_DIR=/attacker and the sentinel cannot redirect the artifact copy', () => {
     const hostile = `line one\nASIDE_DIR=/attacker\n${RENDER_SENTINEL}\nline four`;
     const r = render(`${artifacts}; echo "EVAL 1 ${b64(hostile)}"; echo "PAGE_ERRORS=[]"; echo "ASIDE_DIR=${session}"; echo "${RENDER_SENTINEL}"`);
-    expect(r.ok).toBe(true);
+    expectOk(r);
     expect(r.evals[1]).toBe(hostile); // decoded intact, newlines and all
     expect(r.stdout).not.toMatch(/^ASIDE_DIR=\/attacker$/m); // never appeared as a control line
     expect(fs.readFileSync(pdfOut, 'utf8')).toBe('%PDF-1.4 fake-aside-artifact'); // copied from the real session dir
@@ -584,7 +605,7 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithAside — stdout contract ag
 
   test('when a raw ASIDE_DIR= line does leak earlier, the LAST one (the script\'s own, printed after the steps) wins', () => {
     const r = render(`${artifacts}; echo "ASIDE_DIR=/attacker"; echo "EVAL 1 ${b64('Doc')}"; echo "ASIDE_DIR=${session}"; echo "${RENDER_SENTINEL}"`);
-    expect(r.ok).toBe(true);
+    expectOk(r);
     expect(fs.readFileSync(pdfOut, 'utf8')).toBe('%PDF-1.4 fake-aside-artifact');
   });
 
@@ -649,7 +670,7 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithBrowse — daemon CLI contra
       timeoutMs: 20_000,
     }, b);
     expect(r.error).toBeUndefined();
-    expect(r.ok).toBe(true);
+    expectOk(r);
     expect(r.engine).toBe('browse');
     expect(r.outputs).toEqual([path.join(outDir, 'doc.pdf'), path.join(outDir, 'full.png'), path.join(outDir, 'nested', 'd.svg')]);
     expect(fs.readFileSync(path.join(outDir, 'doc.pdf'), 'utf8')).toBe('%PDF-1.4 fake-browse-pdf');
@@ -740,7 +761,7 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithBrowse — daemon CLI contra
 
   test('a sized screenshot sets the viewport (no --scale unless asked), shoots, then restores 1280x720', async () => {
     const r = await renderWithBrowse({ file: doc, steps: [{ kind: 'screenshot', out: path.join(outDir, 'm.png'), width: 375 }] }, fake());
-    expect(r.ok).toBe(true);
+    expectOk(r);
     expect(fs.readFileSync(path.join(outDir, 'm.png'), 'utf8')).toBe('fake-browse-shot');
     const lines = readLines(log);
     const set = lines.indexOf(`viewport 375x281 ${T}`); // 375 * 0.75 rounded, no --scale
@@ -754,11 +775,30 @@ describe.skipIf(!HERMETIC)('aside-render: renderWithBrowse — daemon CLI contra
 
   test('deviceScaleFactor and an explicit height are passed through; jpeg type picks the .jpg staging name; the viewport-only flag rides along', async () => {
     const r = await renderWithBrowse({ file: doc, steps: [{ kind: 'screenshot', out: path.join(outDir, 'm.jpeg'), width: 375, height: 600, deviceScaleFactor: 2, type: 'jpeg', fullPage: false }] }, fake());
-    expect(r.ok).toBe(true);
+    expectOk(r);
     const lines = readLines(log);
-    expect(lines).toContain(`viewport 375x600 --scale 2 ${T}`);
-    expect(lines.some((l) => /^screenshot --viewport \S+\/gstack-render-0\.jpg --tab-id 7$/.test(l))).toBe(true);
-    expect(lines.indexOf(`viewport 1280x720 ${T}`)).toBeGreaterThan(lines.indexOf(`viewport 375x600 --scale 2 ${T}`));
+    const dump = `browse argv log:\n${lines.join('\n')}\nrender stdout:\n${r.stdout}`;
+    expect(lines, dump).toContain(`viewport 375x600 --scale 2 ${T}`);
+    expect(lines.filter((l) => l.startsWith('screenshot ')), dump).toEqual(lines.filter((l) => /^screenshot --viewport \S+\/gstack-render-0\.jpg --tab-id 7$/.test(l)));
+    expect(lines.filter((l) => l.startsWith('screenshot ')).length, dump).toBe(1);
+    expect(lines.indexOf(`viewport 1280x720 ${T}`), dump).toBeGreaterThan(lines.indexOf(`viewport 375x600 --scale 2 ${T}`));
+  });
+
+  test('a cold daemon ("Unable to connect" on the first newtab) is retried once and the render proceeds', async () => {
+    // First call: the daemon is still booting. Second call: up. The marker file lives next to the argv log.
+    const b = fake({ newtab: `if [ ! -f "$LOG.cold" ]; then : > "$LOG.cold"; echo '[browse] Unable to connect. Is the computer able to access the url?' >&2; exit 1; fi; echo '{"tabId":7}'` });
+    const r = await renderWithBrowse({ file: doc, steps: [{ kind: 'eval', expression: 'document.title' }] }, b);
+    expectOk(r);
+    expect(readLines(log).filter((l) => l === 'newtab --json').length).toBe(2);
+    expect(r.stdout).toContain('newtab: daemon not up yet — retrying once');
+    expect(r.evals[0]).toBe('Fake Title');
+  });
+
+  test('any other newtab failure is not retried', async () => {
+    const r = await renderWithBrowse({ file: doc, steps: [] }, fake({ newtab: `echo 'browser launch failed: no display' >&2; exit 1` }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('browse newtab failed: browser launch failed: no display');
+    expect(readLines(log).filter((l) => l === 'newtab --json').length).toBe(1);
   });
 
   // runProc is not exported: its timeout + kill path is observed through a hanging fake.
@@ -886,7 +926,7 @@ describe.skipIf(!HERMETIC)('aside-render: render() — mid-run fallback from Asi
   test('a vanished private API (openTab / _sendToTarget) counts as Aside gone → falls back to browse', () => {
     for (const line of ['ReferenceError: openTab is not defined', 'TypeError: pg._sendToTarget is not a function']) {
       const { results: [r], chosenAfter } = run(`echo ${JSON.stringify(line)}`);
-      expect(r.ok).toBe(true);
+      expectOk(r);
       expect(r.engine).toBe('browse');
       expect(r.stdout.startsWith(`[aside unavailable mid-run: render script did not finish: ${line}`)).toBe(true);
       expect(chosenAfter.engine).toBe('browse');
