@@ -137,14 +137,6 @@ for (const taggedLine of lines) {
     }
     e._effectiveConfidence = conf;
 
-    // #2762: initialize the relevance score here, beside the other internal
-    // fields, NOT in the query filter. The filter runs only when a query was
-    // given, so a value assigned there would leave the no-query path reading
-    // whatever JSON.parse produced -- and gstack-learnings-log re-serializes
-    // unknown keys, so a stored _tokenHits would become a live sort key on the
-    // preamble call that runs in every session.
-    e._tokenHits = 0;
-
     // Determine if this is from the current project or cross-project
     // Cross-project entries are tagged for display
     const isCrossProject = sourceTag === 'cross';
@@ -185,7 +177,7 @@ if (type) results = results.filter(e => e.type === type);
 // RECALL (this predicate) is unchanged from before: substring containment across
 // key, insight and files. Every entry that used to come back still comes back.
 //
-// RELEVANCE (_tokenHits) is a stricter, narrower measure, because reusing the
+// RELEVANCE (the hit counts below) is a stricter, narrower measure, because reusing the
 // recall net as a ranking signal ranks badly in two ways that were measured on
 // gstack's own shipped queries:
 //   - Substring hits are not concept hits. Under /investigate's shipped query,
