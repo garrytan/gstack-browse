@@ -904,6 +904,7 @@ APPROACH A: [Name]
   Pros:    [2-3 bullets]
   Cons:    [2-3 bullets]
   Reuses:  [existing code/patterns leveraged]
+  Phasing: [ships as independently mergeable phases? if not, why]
 
 APPROACH B: [Name]
   ...
@@ -920,6 +921,7 @@ Rules:
 - One approach must be the "ideal architecture" (best long-term trajectory).
 - **These two approaches have equal weight.** Don't default to "minimal viable" just because it's smaller. Recommend whichever best serves the user's goal. If the right answer is a rewrite, say so.
 - If only one approach exists, explain concretely why alternatives were eliminated.
+- Each phase of the chosen approach must be mergeable on its own. A plan where nothing works until every phase lands is a red flag — say so.
 - Do NOT proceed to mode selection (0F) without user approval of the chosen approach.
 
 Present these approach options via AskUserQuestion using the preamble's AskUserQuestion Format section: include RECOMMENDATION and `Completeness: N/10` on every option. These approaches differ in coverage (minimal viable vs ideal architecture), so completeness scoring applies directly.
