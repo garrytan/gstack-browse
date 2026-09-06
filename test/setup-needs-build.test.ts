@@ -155,7 +155,9 @@ describe('setup: NEEDS_BUILD decision executes', () => {
     expect(decide(dir)).toBe(1);
   });
 
-  test('a binary that exists but is not executable counts as missing → 1', () => {
+  // MSYS bash has no execute bit: `[ -x file ]` is true for any regular file, so
+  // this case is POSIX-only.
+  test.skipIf(process.platform === 'win32')('a binary that exists but is not executable counts as missing → 1', () => {
     const dir = makeTree();
     fs.chmodSync(path.join(dir, 'design/dist/design'), 0o644);
     expect(decide(dir)).toBe(1);
@@ -221,7 +223,9 @@ describe('setup: NEEDS_BUILD decision executes', () => {
     expect(decide(dir, { isWindows: '1' })).toBe(1);
   });
 
-  test('IS_WINDOWS=0: only the .exe names present → 1 (no suffix on Unix)', () => {
+  // MSYS bash resolves `[ -x design ]` to design.exe on its own, so the "no
+  // suffix on Unix" contrast can only be asserted on a POSIX host.
+  test.skipIf(process.platform === 'win32')('IS_WINDOWS=0: only the .exe names present → 1 (no suffix on Unix)', () => {
     const dir = makeTree({ exe: '.exe' });
     expect(decide(dir, { isWindows: '0' })).toBe(1);
   });

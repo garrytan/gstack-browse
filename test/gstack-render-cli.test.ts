@@ -38,6 +38,11 @@ import * as path from 'node:path';
 import { resolveBrowseBin } from '../lib/aside-render';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+// The fake `browse` is a shebang shell script: Windows' CreateProcess cannot
+// exec it (spawn reports "Executable not found"), so every describe that drives
+// the CLI through the fake self-skips on win32. The argument guards, --help,
+// and the no-browser case need no fake and run everywhere.
+const isWin = process.platform === 'win32';
 const CLI = path.join(ROOT, 'bin/gstack-render.ts');
 // The same bun that runs this test file, by absolute path: a scrubbed PATH in a
 // child env must never decide whether the CLI itself can start.
@@ -334,7 +339,7 @@ function successRuns(): Promise<Record<SuccessKey, Done>> {
 // File-level: the batch is shared by two describes (--serve-root reads its fixture too).
 afterAll(() => { for (const f of successFixtures) fs.rmSync(f.dir, { recursive: true, force: true }); });
 
-describe('gstack-render CLI: output contract through the browse fallback', () => {
+describe.skipIf(isWin)('gstack-render CLI: output contract through the browse fallback', () => {
   test('pdf + screenshot + eval --out: ENGINE=browse first, one OK per artifact, files exist, no fence without inline evals', async () => {
     const { f, r } = (await successRuns()).artifacts;
     const pdf = path.join(f.dir, 'out', 'doc.pdf');
@@ -430,7 +435,7 @@ describe('gstack-render CLI: output contract through the browse fallback', () =>
 
 // ─── Failure path ────────────────────────────────────────────────────────────
 
-describe('gstack-render CLI: failure path', () => {
+describe.skipIf(isWin)('gstack-render CLI: failure path', () => {
   let f: Fixture;
   beforeAll(() => { f = makeFixture(); });
   afterAll(() => { fs.rmSync(f.dir, { recursive: true, force: true }); });
@@ -469,7 +474,7 @@ describe('gstack-render CLI: failure path', () => {
 
 // ─── --serve-root ────────────────────────────────────────────────────────────
 
-describe('gstack-render CLI: --serve-root', () => {
+describe.skipIf(isWin)('gstack-render CLI: --serve-root', () => {
   let f: Fixture;
   beforeAll(() => { f = makeFixture(); });
   afterAll(() => { fs.rmSync(f.dir, { recursive: true, force: true }); });
