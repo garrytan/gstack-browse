@@ -84,7 +84,7 @@ function isWordChar(c) {
   // and 'caf' stops matching inside 'cafe' with an accent. Scripts without case
   // (CJK) stay separators, which is what keeps an embedded Latin term findable
   // in text that has no spaces around it.
-  return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c === '_'
+  return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
     || c.toLowerCase() !== c.toUpperCase();
 }
 function hasWholeWord(hay, tok) {

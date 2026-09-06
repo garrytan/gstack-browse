@@ -204,6 +204,13 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
       // reveal whether tokens were deduped.
       rankEntry({ key: 'repeated-token-only', insight: 'nu only here', confidence: 9 }),
       rankEntry({ key: 'two-distinct-concepts', insight: 'omicron and kirin together', confidence: 2 }),
+      // Underscore separator probes. gstack-learnings-log's key regex admits
+      // [a-zA-Z0-9_-], so snake_case keys are supported and file paths carry
+      // underscores constantly. If `_` counts as a word character the whole key is
+      // one word and scores nothing, while a kebab-case key holding the same words
+      // scores fully -- the same entry ranked on its separator, not its content.
+      rankEntry({ key: 'iota_upsilon_probe', insight: 'no query words in this text', confidence: 2 }),
+      rankEntry({ key: 'plain-row-iota', insight: 'no query words in this text', confidence: 10 }),
     ];
     fs.writeFileSync(path.join(rankProjDir, 'learnings.jsonl'), rows.map(e => JSON.stringify(e)).join('\n') + '\n');
   });
@@ -346,6 +353,15 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
     expect(rankedKeys(['--query', 'nu nu nu omicron kirin'])).toEqual([
       'two-distinct-concepts',  // 2 distinct hits, confidence 2
       'repeated-token-only',    // 1 distinct hit, confidence 9
+    ]);
+  });
+
+  // Same entry, same words, different separator. Underscore must break words or a
+  // snake_case key scores nothing while its kebab-case twin scores fully.
+  test('an underscore separates words in a key, exactly as a hyphen does', () => {
+    expect(rankedKeys(['--query', 'iota upsilon'])).toEqual([
+      'iota_upsilon_probe',  // 2 naming hits, confidence 2
+      'plain-row-iota',      // 1 naming hit, confidence 10
     ]);
   });
 });
