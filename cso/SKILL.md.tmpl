@@ -72,7 +72,8 @@ When the user types `/cso`, run this skill.
 For this skill the queries are advisory lookups. Sanitize first: package names and versions only, never file paths, hostnames, or config values from the repo.
 
 ```bash
-aside exec "Search the web for <package> <version> CVE advisories and the first fixed version. Read-only: do not sign in, submit, or change anything. Reply with up to 5 bullets, each with its source URL, then stop."
+{{ASIDE_EXEC_PRELUDE}}
+_aside_exec "Search the web for <package> <version> CVE advisories and the first fixed version. Read-only: do not sign in, submit, or change anything. Reply with up to 5 bullets, each with its source URL, then stop."
 ```
 
 ---

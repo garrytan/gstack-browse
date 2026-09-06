@@ -530,11 +530,13 @@ Generate a single-page HTML file with these constraints:
   matches the actual use case)
 - Add HTML comments explaining design decisions
 
-Write it to \`/tmp/gstack-sketch/sketch.html\` (Write tool) — its own directory,
-because the renderer serves that directory over loopback:
+Create a private directory for it first — the renderer serves that whole directory
+over loopback, so it must be yours alone and hold nothing else (never a fixed,
+shared /tmp name another user could pre-create):
 \`\`\`bash
-mkdir -p /tmp/gstack-sketch
+mktemp -d "\${TMPDIR:-/tmp}/gstack-sketch.XXXXXX"
 \`\`\`
+Write the sketch to \`<that directory>/sketch.html\` (Write tool).
 
 **Step 3: Render and capture**
 
@@ -543,7 +545,7 @@ in gstack's own headless browser (its first line says which: \`ENGINE=aside\` or
 \`ENGINE=browse\`) — and screenshots it:
 
 \`\`\`bash
-bun run ${toShellPath(ctx.paths.binDir)}/gstack-render.ts /tmp/gstack-sketch/sketch.html --screenshot /tmp/gstack-sketch.png --width 1280
+bun run ${toShellPath(ctx.paths.binDir)}/gstack-render.ts <sketch-dir>/sketch.html --screenshot <sketch-dir>/sketch.png --width 1280
 \`\`\`
 
 Only if it prints \`NEEDS_ASIDE\` or \`ASIDE_NOT_RUNNING\` followed by \`ERROR: no browser
@@ -562,7 +564,7 @@ If they approve or say "good enough," proceed.
 **Step 5: Include in design doc**
 
 Reference the wireframe screenshot in the design doc's "Recommended Approach" section.
-The screenshot file at \`/tmp/gstack-sketch.png\` can be referenced by downstream skills
+The screenshot file at \`<sketch-dir>/sketch.png\` (name the full path in the doc) can be referenced by downstream skills
 (\`/plan-design-review\`, \`/design-review\`) to see what was originally envisioned.
 
 **Step 6: Outside design voices** (optional)

@@ -65,9 +65,11 @@ Decide the output directory: `./diagrams/` when the cwd is a git repo
 
 `gstack-render` serves the bundle's directory on 127.0.0.1 for each render
 (Aside refuses `file://`, and both engines get the same origin). Stage the bundle under
-gstack's own render staging directory, `/tmp/gstack-render/`, content-addressed
-by bundle sha: the served directory holds nothing but gstack bundles, and
-concurrent sessions or mixed gstack versions never clobber each other.
+gstack's own render staging directory, `${TMPDIR:-/tmp}/gstack-render` (yours
+alone: if that name is a symlink or another user's directory, a private
+`mktemp -d` is used instead), content-addressed by bundle sha: the served
+directory holds nothing but gstack bundles, and concurrent sessions or mixed
+gstack versions never clobber each other.
 
 ```bash
 BUNDLE=""
@@ -76,9 +78,10 @@ for c in "$HOME/.claude/skills/gstack/lib/diagram-render/dist/diagram-render.htm
   [ -f "$c" ] && BUNDLE="$c" && break
 done
 [ -z "$BUNDLE" ] && echo "BUNDLE_MISSING — run: cd ~/.claude/skills/gstack && bun run build:diagram-render" && exit 1
-mkdir -p /tmp/gstack-render
+RD="${TMPDIR:-/tmp}/gstack-render"
+if [ -e "$RD" ] && { [ -L "$RD" ] || [ ! -O "$RD" ]; }; then RD=$(mktemp -d "${TMPDIR:-/tmp}/gstack-render.XXXXXX"); else mkdir -p -m 700 "$RD"; fi
 SHA=$(shasum -a 256 "$BUNDLE" | cut -c1-16)
-STAGED="/tmp/gstack-render/gstack-diagram-render-$SHA.html"
+STAGED="$RD/gstack-diagram-render-$SHA.html"
 [ -f "$STAGED" ] && shasum -a 256 "$STAGED" | grep -q "^$SHA" || { cp "$BUNDLE" "$STAGED.$$" && mv "$STAGED.$$" "$STAGED"; }
 echo "STAGED: $STAGED"
 ```

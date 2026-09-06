@@ -133,7 +133,8 @@ Before reviewing anything, answer these questions:
    - Are there known footguns? Search: "{framework} {pattern} pitfalls"
 
    ```bash
-   aside exec "Search the web for {framework} {pattern} built-in, {pattern} best practice {current year}, and {framework} {pattern} pitfalls. Read-only: do not sign in, submit, or change anything. Reply with up to 8 bullets, each with its source URL, then stop."
+   {{ASIDE_EXEC_PRELUDE}}
+   _aside_exec "Search the web for {framework} {pattern} built-in, {pattern} best practice {current year}, and {framework} {pattern} pitfalls. Read-only: do not sign in, submit, or change anything. Reply with up to 8 bullets, each with its source URL, then stop."
    ```
 
    If the Aside check did not print `READY`, run the same searches with the WebSearch tool when the host provides it; with neither, skip this check and note: "Search unavailable — proceeding with in-distribution knowledge only."

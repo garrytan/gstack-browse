@@ -109,7 +109,7 @@ If no `--pages` were specified, auto-discover pages to monitor:
 ```bash
 aside repl '
 const pg = await openTab("<url>");
-const links = await pg.evaluate(() => [...new Set([...document.querySelectorAll("a[href]")].map(a => a.href))].filter(h => h.startsWith(location.origin) && !/logout|signout|delete|remove|cancel|unsubscribe/i.test(h)));
+const links = await pg.evaluate(() => [...new Set([...document.querySelectorAll("a[href]")].map(a => a.href))].filter(h => new URL(h).origin === location.origin && !/logout|signout|delete|remove|cancel|unsubscribe/i.test(h)));
 for (const l of links) { const r = await fetch(l, { method: "HEAD" }).catch(e => ({ status: "ERR " + e.message })); console.log("LINK", r.status, l); }
 await closeTab(pg); console.log("GSTACK_STEP_OK");
 '

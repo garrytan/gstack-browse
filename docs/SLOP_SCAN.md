@@ -29,7 +29,7 @@ on any slop-scan finding.
   code should use `safeUnlinkQuiet()` (swallows ALL errors). A cleanup path that throws
   on EPERM means the rest of cleanup doesn't run. That's worse.
 
-### Utilities in `browse/src/error-handling.ts`
+### Utilities in `lib/error-handling.ts` (re-exported from `browse/src/error-handling.ts`)
 
 | Function | Use when | Behavior |
 |----------|----------|----------|

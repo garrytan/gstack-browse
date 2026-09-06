@@ -141,7 +141,8 @@ Also apply the remaining INFORMATIONAL categories that are still in the checklis
 - Verify API signatures against current docs (APIs change between versions)
 
 ```bash
-aside exec "Search the web for {framework} {version} {pattern} current best practice and whether a built-in replaces it. Read-only: do not sign in, submit, or change anything. Reply with up to 5 bullets, each with its source URL, then stop."
+{{ASIDE_EXEC_PRELUDE}}
+_aside_exec "Search the web for {framework} {version} {pattern} current best practice and whether a built-in replaces it. Read-only: do not sign in, submit, or change anything. Reply with up to 5 bullets, each with its source URL, then stop."
 ```
 
 Takes seconds, prevents recommending outdated patterns. If the Aside check did not print `READY`, use the WebSearch tool when the host provides it; with neither, note it and proceed with in-distribution knowledge.

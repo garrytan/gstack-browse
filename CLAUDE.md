@@ -258,7 +258,10 @@ dashboards, git-class ops). The new-sink scanner in
 `git push` / `fetch` to a non-loopback host unless the file carries a reasoned
 entry in its `SCANNER_EXEMPT` list (user-directed page fetches, reachability
 probes, instruction strings, skill prose) — if you add a new off-machine sink,
-wire it through the helpers and add it to the enumerated sink list. Inspect with
+wire it through the helpers and add it to the enumerated sink list. `aside exec`
+(a gstack-composed prompt sent to Aside's agent) is a fail-open user-facing
+sink: skills call it through the `_aside_exec` wrapper that
+`scripts/resolvers/aside.ts` renders, never bare. Inspect with
 `bin/gstack-egress` (`list` | `verify`, exit 3 on tamper | `grants`). Threat
 model: forensic observability of ATTEMPTED egress, not an exfiltration control.
 

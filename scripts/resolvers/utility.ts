@@ -208,18 +208,19 @@ console.log("GSTACK_STEP_OK");
 
 Then copy the screenshot out of the printed directory and show it: \`cp "<ASIDE_DIR>/initial.jpg" "$REPORT_DIR/screenshots/initial.jpg"\`, then Read it.
 
-Map the navigation structure with the links script (same-origin, read-only HEAD requests with the user's cookies):
+Map the navigation structure with the links script (same-origin; HEAD status checks only on a LOCAL target — on a real site the user's cookies would ride every request, so links print as \`LINK ?\` unfetched):
 
 \`\`\`bash
 aside repl '
 const pg = await openTab("<target-url>");
-const links = await pg.evaluate(() => [...new Set([...document.querySelectorAll("a[href]")].map(a => a.href))].filter(h => h.startsWith(location.origin) && !/logout|signout|delete|remove|cancel|unsubscribe/i.test(h)));
-for (const l of links) { const r = await fetch(l, { method: "HEAD" }).catch(e => ({ status: "ERR " + e.message })); console.log("LINK", r.status, l); }
+const links = await pg.evaluate(() => [...new Set([...document.querySelectorAll("a[href]")].map(a => a.href))].filter(h => new URL(h).origin === location.origin && !/logout|signout|delete|remove|cancel|unsubscribe/i.test(h)));
+const local = await pg.evaluate(() => /^(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1|\\[::1\\])$|\\.(localhost|test)$/.test(location.hostname));
+for (const l of links) { if (!local) { console.log("LINK ?", l); continue; } const r = await fetch(l, { method: "HEAD" }).catch(e => ({ status: "ERR " + e.message })); console.log("LINK", r.status, l); }
 await closeTab(pg); console.log("GSTACK_STEP_OK");
 '
 \`\`\`
 
-Every \`LINK\` line with a 4xx/5xx or \`ERR\` status is a broken link for the Links score.
+Every \`LINK\` line with a 4xx/5xx or \`ERR\` status is a broken link for the Links score; \`LINK ?\` lines were not fetched (non-local target) and count as unverified, not broken.
 
 **Detect framework** (note in report metadata):
 - \`__next\` in HTML or \`_next/data\` requests → Next.js

@@ -305,37 +305,68 @@ _owned_for_windows_refresh() {
   grep -q '<!-- AUTO-GENERATED from' "$dst/SKILL.md" 2>/dev/null
 }
 
-# ─── Helper: prune generated skill dirs whose source is gone ─────────────────
-# gen-skill-docs writes .agents/.factory/.opencode/.cursor/skills but never
-# deletes, so a skill removed from the source tree stays rendered — and the
-# link loops below would re-link it into every host on every run.
-# $1 = install root, $2 = generated tree, $3 = host skills dir (optional): the
-# host's entry for a pruned name goes too, gated by _owned_for_windows_refresh
-# so a user's own dir is never touched; a bannered REAL directory is cleaned
-# through _cleanup_weak_dir (our SKILL.md, marker and links only) rather than
-# deleted whole, because banner-only proof is weak proof (#2119).
+# ─── Helper: prune renders of skills whose source is gone ────────────────────
+# gen-skill-docs prunes its own render tree (.agents/.factory/.opencode/.cursor
+# skills) at the end of every run; this helper covers what the generator cannot
+# reach: the HOST skills dirs that link to or copy those renders, and a render
+# tree left behind by an older generator. Candidates are gstack-* entries in the
+# render tree AND in each host dir, so a host entry is cleaned even when the
+# generator already removed its render.
+# $1 = install root, $2 = render tree, $3.. = host skills dirs (optional).
+# Ownership (#2119): a real render dir goes; a host symlink goes only when it
+# RESOLVES into gstack; a bannered REAL host dir is cleaned through
+# _cleanup_weak_dir (our SKILL.md, marker and links only) rather than deleted
+# whole; anything else is a user's own entry and is left alone. Symlinks in the
+# render tree are skipped: `rm -rf` on a slash-terminated link empties its
+# TARGET. Pinned by test/setup-prune-stale-generated.test.ts.
+_skill_source_exists() {
+  # $1 = install root, $2 = rendered name (gstack-<x>). gen-skill-docs names a
+  # render from the template's frontmatter `name:` when that differs from the
+  # directory, so both the directory and every frontmatter name count.
+  local g="$1" n="$2" base="${2#gstack-}"
+  [ -f "$g/$base/SKILL.md.tmpl" ] && return 0
+  [ -f "$g/$n/SKILL.md.tmpl" ] && return 0
+  grep -qsE "^name:[[:space:]]*(gstack-)?${base}[[:space:]]*$" "$g"/*/SKILL.md.tmpl 2>/dev/null && return 0
+  return 1
+}
 _prune_stale_generated() {
-  local gstack_dir="$1" gen_dir="$2" skills_dir="${3:-}" d n
-  for d in "$gen_dir"/gstack-*/; do
-    [ -d "$d" ] || continue
-    n="$(basename "$d")"
-    [ -f "$gstack_dir/${n#gstack-}/SKILL.md.tmpl" ] && continue
-    [ -f "$gstack_dir/$n/SKILL.md.tmpl" ] && continue
-    rm -rf "$d"
-    if [ -n "$skills_dir" ] && { [ -e "$skills_dir/$n" ] || [ -L "$skills_dir/$n" ]; } && _owned_for_windows_refresh "$skills_dir/$n"; then
-      if [ -L "$skills_dir/$n" ] || [ ! -d "$skills_dir/$n" ]; then
-        # A symlink into our render tree, or a stray file: removing it destroys
-        # nothing of the user's.
-        rm -rf "$skills_dir/$n"
+  local gstack_dir="$1" gen_dir="$2" d n names="" host dest gen_real
+  shift 2
+  for d in "$gen_dir"/gstack-*; do
+    [ -d "$d" ] && [ ! -L "$d" ] || continue
+    names="$names ${d##*/}"
+  done
+  for host in "$@"; do
+    [ -n "$host" ] && [ -d "$host" ] || continue
+    for d in "$host"/gstack-*; do
+      { [ -e "$d" ] || [ -L "$d" ]; } || continue
+      names="$names ${d##*/}"
+    done
+  done
+  [ -n "$names" ] || return 0
+  for n in $(printf '%s\n' $names | sort -u); do
+    _skill_source_exists "$gstack_dir" "$n" && continue
+    if [ -d "$gen_dir/$n" ] && [ ! -L "$gen_dir/$n" ]; then rm -rf "$gen_dir/$n"; fi
+    for host in "$@"; do
+      [ -n "$host" ] && { [ -e "$host/$n" ] || [ -L "$host/$n" ]; } || continue
+      _owned_for_windows_refresh "$host/$n" || continue
+      if [ -L "$host/$n" ]; then
+        # Strong proof only when the link resolves into gstack: the render tree
+        # we were handed (a dangling link into it still names that path) or
+        # any gstack path per _gstack_target_is_ours.
+        dest="$(_gstack_link_target_abs "$host/$n")" || continue
+        gen_real="$(cd "$gen_dir" 2>/dev/null && pwd -P || printf '%s' "$gen_dir")"
+        case "$dest" in
+          "$gen_dir"/*|"$gen_real"/*) rm -f "$host/$n" ;;
+          *) _gstack_target_is_ours "$dest" "$gstack_dir" && rm -f "$host/$n" ;;
+        esac
+      elif [ ! -d "$host/$n" ]; then
+        rm -f "$host/$n"
       else
-        # A real directory proven only by the generated banner. Weak proof
-        # covers the SKILL.md, never the directory (#2119): remove our file,
-        # marker and asset links; the user's own files stay, and the directory
-        # goes only when that leaves it empty.
-        _cleanup_weak_dir "$skills_dir/$n" "$gstack_dir"
+        _cleanup_weak_dir "$host/$n" "$gstack_dir"
       fi
-    fi
-    echo "  pruned retired skill: $n"
+    done
+    log "  pruned retired skill: $n"
   done
 }
 
@@ -384,14 +415,18 @@ log() { [ "$QUIET" -eq 0 ] && echo "$@" || true; }
 # binary is the fallback. Best-effort hint only — no probe of a running app.
 # Reads _PW_FAIL_REASON (the best-effort Chromium bootstrap in # 2 records why
 # the bundled browser is unusable) so the line never promises a fallback
-# browser that cannot launch. Pinned by test/setup-browser-hint.test.ts.
+# browser that cannot launch. GSTACK_SKIP_ASIDE=1 (the library's and the
+# skills' opt-out) counts as Aside absent. Pinned by test/setup-browser-hint.test.ts.
 _browser_hint() {
-  if command -v aside >/dev/null 2>&1; then
+  if [ "${GSTACK_SKIP_ASIDE:-}" != "1" ] && command -v aside >/dev/null 2>&1; then
     if [ -n "${_PW_FAIL_REASON:-}" ]; then
       log "  browser: Aside (primary) — gstack browser fallback unavailable (Chromium bootstrap: ${_PW_FAIL_REASON})"
     else
       log "  browser: Aside (primary) — gstack browser is the fallback"
     fi
+  elif [ "${_PW_FAIL_REASON:-}" = "skipped" ]; then
+    # An explicit opt-out (GSTACK_SKIP_PLAYWRIGHT=1) is a request, not a failure — same wording as the summary.
+    log "  browser: none available — Chromium install skipped by request (GSTACK_SKIP_PLAYWRIGHT=1); install Aside (aside.com, macOS 15+) or re-run ./setup without the flag"
   elif [ -n "${_PW_FAIL_REASON:-}" ]; then
     log "  browser: none available — Chromium bootstrap: ${_PW_FAIL_REASON}; install Aside (aside.com, macOS 15+) or fix the bootstrap and re-run ./setup"
   else
@@ -854,14 +889,19 @@ fi
 _EXE=""
 if [ "$IS_WINDOWS" -eq 1 ]; then _EXE=".exe"; fi
 NEEDS_BUILD=0
-if [ ! -x "$BROWSE_BIN" ]; then
+if [ ! -x "$BROWSE_BIN" ] || [ ! -x "$SOURCE_GSTACK_DIR/design/dist/design$_EXE" ] || [ ! -x "$SOURCE_GSTACK_DIR/make-pdf/dist/pdf$_EXE" ]; then
   NEEDS_BUILD=1
-elif [ -n "$(find "$SOURCE_GSTACK_DIR/browse/src" "$SOURCE_GSTACK_DIR/make-pdf/src" "$SOURCE_GSTACK_DIR/design/src" "$SOURCE_GSTACK_DIR/lib/aside-render.ts" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
-  NEEDS_BUILD=1
-elif [ "$SOURCE_GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
-  NEEDS_BUILD=1
-elif [ -f "$SOURCE_GSTACK_DIR/bun.lock" ] && [ "$SOURCE_GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
-  NEEDS_BUILD=1
+fi
+# lib/ holds the canonical claude-bin, error-handling and aside-render sources
+# the binaries embed (browse/src re-exports them), so it is part of the set.
+if [ "$NEEDS_BUILD" -eq 0 ]; then
+  if [ -n "$(find "$SOURCE_GSTACK_DIR/browse/src" "$SOURCE_GSTACK_DIR/make-pdf/src" "$SOURCE_GSTACK_DIR/design/src" "$SOURCE_GSTACK_DIR/lib" -type f -newer "$BROWSE_BIN" -print -quit 2>/dev/null)" ]; then
+    NEEDS_BUILD=1
+  elif [ "$SOURCE_GSTACK_DIR/package.json" -nt "$BROWSE_BIN" ]; then
+    NEEDS_BUILD=1
+  elif [ -f "$SOURCE_GSTACK_DIR/bun.lock" ] && [ "$SOURCE_GSTACK_DIR/bun.lock" -nt "$BROWSE_BIN" ]; then
+    NEEDS_BUILD=1
+  fi
 fi
 
 if [ "$NEEDS_BUILD" -eq 1 ]; then
@@ -964,7 +1004,7 @@ if [ "$NEEDS_AGENTS_GEN" -eq 1 ]; then
     bun_cmd install --frozen-lockfile 2>/dev/null || bun_cmd install
     bun_cmd run gen:skill-docs --host codex --model "$CODEX_GENERATION_MODEL"
   )
-  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$AGENTS_DIR"
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$AGENTS_DIR" "$CODEX_SKILLS" "${KIRO_SKILLS:-}"
 fi
 
 # 1c. Generate .factory/ Factory Droid skill docs
@@ -3023,10 +3063,11 @@ fi
 
 # ─── Chromium bootstrap summary (best-effort browser, see # 2) ───────────────
 # Printed LAST so it is the thing the user sees, after every skill registered.
-_PW_BROWSER_SKILLS="/qa, /qa-only, /design-review, /browse, make-pdf, /pair-agent, and any other skill that drives the browser"
 # The skills that drive Aside first and use the bundled browser only as fallback
-# (/pair-agent is not among them: it always runs on gstack's own browser).
+# (/pair-agent is not among them: it always runs on gstack's own browser). The
+# Aside-absent list is derived from it so the two never drift.
 _PW_ASIDE_SKILLS="/qa, /qa-only, /design-review, /browse, /scrape, /benchmark, /canary, make-pdf, /diagram"
+_PW_BROWSER_SKILLS="$_PW_ASIDE_SKILLS, /pair-agent, and any other skill that drives the browser"
 if [ "${_PW_FAIL_REASON:-}" = "skipped" ]; then
   # An explicit opt-out is not a failure: say what is unavailable and stop.
   log ""
@@ -3035,7 +3076,7 @@ if [ "${_PW_FAIL_REASON:-}" = "skipped" ]; then
 elif [ -n "${_PW_FAIL_REASON:-}" ]; then
   log ""
   log "Browser unavailable: Chromium bootstrap did not complete ($_PW_FAIL_REASON)."
-  if command -v aside >/dev/null 2>&1; then
+  if [ "${GSTACK_SKIP_ASIDE:-}" != "1" ] && command -v aside >/dev/null 2>&1; then
     # Aside is the primary driver; the bundled browser is its fallback. Say so,
     # instead of telling an Aside user their browser skills are gone.
     log "  Aside is installed, so $_PW_ASIDE_SKILLS keep running there; only their bundled fallback is missing."

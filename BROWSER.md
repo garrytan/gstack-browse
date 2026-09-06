@@ -105,9 +105,11 @@ through CDP before `goto`, as the cookbook does), and no `file://` navigation.
 generate HTML on disk and need a browser to print or rasterize it. That browser
 is Aside, through two thin wrappers:
 
-- [`lib/aside-render.ts`](lib/aside-render.ts) — the TypeScript API
-  (`probeAside()`, `renderWithAside(spec)`), embedded into the compiled
-  make-pdf binary.
+- [`lib/aside-render.ts`](lib/aside-render.ts) — the TypeScript API:
+  `render(spec)` picks the engine (`pickEngine()`: Aside when it answers,
+  gstack's own browser otherwise) and `renderWithAside(spec)` /
+  `renderWithBrowse(spec)` are the engine-specific implementations; embedded
+  into the compiled make-pdf binary.
 - [`bin/gstack-render.ts`](bin/gstack-render.ts) — the CLI skill templates
   call:
 

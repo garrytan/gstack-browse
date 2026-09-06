@@ -1177,15 +1177,25 @@ if (!DRY_RUN) {
 // Prune stale external-host outputs. A run always renders every skill for the
 // chosen host(s) (there is no per-skill filter), so any `gstack-*` directory
 // left in <host>/skills/ that this run did not write belongs to a skill that
-// no longer exists. Symlinks (the `gstack` sidecar) and non-prefixed entries
-// are never touched.
+// no longer exists. Symlinks (the `gstack` sidecar), non-prefixed entries, and
+// gstack-* directories without the generated banner (someone's own skill) are
+// never touched.
 if (!DRY_RUN) {
+  // A host whose generation threw has a PARTIAL rendered set: pruning against
+  // it would delete every valid render the loop never reached. Skip those.
+  const failedHosts = new Set(failures.map((f) => f.host));
   for (const [host, names] of RENDERED_EXTERNAL) {
+    if (failedHosts.has(host)) { console.error(`  prune skipped for ${host}: generation failed, rendered set is partial`); continue; }
     const skillsRoot = path.join(OUT_DIR ?? ROOT, getHostConfig(host as Host).hostSubdir, 'skills');
     let entries: fs.Dirent[] = [];
     try { entries = fs.readdirSync(skillsRoot, { withFileTypes: true }); } catch { continue; }
     for (const e of entries) {
       if (e.isSymbolicLink() || !e.isDirectory() || !e.name.startsWith('gstack-') || names.has(e.name)) continue;
+      // Only a directory we provably rendered (the generated banner in its
+      // SKILL.md) may be deleted whole — a hand-authored gstack-* dir is kept.
+      let generated = false;
+      try { generated = fs.readFileSync(path.join(skillsRoot, e.name, 'SKILL.md'), 'utf-8').includes('<!-- AUTO-GENERATED from'); } catch { generated = false; }
+      if (!generated) { console.log(`  kept ${host} skills/${e.name}: not a gstack render (no generated banner)`); continue; }
       fs.rmSync(path.join(skillsRoot, e.name), { recursive: true, force: true });
       console.log(`  pruned stale ${host} render: ${e.name}`);
     }

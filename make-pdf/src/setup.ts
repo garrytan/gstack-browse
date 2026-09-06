@@ -12,7 +12,8 @@
 import * as path from "node:path";
 import * as fs from "node:fs";
 
-import { pickEngine, render, renderTmpDir } from "../../lib/aside-render";
+import { NO_BROWSER_HELP, pickEngine, render, renderTmpDir } from "../../lib/aside-render";
+import { ExitCode } from "./types";
 import { resolvePdftotext, PdftotextUnavailableError } from "./pdftotext";
 import { OUTPUT_TMP_DIR, generate } from "./orchestrator";
 
@@ -25,7 +26,7 @@ export async function runSetup(): Promise<void> {
   if (!engine.engine) {
     process.stderr.write(" FAIL\n");
     process.stderr.write(`\n${engine.error}\n`);
-    process.exit(4);
+    process.exit(ExitCode.BrowserUnavailable);
   }
   const via = engine.engine === "aside" ? `Aside ${engine.version}` : "gstack browser";
   process.stderr.write(engine.engine === "aside"
@@ -46,7 +47,8 @@ export async function runSetup(): Promise<void> {
   } catch (err: any) {
     process.stderr.write(" FAIL\n");
     process.stderr.write(`\n${via} could not render a page: ${err.message}\n`);
-    process.exit(4);
+    process.stderr.write(`To fix: ${NO_BROWSER_HELP}\n`);
+    process.exit(ExitCode.BrowserUnavailable);
   } finally {
     fs.rmSync(smokeDir, { recursive: true, force: true });
   }

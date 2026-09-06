@@ -34,7 +34,7 @@ import { SECTION, SECTION_INDEX } from './sections';
 import { generateRedactInvocationBlock } from './redact-doc';
 import { FOREGROUND_DISPATCH_NOTE } from './constants';
 import { generateThirdPartyActions } from './third-party-actions';
-import { generateAsideSetup, generateAsideCookbook, generateAsideResearch, generateUntrustedContentWarning } from './aside';
+import { generateAsideSetup, generateAsideCookbook, generateAsideResearch, generateUntrustedContentWarning, asideExecPrelude } from './aside';
 import { generateCommandReference, generateSnapshotFlags, generateBrowseSetup, generateBrowseFallback } from './browse';
 import { generateDesignDocDiscovery } from './design-doc-discovery';
 
@@ -54,6 +54,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   ASIDE_SETUP: generateAsideSetup,
   ASIDE_COOKBOOK: generateAsideCookbook,
   ASIDE_RESEARCH: generateAsideResearch,
+  ASIDE_EXEC_PRELUDE: asideExecPrelude,
   BASE_BRANCH_DETECT: generateBaseBranchDetect,
   QA_METHODOLOGY: generateQAMethodology,
   DESIGN_METHODOLOGY: generateDesignMethodology,

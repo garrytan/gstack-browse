@@ -167,7 +167,8 @@ Also check:
 - "{library} {component} known issues"
 
 ```bash
-aside exec "Search the web for {framework} {generic error type} and {library} {component} known issues. Read-only: do not sign in, submit, or change anything. Reply with up to 6 bullets, each with its source URL, then stop."
+{{ASIDE_EXEC_PRELUDE}}
+_aside_exec "Search the web for {framework} {generic error type} and {library} {component} known issues. Read-only: do not sign in, submit, or change anything. Reply with up to 6 bullets, each with its source URL, then stop."
 ```
 
 If the Aside check did not print `READY`, run the same searches with the WebSearch tool when the host provides it; with neither, skip this search and proceed with hypothesis testing. If a documented solution or known dependency bug surfaces, present it as a candidate hypothesis in Phase 3.

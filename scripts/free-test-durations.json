@@ -164,7 +164,6 @@
     "ios-qa/daemon/test/tailscale-localapi.test.ts": 68,
     "ios-qa/daemon/test/tunnel-bootstrap.test.ts": 466,
     "ios-qa/scripts/gen-accessors.test.ts": 114,
-    "make-pdf/test/browseClient.test.ts": 61,
     "make-pdf/test/cli-args.test.ts": 56,
     "make-pdf/test/coverage-gaps.test.ts": 81,
     "make-pdf/test/diagram-prepass.test.ts": 100,

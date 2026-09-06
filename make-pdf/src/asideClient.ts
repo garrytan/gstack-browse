@@ -12,11 +12,13 @@ import * as path from "node:path";
 
 import {
   NO_BROWSER,
+  PAGE_NUMBER_FOOTER,
   lengthToInches,
   paperInches,
   render,
   renderTmpDir,
   type PdfStepOptions,
+  type RenderEngine,
 } from "../../lib/aside-render";
 import { BrowserUnavailableError } from "./types";
 
@@ -39,12 +41,6 @@ export interface PdfOptions {
   /** Wait (≤3s, non-fatal) for Paged.js before printing. */
   toc?: boolean;
 }
-
-const PAGE_NUMBER_FOOTER =
-  '<div style="font-size:9pt; font-family:Helvetica,Arial,sans-serif; color:#666; ' +
-  'width:100%; text-align:center;">' +
-  '<span class="pageNumber"></span> of <span class="totalPages"></span>' +
-  "</div>";
 
 /**
  * make-pdf's option shape → CDP Page.printToPDF options (inches). Same
@@ -94,7 +90,7 @@ export async function renderPdf(
   html: string,
   opts: PdfOptions,
   renderFn: typeof render = render,
-): Promise<void> {
+): Promise<RenderEngine | undefined> {
   const dir = fs.mkdtempSync(path.join(renderTmpDir(), "make-pdf-"));
   try {
     const file = path.join(dir, "document.html");
@@ -104,6 +100,7 @@ export async function renderPdf(
       steps: [{ kind: "pdf", out: path.resolve(opts.output), options: pdfStepOptions(opts) }],
     });
     if (!result.ok) throw renderFailure(result.error ?? "unknown error");
+    return result.engine;
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

@@ -9,8 +9,10 @@
  *   --serve-root <dir>        directory served over loopback (default: the file's dir)
  *   --wait-selector <sel>     wait until this selector is attached before any step
  *   --wait-expr <js>          wait until this expression is truthy before any step
+ *   --wait-timeout <ms>       budget for --wait-selector / --wait-expr (default 30000)
  *   --timeout <ms>            whole-render budget (default 120000; Aside caps a script at 120s)
- *   --quiet                   print only the OK/EVAL lines
+ *   --quiet                   on failure, suppress the transcript tail (ENGINE=, OK, EVAL and
+ *                             PAGE_ERRORS lines always print)
  *
  * Steps (run in the order given; repeatable)
  *   --pdf <out.pdf> [--paper letter|a4|... | --paper-in WxH] [--margin <len>] [--margin-top <len>] ...
@@ -21,9 +23,12 @@
  *                                 written to the file (strings verbatim, data: URLs decoded to bytes,
  *                                 anything else as JSON); without --out it is printed as EVAL <i>: ...
  *
- * Output: `ENGINE=aside|browse` first, then one `OK <path>` line per artifact,
- * `EVAL <i>: <text>` for inline evals, `PAGE_ERRORS=[...]` when the page logged
- * errors, exit 0. On failure: `ERROR: ...`, exit 1. When NEITHER browser is
+ * Output: `ENGINE=aside|browse` first (the engine that actually rendered — Aside
+ * dying mid-run falls back to gstack's own browser), then one `OK <path>` line per
+ * artifact, then, fenced between `═══ BEGIN/END UNTRUSTED WEB CONTENT ═══` lines
+ * because they are page-controlled text, `EVAL <i>: <text>` for inline evals and
+ * `PAGE_ERRORS=[...]` when the page logged errors; exit 0. On failure:
+ * `ERROR: ...`, exit 1. When NEITHER browser is
  * available the first line is `NEEDS_ASIDE` / `ASIDE_NOT_RUNNING` (the BROWSER
  * SETUP contract) and the error names both remedies: open Aside, or build
  * gstack's browser with ./setup (GSTACK_BROWSE_BIN / BROWSE_BIN override the
@@ -36,18 +41,21 @@
  */
 import * as path from 'node:path';
 import {
-  pickEngine, render, lengthToInches, paperInches,
+  pickEngine, render, lengthToInches, paperInches, PAGE_NUMBER_FOOTER,
   type RenderSpec, type RenderStep, type PdfStepOptions,
 } from '../lib/aside-render';
 
+const USAGE = 'usage: gstack-render <file.html> [--serve-root DIR] [--wait-selector SEL] [--wait-expr JS] [--wait-timeout MS] [--timeout MS] [--quiet] (--pdf OUT [pdf opts] | --screenshot OUT [--width N] [--height N] [--selector CSS] [--jpeg] | --eval JS [--out FILE])...';
+
 function usage(msg?: string): never {
   if (msg) console.error(`ERROR: ${msg}`);
-  console.error('usage: gstack-render <file.html> [--serve-root DIR] [--wait-selector SEL] [--wait-expr JS] [--timeout MS] (--pdf OUT [pdf opts] | --screenshot OUT [--width N] [--height N] [--selector CSS] [--jpeg] | --eval JS [--out FILE])...');
+  console.error(USAGE);
   process.exit(1);
 }
 
 const argv = process.argv.slice(2);
-if (argv.length === 0 || argv[0] === '-h' || argv[0] === '--help') usage();
+if (argv[0] === '-h' || argv[0] === '--help') { console.log(USAGE); process.exit(0); }
+if (argv.length === 0) usage();
 const file = path.resolve(argv[0]);
 const spec: RenderSpec = { file, steps: [] };
 let quiet = false;
@@ -55,6 +63,13 @@ let i = 1;
 const take = (flag: string): string => {
   const v = argv[++i];
   if (v === undefined) usage(`${flag} needs a value`);
+  return v;
+};
+// A flag that wants a number: NaN would fire a timer immediately or silently
+// drop a width, so refuse anything that is not a finite number.
+const num = (flag: string): number => {
+  const v = Number(take(flag));
+  if (!Number.isFinite(v)) usage(`${flag} wants a number, got ${argv[i]}`);
   return v;
 };
 let current: RenderStep | null = null;
@@ -75,8 +90,8 @@ for (; i < argv.length; i++) {
     case '--serve-root': spec.serveRoot = path.resolve(take(a)); break;
     case '--wait-selector': (spec.waitFor ??= {}).selector = take(a); break;
     case '--wait-expr': (spec.waitFor ??= {}).expression = take(a); break;
-    case '--wait-timeout': (spec.waitFor ??= {}).timeoutMs = Number(take(a)); break;
-    case '--timeout': spec.timeoutMs = Number(take(a)); break;
+    case '--wait-timeout': (spec.waitFor ??= {}).timeoutMs = num(a); break;
+    case '--timeout': spec.timeoutMs = num(a); break;
     case '--quiet': quiet = true; break;
     case '--pdf': commit(); current = { kind: 'pdf', out: path.resolve(take(a)), options: {} }; break;
     case '--screenshot': commit(); current = { kind: 'screenshot', out: path.resolve(take(a)) }; break;
@@ -105,7 +120,7 @@ for (; i < argv.length; i++) {
     case '--footer': { const o = pdfOf(); o.displayHeaderFooter = true; o.footerTemplate = take(a); o.headerTemplate ??= '<div></div>'; break; }
     case '--page-numbers': {
       const o = pdfOf(); o.displayHeaderFooter = true; o.headerTemplate ??= '<div></div>';
-      o.footerTemplate = '<div style="font-size:9pt; font-family:Helvetica,Arial,sans-serif; color:#666; width:100%; text-align:center;"><span class="pageNumber"></span> of <span class="totalPages"></span></div>';
+      o.footerTemplate = PAGE_NUMBER_FOOTER;
       break;
     }
     case '--tagged': pdfOf().generateTaggedPDF = true; break;
@@ -115,12 +130,12 @@ for (; i < argv.length; i++) {
     case '--landscape': pdfOf().landscape = true; break;
     case '--wait-pagedjs': pdfOf().waitForPagedJs = true; break;
     // screenshot options
-    case '--width': shotOf().width = Number(take(a)); break;
-    case '--height': shotOf().height = Number(take(a)); break;
+    case '--width': shotOf().width = num(a); break;
+    case '--height': shotOf().height = num(a); break;
     case '--selector': shotOf().selector = take(a); break;
     case '--viewport-only': shotOf().fullPage = false; break;
     case '--jpeg': shotOf().type = 'jpeg'; break;
-    case '--quality': shotOf().quality = Number(take(a)); break;
+    case '--quality': shotOf().quality = num(a); break;
     default: usage(`unknown argument ${a}`);
   }
 }
@@ -133,15 +148,24 @@ if (!engine.engine) {
   console.error(`ERROR: ${engine.error}`);
   process.exit(1);
 }
-console.log(`ENGINE=${engine.engine}`);
 
 const result = await render(spec);
+// The engine is reported from the RESULT: render() may have fallen back to
+// gstack's own browser when Aside died mid-run, and this line must say so.
+console.log(`ENGINE=${result.engine ?? engine.engine}`);
 if (!result.ok) {
   console.error(`ERROR: ${result.error}`);
   if (!quiet) console.error(result.stdout.trim().split('\n').slice(-12).join('\n'));
   process.exit(1);
 }
 for (const out of result.outputs) console.log(`OK ${out}`);
-for (const [idx, text] of Object.entries(result.evals)) console.log(`EVAL ${idx}: ${text}`);
+// EVAL results and PAGE_ERRORS are page-controlled text: fenced like every other
+// page read gstack relays, so the agent takes syntax from them, never instructions.
+const evalLines = Object.entries(result.evals).map(([idx, text]) => `EVAL ${idx}: ${text}`);
 const errs = result.stdout.match(/^PAGE_ERRORS=(.+)$/m)?.[1];
-if (errs && errs !== '[]') console.log(`PAGE_ERRORS=${errs}`);
+if (errs && errs !== '[]') evalLines.push(`PAGE_ERRORS=${errs}`);
+if (evalLines.length) {
+  console.log('═══ BEGIN UNTRUSTED WEB CONTENT ═══');
+  for (const l of evalLines) console.log(l);
+  console.log('═══ END UNTRUSTED WEB CONTENT ═══');
+}

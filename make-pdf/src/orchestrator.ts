@@ -221,7 +221,7 @@ export async function generate(opts: GenerateOptions): Promise<string> {
   const engine = pickEngine().engine;
   const via = engine === "aside" ? "Aside" : engine === "browse" ? "gstack's browser" : "a browser";
   progress.begin(`Rendering PDF through ${via}`);
-  await renderPdf(finalHtml, {
+  const used = await renderPdf(finalHtml, {
     output: outputPath,
     format: opts.pageSize ?? "letter",
     marginTop: opts.marginTop ?? opts.margins ?? "1in",
@@ -244,6 +244,12 @@ export async function generate(opts: GenerateOptions): Promise<string> {
     toc: opts.toc,
   });
   progress.end(`Rendering PDF through ${via}`);
+  if (used && used !== engine) {
+    // render() fell back mid-run (Aside quit or its CLI could not start): say
+    // which browser actually produced the file, since the label above was
+    // decided before the render.
+    process.stderr.write("  Aside was unavailable mid-run; the PDF was rendered through gstack's own browser.\n");
+  }
 
   const kb = Math.round(fs.statSync(outputPath).size / 1024);
   progress.done(`${rendered.meta.wordCount} words · ${kb}KB · ${outputPath}`);
