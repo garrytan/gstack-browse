@@ -315,7 +315,11 @@ async function runProc(cmd: string, args: string[], timeoutMs: number): Promise<
   const read = Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()]);
   const giveUp = new Promise<[string, string]>((resolve) => after(timeoutMs + 10_000, () => resolve(['', ''])));
   const [stdout, stderr] = await Promise.race([read, giveUp]);
-  const code = await Promise.race([child.exited, new Promise<null>((resolve) => after(5_000, () => resolve(null)))]);
+  // Pipes at EOF means the child is exiting; wait for the exit code until the
+  // SIGKILL above has had its turn. A flat 5s bound here once failed a CI render
+  // whose fake had already written its artifact — under a 6-shard load the
+  // reaper needed longer than that, and a null code reads as a failed command.
+  const code = await Promise.race([child.exited, new Promise<null>((resolve) => after(timeoutMs + 6_000, () => resolve(null)))]);
   for (const t of timers) clearTimeout(t);
   return { code, stdout, stderr, error: timedOut ? `timed out after ${timeoutMs}ms` : undefined };
 }
@@ -512,7 +516,19 @@ export async function renderWithBrowse(spec: RenderSpec, bin: string | null = re
   try {
     work = fs.mkdtempSync(path.join(SAFE_TMP_DIR, 'gstack-render-browse-'));
     srv = serveDir(root);
-    const opened = (await run(['newtab', '--json'])).match(/\{[^\n]*"tabId"[^\n]*\}/)?.[0];
+    // The first CLI call auto-starts the daemon; on a cold start it can answer
+    // "Unable to connect" once while the server is still coming up. One retry
+    // after a short pause turns that into the wait it really is.
+    const openTab = async () => (await run(['newtab', '--json'])).match(/\{[^\n]*"tabId"[^\n]*\}/)?.[0];
+    let opened: string | undefined;
+    try {
+      opened = await openTab();
+    } catch (e) {
+      if (!/Unable to connect/.test((e as Error).message)) throw e;
+      log.push('newtab: daemon not up yet — retrying once');
+      await Bun.sleep(1_500);
+      opened = await openTab();
+    }
     tab = opened ? JSON.parse(opened).tabId : undefined;
     if (typeof tab !== 'number') throw new Error('browse newtab --json returned no tabId');
     const T = ['--tab-id', String(tab)];
