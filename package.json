@@ -63,7 +63,7 @@
     "socks": "^2.8.9"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "bun": ">=1.3.13"
   },
   "keywords": [
     "browser",
