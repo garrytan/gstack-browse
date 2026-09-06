@@ -204,6 +204,20 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
       // reveal whether tokens were deduped.
       rankEntry({ key: 'repeated-token-only', insight: 'nu only here', confidence: 9 }),
       rankEntry({ key: 'two-distinct-concepts', insight: 'omicron and kirin together', confidence: 2 }),
+      // #2762: inflection probes. A query is written in the base form; prose is
+      // written in whatever form the sentence needs. The insight below carries one
+      // regular inflection of each query token and no token verbatim, so under
+      // exact-form scoring it takes ZERO insight hits and loses to a row that only
+      // has the words in its NAME -- the shipped `--query "<keyword>" --limit 5`
+      // shape, where a real answer saying "tests interleave" lost to decoys whose
+      // only claim was a `.test.ts` filename.
+      rankEntry({ key: 'inflected-insight', insight: 'quarks and vortexes pulsed while orbited and drifting', confidence: 2 }),
+      rankEntry({ key: 'quark-vortex-pulse-orbit-drift-in-the-name', insight: 'nothing to say here', confidence: 10 }),
+      // Over-reach probe: 'orbital' merely STARTS with the query token. It is
+      // recalled by the substring filter, so it is present to be ranked, and it
+      // must score nothing -- suffix tolerance is a closed list of inflections,
+      // not a prefix match.
+      rankEntry({ key: 'orbital-overreach-decoy', insight: 'an orbital note about nothing', confidence: 10 }),
       // Underscore separator probes. gstack-learnings-log's key regex admits
       // [a-zA-Z0-9_-], so snake_case keys are supported and file paths carry
       // underscores constantly. If `_` counts as a word character the whole key is
@@ -353,6 +367,28 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
     expect(rankedKeys(['--query', 'nu nu nu omicron kirin'])).toEqual([
       'two-distinct-concepts',  // 2 distinct hits, confidence 2
       'repeated-token-only',    // 1 distinct hit, confidence 9
+    ]);
+  });
+
+  // A query is written in the base form; prose is written in whatever form the
+  // sentence needs. Scoring only the exact form re-opens the truncation this fix
+  // exists to close: the answer is in the insight, the query words are only in
+  // someone else's name, and the name wins.
+  test('a base-form query scores against the inflected form in the insight', () => {
+    expect(rankedKeys(['--query', 'quark vortex pulse orbit drift'])).toEqual([
+      'inflected-insight',                          // 5 insight hits via -s -es -d -ed -ing, confidence 2
+      'quark-vortex-pulse-orbit-drift-in-the-name', // 0 insight, 5 naming, confidence 10
+      'orbital-overreach-decoy',                    // 0 insight, 0 naming, confidence 10
+    ]);
+  });
+
+  test('inflection tolerance does not degrade into loose prefix matching', () => {
+    // 'orbited' is 'orbit' plus a listed inflection and scores; 'orbital' merely
+    // starts with it and must not, even though it holds the better confidence.
+    expect(rankedKeys(['--query', 'orbit'])).toEqual([
+      'inflected-insight',                          // 1 insight hit via -ed, confidence 2
+      'quark-vortex-pulse-orbit-drift-in-the-name', // 0 insight, 1 naming hit
+      'orbital-overreach-decoy',                    // 0 hits, confidence 10 -- recalled, never scored
     ]);
   });
 

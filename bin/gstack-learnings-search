@@ -87,12 +87,25 @@ function isWordChar(c) {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')
     || c.toLowerCase() !== c.toUpperCase();
 }
+// #2762: a query is written in the base form; prose is written in whatever form
+// the sentence needs. Scoring only the exact form makes a real answer invisible to
+// the query it answers, so a token also scores against its regular inflections.
+// The list holds only suffixes that are true suffixes OF THE BASE FORM: 'flaky' is
+// not flake+y and 'policies' is not policy+ies, so reaching those would take stem
+// rewriting, and adding them as bare suffixes would widen the false-positive
+// surface while matching neither. Irregulars are out of scope for the same reason.
+const INFLECTIONS = ['', 's', 'es', 'd', 'ed', 'ing'];
 function hasWholeWord(hay, tok) {
   let i = hay.indexOf(tok);
   while (i !== -1) {
     const before = i === 0 ? '' : hay.charAt(i - 1);
-    const after = i + tok.length >= hay.length ? '' : hay.charAt(i + tok.length);
-    if (!isWordChar(before) && !isWordChar(after)) return true;
+    if (!isWordChar(before)) {
+      const j = i + tok.length;
+      for (const suf of INFLECTIONS) {
+        const k = j + suf.length;
+        if (hay.slice(j, k) === suf && !isWordChar(k >= hay.length ? '' : hay.charAt(k))) return true;
+      }
+    }
     i = hay.indexOf(tok, i + 1);
   }
   return false;
