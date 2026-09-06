@@ -14,10 +14,10 @@
  * compares LIVE eval runs (tool calls, turns, cost); this one compares
  * static SKILL.md sizes. Both gate-tier.
  *
- * Baseline rebased v1.69.1.0 → v1.80.0.0: the Aside-first browser contract
+ * Baseline rebased v1.69.1.0 → v1.81.0.0: the Aside-first browser contract
  * ({{ASIDE_SETUP}}) plus the gstack-browser fallback block now ride in every
  * browsing skill (~9KB), which pushed benchmark and scrape past 1.5× of the
- * v1.69.1.0 anchor. Deliberate, corpus-wide, receipted in the v1.80.0.0
+ * v1.69.1.0 anchor. Deliberate, corpus-wide, receipted in the v1.81.0.0
  * CHANGELOG; the v1.69.1.0 fixture stays on disk for history.
  *
  * The previous baseline lived at test/fixtures/parity-baseline-v1.69.1.0.json,
@@ -48,7 +48,7 @@ import { logBudgetOverride } from './helpers/budget-override';
 import { CARVED_SKILLS } from './helpers/carve-guards';
 
 const REPO_ROOT = path.resolve(import.meta.dir, '..');
-const BASELINE_PATH = path.join(REPO_ROOT, 'test', 'fixtures', 'parity-baseline-v1.80.0.0.json');
+const BASELINE_PATH = path.join(REPO_ROOT, 'test', 'fixtures', 'parity-baseline-v1.81.0.0.json');
 
 // Default per-skill ratio is 1.50 (50% growth tolerance). Adjusted v1.52.0.0
 // (cathedral cap audit) from 1.05 → 1.50: a 5% ratio tripped on legitimate
@@ -68,11 +68,11 @@ interface Regression {
 }
 
 describe('SKILL.md size budget regression (gate, free)', () => {
-  test('parity-baseline-v1.80.0.0.json exists', () => {
+  test('parity-baseline-v1.81.0.0.json exists', () => {
     expect(fs.existsSync(BASELINE_PATH)).toBe(true);
   });
 
-  test('no skill exceeds v1.80.0.0 baseline size × ratio', () => {
+  test('no skill exceeds v1.81.0.0 baseline size × ratio', () => {
     const baseline: ParityBaseline = JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf-8'));
     const current = captureBaseline({ repoRoot: REPO_ROOT });
 

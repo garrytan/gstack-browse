@@ -46,7 +46,7 @@ a baseline, so a run can't compare against itself).
 
 **Aside-driven E2E tests self-skip without a live Aside.** Every skill that
 opens a web page drives the Aside AI browser first (`scripts/resolvers/aside.ts`)
-and falls back to gstack's own browse engine when Aside is absent. The E2E
+and falls back to gstack's own browse engine when Aside is absent (and Chromium bootstrapped). The E2E
 cases that exercise the Aside path (`test/skill-e2e-aside.test.ts`, the Aside
 `qa-*` cases in `test/skill-e2e-qa-workflow.test.ts` / `skill-e2e-qa-bugs.test.ts`,
 `design-review-fix` in `test/skill-e2e-design.test.ts`) call `asideAvailable()`
@@ -69,6 +69,12 @@ compiles, and they skip only when neither exists. Only
 `test/aside-render.test.ts`'s single live round-trip is Aside-only (its option
 mapping and generated-script pins run everywhere). A green gate on Linux proves
 the fallback engine, not Aside; the Mac run is the Aside evidence.
+The browse-binary leg presumes Chromium bootstrapped: `resolveBrowseBin()`
+only checks that the binary (or the `find-browse` shim) exists, never that
+Chromium can launch, so on an install where the best-effort Chromium step
+was skipped (`GSTACK_SKIP_PLAYWRIGHT=1`) or failed, these gates run and fail
+at browser launch instead of skipping. Fix the bootstrap (or move the binary
+aside) before running them locally; CI always installs Chromium first.
 
 **Free suite (`bun run test:free`).** `scripts/test-free-shards.ts` runs N
 concurrent shard processes (serial within each) with strict-output
@@ -147,6 +153,26 @@ wedge a shard: every `spawnSync`/`execSync`/`execFileSync`/`Bun.spawnSync`
 in the test trees must carry a `timeout`, enforced by
 `test/spawnsync-timeout-tripwire.test.ts` with a shrink-only exemption
 ratchet.
+
+**Anchor-sliced `setup` harnesses.** `setup` is one large bash script, so the
+free tests that pin its linker, cleanup, and Chromium-bootstrap behavior never
+run the whole thing. They slice the source by anchor (`extractFn(name)` takes
+`name() {` through the next `\n}\n`; `test/setup-playwright-best-effort.test.ts`
+slices the `# 2. Ensure Playwright's Chromium is available` block up to
+`# 2b.`), join the extracted functions with stubbed collaborators, and execute
+the REAL bash under a temp `HOME` with stubbed probes and installers. Two rules
+keep the harness honest: renaming a function or anchor comment in `setup` fails
+the test with `function not found` / `anchor not found` instead of silently
+testing nothing, and `test/setup-link-ownership.test.ts` and
+`test/setup-playwright-best-effort.test.ts` throw on any `command not found` on
+stderr as harness drift (a helper the test forgot to extract) rather than
+letting it degrade into a pass. Files: `test/setup-link-ownership.test.ts`,
+`test/setup-cleanup-orphans.test.ts`, `test/setup-playwright-best-effort.test.ts`.
+`test/relink.test.ts` shells out to a copy of the real `bin/gstack-relink`
+against a temp `GSTACK_INSTALL_DIR` / `GSTACK_SKILLS_DIR`, and
+`test/hook-scripts.test.ts` runs the real `careful/bin/check-careful.sh` and
+`freeze/bin/check-freeze.sh` with JSON payloads on stdin (including the
+`GSTACK_HOME` state-root parity against `bin/gstack-paths`).
 
 ## Cloud sandboxes (Vercel / Conductor cloud workspaces)
 

@@ -7,6 +7,11 @@
  * gen-skill-docs never deletes stale out-dir entries; setup is the one place
  * every host install passes through. Behavior fixture: extract the helper and
  * its gate from setup, run it against a temp tree.
+ *
+ * Ownership (#2119): a symlink into our render tree goes outright; a REAL
+ * host directory proven only by the generated banner is weak proof, so only
+ * our SKILL.md, marker and asset links are removed (_cleanup_weak_dir) and the
+ * user's own files next to them survive.
  */
 import { describe, test, expect } from 'bun:test';
 import { spawnSync } from 'child_process';
@@ -36,7 +41,7 @@ function mk(t: string) {
     fs.writeFileSync(path.join(src, s, 'SKILL.md.tmpl'), 'x');
   }
   // Generated tree: live renders + two retired ones + the gstack sidecar.
-  for (const g of ['gstack-qa', 'gstack-upgrade', 'gstack-oldskill', 'gstack-gone', 'gstack']) {
+  for (const g of ['gstack-qa', 'gstack-upgrade', 'gstack-oldskill', 'gstack-gone', 'gstack-extra', 'gstack']) {
     fs.mkdirSync(path.join(gen, g), { recursive: true });
     fs.writeFileSync(path.join(gen, g, 'SKILL.md'), `${BANNER}# ${g}\n`);
   }
@@ -48,12 +53,23 @@ function mk(t: string) {
   fs.writeFileSync(path.join(host, 'gstack-gone', 'SKILL.md'), `${BANNER}copy\n`);
   fs.mkdirSync(path.join(host, 'gstack-mine'));
   fs.writeFileSync(path.join(host, 'gstack-mine', 'SKILL.md'), '---\nname: mine\n---\nuser skill\n');
+  // Bannered real copy of a retired render with the user's own file beside it:
+  // weak proof covers only SKILL.md, so notes.md must survive (#2119).
+  fs.mkdirSync(path.join(host, 'gstack-extra'));
+  fs.writeFileSync(path.join(host, 'gstack-extra', 'SKILL.md'), `${BANNER}copy\n`);
+  fs.writeFileSync(path.join(host, 'gstack-extra', 'notes.md'), 'my notes\n');
   return { src, gen, host };
 }
 
 function runPrune(src: string, gen: string, host?: string) {
   const script = [
     'set -e',
+    // _cleanup_weak_dir and the helpers it leans on come from main's ownership
+    // gate; the prune routes bannered real dirs through it.
+    extractFn('_gstack_link_target_abs'),
+    extractFn('_gstack_target_is_ours'),
+    extractFn('_backup_skill_md'),
+    extractFn('_cleanup_weak_dir'),
     extractFn('_owned_for_windows_refresh'),
     extractFn('_prune_stale_generated'),
     `_prune_stale_generated "${src}" "${gen}" ${host ? `"${host}"` : ''}`,
@@ -89,6 +105,12 @@ describe('setup: _prune_stale_generated', () => {
       expect(fs.existsSync(path.join(host, 'gstack-oldskill'))).toBe(false);
       expect(fs.lstatSync(path.join(host, 'gstack-oldskill'), { throwIfNoEntry: false })).toBeUndefined();
       expect(fs.existsSync(path.join(host, 'gstack-gone'))).toBe(false);
+      // Bannered copy with the user's own file next to it: only our SKILL.md
+      // goes, the file and the directory stay, and setup says so.
+      expect(r.stdout).toContain('pruned retired skill: gstack-extra');
+      expect(r.stdout).toContain('cleaned gstack-extra/SKILL.md (other files in that directory were left in place)');
+      expect(fs.existsSync(path.join(host, 'gstack-extra', 'SKILL.md'))).toBe(false);
+      expect(fs.readFileSync(path.join(host, 'gstack-extra', 'notes.md'), 'utf-8')).toBe('my notes\n');
       // Live link and the user's own (unbannered) dir: untouched.
       expect(fs.lstatSync(path.join(host, 'gstack-qa')).isSymbolicLink()).toBe(true);
       expect(fs.readFileSync(path.join(host, 'gstack-mine', 'SKILL.md'), 'utf-8')).toContain('user skill');
