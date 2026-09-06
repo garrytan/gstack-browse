@@ -86,10 +86,14 @@ Report what each command returned.`,
 
   testConcurrentIfSelected('skillmd-setup-discovery', async () => {
     // P2 (v1.2.0): the browse SETUP/binary-discovery block moved from the root
-    // router to browse/SKILL.md (end anchor is now ## Core QA Patterns).
+    // router to browse/SKILL.md; the `$B` block now sits under "Browser fallback".
     const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## Core QA Patterns');
+    // The `$B` setup lives in the Browser fallback section since Aside became
+    // the primary driver: slice from its heading to the next heading.
+    const setupStart = skillMd.indexOf('### Find the `$B` binary');
+    const nextH3 = skillMd.indexOf('\n### ', setupStart + 1);
+    const nextH2 = skillMd.indexOf('\n## ', setupStart + 1);
+    const setupEnd = [nextH3, nextH2].filter((i) => i > setupStart).sort((a, b) => a - b)[0] ?? skillMd.length;
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     // Guard: verify we extracted a valid setup block
@@ -120,10 +124,14 @@ Report whether it worked.`,
     const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-empty-'));
 
     // P2 (v1.2.0): the browse SETUP/binary-discovery block moved from the root
-    // router to browse/SKILL.md (end anchor is now ## Core QA Patterns).
+    // router to browse/SKILL.md; the `$B` block now sits under "Browser fallback".
     const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## Core QA Patterns');
+    // The `$B` setup lives in the Browser fallback section since Aside became
+    // the primary driver: slice from its heading to the next heading.
+    const setupStart = skillMd.indexOf('### Find the `$B` binary');
+    const nextH3 = skillMd.indexOf('\n### ', setupStart + 1);
+    const nextH2 = skillMd.indexOf('\n## ', setupStart + 1);
+    const setupEnd = [nextH3, nextH2].filter((i) => i > setupStart).sort((a, b) => a - b)[0] ?? skillMd.length;
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     const result = await runSkillTest({
@@ -157,10 +165,14 @@ Report the exact output. Do NOT try to fix or install anything — just report w
     const nonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-nogit-'));
 
     // P2 (v1.2.0): the browse SETUP/binary-discovery block moved from the root
-    // router to browse/SKILL.md (end anchor is now ## Core QA Patterns).
+    // router to browse/SKILL.md; the `$B` block now sits under "Browser fallback".
     const skillMd = fs.readFileSync(path.join(ROOT, 'browse', 'SKILL.md'), 'utf-8');
-    const setupStart = skillMd.indexOf('## SETUP');
-    const setupEnd = skillMd.indexOf('## Core QA Patterns');
+    // The `$B` setup lives in the Browser fallback section since Aside became
+    // the primary driver: slice from its heading to the next heading.
+    const setupStart = skillMd.indexOf('### Find the `$B` binary');
+    const nextH3 = skillMd.indexOf('\n### ', setupStart + 1);
+    const nextH2 = skillMd.indexOf('\n## ', setupStart + 1);
+    const setupEnd = [nextH3, nextH2].filter((i) => i > setupStart).sort((a, b) => a - b)[0] ?? skillMd.length;
     const setupBlock = skillMd.slice(setupStart, setupEnd);
 
     const result = await runSkillTest({
