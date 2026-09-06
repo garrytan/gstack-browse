@@ -232,6 +232,14 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
       // scores fully -- the same entry ranked on its separator, not its content.
       rankEntry({ key: 'iota_upsilon_probe', insight: 'no query words in this text', confidence: 2 }),
       rankEntry({ key: 'plain-row-iota', insight: 'no query words in this text', confidence: 10 }),
+      // Decay-vs-relevance probes. Fixed at a date far enough back that the
+      // observed rows are pinned to the 0 floor by Math.max, so they are stable
+      // forever rather than drifting with wall clock -- which is why the rest of
+      // this fixture is user-stated.
+      rankEntry({ key: 'decayed-two-hits', insight: 'quasar and nebula both discussed', confidence: 9, source: 'observed', ts: '2019-01-01T00:00:00Z' }),
+      rankEntry({ key: 'current-one-hit', insight: 'quasar alone here', confidence: 10 }),
+      rankEntry({ key: 'decayed-tied-hit', insight: 'pulsar mentioned', confidence: 9, source: 'observed', ts: '2019-01-01T00:00:00Z' }),
+      rankEntry({ key: 'current-tied-hit', insight: 'pulsar mentioned too', confidence: 5 }),
     ];
     fs.writeFileSync(path.join(rankProjDir, 'learnings.jsonl'), rows.map(e => JSON.stringify(e)).join('\n') + '\n');
   });
@@ -405,6 +413,26 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
     expect(rankedKeys(['--query', 'iota upsilon'])).toEqual([
       'iota_upsilon_probe',  // 2 naming hits, confidence 2
       'plain-row-iota',      // 1 naming hit, confidence 10
+    ]);
+  });
+
+  // #2762 ranks tokens matched ahead of confidence by design, and decay feeds
+  // confidence. This pins the consequence so it is deliberate and visible rather
+  // than discovered later: a fully decayed row that answers more of the query is
+  // still ranked above a current row that answers less of it.
+  test('relevance outranks confidence decay when the decayed row matches more', () => {
+    expect(rankedKeys(['--query', 'quasar nebula'])).toEqual([
+      'decayed-two-hits',  // 2 hits, observed and decayed to the 0 floor
+      'current-one-hit',   // 1 hit, confidence 10, exempt from decay
+    ]);
+  });
+
+  // ...and decay is still live underneath it: once the hit counts tie, the decayed
+  // row loses on the confidence it has lost.
+  test('confidence decay still demotes a stale row once relevance ties', () => {
+    expect(rankedKeys(['--query', 'pulsar'])).toEqual([
+      'current-tied-hit',  // 1 hit, confidence 5
+      'decayed-tied-hit',  // 1 hit, decayed to 0
     ]);
   });
 });
