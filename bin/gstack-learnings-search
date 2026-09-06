@@ -237,7 +237,7 @@ results = results.slice(0, limit);
 if (results.length === 0) process.exit(0);
 
 // Format output
-const byType = {};
+const byType = Object.create(null);
 for (const e of results) {
   const t = e.type || 'unknown';
   if (!byType[t]) byType[t] = [];

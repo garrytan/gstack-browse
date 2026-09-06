@@ -49,6 +49,7 @@ afterAll(() => {
   // scope too. A describe-scoped afterAll leaks it whenever a filtered run
   // (bun test -t ...) skips that describe.
   fs.rmSync(rankCwd, { recursive: true, force: true });
+  fs.rmSync(badCwd, { recursive: true, force: true });
 });
 
 describe('gstack-learnings-search token-OR query semantics', () => {
@@ -111,6 +112,12 @@ describe('gstack-learnings-search cross-project trust gating', () => {
 const rankCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-search-rank-cwd-'));
 const rankSlug = path.basename(rankCwd).replace(/[^a-zA-Z0-9._-]/g, '');
 const rankProjDir = path.join(tmpHome, 'projects', rankSlug);
+
+// #2762: the malformed-row store lives apart from every other fixture because the
+// defect it probes blanks the ENTIRE run, which would mask each of them in turn.
+const badCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-search-bad-cwd-'));
+const badSlug = path.basename(badCwd).replace(/[^a-zA-Z0-9._-]/g, '');
+const badProjDir = path.join(tmpHome, 'projects', badSlug);
 
 const TARGET = 'verify-preflight-project-line-before-trusting-report';
 // Twelve decoys, each matching ONLY the token `line`, via substring hits inside
@@ -400,4 +407,58 @@ describe('gstack-learnings-search relevance ranking (#2762)', () => {
       'plain-row-iota',      // 1 naming hit, confidence 10
     ]);
   });
+});
+
+// The formatter groups rows into a plain object keyed by the row's own `type`.
+// A row whose type names an inherited Object property finds that property already
+// truthy, so the array is never created and .push throws. The bun stage ends with
+// `2>/dev/null || exit 0`, which converts the throw into empty stdout at exit 0 --
+// indistinguishable from "this project has no learnings". Ranking is what makes it
+// reachable: it promotes the malformed row past the --limit cut that used to hide it.
+describe('gstack-learnings-search malformed row containment', () => {
+  const POISON_TYPES = ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'];
+
+  beforeAll(() => {
+    fs.mkdirSync(badProjDir, { recursive: true });
+  });
+
+  function writeBadStore(poisonType: string): void {
+    const rows = [
+      ...Array.from({ length: 3 }, (_, i) => rankEntry({
+        ts: '2026-05-0' + (i + 1) + 'T00:00:00Z',
+        key: 'healthy-' + i,
+        insight: 'alpha only insight ' + i,
+        confidence: 10,
+      })),
+      // Scores higher than every healthy row, so ranking floats it to the top.
+      rankEntry({ key: 'poison-row', type: poisonType, insight: 'alpha beta both here', confidence: 1 }),
+    ];
+    fs.writeFileSync(path.join(badProjDir, 'learnings.jsonl'), rows.map(e => JSON.stringify(e)).join('\n') + '\n');
+  }
+
+  function runBad(args: string[]): ReturnType<typeof spawnSync> {
+    return spawnSync('bash', [BIN, ...args], {
+      timeout: 30_000,
+      env: { ...process.env, GSTACK_HOME: tmpHome },
+      cwd: badCwd,
+      encoding: 'utf-8',
+    });
+  }
+
+  for (const poisonType of POISON_TYPES) {
+    test('a row typed "' + poisonType + '" cannot blank the whole store', () => {
+      writeBadStore(poisonType);
+      const res = runBad(['--query', 'alpha beta']);
+      const keys = String(res.stdout).split('\n')
+        .map(line => /^- \[([^\]]+)\]/.exec(line))
+        .filter((m): m is RegExpExecArray => m !== null)
+        .map(m => m[1]);
+      // Every healthy row still reaches the caller. Asserted by presence, not by
+      // count: the failure mode is silence, and a count assertion on an empty
+      // result reads the same as a count assertion on a truncated one.
+      expect(keys).toContain('healthy-0');
+      expect(keys).toContain('healthy-1');
+      expect(keys).toContain('healthy-2');
+    });
+  }
 });
