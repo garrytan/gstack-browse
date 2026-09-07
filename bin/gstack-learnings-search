@@ -43,6 +43,11 @@ if [ ! -f "$LEARNINGS_FILE" ] && [ ${#CROSS_FILES[@]} -eq 0 ]; then
   exit 0
 fi
 
+if ! command -v bun >/dev/null 2>&1; then
+  echo "gstack-learnings-search: bun runtime not on PATH — install from https://bun.sh" >&2
+  exit 1
+fi
+
 emit_tagged_file() {
   local tag="$1"
   local file="$2"
@@ -159,4 +164,4 @@ for (const [t, arr] of Object.entries(byType)) {
   }
   console.log('');
 }
-" 2>/dev/null || exit 0
+"

@@ -29,6 +29,11 @@ if [ ! -f "$TIMELINE_FILE" ]; then
   exit 0
 fi
 
+if ! command -v bun >/dev/null 2>&1; then
+  echo "gstack-timeline-read: bun runtime not on PATH — install from https://bun.sh" >&2
+  exit 1
+fi
+
 cat "$TIMELINE_FILE" 2>/dev/null | GSTACK_TIMELINE_SINCE="$SINCE" GSTACK_TIMELINE_BRANCH="$BRANCH" GSTACK_TIMELINE_LIMIT="$LIMIT" bun -e "
 const lines = (await Bun.stdin.text()).trim().split('\n').filter(Boolean);
 const since = process.env.GSTACK_TIMELINE_SINCE || '';
@@ -93,4 +98,4 @@ for (const e of recent) {
   const outcome = e.outcome ? ' [' + e.outcome + ']' : '';
   console.log('- ' + ts + ' /' + e.skill + ' ' + e.event + outcome + dur + (e.branch ? ' on ' + e.branch : ''));
 }
-" 2>/dev/null || exit 0
+"
