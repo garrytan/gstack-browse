@@ -126,7 +126,12 @@ describe('Aside driver contract ({{ASIDE_SETUP}})', () => {
     expect(setupProbe).toContain('_T="perl -e alarm(shift);exec(@ARGV) 30"');
     expect(setupProbe.indexOf('gtimeout 30')).toBeLessThan(setupProbe.indexOf('perl -e alarm'));
     // The bounded call is the readiness probe itself, and READY quotes the version.
-    expect(setupProbe).toContain('$_T aside repl \'console.log("ASIDE_READY " + pwd)\'');
+    // The bounded call goes through `eval` on purpose: zsh does NOT word-split an unquoted `$_T`,
+    // so `$_T aside repl …` tried to run a command literally named "gtimeout 30" and the probe
+    // answered ASIDE_NOT_RUNNING with Aside ready. `eval` splits in sh, bash and zsh alike.
+    expect(setupProbe).toContain('_ASIDE_JS=\'console.log("ASIDE_READY " + pwd)\'');
+    expect(setupProbe).toContain('elif eval "${_T:+$_T }aside repl \\"\\$_ASIDE_JS\\""');
+    expect(setupProbe).not.toContain('$_T aside repl');
     expect(setupProbe).toContain('echo "READY: aside $(aside --version 2>/dev/null)"');
   });
 
