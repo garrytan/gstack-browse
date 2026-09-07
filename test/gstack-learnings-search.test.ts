@@ -90,4 +90,24 @@ describe('gstack-learnings-search cross-project trust gating', () => {
     const out = run(['--cross-project', '--query', 'foreign']);
     expect(out).not.toContain('foreign-legacy');
   });
+
+  // #2790: fails with exit 1 and actionable error when bun is missing from PATH
+  test('fails with exit 1 when bun is not on PATH (#2790)', () => {
+    let thrown: any = null;
+    try {
+      execFileSync(BIN, ['--query', 'foo'], {
+        timeout: 30_000,
+        env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', GSTACK_HOME: tmpHome },
+        cwd: tmpCwd,
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err: any) {
+      thrown = err;
+    }
+    expect(thrown).not.toBeNull();
+    expect(thrown.status).toBe(1);
+    expect(thrown.stderr).toContain('bun runtime not on PATH');
+  });
 });
+

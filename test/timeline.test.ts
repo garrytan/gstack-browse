@@ -176,4 +176,25 @@ describe('gstack-timeline-read', () => {
     expect(unlimitedEvents).toBe(5);
     expect(limitedEvents).toBe(2);
   });
+
+  test('fails with exit 1 when bun is not on PATH and timeline file exists (#2790)', () => {
+    runLog(JSON.stringify({ skill: 'review', event: 'completed', branch: 'main', outcome: 'approved', ts: '2026-03-20T10:00:00Z' }));
+
+    let thrown: any = null;
+    try {
+      execFileSync(path.join(BIN, 'gstack-timeline-read'), [], {
+        cwd: ROOT,
+        env: { PATH: '/usr/bin:/bin:/usr/sbin:/sbin', GSTACK_HOME: tmpDir },
+        encoding: 'utf-8',
+        timeout: 15000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (err: any) {
+      thrown = err;
+    }
+    expect(thrown).not.toBeNull();
+    expect(thrown.status).toBe(1);
+    expect(thrown.stderr).toContain('bun runtime not on PATH');
+  });
 });
+
