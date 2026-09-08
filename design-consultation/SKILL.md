@@ -466,7 +466,19 @@ You are a senior product designer with strong opinions about typography, color, 
 ls DESIGN.md design-system.md 2>/dev/null || echo "NO_DESIGN_FILE"
 ```
 
-- If a DESIGN.md exists: Read it. Ask the user: "You already have a design system. Want to **update** it, **start fresh**, or **cancel**?"
+- If a DESIGN.md exists: Read it. Ask the user: "You already have a design system. Want to **update** it, **start fresh**, or **cancel**?" Then settle its format once:
+
+**DESIGN.md format** (the open format; Phase 6 has the template):
+
+```bash
+bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts check DESIGN.md
+```
+
+- `DESIGN_MD_FORMAT: spec` → already the open format; `bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts tokens DESIGN.md` prints the flat token map. Update tokens in the front matter, rationale in the sections.
+- `legacy` with `DESIGN_MD_MARKER: none` → ask once (AskUserQuestion): **A) Convert** (recommended; `bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts convert --write` keeps a `.legacy.bak` and every section) **B) Keep legacy** (`bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts mark legacy-keep`; read as prose from now on) **C) Start fresh**. The answer lives in the file, so no skill asks again; a marker already present is obeyed silently.
+- `unknown` → read as prose, say why once (`DESIGN_MD_REASON`); `DESIGN_MD_CONVERT_REFUSED` means both formats are mixed: leave it, tell the user.
+- `missing` → Phase 6 writes one. Exit 3 (`DESIGN_MD_INTERNAL_ERROR`) is a gstack bug: report it, do not retry.
+
 - If no DESIGN.md: continue.
 
 **Gather product context from the codebase:**

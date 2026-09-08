@@ -18,7 +18,8 @@ import { catalogEntry } from '../lib/design-catalog';
 const ROOT = path.join(import.meta.dir, '..');
 const TOKEN = /\b(IMPECCABLE_[A-Z_]+|DETECT_[A-Z_]+|DESIGN_MD_[A-Z_]+|DOM_DUMP_[A-Z_]+|DESIGN_DETECTOR_[A-Z_]+|DESIGN_DETECT_[A-Z_]+)\b/g;
 // Things that look like sentinels but are env vars / flags the prose legitimately names.
-const NOT_SENTINELS = new Set(['IMPECCABLE_BIN', 'IMPECCABLE_HOME', 'IMPECCABLE_HOOK_DISABLED', 'DESIGN_DETECT_TIMEOUT_MS']);
+// Env vars, flags, and resolver placeholder names the prose legitimately names.
+const NOT_SENTINELS = new Set(['IMPECCABLE_BIN', 'IMPECCABLE_HOME', 'IMPECCABLE_HOOK_DISABLED', 'DESIGN_DETECT_TIMEOUT_MS', 'DESIGN_MD_CHECK', 'DESIGN_DETECTOR']);
 
 function* agentReadableFiles(): Generator<string> {
   const skip = new Set(['node_modules', '.git', 'dist', 'build', 'test', 'docs', '.context', '.claude', '.agents', '.factory', '.cursor', '.kiro', '.opencode', '.openclaw', '.hermes', '.slate', '.gstack', '.gbrain', '.conductor']);
@@ -70,8 +71,7 @@ describe('contract shape', () => {
 });
 
 describe('every printable sentinel is mentioned somewhere the agent reads', () => {
-  // DESIGN_MD_* sentinels arrive with the DESIGN.md tool wiring; until then they are contract-only.
-  const PENDING = new Set<string>([SENTINEL.DESIGN_MD_FORMAT, SENTINEL.DESIGN_MD_CONVERT_REFUSED, SENTINEL.DESIGN_MD_INTERNAL_ERROR, SENTINEL.DESIGN_MD_TOKEN_REF_INVALID]);
+  const PENDING = new Set<string>();
   test('generated SKILL.md files, sections, or the checklist name each one', () => {
     const corpus = [...agentReadableFiles()].filter(f => !f.includes(`${path.sep}scripts${path.sep}`)).map(f => fs.readFileSync(f, 'utf-8')).join('\n');
     const selfDescribing = new Set(SELF_DESCRIBING_SENTINELS);

@@ -846,7 +846,7 @@ Use AskUserQuestion:
 > A) Create DESIGN.md from these tokens
 > B) Skip — I'll handle the design system later
 
-If A: write `DESIGN.md` to the repo root with the extracted tokens.
+If A: write `DESIGN.md` in the open DESIGN.md format (/design-consultation Phase 6 template): extracted values in the front matter's five token groups, line 2 `# gstack: design-md-format=spec`, rationale in the canonical sections. An existing file keeps its persisted format choice; never offer a conversion here.
 
 ### Save Metadata
 

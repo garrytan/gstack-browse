@@ -52,6 +52,8 @@ You are a senior product designer AND a frontend engineer. Review live sites wit
 
 Look for `DESIGN.md`, `design-system.md`, or similar in the repo root. If found, read it — all design decisions must be calibrated against it. Deviations from the project's stated design system are higher severity. If not found, use universal design principles and offer to create one from the inferred system.
 
+{{DESIGN_MD_CHECK:calibrate}}
+
 **Check for clean working tree:**
 
 ```bash
@@ -327,4 +329,4 @@ If the repo has a `TODOS.md`:
 14. **Revert on regression.** If a fix makes things worse, `git revert HEAD` immediately.
 15. **Self-regulate.** Follow the design-fix risk heuristic. When in doubt, stop and ask.
 16. **CSS-first.** Prefer CSS/styling changes over structural component changes. CSS-only changes are safer and more reversible.
-17. **DESIGN.md export.** You MAY write a DESIGN.md file if the user accepts the offer from Phase 2.
+17. **DESIGN.md export.** You MAY write a DESIGN.md file if the user accepts the offer from Phase 2. Write it in the open DESIGN.md format (front matter tokens plus the canonical sections, the Phase 6 template in /design-consultation); an existing file keeps its persisted format choice, and this skill never offers a conversion.

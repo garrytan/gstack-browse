@@ -347,7 +347,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
     // v1.65 merge: provisional larger-of-both-waves budget; re-measured below.
     // v1.64.1.0: shared-preamble prose from the two parallel v1.64 waves lands
     // the skeleton at 69,022 B; +~1 KB headroom.
-    maxSkeletonBytes: 66_500, // + v2.0 {{ASIDE_SETUP}}/{{BROWSE_FALLBACK}} for the research phase; measured 65_506
+    maxSkeletonBytes: 67_500, // + v1.82 open DESIGN.md format check ({{DESIGN_MD_CHECK}} in Phase 0); measured 67_014
     minUnionBytes: 65_000, // token-reduction Phases 1-2 (v1.69.x branch): preamble bash -> bin/gstack-skill-start, onboarding -> gated emission; measured union 72,252
     mustContain: ['Typography', 'Color', 'Aesthetic Direction'],
     // Cross-cutting preamble growth (v1.57.2.0 AUQ-failure prose fallback ~2KB +

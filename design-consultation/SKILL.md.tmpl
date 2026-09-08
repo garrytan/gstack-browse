@@ -66,7 +66,10 @@ You are a senior product designer with strong opinions about typography, color, 
 ls DESIGN.md design-system.md 2>/dev/null || echo "NO_DESIGN_FILE"
 ```
 
-- If a DESIGN.md exists: Read it. Ask the user: "You already have a design system. Want to **update** it, **start fresh**, or **cancel**?"
+- If a DESIGN.md exists: Read it. Ask the user: "You already have a design system. Want to **update** it, **start fresh**, or **cancel**?" Then settle its format once:
+
+{{DESIGN_MD_CHECK}}
+
 - If no DESIGN.md: continue.
 
 **Gather product context from the codebase:**

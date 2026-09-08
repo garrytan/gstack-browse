@@ -357,61 +357,124 @@ If `$D extract` was used in Phase 5 (Path A), use the extracted tokens as the pr
 
 **If in plan mode:** Write the DESIGN.md content into the plan file as a "## Proposed DESIGN.md" section. Do NOT write the actual file — that happens at implementation time.
 
-**If NOT in plan mode:** Write `DESIGN.md` to the repo root with this structure:
+**If NOT in plan mode:** Write `DESIGN.md` to the repo root in the open DESIGN.md format (google-labs-code/design.md). The YAML front matter is normative: every token an agent needs lives there, in exactly five groups (`colors`, `typography`, `rounded`, `spacing`, `components`). The sections explain why the tokens exist and how to apply them, and never restate a token value. Line 2 is gstack's format marker, so no skill asks about conversion later. If a legacy file was kept in Phase 0, update that file in its own shape instead.
 
 ```markdown
-# Design System — [Project Name]
+---
+# gstack: design-md-format=spec
+name: [Project Name]
+description: [one sentence: mood, material, energy]
+colors:
+  primary: "#..."          # descriptive slugs; hex, or the project's canonical color space
+  on-primary: "#..."
+  surface: "#..."
+  text: "#..."
+  text-muted: "#..."
+  accent: "#..."
+  success: "#..."
+  warning: "#..."
+  error: "#..."
+typography:
+  display:
+    fontFamily: [face]
+    fontWeight: [weight]
+    fontSize: [clamp() or rem]
+    letterSpacing: [em]
+  body:
+    fontFamily: [face]
+    fontSize: 1rem
+    lineHeight: 1.5
+  label:
+    fontFamily: [face]
+    fontSize: 0.75rem
+    letterSpacing: 0.04em
+  mono:
+    fontFamily: [face]
+    fontFeature: tnum
+rounded:
+  sm: 4px
+  md: 8px
+  lg: 12px
+  full: 9999px
+spacing:
+  xs: 4px
+  sm: 8px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  2xl: 48px
+components:
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.on-primary}"
+    rounded: "{rounded.md}"
+  button-primary-hover:
+    backgroundColor: "#..."
+  input:
+    borderColor: "{colors.text-muted}"
+    rounded: "{rounded.sm}"
+  card:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.lg}"
+  nav-link:
+    textColor: "{colors.text}"
+---
 
-## Product Context
-- **What this is:** [1-2 sentence description]
-- **Who it's for:** [target users]
-- **Space/industry:** [category, peers]
-- **Project type:** [web app / dashboard / marketing site / editorial / internal tool]
+# [Project Name]
 
-## Aesthetic Direction
-- **Direction:** [name]
-- **Decoration level:** [minimal / intentional / expressive]
-- **Mood:** [1-2 sentence description of how the product should feel]
-- **Reference sites:** [URLs, if research was done]
+## Overview
+
+**Creative North Star:** [one sentence: the aesthetic direction and why it is right for these users]
+**Product context:** [what this is, who it is for, the space and its peers, the project type]
+**Mode per surface:** [Persuade / Operate / Read / Experience, per surface, in one line each]
+**Reference sites:** [URLs, if research was done]
+**Key characteristics:** [3-5 bullets: what someone notices in the first five seconds]
+
+## Colors
+
+**Strategy:** [Restrained / Committed / Full palette / Drenched] — [why]
+**Light or dark:** [decided by the use scene: who, where, under what light]
+Named rules: [which token carries interaction, which carries emphasis, what neutrals derive from, how dark mode redesigns surfaces (never a lightness inversion)]
 
 ## Typography
-- **Display/Hero:** [font name] — [rationale]
-- **Body:** [font name] — [rationale]
-- **UI/Labels:** [font name or "same as body"]
-- **Data/Tables:** [font name] — [rationale, must support tabular-nums]
-- **Code:** [font name]
-- **Loading:** [CDN URL or self-hosted strategy]
-- **Scale:** [modular scale with specific px/rem values for each level]
 
-## Color
-- **Approach:** [restrained / balanced / expressive]
-- **Primary:** [hex] — [what it represents, usage]
-- **Secondary:** [hex] — [usage]
-- **Neutrals:** [warm/cool grays, hex range from lightest to darkest]
-- **Semantic:** success [hex], warning [hex], error [hex], info [hex]
-- **Dark mode:** [strategy — redesign surfaces, reduce saturation 10-20%]
-
-## Spacing
-- **Base unit:** [4px or 8px]
-- **Density:** [compact / comfortable / spacious]
-- **Scale:** 2xs(2) xs(4) sm(8) md(16) lg(24) xl(32) 2xl(48) 3xl(64)
+[Why these faces, in the mode's register: the world they come from, the roles they play, where the display voice is allowed. Loading strategy. Scale rationale. The overused-list exceptions you made and why.]
 
 ## Layout
-- **Approach:** [grid-disciplined / creative-editorial / hybrid]
-- **Grid:** [columns per breakpoint]
-- **Max content width:** [value]
-- **Border radius:** [hierarchical scale — e.g., sm:4px, md:8px, lg:12px, full:9999px]
+
+[Grid per breakpoint, max content width, density, the spacing scale's rhythm (large step vs small step), what breaks the grid on purpose]
+
+## Elevation & Depth
+
+[How depth is shown: offset + soft blur shadows, surface tints, borders. Never a zero-offset glow.]
+
+## Shapes
+
+[Radius hierarchy and what each level is for; inner radius = outer radius − gap on nested elements]
+
+## Components
+
+[Per component token group above: states (hover, focus-visible, active, disabled), what never changes, what adapts]
+
+## Do's and Don'ts
+
+- Do: [3-5 specific, checkable rules]
+- Don't: [3-5 specific anti-patterns for THIS system, including the catalog entries most tempting for this category]
 
 ## Motion
+
 - **Approach:** [minimal-functional / intentional / expressive]
 - **Easing:** enter(ease-out) exit(ease-in) move(ease-in-out)
 - **Duration:** micro(50-100ms) short(150-250ms) medium(250-400ms) long(400-700ms)
+- **The one authored moment:** [what it is]
 
 ## Decisions Log
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | [today] | Initial design system created | Created by /design-consultation based on [product context / research] |
 ```
+
+Fill every token with a real value (no placeholders survive into the file); drop a `components` entry rather than invent one. Verify the result parses: `bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-md.ts check DESIGN.md` must print `DESIGN_MD_FORMAT: spec`.
 
 **Update CLAUDE.md** (or create it if it doesn't exist) — append this section:
 

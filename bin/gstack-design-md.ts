@@ -53,8 +53,8 @@ export function main(argv = process.argv.slice(2)): number {
       const loaded = load(file);
       const { format, reason } = detectFormat(loaded?.doc ?? null);
       process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: ${format}\n`);
-      if (reason) process.stdout.write(`DESIGN_MD_REASON: ${reason}\n`);
-      process.stdout.write(`DESIGN_MD_MARKER: ${loaded?.doc.marker ?? 'none'}\n`);
+      if (reason) process.stdout.write(`${SENTINEL.DESIGN_MD_REASON}: ${reason}\n`);
+      process.stdout.write(`${SENTINEL.DESIGN_MD_MARKER}: ${loaded?.doc.marker ?? 'none'}\n`);
       return 0;
     }
     case 'convert': {
@@ -73,7 +73,7 @@ export function main(argv = process.argv.slice(2)): number {
       if (flags.has('--write')) {
         fs.writeFileSync(`${file}.legacy.bak`, loaded.text);
         writeAtomic(file, out);
-        process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: spec\nDESIGN_MD_WRITTEN: ${file}\nDESIGN_MD_BACKUP: ${file}.legacy.bak\n`);
+        process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: spec\n${SENTINEL.DESIGN_MD_WRITTEN}: ${file}\n${SENTINEL.DESIGN_MD_BACKUP}: ${file}.legacy.bak\n`);
       } else {
         process.stdout.write(out);
       }
@@ -97,7 +97,7 @@ export function main(argv = process.argv.slice(2)): number {
       const loaded = load(file);
       if (!loaded) { process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: missing\n`); return 1; }
       writeAtomic(file, renderDesignMd(setMarker(loaded.doc, choice)));
-      process.stdout.write(`DESIGN_MD_MARKER: ${choice}\n`);
+      process.stdout.write(`${SENTINEL.DESIGN_MD_MARKER}: ${choice}\n`);
       return 0;
     }
     default:

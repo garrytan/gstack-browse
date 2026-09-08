@@ -1960,6 +1960,48 @@ describe('DESIGN_DETECTOR resolver', () => {
   });
 });
 
+// --- {{DESIGN_MD_CHECK}} resolver + open DESIGN.md adoption ---
+
+describe('DESIGN_MD_CHECK resolver and open DESIGN.md adoption', () => {
+  test('design-consultation asks the conversion question once and writes the spec form', () => {
+    const c = readSkillUnion('design-consultation');
+    expect(c).toContain('gstack-design-md.ts check DESIGN.md');
+    expect(c).toContain('DESIGN_MD_FORMAT: spec');
+    expect(c).toContain('mark legacy-keep');
+    expect(c).toContain('convert --write');
+    expect(c).toContain('# gstack: design-md-format=spec');
+    expect(c).toContain("## Do's and Don'ts");
+    expect(c).toContain('## Elevation & Depth');
+    expect(c).toContain('fontFeature: tnum');
+    expect(c).toContain('"{colors.primary}"');
+    // the legacy template is gone
+    expect(c).not.toContain('## Product Context\n- **What this is:**');
+  });
+
+  test('design-review calibrates against tokens and never re-offers conversion; design-html writes the spec form', () => {
+    const dr = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(dr).toContain('gstack-design-md.ts check DESIGN.md');
+    expect(dr).toContain('gstack-design-md.ts tokens DESIGN.md');
+    expect(dr).toContain('never offer a conversion here');
+    expect(dr).not.toContain('mark legacy-keep');
+    const dh = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
+    expect(dh).toContain('# gstack: design-md-format=spec');
+    const pdr = readSkillUnion('plan-design-review');
+    expect(pdr).toContain('{colors.primary}');
+    const checklist = fs.readFileSync(path.join(ROOT, 'review', 'design-checklist.md'), 'utf-8');
+    expect(checklist).toContain('gstack-design-md.ts tokens DESIGN.md');
+    expect(readSkillUnion('ship')).toContain('gstack-design-md.ts tokens DESIGN.md');
+  });
+
+  test('every rendered gstack-design-md invocation uses bun --no-env-file', () => {
+    for (const content of [readSkillUnion('design-consultation'), fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8'), readSkillUnion('ship')]) {
+      for (const line of content.split('\n')) {
+        if (line.includes('gstack-design-md.ts')) expect(line).toContain('bun --no-env-file run ');
+      }
+    }
+  });
+});
+
 // --- Extended DESIGN_SKETCH resolver tests ---
 
 describe('DESIGN_SKETCH extended with outside voices', () => {

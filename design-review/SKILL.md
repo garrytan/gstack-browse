@@ -453,6 +453,14 @@ You are a senior product designer AND a frontend engineer. Review live sites wit
 
 Look for `DESIGN.md`, `design-system.md`, or similar in the repo root. If found, read it — all design decisions must be calibrated against it. Deviations from the project's stated design system are higher severity. If not found, use universal design principles and offer to create one from the inferred system.
 
+**DESIGN.md format:**
+
+```bash
+bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts check DESIGN.md
+```
+
+`DESIGN_MD_FORMAT: spec`: the front matter is normative. Run `bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts tokens DESIGN.md` and calibrate against the flat token map: a value present there is never a finding, and a finding that departs from a token names the token. `legacy` or `unknown`: read the file as prose. The `DESIGN_MD_MARKER` line is the user's persisted format choice; respect it and never offer a conversion here (that is /design-consultation's question). `missing`: universal principles.
+
 **Check for clean working tree:**
 
 ```bash
@@ -1851,4 +1859,4 @@ already knows. A good test: would this insight save time in a future session? If
 14. **Revert on regression.** If a fix makes things worse, `git revert HEAD` immediately.
 15. **Self-regulate.** Follow the design-fix risk heuristic. When in doubt, stop and ask.
 16. **CSS-first.** Prefer CSS/styling changes over structural component changes. CSS-only changes are safer and more reversible.
-17. **DESIGN.md export.** You MAY write a DESIGN.md file if the user accepts the offer from Phase 2.
+17. **DESIGN.md export.** You MAY write a DESIGN.md file if the user accepts the offer from Phase 2. Write it in the open DESIGN.md format (front matter tokens plus the canonical sections, the Phase 6 template in /design-consultation); an existing file keeps its persisted format choice, and this skill never offers a conversion.

@@ -168,7 +168,7 @@ These are the telltale signs of AI-generated UI that no designer at a respected 
 
 ### 5. DESIGN.md Violations (3 items, conditional)
 
-Only apply if `DESIGN.md` or `design-system.md` exists:
+Only apply if `DESIGN.md` or `design-system.md` exists. If the file has YAML front matter (the open DESIGN.md format), `bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-md.ts tokens DESIGN.md` prints the flat token map and is the calibration source: a value present in the tokens is never a finding.
 
 - **[MEDIUM]** Colors not in the stated palette. Compare color values in changed CSS against the palette defined in DESIGN.md.
 
