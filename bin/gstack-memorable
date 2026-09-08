@@ -5,6 +5,7 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SETTINGS_HOOK="$SCRIPT_DIR/gstack-settings-hook"
+SETTINGS_FILE="${GSTACK_SETTINGS_FILE:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json}"
 MEMORABLE_HOOK="$ROOT_DIR/hosts/claude/hooks/memorable-user-prompt-hook"
 HOOK_SOURCE="gstack-memorable"
 
@@ -41,6 +42,36 @@ require_memorable() {
   [ -n "$MEMORABLE_CLI" ] || return 1
 }
 
+# Memorable's own installer registers the SAME UserPromptSubmit hook, under
+# its own name and outside gstack's table. `memorable start`, `memorable setup`
+# and `memorable install-hooks` all do it, and that is the documented way to
+# install the CLI — so on most machines it is already there before gstack is
+# asked. Registering ours beside it runs the same command twice on every
+# prompt: context injected twice, and the session captured twice against the
+# user's own extraction allowance.
+#
+# Matched on the command, not on a tag, for the same reason the hook table in
+# gstack-settings-hook matches on command: Claude Code rewrites settings and
+# private tags do not survive it.
+memorable_own_hook() {
+  [ -f "$SETTINGS_FILE" ] || return 1
+  GSTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e '
+    const fs = require("fs");
+    let s = {};
+    try { s = JSON.parse(fs.readFileSync(process.env.GSTACK_SETTINGS_PATH, "utf8")); } catch { process.exit(1); }
+    const groups = (s.hooks && s.hooks.UserPromptSubmit) || [];
+    const ours = process.env.GSTACK_MEMORABLE_HOOK || "";
+    for (const g of groups) {
+      for (const h of (g.hooks || [])) {
+        const c = String(h.command || "");
+        if (c === ours || c.includes("memorable-user-prompt-hook")) continue;
+        if (/memorable/i.test(c) && /hook\s+user-prompt/.test(c)) { console.log(c); process.exit(0); }
+      }
+    }
+    process.exit(1);
+  ' 2>/dev/null
+}
+
 hook_present() {
   [ -x "$SETTINGS_HOOK" ] || return 1
   if "$SETTINGS_HOOK" list-sources 2>/dev/null |
@@ -67,6 +98,7 @@ hook_present() {
 }
 
 enable_memorable() {
+  local existing
   require_memorable || return 1
   [ -x "$SETTINGS_HOOK" ] || {
     echo "gstack-memorable: missing hook manager: $SETTINGS_HOOK" >&2
@@ -74,6 +106,21 @@ enable_memorable() {
   }
   [ -x "$MEMORABLE_HOOK" ] || {
     echo "gstack-memorable: missing executable hook: $MEMORABLE_HOOK" >&2
+    return 1
+  }
+
+  existing="$(GSTACK_MEMORABLE_HOOK="$MEMORABLE_HOOK" memorable_own_hook)" && {
+    cat >&2 <<EOF
+gstack-memorable: Memorable already registers this hook itself:
+  $existing
+
+Registering gstack's as well would run it twice on every prompt: injected
+twice, and the session captured twice against your extraction allowance.
+
+Keep the one you have, or hand it to gstack: delete that entry from
+  $SETTINGS_FILE
+and run this again. Memorable has no command to remove its own hook.
+EOF
     return 1
   }
 
@@ -104,6 +151,7 @@ disable_memorable() {
 }
 
 status_memorable() {
+  local existing
   if MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" && [ -n "$MEMORABLE_CLI" ]; then
     printf 'Memorable CLI: available (%s)\n' "$MEMORABLE_CLI"
   else
@@ -111,7 +159,10 @@ status_memorable() {
   fi
 
   if hook_present; then
-    echo "Claude UserPromptSubmit hook: registered"
+    echo "Claude UserPromptSubmit hook: registered by gstack"
+  elif existing="$(GSTACK_MEMORABLE_HOOK="$MEMORABLE_HOOK" memorable_own_hook)"; then
+    printf 'Claude UserPromptSubmit hook: registered by Memorable itself (%s)\n' "$existing"
+    echo "  gstack is not managing it; 'gstack-memorable enable' would double it."
   else
     echo "Claude UserPromptSubmit hook: not registered"
   fi
