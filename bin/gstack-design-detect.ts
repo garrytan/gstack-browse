@@ -131,7 +131,7 @@ function configDesignDetector(): 'auto' | 'off' {
       // flat YAML: drop a trailing comment and surrounding quotes
       value = m[1].replace(/\s+#.*$/, '').trim().replace(/^["'](.*)["']$/, '$1');
     }
-    return value === 'off' ? 'off' : 'auto';
+    return value.toLowerCase() === 'off' ? 'off' : 'auto'; // `Off` by hand must not silently re-enable a third-party binary
   } catch {
     return 'auto';
   }
@@ -524,7 +524,10 @@ function targetClass(real: string, p: Probe): TargetClass | null {
   if (!projects || !isInside(real, projects)) return null;
   const rel = path.relative(projects, real).split(path.sep);
   if (rel.length < 3 || rel[1] !== 'designs') return null;
-  return rel[3] === 'dom' ? 'dom-dump' : 'artifact';
+  if (rel[3] === 'dom') return 'dom-dump';
+  // A directory under designs/ (an audit dir, the designs root) may hold dom/ subtrees the engine will walk: treat it as dumps.
+  try { if (fs.statSync(real).isDirectory()) return 'dom-dump'; } catch { /* vanished: the engine reports it */ }
+  return 'artifact';
 }
 
 function allowedTarget(real: string, p: Probe): boolean {
@@ -586,20 +589,30 @@ const ENGINE_ENV_KEYS = new Set([
   'SYSTEMROOT', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PATHEXT', 'COMSPEC', 'HOMEDRIVE', 'HOMEPATH', 'PROGRAMDATA',
 ]);
 
-/** The engine sees PATH/HOME/TMPDIR/locale and its own IMPECCABLE_* knobs, never the agent's tokens. */
-function engineEnv(): Record<string, string> {
+/**
+ * The engine sees PATH/HOME/TMPDIR/locale and its own IMPECCABLE_* knobs, never the
+ * agent's tokens. PATH loses entries inside the project (a direnv `.envrc` adding
+ * `$PWD/node_modules/.bin` must not let the repository supply helpers by name).
+ */
+function engineEnv(p: Probe): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(ENV)) {
     if (v === undefined) continue;
     const key = WIN ? k.toUpperCase() : k;
-    if (ENGINE_ENV_KEYS.has(key) || key.startsWith('LC_') || key.startsWith('IMPECCABLE_')) out[k] = v;
+    if (key === 'PATH') {
+      out[k] = v.split(path.delimiter).filter(e => {
+        if (!e || !path.isAbsolute(e)) return false;
+        const real = realpathOrNull(e);
+        return real !== null && !underProject(real, p.repoRoot, p.cwd);
+      }).join(path.delimiter);
+    } else if (ENGINE_ENV_KEYS.has(key) || key.startsWith('LC_') || key.startsWith('IMPECCABLE_')) out[k] = v;
   }
   return out;
 }
 
-function runEngine(engine: string, batch: string[], cwd: string, timeoutMs: number, extra: string[] = []): EngineRun {
+function runEngine(p: Probe, engine: string, batch: string[], cwd: string, timeoutMs: number, extra: string[] = []): EngineRun {
   const r = Bun.spawnSync([engine, 'detect', '--json', ...extra, ...batch], {
-    cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: engineEnv(),
+    cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: engineEnv(p),
     timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: DETECT_LIMITS.stdoutBytes + 1024,
   });
   const out = r.stdout ?? new Uint8Array();
@@ -642,12 +655,13 @@ function normalize(raw: unknown): NormalizedFinding {
 
 function scan(args: ScanArgs): number {
   const p = probe(args.host);
+  // Every probe line goes to stderr: stdout is the JSON document or nothing, so the
+  // rendered `scan > "$_DJ"` never captures a sentinel as if it were a scan result.
+  for (const line of probeLines(p)) process.stderr.write(line + '\n');
   if (!p.engine) {
-    process.stdout.write(probeLines(p).join('\n') + '\n');
     analytics({ verb: 'scan', sentinel: sentinelName(p), exit: 0 });
     return 0;
   }
-  for (const line of probeLines(p)) process.stderr.write(line + '\n');
 
   const { targets, refusedBase } = resolveTargets(args, p);
   if (!targets.length) {
@@ -679,7 +693,7 @@ function scan(args: ScanArgs): number {
       exit = 1;
       break;
     }
-    const run = runEngine(p.engine, batch, p.repoRoot, timeoutMs, extra);
+    const run = runEngine(p, p.engine, batch, p.repoRoot, timeoutMs, extra);
     for (const line of run.stderr.split('\n')) {
       if (!line.trim()) continue;
       diagnosticsTotal++;
@@ -701,6 +715,7 @@ function scan(args: ScanArgs): number {
     else if (run.exit !== 0 && run.exit !== 2 && exit !== 1) exit = 1;
   }
 
+  if (refusedBase) exit = 1; // a refused base is a failed target even when explicit targets scanned
   if (args.format === 'raw') {
     process.stdout.write(rawChunks.length === 1 ? rawChunks[0] : JSON.stringify(rawFindings, null, 2) + '\n');
   } else {

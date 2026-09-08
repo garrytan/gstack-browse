@@ -223,7 +223,8 @@ describe('probe', () => {
       expect(r.out).toContain('never runs a repository-local launcher');
       expect(r.out).not.toContain(`run \``);
       const s = run(['scan', 'src/styles.css']);
-      expect(lines(s.out)[0]).toBe(`${SENTINEL.NOT_CACHED}: repository-local install`);
+      expect(lines(s.err)[0]).toBe(`${SENTINEL.NOT_CACHED}: repository-local install`); // a scan's probe lines go to stderr; stdout stays JSON-or-nothing
+      expect(s.out).toBe('');
       expect(fs.existsSync(marker)).toBe(false);
     } finally {
       fs.rmSync(path.join(REPO, '.claude'), { recursive: true, force: true });
@@ -317,7 +318,7 @@ describe('scan', () => {
   test('not READY → prints the probe lines, exit 0, engine never needed', () => {
     const r = run(['scan', 'src/styles.css']);
     expect(r.code).toBe(0);
-    expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+    expect(lines(r.err)[0]).toBe(SENTINEL.NOT_AVAILABLE);
   });
 
   test.skipIf(!POSIX)('URL and out-of-root targets are refused and the engine is never spawned', () => {
@@ -567,7 +568,7 @@ describe('coverage: probe edges', () => {
     fs.rmSync(log, { force: true });
     try {
       const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
-      expect(lines(r.out)[0]).toBe(SENTINEL.DISABLED);
+      expect(lines(r.err)[0]).toBe(SENTINEL.DISABLED);
       expect(r.code).toBe(0);
       expect(fs.existsSync(log)).toBe(false);
     } finally {
@@ -658,14 +659,16 @@ describe('coverage: scan edges', () => {
     expect(r2.code).toBe(2);
   });
 
-  test.skipIf(!POSIX)('argument parsing: unknown flags warn, -- ends flags, bad --format falls back to gstack, trailing --changed defaults to main', () => {
+  test.skipIf(!POSIX)('argument parsing: unknown flags warn, -- ends flags, bad --format falls back to gstack, a trailing --changed is refused', () => {
     const r = run(['scan', '--bogus', '--format', 'nope', '--', 'src/styles.css'], { env: { IMPECCABLE_BIN: FAKE } });
     expect(r.err).toContain('ignoring unknown flag --bogus');
     expect(JSON.parse(r.out).schemaVersion).toBe(1);
     const log = path.join(SANDBOX, 'argv-trailing.log');
     fs.rmSync(log, { force: true });
     const r2 = run(['scan', 'src/styles.css', '--changed'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
-    expect(r2.code).toBe(2); // base "main" exists in the fixture repo; the explicit target scans
+    expect(r2.err).toContain(`${SENTINEL.DETECT_REFUSED}: (empty) (not a ref name)`); // never silently defaults to main
+    expect(JSON.parse(r2.out).targets).toBe(1); // the explicit target still scans
+    expect(r2.code).toBe(1);
   });
 
   test.skipIf(!POSIX)('the rendered persist block refuses a dump with a HIGH redaction finding (DOM_DUMP_REDACTION_BLOCKED) and keeps a clean one', () => {
@@ -757,12 +760,16 @@ describe('coverage: scan security edges', () => {
     const out = path.join(SANDBOX, 'env-seen.txt');
     fs.writeFileSync(envDump, `#!/bin/sh\nenv > ${JSON.stringify(out)}\necho "[]"\n`);
     fs.chmodSync(envDump, 0o755);
-    const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: envDump, ANTHROPIC_API_KEY: 'sk-ant-secret', GITHUB_TOKEN: 'ghp_secret', IMPECCABLE_HOME } });
+    const repoBin = path.join(REPO, 'node_modules', '.bin');
+    fs.mkdirSync(repoBin, { recursive: true });
+    const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: envDump, ANTHROPIC_API_KEY: 'sk-ant-secret', GITHUB_TOKEN: 'ghp_secret', IMPECCABLE_HOME, PATH: `${repoBin}${path.delimiter}${process.env.PATH}` } });
     expect(r.code).toBe(0);
     const seen = fs.readFileSync(out, 'utf-8');
     expect(seen).not.toContain('sk-ant-secret');
     expect(seen).not.toContain('ghp_secret');
     expect(seen).toContain('PATH=');
+    expect(seen).not.toContain(repoBin); // a project-local PATH entry (direnv, node_modules/.bin) never reaches the engine
+    fs.rmSync(path.join(REPO, 'node_modules'), { recursive: true, force: true });
     expect(seen).toContain('IMPECCABLE_HOME=');
   });
 
@@ -834,8 +841,8 @@ describe('engine identity: named impeccable, realpath outside the project', () =
     fs.writeFileSync(path.join(REPO, 'detect'), `echo ran > ${JSON.stringify(marker)}\n`);
     try {
       const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: '/bin/sh' } });
-      expect(r.out).toContain(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN is not named impeccable`);
-      expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+      expect(r.err).toContain(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN is not named impeccable`);
+      expect(lines(r.err)[0]).toBe(SENTINEL.NOT_AVAILABLE);
       expect(fs.existsSync(marker)).toBe(false);
     } finally {
       fs.rmSync(path.join(REPO, 'detect'), { force: true });
@@ -997,5 +1004,42 @@ describe('scan: option-like bases and page-controlled inline ignores', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('adversarial round: audit directories, config case, refused base with explicit targets', () => {
+  test.skipIf(!POSIX)('an audit DIRECTORY under designs/ scans as dumps (--no-inline-ignores), because the engine would walk its dom/ subtree', () => {
+    const audit = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'design-audit-20260908-dir');
+    fs.mkdirSync(path.join(audit, 'dom', 'run1'), { recursive: true });
+    fs.writeFileSync(path.join(audit, 'dom', 'run1', 'home.dom.html'), '<!-- impeccable-disable --><html></html>');
+    const log = path.join(SANDBOX, 'argv-audit-dir.log');
+    fs.rmSync(log, { force: true });
+    try {
+      const r = run(['scan', '--format', 'gstack', audit], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
+      expect(r.code).toBe(2);
+      const argv = JSON.parse(fs.readFileSync(log, 'utf-8').trim().split('\n')[0]).argv as string[];
+      expect(argv).toContain('--no-inline-ignores');
+    } finally {
+      fs.rmSync(audit, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('design_detector: Off (hand-edited casing) still disables; a scan with no engine prints its sentinels on stderr and nothing on stdout', () => {
+    fs.writeFileSync(path.join(GSTACK_HOME, 'config.yaml'), 'design_detector: Off\n');
+    try {
+      const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: FAKE } });
+      expect(lines(r.err)[0]).toBe(SENTINEL.DISABLED);
+      expect(r.out).toBe('');
+      expect(r.code).toBe(0);
+    } finally {
+      fs.rmSync(path.join(GSTACK_HOME, 'config.yaml'), { force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('a refused --changed base makes the scan exit 1 even when explicit targets scanned', () => {
+    const r = run(['scan', '--format', 'gstack', '--changed', 'no-such-ref-xyz', 'src/styles.css'], { env: { IMPECCABLE_BIN: FAKE } });
+    expect(r.err).toContain(`${SENTINEL.DETECT_REFUSED}: no-such-ref-xyz`);
+    expect(JSON.parse(r.out).targets).toBe(1);
+    expect(r.code).toBe(1);
   });
 });
