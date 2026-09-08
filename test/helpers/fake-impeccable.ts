@@ -15,5 +15,6 @@ export function installFakeImpeccable(prefix = 'gstack-fake-impeccable-'): { dir
   const bin = path.join(dir, 'impeccable');
   fs.copyFileSync(IMPECCABLE_FAKE_SRC, bin);
   fs.chmodSync(bin, 0o755);
+  fs.copyFileSync(DETECT_SAMPLE, path.join(dir, 'impeccable-detect-sample.json')); // the shim's documented default output, beside it
   return { dir, bin };
 }

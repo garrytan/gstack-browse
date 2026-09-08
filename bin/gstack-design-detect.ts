@@ -16,11 +16,11 @@
  *
  *   design_detector config ── off ──► IMPECCABLE_DISABLED
  *          │ auto
- *   $IMPECCABLE_BIN (absolute, realpath outside repo/cwd, executable, not a script) ──► READY
+ *   $IMPECCABLE_BIN (absolute, realpath outside repo/cwd, executable, named impeccable[.exe]) ──► READY
  *          │
- *   PATH walk (absolute entries only, none inside repo/cwd; `impeccable[.exe]`) ─┬─ binary ──► READY
+ *   PATH walk (absolute entries; file realpath outside repo/cwd, named impeccable[.exe]) ─┬─ binary ──► READY
  *          │                                                                     └─ #! shim ──► launcher-present
- *   $IMPECCABLE_HOME|~/.impeccable/bin/<newest semver>/impeccable[.exe] ──► READY
+ *   $IMPECCABLE_HOME|~/.impeccable/bin/<newest semver>/impeccable[.exe] (realpath outside repo/cwd) ──► READY
  *          │
  *   ~/{.claude,.agents,.cursor,.gemini,.github,.opencode}/skills/impeccable/scripts/
  *          ├─ bin/<os>-<arch>/impeccable[.exe] (engine installed beside the launcher) ──► READY
@@ -33,7 +33,11 @@
  * checked-out branch can commit `.claude/skills/impeccable/scripts/bin/<os>-<arch>/
  * impeccable`, a `node_modules/.bin/impeccable`, or a PATH entry under the repo;
  * none of those is ever READY. Only HOME-rooted installs, the env override, the
- * cache, and PATH entries outside the repo qualify, all by realpath.
+ * cache, and PATH entries outside the repo qualify, all by realpath of the FILE,
+ * and every engine is named impeccable[.exe]: an env override pointing at an
+ * interpreter (/bin/sh, node) would otherwise run the repository's own `detect`
+ * file from cwd. "cwd" means a project directory: when cwd is HOME or above it,
+ * only the repository rule applies (a URL-mode review can run from anywhere).
  *
  * Sentinel contract: lib/design-detect-contract.ts (one owner, imported here and
  * by the gen-time resolvers). Scan output: stdout is one JSON document
@@ -45,7 +49,8 @@
  * existing regular file or directory whose realpath lies under the repo root (or
  * cwd) or under ${GSTACK_HOME:-~/.gstack}/projects/<slug>/designs/ (where design-
  * review keeps rendered-DOM dumps); symlinks are never followed out of those roots
- * and are skipped when git names them; URLs are refused (the one engine path that
+ * and are skipped when git names them (a directory target is handed to the engine
+ * as-is: its own walk decides what inside it is read); URLs are refused (the one engine path that
  * talks to the network); the engine runs with a minimal environment (PATH, HOME,
  * TMPDIR, LANG/LC_*, IMPECCABLE_*), stdin ignored (its ">50 files, continue?"
  * prompt is gated on a TTY), a wall-clock timeout with SIGKILL on the direct
@@ -181,10 +186,28 @@ function isExecutableFile(file: string): boolean {
  * On the PATH walk only: an executable that is not a `#!` script. A node shim
  * named `impeccable` is launcher-present, never READY (running it downloads).
  * Explicit install locations (IMPECCABLE_BIN, the ~/.impeccable/bin cache, the
- * engine beside a skill install's launcher) accept any executable regular file.
+ * engine beside a skill install's launcher) accept any executable regular file
+ * whose realpath is named impeccable[.exe].
  */
 function isEngineBinary(file: string): boolean {
   return isExecutableFile(file) && !isScript(file);
+}
+
+/** The engine's real file is named impeccable[.exe]; an interpreter reached through a symlink or env override is not an engine. */
+function isEngineName(realFile: string): boolean {
+  const base = WIN ? path.basename(realFile).toLowerCase() : path.basename(realFile);
+  return base === 'impeccable' || base === 'impeccable.exe';
+}
+
+/**
+ * Under the project the agent is reviewing: inside the repository, or inside cwd
+ * when cwd is itself a project directory. HOME and its ancestors are not projects
+ * (a URL-mode review can run from HOME, where every HOME-rooted install lives).
+ */
+function underProject(real: string, repoRoot: string, cwd: string): boolean {
+  if (isInside(real, repoRoot)) return true;
+  if (isInside(HOME, cwd)) return false;
+  return isInside(real, cwd);
 }
 
 function semverKey(v: string): number[] | null {
@@ -220,7 +243,7 @@ function trustedEnvPath(name: string, repoRoot: string, cwd: string, notes: stri
     step(`${name}=${raw} does not exist`);
     return null;
   }
-  if (isInside(real, repoRoot) || isInside(real, cwd)) {
+  if (underProject(real, repoRoot, cwd)) {
     notes.push(`${SENTINEL.ENV_IGNORED}: ${name} resolves inside the repository`);
     return null;
   }
@@ -260,7 +283,7 @@ function probe(host: string, verbose = false): Probe {
   let siblingVersion: string | null = null;
   let repoLocalLauncher = false;
   for (const root of roots) {
-    const rootIsRepo = isInside(root, repoRoot) || isInside(root, cwd);
+    const rootIsRepo = underProject(root, repoRoot, cwd);
     for (const sub of SKILL_ROOTS) {
       const skillDir = path.join(root, sub, 'skills', 'impeccable');
       if (fs.existsSync(path.join(skillDir, 'SKILL.md'))) p.skillPresent = true;
@@ -268,11 +291,11 @@ function probe(host: string, verbose = false): Probe {
       if (!fs.existsSync(launcher)) continue;
       if (rootIsRepo) { repoLocalLauncher = true; continue; }
       const realLauncher = realpathOrNull(launcher);
-      if (!realLauncher || isInside(realLauncher, repoRoot) || isInside(realLauncher, cwd)) { repoLocalLauncher = true; continue; }
+      if (!realLauncher || underProject(realLauncher, repoRoot, cwd)) { repoLocalLauncher = true; continue; }
       p.launcher ??= launcher;
       for (const cand of engineSiblings(path.dirname(launcher))) {
         const real = realpathOrNull(cand);
-        if (siblingEngine || !real || !isExecutableFile(real) || isInside(real, repoRoot) || isInside(real, cwd)) continue;
+        if (siblingEngine || !real || !isExecutableFile(real) || !isEngineName(real) || underProject(real, repoRoot, cwd)) continue;
         siblingEngine = real;
         try {
           const v = fs.readFileSync(path.join(path.dirname(launcher), 'VERSION'), 'utf-8').trim();
@@ -325,9 +348,12 @@ function probe(host: string, verbose = false): Probe {
 
   // IMPECCABLE_BIN
   const envBin = trustedEnvPath('IMPECCABLE_BIN', repoRoot, cwd, p.notes, step);
-  if (envBin && isExecutableFile(envBin)) {
+  if (envBin && isExecutableFile(envBin) && isEngineName(envBin)) {
     p.sentinel = `${SENTINEL.READY}: ${envBin}`;
     p.engine = envBin;
+  } else if (envBin && isExecutableFile(envBin)) {
+    // /bin/sh or node as the "engine" would execute the repository's own `detect` file from cwd.
+    p.notes.push(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN is not named impeccable`);
   } else if (envBin) {
     step(`IMPECCABLE_BIN=${envBin} is not an executable file`);
   }
@@ -339,11 +365,13 @@ function probe(host: string, verbose = false): Probe {
     for (const entry of (ENV.PATH || '').split(path.delimiter)) {
       if (!entry || !path.isAbsolute(entry)) continue;
       const real = realpathOrNull(entry);
-      if (!real || isInside(real, repoRoot) || isInside(real, cwd)) continue;
+      if (!real || underProject(real, repoRoot, cwd)) continue;
       for (const ext of exts) {
         const cand = path.join(real, `impeccable${ext}`);
         if (!fs.existsSync(cand)) continue;
-        if (isEngineBinary(cand)) { p.engine = cand; p.sentinel = `${SENTINEL.READY}: ${cand}`; break; }
+        const realCand = realpathOrNull(cand);
+        if (!realCand || underProject(realCand, repoRoot, cwd) || !isEngineName(realCand)) { step(`PATH ${cand} resolves to ${realCand ?? 'nothing'}: not an engine`); continue; }
+        if (isEngineBinary(realCand)) { p.engine = realCand; p.sentinel = `${SENTINEL.READY}: ${realCand}`; break; }
         launcherOnPath ??= cand; // node shim or .cmd wrapper: launcher present, engine not proven
       }
       if (p.engine) break;
@@ -359,7 +387,10 @@ function probe(host: string, verbose = false): Probe {
     const newest = newestSemverDir(binDir);
     if (newest) {
       const cand = path.join(binDir, newest, WIN ? 'impeccable.exe' : 'impeccable');
-      if (isExecutableFile(cand)) { p.engine = cand; p.engineVersion = newest.replace(/^v/, ''); p.sentinel = `${SENTINEL.READY}: ${cand}`; }
+      const realCand = realpathOrNull(cand);
+      if (realCand && isExecutableFile(realCand) && isEngineName(realCand) && !underProject(realCand, repoRoot, cwd)) {
+        p.engine = realCand; p.engineVersion = newest.replace(/^v/, ''); p.sentinel = `${SENTINEL.READY}: ${realCand}`;
+      }
     }
     step(`cache ${binDir}: newest=${newest ?? 'none'} engine=${p.engine ?? 'none'}`);
   }
@@ -386,7 +417,7 @@ function probe(host: string, verbose = false): Probe {
       }
       p.engineVersion ??= `sha256:${engineIdentity(p.engine)}`;
     }
-    p.engineVersion = clip(stripControl(p.engineVersion), 64);
+    p.engineVersion = clip(stripControl(p.engineVersion), DETECT_LIMITS.field.engineVersion);
     if (!TESTED_ENGINE_VERSIONS.includes(p.engineVersion)) p.notes.push(`${SENTINEL.ENGINE_UNTESTED}: ${p.engineVersion}`);
     return p;
   }
@@ -447,7 +478,7 @@ function clip(s: string, n: number): string {
 function sanitizeId(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
   const s = raw.trim().toLowerCase();
-  return /^[a-z0-9-]{1,64}$/.test(s) ? s : null;
+  return new RegExp(`^[a-z0-9-]{1,${DETECT_LIMITS.field.id}}$`).test(s) ? s : null;
 }
 function str(v: unknown): string {
   return typeof v === 'string' ? v : v == null ? '' : String(v);
@@ -489,9 +520,10 @@ function resolveTargets(args: ScanArgs, p: Probe): { targets: string[]; refusedB
   };
   for (const t of args.targets) push(t);
   if (args.changed !== undefined) {
-    const top = gitTopLevel(p.cwd);
-    if (!top) { refuse(args.changed, 'not a repository'); return { targets: out, refusedBase: true }; }
     const base = args.changed;
+    if (!base || base.startsWith('-')) { refuse(base || '(empty)', 'not a ref name'); return { targets: out, refusedBase: true }; }
+    const top = gitTopLevel(p.cwd);
+    if (!top) { refuse(base, 'not a repository'); return { targets: out, refusedBase: true }; }
     const files = new Set<string>();
     const runZ = (argv: string[]): boolean => {
       const r = spawnSync('git', argv, { cwd: top, encoding: 'buffer', timeout: DETECT_LIMITS.gitTimeoutMs, maxBuffer: DETECT_LIMITS.gitMaxBuffer });
@@ -522,18 +554,25 @@ function resolveTargets(args: ScanArgs, p: Probe): { targets: string[]; refusedB
 
 interface EngineRun { exit: number; stdout: string; stderr: string; timedOut: boolean; tooLarge: boolean }
 
+/** Environment the engine may see (Windows keys compared case-insensitively: process.env there enumerates `Path`, `SystemRoot`). */
+const ENGINE_ENV_KEYS = new Set([
+  'PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'LANG', 'TERM', 'NO_COLOR',
+  'SYSTEMROOT', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PATHEXT', 'COMSPEC', 'HOMEDRIVE', 'HOMEPATH', 'PROGRAMDATA',
+]);
+
 /** The engine sees PATH/HOME/TMPDIR/locale and its own IMPECCABLE_* knobs, never the agent's tokens. */
 function engineEnv(): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(ENV)) {
     if (v === undefined) continue;
-    if (['PATH', 'HOME', 'TMPDIR', 'TMP', 'TEMP', 'LANG', 'TERM', 'NO_COLOR', 'SYSTEMROOT', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA'].includes(k) || k.startsWith('LC_') || k.startsWith('IMPECCABLE_')) out[k] = v;
+    const key = WIN ? k.toUpperCase() : k;
+    if (ENGINE_ENV_KEYS.has(key) || key.startsWith('LC_') || key.startsWith('IMPECCABLE_')) out[k] = v;
   }
   return out;
 }
 
-function runEngine(engine: string, batch: string[], cwd: string, timeoutMs: number): EngineRun {
-  const r = Bun.spawnSync([engine, 'detect', '--json', ...batch], {
+function runEngine(engine: string, batch: string[], cwd: string, timeoutMs: number, extra: string[] = []): EngineRun {
+  const r = Bun.spawnSync([engine, 'detect', '--json', ...extra, ...batch], {
     cwd, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env: engineEnv(),
     timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: DETECT_LIMITS.stdoutBytes + 1024,
   });
@@ -599,9 +638,16 @@ function scan(args: ScanArgs): number {
   let diagnosticsTotal = 0;
   let exit = 0;
   const started = Date.now();
-  for (let i = 0; i < targets.length; i += DETECT_LIMITS.batch) {
-    const batch = targets.slice(i, i + DETECT_LIMITS.batch);
-    const run = runEngine(p.engine, batch, p.repoRoot, timeoutMs);
+  // Repo files honor the project's own inline `impeccable-disable` comments. DOM dumps
+  // under the designs root are the audited page's bytes: an inline ignore there is
+  // page-controlled, never a decision the user made, so those batches disable them.
+  const inProject = (t: string) => isInside(t, p.repoRoot) || isInside(t, p.cwd);
+  const batches: Array<{ files: string[]; extra: string[] }> = [];
+  for (const [files, extra] of [[targets.filter(inProject), []], [targets.filter(t => !inProject(t)), ['--no-inline-ignores']]] as Array<[string[], string[]]>) {
+    for (let i = 0; i < files.length; i += DETECT_LIMITS.batch) batches.push({ files: files.slice(i, i + DETECT_LIMITS.batch), extra });
+  }
+  for (const { files: batch, extra } of batches) {
+    const run = runEngine(p.engine, batch, p.repoRoot, timeoutMs, extra);
     for (const line of run.stderr.split('\n')) {
       if (!line.trim()) continue;
       diagnosticsTotal++;
@@ -626,12 +672,13 @@ function scan(args: ScanArgs): number {
   if (args.format === 'raw') {
     process.stdout.write(rawChunks.length === 1 ? rawChunks[0] : JSON.stringify(rawFindings, null, 2) + '\n');
   } else {
-    const all = rawFindings.map(normalize);
-    const truncated = all.length > DETECT_LIMITS.findings;
-    const findings = truncated ? all.slice(0, DETECT_LIMITS.findings) : all;
+    // Only the kept findings are sanitized; at the stdout ceiling the rest would be normalized and discarded.
+    const truncated = rawFindings.length > DETECT_LIMITS.findings;
+    const findings = (truncated ? rawFindings.slice(0, DETECT_LIMITS.findings) : rawFindings).map(normalize);
+    const total = rawFindings.length;
     const byRule: Record<string, number> = {};
     let advisory = 0, high = 0, medium = 0, polish = 0, slop = 0, quality = 0;
-    for (const f of all) {
+    for (const f of findings) {
       byRule[f.impeccableId] = (byRule[f.impeccableId] ?? 0) + 1;
       if (f.advisory) { advisory++; continue; }
       if (f.kind === 'slop') slop++; else if (f.kind === 'quality') quality++;
@@ -639,12 +686,12 @@ function scan(args: ScanArgs): number {
     }
     const result: ScanResult = {
       schemaVersion: 1, engine: p.engine, engineVersion: p.engineVersion ?? 'unknown', targets: targets.length,
-      exit, total: all.length, counted: all.length - advisory, advisory, ignoredRules: p.ignoredRules, byRule, findings, truncated,
+      exit, total, counted: findings.length - advisory, advisory, ignoredRules: p.ignoredRules, byRule, findings, truncated,
       diagnostics: diagnosticsTotal > diagnostics.length ? [...diagnostics, `… ${diagnosticsTotal - diagnostics.length} more engine stderr lines not kept`] : diagnostics,
     };
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-    writeTop(all, truncated);
-    process.stderr.write(`${SENTINEL.DETECT_SUMMARY}: total=${all.length} slop=${slop} quality=${quality} advisory=${advisory} ignored=${p.ignoredRules.length} high=${high} medium=${medium} polish=${polish}${truncated ? ' truncated=true' : ''}\n`);
+    writeTop(findings, total, truncated);
+    process.stderr.write(`${SENTINEL.DETECT_SUMMARY}: total=${total} slop=${slop} quality=${quality} advisory=${advisory} ignored=${p.ignoredRules.length} high=${high} medium=${medium} polish=${polish}${truncated ? ' truncated=true' : ''}\n`);
   }
   for (const d of diagnostics.slice(0, DETECT_LIMITS.diagnosticsEchoed)) process.stderr.write(`${SENTINEL.ENGINE_STDERR}: ${d}\n`);
   process.stderr.write(`${SENTINEL.DETECT_EXIT}: ${exit}\n`);
@@ -654,7 +701,7 @@ function scan(args: ScanArgs): number {
 
 const IMPACT_ORDER = { high: 0, medium: 1, polish: 2 } as const;
 
-function writeTop(findings: NormalizedFinding[], truncated: boolean) {
+function writeTop(findings: NormalizedFinding[], total: number, truncated: boolean) {
   const groups = new Map<string, NormalizedFinding[]>();
   for (const f of findings) {
     if (f.advisory) continue;
@@ -664,7 +711,7 @@ function writeTop(findings: NormalizedFinding[], truncated: boolean) {
   }
   const ordered = [...groups.entries()].sort((a, b) =>
     (IMPACT_ORDER[a[1][0].impact] - IMPACT_ORDER[b[1][0].impact]) || (b[1].length - a[1].length) || a[0].localeCompare(b[0]));
-  const lines = [UNTRUSTED_BEGIN, `${SENTINEL.DETECT_TOP} total=${findings.length} rules=${groups.size}${truncated ? ' truncated=true' : ''}`];
+  const lines = [UNTRUSTED_BEGIN, `${SENTINEL.DETECT_TOP} total=${total} rules=${groups.size}${truncated ? ' truncated=true' : ''}`];
   let shown = 0;
   for (const [id, group] of ordered) {
     const f0 = group[0];
@@ -675,7 +722,7 @@ function writeTop(findings: NormalizedFinding[], truncated: boolean) {
       shown++;
     }
   }
-  if (shown >= DETECT_LIMITS.topLocations && findings.length > shown) lines.push(`  … ${findings.length - shown} more locations in the JSON`);
+  if (shown >= DETECT_LIMITS.topLocations && total > shown) lines.push(`  … ${total - shown} more locations in the JSON`);
   lines.push(UNTRUSTED_END);
   process.stderr.write(lines.join('\n') + '\n');
 }
@@ -714,7 +761,7 @@ function parse(argv: string[]): { verb: string; host: string; verbose: boolean; 
     if (a === '--host') host = argv[++i] ?? host;
     else if (a === '--verbose') verbose = true;
     else if (a === '--format') { const v = argv[++i]; format = v === 'raw' ? 'raw' : 'gstack'; }
-    else if (a === '--changed') changed = argv[++i] ?? 'main';
+    else if (a === '--changed') changed = argv[++i] ?? ''; // an empty base is refused in resolveTargets, never defaulted
     else if (a === '--') { targets.push(...argv.slice(i + 1)); break; }
     else if (a.startsWith('--')) process.stderr.write(`ignoring unknown flag ${a}\n`);
     else targets.push(a);

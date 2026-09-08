@@ -102,11 +102,14 @@ describe('probe', () => {
     fs.mkdirSync(path.dirname(inRepo), { recursive: true });
     fs.writeFileSync(inRepo, '#!/bin/sh\necho MARKER > marker.txt\n');
     fs.chmodSync(inRepo, 0o755);
-    const r = run(['probe'], { env: { IMPECCABLE_BIN: inRepo } });
-    expect(r.out).toContain(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN resolves inside the repository`);
-    expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
-    expect(fs.existsSync(path.join(REPO, 'marker.txt'))).toBe(false);
-    fs.rmSync(path.join(REPO, 'tools'), { recursive: true, force: true });
+    try {
+      const r = run(['probe'], { env: { IMPECCABLE_BIN: inRepo } });
+      expect(r.out).toContain(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN resolves inside the repository`);
+      expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+      expect(fs.existsSync(path.join(REPO, 'marker.txt'))).toBe(false);
+    } finally {
+      fs.rmSync(path.join(REPO, 'tools'), { recursive: true, force: true });
+    }
   });
 
   test('a cwd .env naming IMPECCABLE_BIN is never loaded (--no-env-file) and never executed', () => {
@@ -346,7 +349,7 @@ describe('scan', () => {
       expect(r.err).toContain(`${SENTINEL.DETECT_REFUSED}: ${notDesigns}`);
       const argv = JSON.parse(fs.readFileSync(log, 'utf-8').trim().split('\n')[0]).argv as string[];
       expect(argv.slice(0, 2)).toEqual(['detect', '--json']);
-      expect(argv.slice(2)).toEqual([fs.realpathSync(path.join(designs, 'home.dom.html'))]);
+      expect(argv.slice(2)).toEqual(['--no-inline-ignores', fs.realpathSync(path.join(designs, 'home.dom.html'))]); // a dump's inline ignores are page-controlled
       expect(r.code).toBe(2);
     } finally {
       fs.rmSync(path.join(GSTACK_HOME, 'projects'), { recursive: true, force: true });
@@ -505,7 +508,7 @@ describe('design-review REPORT_DIR agrees with the allow-list', () => {
       const s = run(['scan', '--format', 'gstack', dom + '/home.dom.html'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
       expect(s.err).not.toContain(SENTINEL.DETECT_REFUSED);
       const argv = JSON.parse(fs.readFileSync(log, 'utf-8').trim().split('\n')[0]).argv as string[];
-      expect(argv.slice(2)).toEqual([fs.realpathSync(path.join(dom, 'home.dom.html'))]);
+      expect(argv.slice(2)).toEqual(['--no-inline-ignores', fs.realpathSync(path.join(dom, 'home.dom.html'))]);
     } finally {
       fs.rmSync(path.join(GSTACK_HOME, 'projects'), { recursive: true, force: true });
     }
@@ -748,7 +751,9 @@ describe('coverage: scan security edges', () => {
   });
 
   test.skipIf(!POSIX)('the engine sees a minimal environment, never the agent tokens', () => {
-    const envDump = path.join(SANDBOX, 'env-dump.sh');
+    const envDumpDir = path.join(SANDBOX, 'env-dump');
+    fs.mkdirSync(envDumpDir, { recursive: true });
+    const envDump = path.join(envDumpDir, 'impeccable'); // an engine is named impeccable; anything else is refused
     const out = path.join(SANDBOX, 'env-seen.txt');
     fs.writeFileSync(envDump, `#!/bin/sh\nenv > ${JSON.stringify(out)}\necho "[]"\n`);
     fs.chmodSync(envDump, 0o755);
@@ -794,12 +799,15 @@ describe('coverage: scan security edges', () => {
   }, 120_000);
 
   test.skipIf(!POSIX)('a quoted or commented design_detector value still reads as off', () => {
-    for (const line of ['design_detector: "off"', "design_detector: 'off'", 'design_detector: off  # why']) {
-      fs.writeFileSync(path.join(GSTACK_HOME, 'config.yaml'), line + '\n');
-      const r = run(['probe'], { env: { IMPECCABLE_BIN: FAKE } });
-      expect(lines(r.out)[0]).toBe(SENTINEL.DISABLED);
+    try {
+      for (const line of ['design_detector: "off"', "design_detector: 'off'", 'design_detector: off  # why']) {
+        fs.writeFileSync(path.join(GSTACK_HOME, 'config.yaml'), line + '\n');
+        const r = run(['probe'], { env: { IMPECCABLE_BIN: FAKE } });
+        expect(lines(r.out)[0]).toBe(SENTINEL.DISABLED);
+      }
+    } finally {
+      fs.rmSync(path.join(GSTACK_HOME, 'config.yaml'), { force: true }); // a failing expect must not leave every later probe DISABLED
     }
-    fs.rmSync(path.join(GSTACK_HOME, 'config.yaml'));
   });
 });
 
@@ -817,5 +825,100 @@ describe('rules', () => {
     const r = run(['bogus']);
     expect(r.code).toBe(2);
     expect(r.err).toContain('usage:');
+  });
+});
+
+describe('engine identity: named impeccable, realpath outside the project', () => {
+  test.skipIf(!POSIX)('IMPECCABLE_BIN pointing at an interpreter is never READY and the repository\'s own detect file never runs', () => {
+    const marker = path.join(REPO, 'detect-ran.txt');
+    fs.writeFileSync(path.join(REPO, 'detect'), `echo ran > ${JSON.stringify(marker)}\n`);
+    try {
+      const r = run(['scan', 'src/styles.css'], { env: { IMPECCABLE_BIN: '/bin/sh' } });
+      expect(r.out).toContain(`${SENTINEL.ENV_IGNORED}: IMPECCABLE_BIN is not named impeccable`);
+      expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+      expect(fs.existsSync(marker)).toBe(false);
+    } finally {
+      fs.rmSync(path.join(REPO, 'detect'), { force: true });
+      fs.rmSync(marker, { force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('a PATH entry named impeccable that resolves into the repository is never READY', () => {
+    const inRepo = path.join(REPO, 'tools', 'impeccable');
+    fs.mkdirSync(path.dirname(inRepo), { recursive: true });
+    fs.writeFileSync(inRepo, 'echo MARKER > marker.txt\n'); // no #!: looks like a binary to the sniff
+    fs.chmodSync(inRepo, 0o755);
+    const binDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-path-bin-'));
+    fs.symlinkSync(inRepo, path.join(binDir, 'impeccable'));
+    try {
+      const r = run(['probe', '--verbose'], { env: { PATH: `${binDir}${path.delimiter}${process.env.PATH}` } });
+      expect(r.out).not.toContain(SENTINEL.READY);
+      expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+      expect(fs.existsSync(path.join(REPO, 'marker.txt'))).toBe(false);
+    } finally {
+      fs.rmSync(path.join(REPO, 'tools'), { recursive: true, force: true });
+      fs.rmSync(binDir, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('the engine identity label is deterministic per binary and differs between binaries', () => {
+    const label = (out: string) => out.match(/ENGINE_UNTESTED: (sha256:[0-9a-f]{12})/)?.[1];
+    const a = label(run(['probe'], { env: { IMPECCABLE_BIN: FAKE } }).out);
+    expect(a).toBeDefined();
+    expect(label(run(['probe'], { env: { IMPECCABLE_BIN: FAKE } }).out)).toBe(a);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-other-engine-'));
+    const other = path.join(dir, 'impeccable');
+    fs.writeFileSync(other, fs.readFileSync(FAKE, 'utf-8') + '\n// x\n');
+    fs.chmodSync(other, 0o755);
+    try {
+      expect(label(run(['probe'], { env: { IMPECCABLE_BIN: other } }).out)).not.toBe(a);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('the installed fake engine prints the sample without IMPECCABLE_FAKE_OUTPUT', () => {
+    const { dir, bin } = installFakeImpeccable();
+    try {
+      const r = spawnSync(bin, ['detect', '--json', 'x.css'], { encoding: 'utf-8', timeout: 30_000, env: { PATH: process.env.PATH!, HOME: os.homedir() } });
+      expect(r.status).toBe(2);
+      expect(JSON.parse(r.stdout).length).toBeGreaterThan(0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('scan: option-like bases and page-controlled inline ignores', () => {
+  test.skipIf(!POSIX)('--changed with an option-like or missing base is refused (exit 1) and git never writes the file', () => {
+    const outFile = path.join(SANDBOX, 'git-output-injection.txt');
+    const r = run(['scan', '--changed', `--output=${outFile}`], { env: { IMPECCABLE_BIN: FAKE } });
+    expect(r.err).toContain(`${SENTINEL.DETECT_REFUSED}: --output=${outFile} (not a ref name)`);
+    expect(r.code).toBe(1);
+    expect(fs.existsSync(outFile)).toBe(false);
+    const r2 = run(['scan', '--changed'], { env: { IMPECCABLE_BIN: FAKE } });
+    expect(r2.err).toContain(`${SENTINEL.DETECT_REFUSED}: (empty) (not a ref name)`);
+    expect(r2.code).toBe(1);
+  });
+
+  test.skipIf(!POSIX)('DOM dumps under the designs root scan with --no-inline-ignores; repository files keep their inline ignores', () => {
+    const designs = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'design-audit-20260908', 'dom-ignores');
+    fs.mkdirSync(designs, { recursive: true });
+    fs.writeFileSync(path.join(designs, 'home.dom.html'), '<!-- impeccable-disable --><html></html>');
+    const log = path.join(SANDBOX, 'argv-ignores.log');
+    fs.rmSync(log, { force: true });
+    try {
+      const r = run(['scan', '--format', 'gstack', 'src/styles.css', path.join(designs, 'home.dom.html')], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
+      expect(r.code).toBe(2);
+      const calls = fs.readFileSync(log, 'utf-8').trim().split('\n').map(l => JSON.parse(l).argv as string[]);
+      expect(calls).toHaveLength(2);
+      const repoCall = calls.find(a => a.some(x => x.endsWith('styles.css')))!;
+      const domCall = calls.find(a => a.some(x => x.endsWith('home.dom.html')))!;
+      expect(repoCall).not.toContain('--no-inline-ignores');
+      expect(domCall).toContain('--no-inline-ignores');
+      expect(domCall.indexOf('--no-inline-ignores')).toBeLessThan(domCall.findIndex(x => x.endsWith('home.dom.html')));
+    } finally {
+      fs.rmSync(designs, { recursive: true, force: true });
+    }
   });
 });

@@ -60,7 +60,6 @@ export const SENTINEL = {
   ENGINE_STDERR: 'ENGINE_STDERR',
 } as const;
 
-export type SentinelName = keyof typeof SENTINEL;
 
 /**
  * Sentinels whose line explains itself after the colon (a path, a version, a
@@ -107,21 +106,32 @@ export const DETECT_LIMITS = {
   /** git subprocess budgets inside the wrapper */
   gitTimeoutMs: 30_000,
   gitMaxBuffer: 64 * 1024 * 1024,
-  field: { id: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400, refusedTarget: 200, parseErrorPreview: 80, internalError: 300 },
+  field: { id: 64, engineVersion: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400, refusedTarget: 200, parseErrorPreview: 80, internalError: 300 },
 } as const;
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * Break any sentinel or fence marker that appears INSIDE engine-derived text,
- * so page content echoed through a finding cannot close the untrusted envelope
- * or forge a probe line. Inserts a zero-width space after the first character
- * (the same technique browse/src/content-security.ts uses for its markers).
+ * One pass over every shape the agent reads as gstack's own voice: the two fence
+ * markers, any sentinel word (whole word, colon or not: `DETECT_TOP total=` and
+ * `IMPECCABLE_DISABLED` are printed bare), and the `[rule-id] impact=` group
+ * header. Longest sentinel first so DETECT_EXIT_CODE is not split at DETECT_EXIT.
+ */
+const NEUTRALIZE_RE = new RegExp(
+  [escapeRe(UNTRUSTED_BEGIN), escapeRe(UNTRUSTED_END),
+   '\\b(?:' + [...new Set(Object.values(SENTINEL))].sort((a, b) => b.length - a.length).map(escapeRe).join('|') + ')\\b',
+   '\\[(?=[a-z0-9-]+\\] impact=)'].join('|'), 'g');
+
+/**
+ * Break any sentinel, fence marker, or group header that appears INSIDE
+ * engine-derived text, so page content echoed through a finding cannot close
+ * the untrusted envelope or forge a probe line. Inserts a zero-width space after
+ * the first character (the same technique browse/src/content-security.ts uses
+ * for its markers). One precompiled alternation: this runs on four fields of
+ * every kept finding.
  */
 export function neutralizeSentinels(s: string): string {
-  const zw = '\u200b';
-  let out = s.replaceAll(UNTRUSTED_BEGIN, UNTRUSTED_BEGIN[0] + zw + UNTRUSTED_BEGIN.slice(1))
-    .replaceAll(UNTRUSTED_END, UNTRUSTED_END[0] + zw + UNTRUSTED_END.slice(1));
-  for (const v of Object.values(SENTINEL)) out = out.replaceAll(v + ':', v[0] + zw + v.slice(1) + ':');
-  return out;
+  return s.replace(NEUTRALIZE_RE, m => m[0] + '\u200b' + m.slice(1));
 }
 
 

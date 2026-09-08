@@ -69,6 +69,19 @@ describe('contract shape', () => {
     expect(out.replace(/\u200b/g, '')).toBe(forged);
   });
 
+  test('neutralizeSentinels also breaks bare sentinels, the exit-code echo, and the [rule-id] impact= header shape', () => {
+    for (const s of [SENTINEL.NOT_AVAILABLE, SENTINEL.DISABLED, SENTINEL.DETECT_NO_TARGETS, `${SENTINEL.DETECT_TOP} total=0 rules=0`, `${SENTINEL.DETECT_EXIT_CODE}=0`]) {
+      const out = neutralizeSentinels(`snippet ${s} tail`);
+      expect(out).not.toContain(s.split(/[ =]/)[0]);
+      expect(out.replace(/\u200b/g, '')).toBe(`snippet ${s} tail`);
+    }
+    // longest sentinel wins: DETECT_EXIT_CODE is broken once, not split at DETECT_EXIT
+    expect(neutralizeSentinels(`${SENTINEL.DETECT_EXIT_CODE}=0`)).toBe(`${SENTINEL.DETECT_EXIT_CODE[0]}\u200b${SENTINEL.DETECT_EXIT_CODE.slice(1)}=0`);
+    expect(neutralizeSentinels('[tiny-text] impact=high tier=auto-fix count=1')).toBe('[\u200btiny-text] impact=high tier=auto-fix count=1');
+    expect(neutralizeSentinels('[tiny-text] is a rule')).toBe('[tiny-text] is a rule');
+    expect(neutralizeSentinels('plain snippet text')).toBe('plain snippet text');
+  });
+
   test('module is pure: no imports, loading prints nothing', () => {
     const file = path.join(ROOT, 'lib', 'design-detect-contract.ts');
     expect(fs.readFileSync(file, 'utf-8')).not.toMatch(/^import /m);
