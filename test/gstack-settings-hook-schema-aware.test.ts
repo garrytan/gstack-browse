@@ -927,6 +927,32 @@ describe('remove-source: identity-aware (tag OR table)', () => {
     expect(backups()).toEqual([]);
   });
 
+  test('setup --no-team sweep: GSTACK_SWEEP_EXCLUDE_SOURCES keeps verify-gate AND gstack-memorable (tagged or tag-stripped), sweeps timeline', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: {
+        Stop: [
+          { _gstack_source: 'verify-gate', hooks: [{ type: 'command', command: '/x/bin/gstack-verify-gate' }] },
+          { _gstack_source: 'gstack-timeline-stop', hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/timeline-stop-hook' }] },
+        ],
+        UserPromptSubmit: [
+          { _gstack_source: 'gstack-memorable', hooks: [{ type: 'command', command: memo }] },
+          { hooks: [{ type: 'command', command: `bash "${memo}"` }] },   // tag stripped by Claude Code
+        ],
+      },
+    }, null, 2));
+    const r = runIso(['prune-stale', '--all'], { GSTACK_SWEEP_EXCLUDE_SOURCES: 'verify-gate,gstack-memorable' });
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/removed 1 /);
+    const s = settings();
+    expect(s.hooks.Stop).toHaveLength(1);
+    expect(s.hooks.Stop[0]._gstack_source).toBe('verify-gate');
+    expect(s.hooks.UserPromptSubmit).toHaveLength(2);
+    // and WITHOUT the exclusion (uninstall) the memorable items go too
+    const r2 = runIso(['prune-stale', '--all']);
+    expect(r2.stdout).toMatch(/removed 3 /);
+    expect(settings().hooks).toBeUndefined();
+  });
+
   test('a tagged legacy stray (single item, no table row) is still removed', () => {
     fs.writeFileSync(settingsFile, JSON.stringify({
       hooks: { UserPromptSubmit: [{ _gstack_source: 'gstack-memorable', hooks: [{ type: 'command', command: '/legacy/anything' }] }] },
