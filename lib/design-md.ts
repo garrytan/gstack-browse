@@ -44,8 +44,20 @@ export const TOKEN_GROUPS = ['colors', 'typography', 'rounded', 'spacing', 'comp
 export type TokenGroup = (typeof TOKEN_GROUPS)[number];
 
 export const FORMAT_MARKER_PREFIX = 'gstack: design-md-format=';
-export type FormatChoice = 'spec' | 'legacy-keep';
+export const FORMAT_CHOICES = ['spec', 'legacy-keep'] as const;
+export type FormatChoice = (typeof FORMAT_CHOICES)[number];
+const MARKER_RE_BODY = FORMAT_MARKER_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(' + FORMAT_CHOICES.join('|') + ')';
+/** `<!-- gstack: design-md-format=... -->` on line 1 (legacy files) */
+const LEGACY_MARKER_RE = new RegExp('^<!--\\s*' + MARKER_RE_BODY + '\\s*-->\\n?');
+/** `# gstack: design-md-format=...` as a YAML comment inside the front matter (spec files) */
+const YAML_MARKER_RE = new RegExp('^# ' + MARKER_RE_BODY + '\\s*$', 'm');
+/** Maximum `{path}` reference hops before a chain counts as a cycle. */
+export const TOKEN_REF_MAX_HOPS = 8;
+/** Headings that mark gstack's pre-spec file by themselves (either one is enough evidence of a legacy shape). */
+export const LEGACY_IDENTITY_HEADINGS = ['Product Context', 'Aesthetic Direction'] as const;
 export type DesignMdFormat = 'spec' | 'legacy' | 'unknown' | 'missing';
+/** Machine-readable reason for an `unknown` (or `missing`) verdict; `reason` is the prose. */
+export type FormatCode = 'spec' | 'legacy' | 'missing' | 'frontmatter-unparsable' | 'ambiguous' | 'no-token-groups' | 'no-shape';
 
 /** Headings that identify gstack's pre-spec DESIGN.md. */
 export const LEGACY_HEADINGS = ['Product Context', 'Aesthetic Direction', 'Color', 'Spacing', 'Decisions Log'];
@@ -97,7 +109,7 @@ export function parseDesignMd(text: string): DesignMdDoc {
   let frontmatter: Record<string, unknown> | null = null;
   let frontmatterError: string | undefined;
 
-  const legacyMarker = rest.match(/^<!--\s*gstack: design-md-format=(spec|legacy-keep)\s*-->\n?/);
+  const legacyMarker = rest.match(LEGACY_MARKER_RE);
   if (legacyMarker) {
     marker = legacyMarker[1] as FormatChoice;
     rest = rest.slice(legacyMarker[0].length);
@@ -106,7 +118,7 @@ export function parseDesignMd(text: string): DesignMdDoc {
     const end = rest.indexOf('\n---', 4);
     if (end !== -1 && (rest[end + 4] === '\n' || end + 4 === rest.length)) {
       frontmatterText = rest.slice(4, end + 1);
-      const m = frontmatterText.match(/^# gstack: design-md-format=(spec|legacy-keep)\s*$/m);
+      const m = frontmatterText.match(YAML_MARKER_RE);
       if (m) marker = m[1] as FormatChoice;
       const parsed = parseYaml(frontmatterText);
       frontmatter = parsed.value;
@@ -154,18 +166,19 @@ export function hasSpecFrontmatter(doc: DesignMdDoc): boolean {
   return TOKEN_GROUPS.some(g => g in doc.frontmatter!) || 'name' in doc.frontmatter;
 }
 
-export function detectFormat(doc: DesignMdDoc | null): { format: DesignMdFormat; reason?: string } {
-  if (!doc) return { format: 'missing' };
+export function detectFormat(doc: DesignMdDoc | null): { format: DesignMdFormat; code: FormatCode; reason?: string } {
+  if (!doc) return { format: 'missing', code: 'missing' };
   if (doc.frontmatterText !== null && doc.frontmatter === null) {
-    return { format: 'unknown', reason: `front matter does not parse: ${doc.frontmatterError ?? 'unknown error'}` };
+    return { format: 'unknown', code: 'frontmatter-unparsable', reason: `front matter does not parse: ${doc.frontmatterError ?? 'unknown error'}` };
   }
   const spec = hasSpecFrontmatter(doc);
-  const legacyHeadings = doc.sections.filter(s => ['product context', 'aesthetic direction'].includes(s.heading.trim().toLowerCase())).length > 0;
-  if (spec && legacyHeadings) return { format: 'unknown', reason: 'ambiguous (legacy headings and front matter both present)' };
-  if (spec) return { format: 'spec' };
-  if (isLegacyGstackFormat(doc)) return { format: 'legacy' };
-  if (doc.frontmatterText !== null) return { format: 'unknown', reason: 'front matter carries none of the five token groups' };
-  return { format: 'unknown', reason: 'no front matter and no gstack legacy headings' };
+  const identity = new Set<string>(LEGACY_IDENTITY_HEADINGS.map(h => h.toLowerCase()));
+  const legacyHeadings = doc.sections.some(s => identity.has(s.heading.trim().toLowerCase()));
+  if (spec && legacyHeadings) return { format: 'unknown', code: 'ambiguous', reason: 'ambiguous (legacy headings and front matter both present)' };
+  if (spec) return { format: 'spec', code: 'spec' };
+  if (isLegacyGstackFormat(doc)) return { format: 'legacy', code: 'legacy' };
+  if (doc.frontmatterText !== null) return { format: 'unknown', code: 'no-token-groups', reason: 'front matter carries none of the five token groups' };
+  return { format: 'unknown', code: 'no-shape', reason: 'no front matter and no gstack legacy headings' };
 }
 
 // ── YAML block emitter ───────────────────────────────────────────────────────
@@ -211,7 +224,7 @@ export function renderDesignMd(doc: DesignMdDoc, opts: RenderOptions = {}): stri
   const parts: string[] = [];
   const fm = opts.emitFrontmatter && doc.frontmatter ? emitYamlBlock(doc.frontmatter) + '\n' : doc.frontmatterText;
   if (fm !== null) {
-    const body = fm.replace(/^# gstack: design-md-format=(spec|legacy-keep)\s*\n/m, '');
+    const body = fm.replace(new RegExp(YAML_MARKER_RE.source + '\\n', 'm'), '');
     parts.push('---');
     if (doc.marker) parts.push(`# ${FORMAT_MARKER_PREFIX}${doc.marker}`);
     parts.push(body.replace(/\n$/, ''));
@@ -221,15 +234,69 @@ export function renderDesignMd(doc: DesignMdDoc, opts: RenderOptions = {}): stri
     if (doc.marker) parts.push(`<!-- ${FORMAT_MARKER_PREFIX}${doc.marker} -->`);
     if (doc.preamble) parts.push(doc.preamble);
   }
-  const canonical = CANONICAL_SECTIONS
-    .map(c => doc.sections.find(s => s.canonical === c))
-    .filter((s): s is Section => Boolean(s));
-  const extras = doc.sections.filter(s => !s.canonical);
-  for (const s of [...canonical, ...extras]) {
-    parts.push('', `## ${s.canonical ?? s.heading}`);
+  // Spec order is a spec-file property. A legacy or unknown file keeps its own
+  // order (Typography and Layout are canonical names, but re-sorting a file the
+  // user chose to keep legacy would rewrite it behind their back).
+  const specShaped = fm !== null;
+  const ordered = specShaped
+    ? [
+      ...CANONICAL_SECTIONS.map(c => doc.sections.find(s => s.canonical === c)).filter((s): s is Section => Boolean(s)),
+      ...doc.sections.filter(s => !s.canonical),
+    ]
+    : doc.sections;
+  for (const s of ordered) {
+    parts.push('', `## ${specShaped ? (s.canonical ?? s.heading) : s.heading}`);
     if (s.body.trim()) parts.push('', s.body.trim());
   }
   return parts.join('\n').replace(/^\n+/, '') + '\n';
+}
+
+/**
+ * Text-level section splice: replace the body of `## <heading>` (matched by
+ * canonical name or exact heading) or append the section at the end. Every other
+ * byte of the file, front matter included, is untouched. This is what a tool
+ * that edits a file the user owns should use; renderDesignMd is for files gstack
+ * writes from scratch (convert, skeletons).
+ */
+export function spliceSection(text: string, heading: string, body: string): string {
+  const src = text.replace(/\r\n/g, '\n');
+  const canonical = canonicalFor(heading);
+  const lines = src.split('\n');
+  let inFence = false;
+  let start = -1;
+  let end = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^```/.test(lines[i])) inFence = !inFence;
+    if (inFence) continue;
+    const h = lines[i].match(/^## (.+?)\s*$/);
+    if (!h) continue;
+    if (start === -1) {
+      const matches = canonical ? canonicalFor(h[1]) === canonical : h[1].trim().toLowerCase() === heading.trim().toLowerCase();
+      if (matches) start = i;
+    } else { end = i; break; }
+  }
+  const block = `## ${canonical ?? heading}\n\n${body.replace(/\s+$/, '')}\n`;
+  if (start === -1) {
+    return src.replace(/\s*$/, '') + '\n\n' + block;
+  }
+  const before = lines.slice(0, start).join('\n');
+  const after = lines.slice(end).join('\n');
+  return before + (before ? '\n' : '') + block + (after.trim() ? '\n' + after.replace(/^\n+/, '') : (after.endsWith('\n') ? '' : ''));
+}
+
+/**
+ * Text-level marker insertion: a YAML comment on line 2 of a file that opens
+ * with front matter, an HTML comment on line 1 otherwise. Replaces an existing
+ * marker; every other byte is untouched.
+ */
+export function insertMarker(text: string, choice: FormatChoice): string {
+  const src = text.replace(/\r\n/g, '\n');
+  const stripped = src.replace(LEGACY_MARKER_RE, '');
+  if (stripped.startsWith('---\n')) {
+    const withoutOld = stripped.replace(new RegExp('^---\\n' + YAML_MARKER_RE.source.replace(/^\^/, '') + '\\n', 'm'), '---\n');
+    return withoutOld.replace(/^---\n/, `---\n# ${FORMAT_MARKER_PREFIX}${choice}\n`);
+  }
+  return `<!-- ${FORMAT_MARKER_PREFIX}${choice} -->\n` + stripped;
 }
 
 /** Replace or add a section; canonical names slot into spec order, extras append. Body-only: front matter bytes untouched. */
@@ -278,7 +345,7 @@ export function tokensFlat(frontmatter: Record<string, unknown> | null): FlatTok
     let seen = 0;
     let cur: unknown = raw[target];
     let curKey = target;
-    while (typeof cur === 'string' && /^\{[a-zA-Z0-9_.-]+\}$/.test(cur) && seen < 8) {
+    while (typeof cur === 'string' && /^\{[a-zA-Z0-9_.-]+\}$/.test(cur) && seen < TOKEN_REF_MAX_HOPS) {
       curKey = cur.slice(1, -1);
       cur = raw[curKey];
       seen++;
@@ -292,7 +359,8 @@ export function tokensFlat(frontmatter: Record<string, unknown> | null): FlatTok
 
 // ── Legacy conversion ────────────────────────────────────────────────────────
 
-function slug(s: string): string {
+/** kebab-case token key from a human label */
+export function slug(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'token';
 }
 
@@ -395,7 +463,7 @@ export function convertLegacy(doc: DesignMdDoc, opts: { name?: string } = {}): D
   }
   if (Object.keys(rounded).length) fm.rounded = rounded;
 
-  const consumed = new Set(['product context', 'aesthetic direction', 'typography', 'color', 'colors', 'spacing', 'layout']);
+  const consumed = new Set([...LEGACY_IDENTITY_HEADINGS.map(h => h.toLowerCase()), 'typography', 'color', 'colors', 'spacing', 'layout']);
   const sections: Section[] = [];
   sections.push({ heading: 'Overview', canonical: 'Overview', body: overview.join('\n\n') || '(no product context recorded)' });
   if (color) sections.push({ heading: 'Colors', canonical: 'Colors', body: color.trim() });
@@ -410,7 +478,7 @@ export function convertLegacy(doc: DesignMdDoc, opts: { name?: string } = {}): D
     frontmatterText: emitYamlBlock(fm) + '\n',
     frontmatter: fm,
     marker: 'spec',
-    preamble: title ? `# ${title}` : doc.preamble,
+    preamble: doc.preamble, // the title line and any intro prose under it survive verbatim
     sections,
   };
 }

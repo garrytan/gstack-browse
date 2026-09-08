@@ -14,8 +14,10 @@
  *          ambiguous file (DESIGN_MD_CONVERT_REFUSED, exit 2) and a non-legacy one (exit 1).
  * tokens   Flat token map as JSON ({"colors.primary": "#F59E0B", ...}); {path} refs resolved;
  *          invalid refs listed under "errors" (DESIGN_MD_TOKEN_REF_INVALID). Exit 0.
- * mark     Persist the user's one-time format choice inside the file: spec files get a YAML
- *          comment on line 2, legacy files an HTML comment on line 1. Body bytes untouched.
+ * mark     Persist the user's one-time format choice inside the file: a file that opens with
+ *          front matter gets a YAML comment on line 2, any other file an HTML comment on
+ *          line 1. A text-level splice: every other byte is untouched. Refuses a choice that
+ *          contradicts the file (spec on a non-spec file, legacy-keep on a spec file), exit 2.
  *
  * Exit 3 + DESIGN_MD_INTERNAL_ERROR is a gstack bug. YAML errors never propagate: a file whose
  * front matter does not parse is `unknown` with a reason.
@@ -23,23 +25,18 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SENTINEL } from '../lib/design-detect-contract';
+import { atomicWriteSync } from '../lib/fs-atomic';
 import {
-  parseDesignMd, detectFormat, convertLegacy, renderDesignMd, tokensFlat, setMarker,
+  parseDesignMd, detectFormat, convertLegacy, renderDesignMd, tokensFlat, insertMarker,
   type DesignMdDoc, type FormatChoice,
 } from '../lib/design-md';
 
 function resolveFile(arg?: string): string {
-  return path.resolve(arg && !arg.startsWith('--') ? arg : 'DESIGN.md');
+  return path.resolve(arg ?? 'DESIGN.md');
 }
 
 function load(file: string): { text: string; doc: DesignMdDoc } | null {
   try { const text = fs.readFileSync(file, 'utf-8'); return { text, doc: parseDesignMd(text) }; } catch { return null; }
-}
-
-function writeAtomic(file: string, content: string) {
-  const tmp = `${file}.tmp-${process.pid}`;
-  fs.writeFileSync(tmp, content);
-  fs.renameSync(tmp, file);
 }
 
 export function main(argv = process.argv.slice(2)): number {
@@ -60,8 +57,8 @@ export function main(argv = process.argv.slice(2)): number {
     case 'convert': {
       const file = resolveFile(positional[0]);
       const loaded = load(file);
-      const { format, reason } = detectFormat(loaded?.doc ?? null);
-      if (format === 'unknown' && reason?.startsWith('ambiguous')) {
+      const { format, code, reason } = detectFormat(loaded?.doc ?? null);
+      if (code === 'ambiguous') {
         process.stderr.write(`${SENTINEL.DESIGN_MD_CONVERT_REFUSED}: ${reason}\n`);
         return 2;
       }
@@ -72,7 +69,7 @@ export function main(argv = process.argv.slice(2)): number {
       const out = renderDesignMd(convertLegacy(loaded.doc), { emitFrontmatter: true });
       if (flags.has('--write')) {
         fs.writeFileSync(`${file}.legacy.bak`, loaded.text);
-        writeAtomic(file, out);
+        atomicWriteSync(file, out);
         process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: spec\n${SENTINEL.DESIGN_MD_WRITTEN}: ${file}\n${SENTINEL.DESIGN_MD_BACKUP}: ${file}.legacy.bak\n`);
       } else {
         process.stdout.write(out);
@@ -96,7 +93,12 @@ export function main(argv = process.argv.slice(2)): number {
       const file = resolveFile(positional[1]);
       const loaded = load(file);
       if (!loaded) { process.stdout.write(`${SENTINEL.DESIGN_MD_FORMAT}: missing\n`); return 1; }
-      writeAtomic(file, renderDesignMd(setMarker(loaded.doc, choice)));
+      const { format } = detectFormat(loaded.doc);
+      if ((choice === 'spec' && format !== 'spec') || (choice === 'legacy-keep' && format === 'spec')) {
+        process.stderr.write(`${SENTINEL.DESIGN_MD_CONVERT_REFUSED}: mark ${choice} contradicts the file's format (${format}); file unchanged\n`);
+        return 2;
+      }
+      atomicWriteSync(file, insertMarker(loaded.text, choice));
       process.stdout.write(`${SENTINEL.DESIGN_MD_MARKER}: ${choice}\n`);
       return 0;
     }
