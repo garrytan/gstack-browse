@@ -24,6 +24,8 @@ colors:
   base-dark: "#0C0C0C"
   surface-light: "#FFFFFF"
   base-light: "#FAFAF9"
+  border-dark: "#262626"
+  border-light: "#E7E5E4"
   success: "#22C55E"
   warning: "#F59E0B"
   error: "#EF4444"
@@ -137,3 +139,5 @@ Apply a subtle noise overlay to the entire page for materiality:
 | 2026-03-21 | Light mode amber-600 | amber-500 too bright/washed against white; amber-700 too brown/umber. amber-600 is the sweet spot. |
 | 2026-03-21 | Grain texture | Adds materiality to flat dark surfaces. Prevents the "generic SaaS template" sameness. |
 | 2026-09-08 | Open DESIGN.md format | Converted with `gstack-design-md convert`: tokens in front matter, canonical sections, Motion and Decisions Log kept as extras. DM Sans stays the body face: it sits on the overused-as-display list, and body/UI use on an Operate surface is the allowed exception under the role-scoped rule. |
+| 2026-09-08 | Live-feed pulse is the one authored motion moment | The dashboard's 2s pulse on the live-feed dot is the page's single authored motion, so it stands as an intentional exception to the pulsing-dot catalog rule; every other surface keeps state changes static. |
+| 2026-09-08 | JetBrains Mono labels at 11px | The mono personality font runs on labels at 11px (Nano), below the 12px UI-text floor; an intentional exception recorded here so the detector's undersized-ui-text and monospace-costume rows are read as decided, not open. |

@@ -20,7 +20,7 @@ export function isFrontendPath(relPath: string): boolean {
   const rel = relPath.replace(/\\/g, '/').replace(/^\.\//, '');
   const base = rel.slice(rel.lastIndexOf('/') + 1);
   const dot = base.lastIndexOf('.');
-  const ext = dot >= 0 ? base.slice(dot).toLowerCase() : '';
+  const ext = dot >= 0 ? base.slice(dot) : ''; // case-sensitive, exactly like gstack-diff-scope's globs
   if (EXTENSIONS.has(ext)) return true;
   if (BASENAME_PREFIXES.some(p => base.startsWith(p))) return true;
   if (rel.startsWith('app/views/')) return true;

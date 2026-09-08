@@ -8,9 +8,11 @@
 //   test/impeccable-fixtures.test.ts  pins that the committed dump came from THIS script
 //
 // Contract (one script, two engines):
-//   - An IIFE expression: Aside's `pg.evaluate(...)` and `$B eval <file>` both
-//     wrap an expression, and every `aside repl '...'` body is a single-quoted
-//     bash string, so the text contains NO single-quote characters and no `${`.
+//   - An arrow-FUNCTION expression, never a self-calling IIFE: Aside's
+//     `pg.evaluate(fn)` receives the function and runs it in the page (an IIFE
+//     would execute in the repl sandbox, where there is no `document`), and the
+//     fallback engine calls it with `$B js "($_DUMP)()"`. Both splice the file's
+//     text into bash, so it contains NO single quotes, no backticks, and no `${`.
 //   - Works on a CLONE of document.documentElement, never the live page.
 //   - Inlines only the stylesheets a <link> owns (inline <style> nodes are
 //     already in the markup; re-serializing them double-counts) as one
@@ -25,13 +27,15 @@
 //   - Hygiene before the file leaves the browser: <script> bodies emptied,
 //     <input>/<textarea> values dropped, `value=` and `data-*` attributes over
 //     32 chars emptied, <meta content> emptied (charset and viewport kept: they
-//     carry no user data and the viewport hint is layout-relevant), href query
-//     strings cut, data: URLs over 1 KB replaced by a placeholder in attributes
-//     and in the inlined CSS.
+//     carry no user data and the viewport hint is layout-relevant), query
+//     strings cut from every URL-bearing attribute (href, src, srcset, poster,
+//     action, formaction, data, ping, cite: signed CDN and form URLs carry
+//     tokens), data: URLs over 1 KB replaced by a placeholder in attributes, in
+//     the inlined CSS, and in existing <style> nodes.
 //   - The trailing comment names what the dump cannot contain (shadow DOM,
 //     constructed stylesheets, runtime-injected styles when scripts were
 //     stripped) so the report can say so once.
-export const DOM_DUMP_SCRIPT = String.raw`(() => {
+export const DOM_DUMP_SCRIPT = String.raw`() => {
   const root = document.documentElement.cloneNode(true);
   const head = root.querySelector("head") || root;
   const inlined = [];
@@ -49,10 +53,10 @@ export const DOM_DUMP_SCRIPT = String.raw`(() => {
       crossOrigin.push(sheet.href || "(unknown)");
     }
   });
+  const dataUrl = new RegExp("url\\((\"?)data:[^)]{1024,}\\)", "g");
   if (inlined.length) {
     const style = document.createElement("style");
     style.setAttribute("data-gstack-dom-css", "");
-    const dataUrl = new RegExp("url\\((\"?)data:[^)]{1024,}\\)", "g");
     const rgb = new RegExp("rgb\\((\\d+), (\\d+), (\\d+)\\)", "g");
     const hex = (n) => Number(n).toString(16).padStart(2, "0");
     style.textContent = inlined.join("\n")
@@ -60,6 +64,11 @@ export const DOM_DUMP_SCRIPT = String.raw`(() => {
       .replace(rgb, (m, r, g, b) => "#" + hex(r) + hex(g) + hex(b));
     head.appendChild(style);
   }
+  for (const el of Array.from(root.querySelectorAll("style"))) {
+    if (el.getAttribute("data-gstack-dom-css") === null && el.textContent) el.textContent = el.textContent.replace(dataUrl, "url(data:,gstack-stripped)");
+  }
+  const urlAttrs = ["href", "src", "poster", "action", "formaction", "data", "ping", "cite"];
+  const cutQuery = (v) => v.split("?")[0].split("#")[0];
   let scripts = 0;
   for (const el of Array.from(root.querySelectorAll("script"))) {
     if (el.textContent) { el.textContent = ""; scripts += 1; }
@@ -72,7 +81,8 @@ export const DOM_DUMP_SCRIPT = String.raw`(() => {
       if (name === "value" && (el.nodeName === "INPUT" || el.nodeName === "TEXTAREA")) el.setAttribute(name, "");
       else if ((name === "value" || name.indexOf("data-") === 0) && value.length > 32) el.setAttribute(name, "");
       else if (name === "content" && el.nodeName === "META" && el.getAttribute("name") !== "viewport") el.setAttribute(name, "");
-      else if (name === "href" && value.indexOf("?") !== -1) el.setAttribute(name, value.split("?")[0]);
+      else if (name === "srcset") el.setAttribute(name, value.split(",").map((c) => { const parts = c.trim().split(/\s+/); parts[0] = cutQuery(parts[0] || ""); return parts.join(" "); }).join(", "));
+      else if (urlAttrs.indexOf(name) !== -1 && (value.indexOf("?") !== -1 || value.indexOf("#") !== -1) && value.indexOf("data:") !== 0) el.setAttribute(name, cutQuery(value));
       else if (value.indexOf("data:") === 0 && value.length > 1024) el.setAttribute(name, "data:,gstack-stripped");
     }
   }
@@ -80,7 +90,7 @@ export const DOM_DUMP_SCRIPT = String.raw`(() => {
   if (crossOrigin.length) notes.push("cross-origin stylesheets not resolved: " + crossOrigin.join(" "));
   if (scripts) notes.push("scripts stripped: " + scripts + "; styles injected at runtime not captured");
   return "<!DOCTYPE html>\n" + root.outerHTML + "\n<!-- gstack-dom-dump: " + notes.join("; ") + " -->\n";
-})()`;
+}`;
 
 /**
  * Committed copy of DOM_DUMP_SCRIPT for the browser engines to load at runtime

@@ -29,12 +29,9 @@ export type Confidence = 'HIGH' | 'MEDIUM' | 'LOW';
 export type ReviewTier = 'auto-fix' | 'ask' | 'possible';
 export type Impact = 'high' | 'medium' | 'polish';
 export type FontRole = 'display' | 'body' | 'ui' | 'mono';
-export type Handoff = 'typeset' | 'layout' | 'colorize' | 'harden' | 'clarify' | 'polish' | 'animate' | 'quieter';
-
-/** The `/impeccable <cmd>` commands a deferred finding may hand off to. */
-export const HANDOFF_COMMANDS: readonly Handoff[] = [
-  'typeset', 'layout', 'colorize', 'harden', 'clarify', 'polish', 'animate', 'quieter',
-];
+/** The `/impeccable <cmd>` commands a deferred finding may hand off to (one source for the type and the prose). */
+export const HANDOFF_COMMANDS = ['typeset', 'layout', 'colorize', 'harden', 'clarify', 'polish', 'animate', 'quieter'] as const;
+export type Handoff = (typeof HANDOFF_COMMANDS)[number];
 
 export interface DesignSlopEntry {
   /** kebab-case; equals impeccableId when the detector knows the rule */
@@ -103,7 +100,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
   {
     id: 'centered-everything', name: 'Centered everything',
     prose: 'Centered everything (`text-align: center` on all headings, descriptions, cards)',
-    category: 'layout', kind: 'slop', detect: ['grep', 'llm'], confidence: 'HIGH', tier: 'ask', impact: 'medium',
+    category: 'layout', kind: 'slop', detect: ['grep', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     heuristic: 'Grep for `text-align: center` density: if more than 60% of text containers center, flag it.',
     handoff: 'layout', source: 'gstack', legacyBlacklist: true,
   },
@@ -666,7 +663,7 @@ export const OVERUSED_FONTS_DISPLAY: readonly string[] = OVERUSED_DISPLAY;
 /** Never, in any role. */
 export const BANNED_FONTS: readonly string[] = [
   'Papyrus', 'Comic Sans', 'Lobster', 'Impact', 'Jokerman', 'Bleeding Cowboys', 'Permanent Marker',
-  'Bradley Hand', 'Brush Script', 'Hobo', 'Trajan', 'Raleway', 'Clash Display', 'Courier New (for body)',
+  'Bradley Hand', 'Brush Script', 'Hobo', 'Trajan', 'Raleway', 'Clash Display', 'Courier New',
 ];
 
 /** On the overused list, yet fine as body or UI on an Operate or Read surface when the proposal says so. */
@@ -705,33 +702,37 @@ export function entryForImpeccableId(impeccableId: string): DesignSlopEntry | un
 
 export interface RenderCatalogOptions {
   kind?: 'slop' | 'quality';
-  category?: SlopCategory;
   /** drop entries whose impact is in this list (e.g. ['polish'] for a shorter list) */
   omitImpact?: Impact[];
-  /**
-   * bullets: `- prose` (design-consultation, design-shotgun: prose only, no ids)
-   * ids:     `- [impeccableId] prose`, bracket only when the detector knows the id
-   * compact: `id: name; id: name; ...` on one line
-   */
-  style: 'bullets' | 'ids' | 'compact';
 }
 
-export function selectCatalog(o: Omit<RenderCatalogOptions, 'style'>): DesignSlopEntry[] {
+export function selectCatalog(o: RenderCatalogOptions): DesignSlopEntry[] {
   return DESIGN_SLOP_CATALOG.filter(e =>
     (!o.kind || e.kind === o.kind)
-    && (!o.category || e.category === o.category)
     && !(o.omitImpact && o.omitImpact.includes(e.impact)),
   );
 }
 
+/** `- prose` bullets, no ids: the register the proposal skills render (design-consultation, design-shotgun). */
 export function renderCatalog(o: RenderCatalogOptions): string {
-  const entries = selectCatalog(o);
-  switch (o.style) {
-    case 'bullets':
-      return entries.map(e => `- ${e.prose}`).join('\n');
-    case 'ids':
-      return entries.map(e => (e.impeccableId ? `- [${e.impeccableId}] ${e.prose}` : `- ${e.prose}`)).join('\n');
-    case 'compact':
-      return entries.map(e => `${e.impeccableId ?? e.id}: ${e.name}`).join('; ');
-  }
+  return selectCatalog(o).map(e => `- ${e.prose}`).join('\n');
+}
+
+/** Slop the detector knows, minus the 11 legacy lines: what design doctrine renders as bracketed ids. */
+export function detectorSlopEntries(o: { omitPolish?: boolean } = {}): DesignSlopEntry[] {
+  return DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && e.impeccableId && !e.legacyBlacklist && !(o.omitPolish && e.impact === 'polish'));
+}
+
+/** gstack-only slop tells (no detector rule), minus the legacy lines: the LLM pass is the detector. */
+export function judgmentTellEntries(o: { omitPolish?: boolean } = {}): DesignSlopEntry[] {
+  return DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && !e.impeccableId && !e.legacyBlacklist && !(o.omitPolish && e.impact === 'polish'));
+}
+
+/** Catalog entries by id, throwing with the id when one is missing (a rename must fail loudly at gen time). */
+export function catalogEntries(ids: string[]): DesignSlopEntry[] {
+  return ids.map(id => {
+    const e = BY_ID.get(id);
+    if (!e) throw new Error(`lib/design-catalog.ts: no entry with id "${id}"`);
+    return e;
+  });
 }

@@ -14,7 +14,7 @@ import { spawnSync } from 'child_process';
 import {
   DESIGN_SLOP_CATALOG, HANDOFF_COMMANDS, OVERUSED_FONTS_DISPLAY, BANNED_FONTS, MOCKUP_NEVER_NAMES,
   FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE,
-  catalogEntry, entryForImpeccableId, renderCatalog, selectCatalog,
+  catalogEntry, catalogEntries, entryForImpeccableId, renderCatalog, selectCatalog, detectorSlopEntries, judgmentTellEntries,
 } from '../lib/design-catalog';
 import { AI_SLOP_BLACKLIST } from '../scripts/resolvers/constants';
 
@@ -138,43 +138,37 @@ describe('fonts', () => {
   });
 
   test('banned fonts and overused fonts do not overlap; mono list is mono', () => {
-    for (const f of BANNED_FONTS) expect(OVERUSED_FONTS_DISPLAY).not.toContain(f);
+    for (const f of BANNED_FONTS) { expect(OVERUSED_FONTS_DISPLAY).not.toContain(f); expect(f).not.toMatch(/\(/); } // no role qualifiers: banned means every role
     for (const f of FONTS_MONO_OK) expect(f).toMatch(/Mono|Code/);
   });
 });
 
-describe('renderCatalog', () => {
-  test('ids style brackets only detector-known ids', () => {
-    const out = renderCatalog({ kind: 'slop', style: 'ids' });
-    expect(out).toContain('- [nested-cards] ');
-    expect(out).toContain('- [side-tab] ');
-    for (const e of DESIGN_SLOP_CATALOG.filter(x => !x.impeccableId)) {
-      expect(out).not.toContain(`[${e.id}]`);
-    }
-    // gstack-only prose still renders, unbracketed
-    expect(out).toContain('- ' + catalogEntry('hero-metrics')!.prose);
-  });
-
+describe('renderCatalog + partitions', () => {
   test('bullets style renders prose only, no ids anywhere', () => {
-    const out = renderCatalog({ kind: 'slop', style: 'bullets' });
+    const out = renderCatalog({ kind: 'slop' });
     expect(out).not.toMatch(/^- \[/m);
     expect(out.split('\n').length).toBe(selectCatalog({ kind: 'slop' }).length);
     for (const line of AI_SLOP_BLACKLIST) expect(out).toContain(`- ${line}`);
   });
 
-  test('compact style is one line of id: name pairs', () => {
-    const out = renderCatalog({ kind: 'quality', style: 'compact' });
-    expect(out.includes('\n')).toBe(false);
-    expect(out).toContain('low-contrast: Low contrast text');
-    expect(out.split('; ').length).toBe(selectCatalog({ kind: 'quality' }).length);
-  });
-
-  test('filters compose: category and omitImpact', () => {
-    const copy = selectCatalog({ kind: 'slop', category: 'copy' });
-    expect(copy.every(e => e.category === 'copy')).toBe(true);
+  test('omitImpact filters', () => {
     const noPolish = selectCatalog({ kind: 'slop', omitImpact: ['polish'] });
     expect(noPolish.some(e => e.impact === 'polish')).toBe(false);
     expect(noPolish.length).toBeLessThan(selectCatalog({ kind: 'slop' }).length);
+  });
+
+  test('detector-known slop and judgment tells partition the non-legacy slop entries', () => {
+    const detector = detectorSlopEntries();
+    const tells = judgmentTellEntries();
+    expect(detector.every(e => e.impeccableId && !e.legacyBlacklist && e.kind === 'slop')).toBe(true);
+    expect(tells.every(e => !e.impeccableId && !e.legacyBlacklist && e.kind === 'slop')).toBe(true);
+    expect(detector.length + tells.length + 11).toBe(selectCatalog({ kind: 'slop' }).length);
+    expect(detectorSlopEntries({ omitPolish: true }).every(e => e.impact !== 'polish')).toBe(true);
+  });
+
+  test('catalogEntries throws with the missing id', () => {
+    expect(() => catalogEntries(['nested-cards', 'no-such-id'])).toThrow('no-such-id');
+    expect(catalogEntries(['nested-cards'])[0].name).toBe('Nested cards');
   });
 });
 

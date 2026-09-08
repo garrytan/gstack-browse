@@ -18,7 +18,7 @@ import { SENTINEL, DETECT_EXIT_ECHO } from '../../lib/design-detect-contract';
 export const DESIGN_CHECKLIST_HEADER =
   '<!-- GENERATED from lib/design-catalog.ts via scripts/resolvers/design-checklist.ts. Run: bun run gen:skill-docs -->';
 
-/** Title and category heading are load-bearing: test/skill-e2e-review.test.ts and hosts/opencode.ts key on them. */
+/** Title and category heading are load-bearing: test/design-checklist-sync.test.ts pins them, and the review-lite prose (scripts/resolvers/design.ts) names the checklist by title. */
 export const DESIGN_CHECKLIST_TITLE = 'Design Review Checklist (Lite)';
 export const DESIGN_CHECKLIST_SLOP_HEADING = 'AI Slop Detection';
 
@@ -26,11 +26,15 @@ const TIER_ORDER: Record<DesignSlopEntry['confidence'], number> = { HIGH: 0, MED
 
 /** Category 1: slop entries a code reader can grep for, plus the legacy blacklist lines. */
 export function checklistSlopEntries(): DesignSlopEntry[] {
+  // Array.prototype.sort is stable, so catalog order survives within a tier.
   return DESIGN_SLOP_CATALOG
     .filter(e => e.kind === 'slop' && (e.detect.includes('grep') || e.legacyBlacklist))
-    .map((e, i) => ({ e, i }))
-    .sort((a, b) => (TIER_ORDER[a.e.confidence] - TIER_ORDER[b.e.confidence]) || (a.i - b.i))
-    .map(x => x.e);
+    .sort((a, b) => TIER_ORDER[a.confidence] - TIER_ORDER[b.confidence]);
+}
+
+/** Catalog rules a review may fix without asking: mechanical CSS changes with HIGH confidence. */
+export function autoFixEntries(): DesignSlopEntry[] {
+  return DESIGN_SLOP_CATALOG.filter(e => e.tier === 'auto-fix');
 }
 
 function endsWithPunctuation(s: string): boolean {
@@ -55,7 +59,7 @@ export function generateDesignChecklistMd(): string {
   return `${DESIGN_CHECKLIST_HEADER}
 # ${DESIGN_CHECKLIST_TITLE}
 
-> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of \`lib/design-catalog.ts\`, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run \`bun run gen:skill-docs\`.
+> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of \`lib/design-catalog.ts\` plus the legacy blacklist lines, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run \`bun run gen:skill-docs\`.
 
 ## Instructions
 
@@ -99,7 +103,7 @@ A bracketed \`[rule-id]\` names the deterministic detector rule for the same pat
 **AUTO-FIX** (mechanical CSS fixes only — HIGH confidence, no design judgment needed):
 - \`outline: none\` without replacement → add \`outline: revert\` or \`&:focus-visible { outline: 2px solid currentColor; }\`
 - \`!important\` in new CSS → remove and fix specificity
-- \`font-size\` < 16px on body text → bump to 16px
+${autoFixEntries().map(e => `- ${e.impeccableId ? `[${e.impeccableId}] ` : ''}${e.prose}`).join('\n')}
 
 **ASK** (everything else — requires design judgment):
 - All AI slop findings, typography structure, spacing choices, interaction state gaps, DESIGN.md violations

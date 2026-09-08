@@ -1,5 +1,6 @@
 <!-- AUTO-GENERATED from proposal-and-preview.md.tmpl — do not edit directly -->
 <!-- Regenerate: bun run gen:skill-docs -->
+<!-- The font-selection procedure and the three-looks calibration in this section are derived from pbakaus/impeccable reference/new-work.md (Apache-2.0), rewritten and modified. See NOTICE.md. -->
 ## Phase 3: The Complete Proposal
 
 This is the soul of the skill. Propose EVERYTHING as one coherent package.
@@ -42,11 +43,11 @@ The SAFE/RISK breakdown is critical. Design coherence is table stakes — every 
 **Aesthetic directions** (pick the one that fits the product):
 - Brutally Minimal — Type and whitespace only. No decoration. Modernist.
 - Maximalist Chaos — Dense, layered, pattern-heavy. Y2K meets contemporary.
-- Retro-Futuristic — Vintage tech nostalgia. CRT glow, pixel grids, warm monospace.
+- Retro-Futuristic — Vintage tech nostalgia. Phosphor palette, bitmap type, warm monospace for data (no glow halos, no grid-paper backgrounds).
 - Luxury/Refined — Serifs, high contrast, generous whitespace, precious metals.
-- Playful/Toy-like — Rounded, bouncy, bold primaries. Approachable and fun.
+- Playful/Toy-like — Rounded, springy (no overshoot), bold primaries. Approachable and fun.
 - Editorial/Magazine — Strong typographic hierarchy, asymmetric grids, pull quotes.
-- Brutalist/Raw — Exposed structure, system fonts, visible grid, no polish.
+- Brutalist/Raw — Exposed structure, one utilitarian grotesk, visible grid, no polish (a system stack only when the user asks for it by name).
 - Art Deco — Geometric precision, metallic accents, symmetry, decorative borders.
 - Organic/Natural — Earth tones, rounded forms, hand-drawn texture, grain.
 - Industrial/Utilitarian — Function-first, data-dense, monospace accents, muted palette.
@@ -65,7 +66,7 @@ The SAFE/RISK breakdown is critical. Design coherence is table stakes — every 
 
 **Fine as body/UI on an Operate or Read surface when the proposal says so:** DM Sans, Instrument Sans, IBM Plex Sans. **Mono for data and code:** JetBrains Mono, IBM Plex Mono, Fira Code.
 
-**Banned in any role:** Papyrus, Comic Sans, Lobster, Impact, Jokerman, Bleeding Cowboys, Permanent Marker, Bradley Hand, Brush Script, Hobo, Trajan, Raleway, Clash Display, Courier New (for body).
+**Banned in any role:** Papyrus, Comic Sans, Lobster, Impact, Jokerman, Bleeding Cowboys, Permanent Marker, Bradley Hand, Brush Script, Hobo, Trajan, Raleway, Clash Display, Courier New.
 
 **Freely available faces on no default list** (verified 2026-09-08; re-verify in-session before naming one): Satoshi, General Sans, Clash Grotesk, Cabinet Grotesk (Fontshare); Instrument Serif, Source Sans 3, JetBrains Mono, Fira Code (Google Fonts). Short on purpose. A long list of "good" fonts is how the last convergence happened.
 
@@ -124,7 +125,7 @@ User asks for a listed face by name: comply, state the tradeoff once.
 When the user overrides one section, check if the rest still coheres. Flag mismatches with a gentle nudge — never block:
 
 - Brutalist/Minimal aesthetic + expressive motion → "Heads up: brutalist aesthetics usually pair with minimal motion. Your combo is unusual — which is fine if intentional. Want me to suggest motion that fits, or keep it?"
-- Drenched color + restrained decoration → "Bold palette with minimal decoration can work, but the colors will carry a lot of weight. Want me to suggest decoration that supports the palette?"
+- Drenched color + minimal decoration → "Bold palette with minimal decoration can work, but the colors will carry a lot of weight. Want me to suggest decoration that supports the palette?"
 - Creative-editorial layout + data-heavy product → "Editorial layouts are gorgeous but can fight data density. Want me to show how a hybrid approach keeps both?"
 - Always accept the user's final choice. Never refuse to proceed.
 
@@ -176,7 +177,7 @@ Show each variant inline (Read tool on each PNG) for instant preview.
 a human designer be embarrassed to put their name on this?"* If yes, discard the
 variant and regenerate. This is a hard gate. A mediocre AI mockup is worse than no
 mockup. Embarrassment triggers include: purple gradient hero, 3-column SaaS grid,
-centered-everything, Inter body text, generic stock-photo vibe, system-ui font,
+centered-everything, an overused face as the display voice, generic stock-photo vibe, system-ui font,
 gradient CTA button, bubble-radius everything. Any of those = reject and regenerate.
 
 Tell the user: "I've generated 3 visual directions applying your design system to a realistic [product type] screen. Pick your favorite in the comparison board that just opened in your browser. You can also remix elements across variants."
@@ -322,7 +323,7 @@ open "$PREVIEW_FILE"
 
 The agent writes a **single, self-contained HTML file** (no framework dependencies) that:
 
-1. **Loads proposed fonts** from Google Fonts (or Bunny Fonts) via `<link>` tags
+1. **Loads proposed fonts** from the source verified in step (4) of the font procedure (Google Fonts, Fontshare, or the self-hosted files) via `<link>` tags
 2. **Uses the proposed color palette** throughout — dogfood the design system
 3. **Shows the product name** (not "Lorem Ipsum") as the hero heading
 4. **Font specimen section:**

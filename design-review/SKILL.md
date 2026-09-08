@@ -819,7 +819,7 @@ Remember `RUN_ID` and restate it literally in later blocks (each bash block is a
 _DJ=$(mktemp); bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts scan --changed <base> --format gstack --host claude > "$_DJ"; echo "DETECT_EXIT_CODE=$?"; echo "DETECT_JSON=$_DJ"
 ```
 
-DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into `$REPORT_DIR/dom/$RUN_ID/` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 3 is a gstack bug (`DESIGN_DETECT_INTERNAL_ERROR`: report it, never retry). Each rule in the `DETECT_TOP` block becomes one `FINDING-NNN` tagged `[rule-id]` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports `Detector: N → M`. When `IMPECCABLE_SKILL: present`, end each deferred finding with the `handoff=` command the scan printed (`/impeccable typeset`, `layout`, `colorize`, `harden`, `clarify`, `animate`, `quieter`, or `polish`); recommend it, never open its files.
+DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into `$REPORT_DIR/dom/$RUN_ID/` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 3 is a gstack bug (`DESIGN_DETECT_INTERNAL_ERROR`: report it, never retry). Each rule in the `DETECT_TOP` block becomes one `FINDING-NNN` tagged `[rule-id]` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports `Detector: N → M`. When `IMPECCABLE_SKILL: present`, end each deferred finding with the `handoff=` command the scan printed (`/impeccable typeset`, `layout`, `colorize`, `harden`, `clarify`, `polish`, `animate`, `quieter`); recommend it, never open its files.
 
 ---
 
@@ -1074,7 +1074,7 @@ After each script, `cp` its files out of the `ASIDE_DIR` it printed into `$REPOR
 
 ### DOM dump (DOM mode only: Setup printed `IMPECCABLE_READY` and the target is a URL)
 
-Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, `$HOME/.claude/skills/gstack/lib/dom-dump.js`, serves both engines: it clones the document, inlines linked stylesheets as `<style data-gstack-dom-css>`, strips scripts, input values, long attributes, and query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the script is spliced in from the file, so this block is double-quoted):
+Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, `$HOME/.claude/skills/gstack/lib/dom-dump.js` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as `<style data-gstack-dom-css>`, strips scripts, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the function text is spliced in from the file, so this block is double-quoted; `pg.evaluate` receives the function and runs it in the page):
 
 ```bash
 _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")
@@ -1086,26 +1086,26 @@ console.log(\"ASIDE_DIR=\" + pwd); await closeTab(pg); console.log(\"GSTACK_STEP
 "
 ```
 
-Fallback engine (`--out` accepts only temp dirs or cwd; never `$B html`, which wraps output in content markers):
+Fallback engine (`$B js` calls the function in the page; `--out` accepts only temp dirs or cwd; never `$B html`, which wraps output in content markers):
 
 ```bash
-_TMP=$(mktemp -d); cp "$HOME/.claude/skills/gstack/lib/dom-dump.js" "$_TMP/"
-$B eval "$_TMP/dom-dump.js" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
+_TMP=$(mktemp -d); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")
+$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
 ```
 
-Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review):
+Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review). Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
 
 ```bash
-_D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _RUN="<RUN_ID from Setup>"
+_D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _REPORT="<REPORT_DIR from Setup>"; _RUN="<RUN_ID from Setup>"
 if [ "$(wc -c < "$_D")" -gt 10485760 ]; then echo "DOM_DUMP_TOO_LARGE: {page} $(wc -c < "$_D")"; rm -f "$_D"
 elif $HOME/.claude/skills/gstack/bin/gstack-redact --from-file "$_D" >/dev/null 2>&1; [ $? -eq 3 ]; then echo "DOM_DUMP_REDACTION_BLOCKED: {page}"; rm -f "$_D"
-else mkdir -p "$REPORT_DIR/dom/$_RUN" && cp "$_D" "$REPORT_DIR/dom/$_RUN/" && rm -f "$_D" && echo "DOM_DUMP_OK: {page}"; fi
+else mkdir -p "$_REPORT/dom/$_RUN" && cp "$_D" "$_REPORT/dom/$_RUN/" && rm -f "$_D" && echo "DOM_DUMP_OK: {page}"; fi
 ```
 
 After the LAST page's dump, scan the run directory once (source mode scanned in Setup instead):
 
 ```bash
-_DJ=$(mktemp); bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts scan --format gstack --host claude "$REPORT_DIR/dom/<RUN_ID>" > "$_DJ"; echo "DETECT_EXIT_CODE=$?"; echo "DETECT_JSON=$_DJ"
+_DJ=$(mktemp); bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts scan --format gstack --host claude "<REPORT_DIR from Setup>/dom/<RUN_ID>" > "$_DJ"; echo "DETECT_EXIT_CODE=$?"; echo "DETECT_JSON=$_DJ"
 ```
 
 Say once in the report: "static scan of the rendered DOM; cross-origin CSS not resolved". A DOM-mode `file:line` points into `{page}.dom.html` and is approximate (HTML findings carry line 0); the `snippet` locates the element. Confirm each hit in the rendered page, never by hunting a source line. Dumps are deleted after Phase 9 unless the user passed `--keep-dom`.
@@ -1148,7 +1148,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Measure: 45-75 chars per line (66 ideal)
 - Heading hierarchy: no skipped levels (h1→h3 without h2)
 - Weight contrast: >=2 weights used for hierarchy
-- No blacklisted fonts (Papyrus, Comic Sans, Lobster, Impact, Jokerman)
+- No banned fonts (Papyrus, Comic Sans, Lobster, Impact, Jokerman, Bleeding Cowboys, Permanent Marker, Bradley Hand, Brush Script, Hobo, Trajan, Raleway, Clash Display, Courier New)
 - Display face on the overused list (Inter, Roboto, Arial, Helvetica, Open Sans, Lato, ...) → flag `[overused-font]`; as body/UI on an Operate or Read surface it passes when DESIGN.md says so
 - `text-wrap: balance` or `text-pretty` on headings (check via `await pg.evaluate(() => getComputedStyle(document.querySelector("h1")).textWrap)`)
 - Curly quotes used, not straight quotes
@@ -1230,7 +1230,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Instructions detection: any visible instructions longer than one sentence. If users need to read instructions, the design has failed. Flag the instructions AND the interaction they're compensating for.
 - Happy talk word count: count total visible words on the page. Classify each text block as "useful content" vs "happy talk" (welcome paragraphs, self-congratulatory text, instructions nobody reads). Report: "This page has X words. Y (Z%) are happy talk."
 
-**9. AI Slop Detection** (11 blacklist patterns, 19 detector rules, 14 judgment tells)
+**9. AI Slop Detection** (11 blacklist patterns, 30 detector rules, 16 judgment tells; polish-level ones on the last line)
 
 The test: would a human designer at a respected studio ever ship this? A `[rule-id]` is the detector's name for the same pattern; a scan hit and a judgment hit on one element are one finding.
 
@@ -1386,7 +1386,7 @@ Write to: `~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md`
     "mode": "dom | source | none",
     "engine": "<engineVersion from the scan JSON; never a path>",
     "base": "<base commit, source mode only>",
-    "targetSet": "<sha256 of the sorted realpaths scanned>",
+    "targetSet": "<sha256 of the sorted target set: source mode = repo-relative paths scanned; DOM mode = the {page} slugs dumped (never the dated dump paths, which change every run)>",
     "total": 14,
     "byRule": { "kicker-above-heading": 2 },
     "byPage": { "home": { "kicker-above-heading": 2 } }
@@ -1493,15 +1493,15 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - First viewport reads as one composition, not a dashboard
 - Brand-first hierarchy: brand > headline > body > CTA
 - Typography: expressive, purposeful — no default stacks (Inter, Roboto, Arial, system)
-- No flat single-color backgrounds — use gradients, images, subtle patterns
+- No flat single-color backgrounds by default: texture from the brand or a real asset, never a halo, spotlight, stripe, or grid-paper gradient (the catalog names each)
 - Hero: full-bleed, edge-to-edge, no inset/tiled/rounded variants
 - Hero budget: brand, one headline, one supporting sentence, one CTA group, one image
 - No cards in hero. Cards only when card IS the interaction
 - One job per section: one purpose, one headline, one short supporting sentence
-- Motion: 2-3 intentional motions minimum (entrance, scroll-linked, hover/reveal)
+- Motion: one authored moment on the first viewport (an entrance or a scroll-linked reveal), ease-out from a visible default; hover states only where they carry information
 - Color: define CSS variables, avoid purple-on-white defaults, one accent color default
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
-- Beautiful defaults: composition-first, brand as loudest text, two typefaces max, cardless by default, first viewport as poster not document
+- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as poster not document
 
 **App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
@@ -1524,7 +1524,7 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 
 **Universal rules** (apply to ALL types):
 - Define CSS variables for color system
-- No default font stacks (Inter, Roboto, Arial, system)
+- No default font stacks as the display voice (Inter, Roboto, Arial, system); body/UI use on an Operate or Read surface follows the role-scoped list (DM Sans, Instrument Sans, IBM Plex Sans pass when the proposal says so)
 - One job per section
 - "If deleting 30% of the copy improves it, keep deleting"
 - Cards earn their existence — no decorative card grids

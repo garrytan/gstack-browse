@@ -1,7 +1,7 @@
 <!-- GENERATED from lib/design-catalog.ts via scripts/resolvers/design-checklist.ts. Run: bun run gen:skill-docs -->
 # Design Review Checklist (Lite)
 
-> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of `lib/design-catalog.ts`, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run `bun run gen:skill-docs`.
+> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of `lib/design-catalog.ts` plus the legacy blacklist lines, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run `bun run gen:skill-docs`.
 
 ## Instructions
 
@@ -45,7 +45,10 @@ A bracketed `[rule-id]` names the deterministic detector rule for the same patte
 **AUTO-FIX** (mechanical CSS fixes only — HIGH confidence, no design judgment needed):
 - `outline: none` without replacement → add `outline: revert` or `&:focus-visible { outline: 2px solid currentColor; }`
 - `!important` in new CSS → remove and fix specificity
-- `font-size` < 16px on body text → bump to 16px
+- [layout-transition] `transition: all`, or transitions on width, height, top, left. Animate transform and opacity.
+- [justified-text] Justified body text on the web leaves rivers. Left-align.
+- [tiny-text] Body text under 16px. Bump to 16px.
+- [all-caps-body] Uppercase paragraphs. Caps are for short labels.
 
 **ASK** (everything else — requires design judgment):
 - All AI slop findings, typography structure, spacing choices, interaction state gaps, DESIGN.md violations
@@ -84,8 +87,6 @@ If no frontend files changed: skip silently, no output.
 
 These are the telltale signs of AI-generated UI that no designer at a respected studio would ship.
 
-- **[HIGH]** Centered everything (`text-align: center` on all headings, descriptions, cards). Grep for `text-align: center` density: if more than 60% of text containers center, flag it.
-
 - **[HIGH]** [side-tab] Colored left-border on cards (`border-left: 3px solid <accent>`). Grep for `border-left: <n>px solid` on card, callout, or list-item selectors.
 
 - **[HIGH]** system-ui or `-apple-system` as the PRIMARY display/body font — the "I gave up on typography" signal. Pick a real typeface. Grep `font-family` on body, headings, and base styles for `system-ui` or `-apple-system` as the first face in the stack.
@@ -101,6 +102,8 @@ These are the telltale signs of AI-generated UI that no designer at a respected 
 - **[HIGH]** [extreme-negative-tracking] Letter-spacing below -0.04em on display type. Tight tracking is a taste; crushed tracking is a tell. Grep `letter-spacing` for values below -0.04em.
 
 - **[MEDIUM]** [ai-color-palette] Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes. Look for `linear-gradient` with values in the `#6366f1` to `#8b5cf6` range, or CSS custom properties resolving to purple/violet.
+
+- **[MEDIUM]** Centered everything (`text-align: center` on all headings, descriptions, cards). Grep for `text-align: center` density: if more than 60% of text containers center, flag it.
 
 - **[MEDIUM]** Uniform bubbly border-radius on every element (same large radius on everything). Aggregate `border-radius` values: if more than 80% share one value of 16px or more, flag it. Pill radius on everything is the extreme case.
 

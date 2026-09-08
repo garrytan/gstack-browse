@@ -18,9 +18,9 @@ const brief: DesignBrief = {
 };
 
 describe("briefToPrompt", () => {
-  test("carries a Never: line listing every MOCKUP_NEVER_NAMES entry, before the fixed tail", () => {
+  test("carries a Never-by-default line listing every MOCKUP_NEVER_NAMES entry, before the fixed tail", () => {
     const prompt = briefToPrompt(brief);
-    const never = `Never: ${MOCKUP_NEVER_NAMES.join(", ")}.`;
+    const never = `Never by default (unless the brief above asks for it): ${MOCKUP_NEVER_NAMES.join(", ")}.`;
     expect(prompt).toContain(never);
     expect(MOCKUP_NEVER_NAMES.length).toBeGreaterThanOrEqual(8);
     for (const name of MOCKUP_NEVER_NAMES) expect(prompt).toContain(name);
@@ -38,7 +38,7 @@ describe("briefToPrompt", () => {
     const prompt = briefToPrompt({ ...brief, constraints: "Max width 1024px", reference: "DESIGN.md excerpt" });
     expect(prompt).toContain("Constraints: Max width 1024px.");
     expect(prompt).toContain("Design reference: DESIGN.md excerpt");
-    expect(prompt).toContain("Never: ");
+    expect(prompt).toContain("Never by default (unless the brief above asks for it): ");
     expect(prompt.endsWith("1536x1024 pixels.")).toBe(true);
   });
 });

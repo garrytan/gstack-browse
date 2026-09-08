@@ -1888,7 +1888,7 @@ describe('DESIGN_DETECTOR resolver', () => {
     expect(c).toContain('scan --changed <base> --format gstack --host claude');
     expect(c).toContain('### DOM dump (DOM mode only');
     expect(c).toContain('data-gstack-dom-css');
-    expect(c).toContain('$B eval "$_TMP/dom-dump.js" --out "$_TMP/{page}.dom.html" --raw');
+    expect(c).toContain('$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw');
     expect(c).toContain('DOM_DUMP_OK');
     expect(c).toContain('DOM_DUMP_REDACTION_BLOCKED');
     expect(c).toContain('DOM_DUMP_TOO_LARGE');
@@ -1906,7 +1906,7 @@ describe('DESIGN_DETECTOR resolver', () => {
     expect(c).not.toContain('document.documentElement.cloneNode');
     expect(c).toContain('_DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
     expect(c).toContain('const html = await pg.evaluate($_DUMP);');
-    expect(c).toContain('cp "$HOME/.claude/skills/gstack/lib/dom-dump.js" "$_TMP/"');
+    expect(c).toContain('_TMP=$(mktemp -d); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
   });
 
   test('design-html carries the probe and the bounded slop gate', () => {

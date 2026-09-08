@@ -1005,6 +1005,30 @@ const ALL_HOSTS: Host[] = ALL_HOST_NAMES as Host[];
  * Returns the process exit code. Kept synchronous so the module stays
  * require()-able (see the llms.txt IIFE note below).
  */
+/**
+ * Write one generated file, or under DRY_RUN compare it to what is on disk and
+ * print STALE/FRESH. Returns true when the file is stale (dry run) — the caller
+ * folds that into its host-level `hasChanges`. Shared by sections and the
+ * lib-derived assets; the SKILL.md loop keeps its own copy because it also
+ * handles symlink loops and the token budget.
+ */
+function emitGenerated(outputPath: string, content: string): boolean {
+  const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
+  if (DRY_RUN) {
+    const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+    if (existing !== content) {
+      console.log(`STALE: ${relOutput}`);
+      return true;
+    }
+    console.log(`FRESH: ${relOutput}`);
+    return false;
+  }
+  if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, content);
+  console.log(`GENERATED: ${relOutput}`);
+  return false;
+}
+
 export function main(): number {
 const hostsToRun: Host[] = HOST_ARG_VAL === 'all' ? ALL_HOSTS : [HOST];
 const failures: { host: string; error: Error }[] = [];
@@ -1083,20 +1107,7 @@ for (const currentHost of hostsToRun) {
 
       const { outputPath, content } = processSectionTemplate(path.join(ROOT, sec.tmpl), sec.skillDir, currentHost);
       const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
-
-      if (DRY_RUN) {
-        const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
-        if (existing !== content) {
-          console.log(`STALE: ${relOutput}`);
-          hasChanges = true;
-        } else {
-          console.log(`FRESH: ${relOutput}`);
-        }
-      } else {
-        if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-        fs.writeFileSync(outputPath, content);
-        console.log(`GENERATED: ${relOutput}`);
-      }
+      if (emitGenerated(outputPath, content)) hasChanges = true;
 
       tokenBudget.push({
         skill: relOutput,
@@ -1121,21 +1132,7 @@ for (const currentHost of hostsToRun) {
         [DOM_DUMP_FILE, DOM_DUMP_SCRIPT + '\n'],
       ];
       for (const [rel, content] of generatedAssets) {
-        const outputPath = path.join(OUT_DIR ?? ROOT, rel);
-        const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
-        if (DRY_RUN) {
-          const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
-          if (existing !== content) {
-            console.log(`STALE: ${relOutput}`);
-            hasChanges = true;
-          } else {
-            console.log(`FRESH: ${relOutput}`);
-          }
-        } else {
-          if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-          fs.writeFileSync(outputPath, content);
-          console.log(`GENERATED: ${relOutput}`);
-        }
+        if (emitGenerated(path.join(OUT_DIR ?? ROOT, rel), content)) hasChanges = true;
       }
     }
 

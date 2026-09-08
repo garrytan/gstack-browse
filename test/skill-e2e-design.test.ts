@@ -9,6 +9,8 @@ import {
   createEvalCollector, finalizeEvalCollector, browseBin,
 } from './helpers/e2e-helpers';
 import { asideAvailable } from './helpers/aside-available';
+import { installFakeImpeccable, DETECT_SAMPLE } from './helpers/fake-impeccable';
+import { sliceBetween } from './helpers/skill-fixture';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -141,7 +143,10 @@ Write DESIGN.md and CLAUDE.md (or update it) in the working directory.`,
       // language" prose without any of the original four literals (run
       // 33090283032, both attempts; inputs identical to the prior passing
       // run 32899975845 — vocabulary variance, not a generation regression).
-      'Aesthetic': ['aesthetic', 'visual direction', 'design direction', 'visual identity', 'design language', 'visual language', 'design principle', 'look and feel', 'art direction'],
+      // Widened again 2026-09-08: the open DESIGN.md format's Overview opens with a
+      // "Creative North Star" and "Key characteristics" instead of an Aesthetic
+      // Direction heading (the judge passed both CI attempts on the vocabulary).
+      'Aesthetic': ['aesthetic', 'visual direction', 'design direction', 'visual identity', 'design language', 'visual language', 'design principle', 'look and feel', 'art direction', 'north star', 'key characteristics', '## overview'],
       'Typography': ['typography', 'type', 'font', 'typeface'],
       'Color': ['color', 'colour', 'palette', 'colors'],
       'Spacing': ['spacing', 'space', 'whitespace', 'gap'],
@@ -264,11 +269,21 @@ Do NOT generate a full DESIGN.md — just research notes.`,
   }, CAPTURE_LONG_MS);
 
   testConcurrentIfSelected('design-consultation-existing', async () => {
-    // Pre-create a minimal DESIGN.md (independent of core test)
+    // Pre-create a LEGACY-format DESIGN.md (gstack's pre-spec shape, no marker) so
+    // Phase 0's format check has a real decision to make.
     fs.writeFileSync(path.join(designDir, 'DESIGN.md'), `# Design System — CivicPulse
 
+## Product Context
+- **What this is:** Civic data platform
+
+## Aesthetic Direction
+- **Direction:** Industrial/Utilitarian
+
 ## Typography
-Body: system-ui
+- **Body:** system-ui
+
+## Color
+- **Primary:** #1D4ED8
 `);
 
     const result = await runSkillTest({
@@ -276,7 +291,7 @@ Body: system-ui
 
 There is already a DESIGN.md in this repo. Update it with a complete design system for CivicPulse, a civic tech data platform for government employees.
 
-Skip research. Skip font preview. Skip any AskUserQuestion calls — this is non-interactive.`,
+Run Phase 0's DESIGN.md format check exactly as written (the gstack bin directory is ${ROOT}/bin). Skip research. Skip font preview. Skip any AskUserQuestion calls — this is non-interactive: where the skill asks whether to convert the legacy file, take option A (convert) without asking.`,
       workingDirectory: designDir,
       maxTurns: 20,
       timeout: CAPTURE_LONG_MS,
@@ -298,11 +313,21 @@ Skip research. Skip font preview. Skip any AskUserQuestion calls — this is non
     const hasColor = designContent.toLowerCase().includes('color');
     const hasSpacing = designContent.toLowerCase().includes('spacing');
 
+    // Phase 0 format decision: the check ran, and the file left behind is either
+    // converted to the open format (marker on line 2) or explicitly kept legacy
+    // (marker on line 1). Either is the persisted-choice contract; "neither" is the bug.
+    const bash = result.toolCalls.filter(c => c.tool === 'Bash').map(c => String(c.input?.command ?? ''));
+    const ranCheck = bash.some(c => c.includes('gstack-design-md.ts check'));
+    const marked = /^---\n# gstack: design-md-format=spec/.test(designContent) || designContent.startsWith('<!-- gstack: design-md-format=legacy-keep -->');
+    console.log(`design-consultation-existing: ranCheck=${ranCheck} marked=${marked}`);
+
     recordE2E(evalCollector, '/design-consultation existing', 'Design Consultation E2E', result, {
-      passed: designExists && hasColor && hasSpacing && ['success', 'error_max_turns'].includes(result.exitReason),
+      passed: designExists && hasColor && hasSpacing && ranCheck && marked && ['success', 'error_max_turns'].includes(result.exitReason),
     });
 
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
+    expect(ranCheck).toBe(true);
+    expect(marked).toBe(true);
     expect(designExists).toBe(true);
     if (designExists) {
       expect(hasColor).toBe(true);
@@ -712,15 +737,6 @@ afterAll(async () => {
 // section for the DOM case), never the 1,500-line SKILL.md, with the installed
 // bin path pointed at THIS checkout so the test does not depend on ~/.claude.
 
-const FAKE_ENGINE_SRC = path.join(ROOT, 'test', 'fixtures', 'fake-impeccable.ts');
-const DETECT_SAMPLE = path.join(ROOT, 'test', 'fixtures', 'impeccable-detect-sample.json');
-
-function sliceBetween(text: string, start: string, end: string): string {
-  const i = text.indexOf(start);
-  if (i < 0) throw new Error(`marker not found: ${start}`);
-  const j = text.indexOf(end, i + start.length);
-  return text.slice(i, j > i ? j : undefined);
-}
 
 /** design-review's detector prose with the installed bin/lib paths rewritten to this checkout. */
 function detectorSkillText(sections: Array<[string, string]>): string {
@@ -731,10 +747,7 @@ function detectorSkillText(sections: Array<[string, string]>): string {
 }
 
 function makeFakeEngine(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-fake-impeccable-'));
-  fs.copyFileSync(FAKE_ENGINE_SRC, path.join(dir, 'impeccable'));
-  fs.chmodSync(path.join(dir, 'impeccable'), 0o755);
-  return dir;
+  return installFakeImpeccable('skill-e2e-fake-impeccable-').dir;
 }
 
 describeIfSelected('Design review detector shim E2E', ['design-review-detector-shim', 'design-review-detector-shim-dom'], () => {
@@ -789,7 +802,7 @@ Then write ${repoDir}/detector-output.md: one FINDING-NNN row per rule in the DE
       timeout: CAPTURE_MS,
       testName: 'design-review-detector-shim',
       runId,
-      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE },
+      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), IMPECCABLE_FAKE_OUTPUT: DETECT_SAMPLE },
     });
 
     logCost('/design-review detector shim (source)', result);
@@ -800,11 +813,13 @@ Then write ${repoDir}/detector-output.md: one FINDING-NNN row per rule in the DE
     expect(bash.some(c => c.includes('gstack-design-detect.ts probe'))).toBe(true);
     expect(bash.some(c => /gstack-design-detect\.ts scan --changed main/.test(c))).toBe(true);
     expect(bash.some(c => c.includes('npx impeccable'))).toBe(false);
-    expect(result.output).toContain('IMPECCABLE_READY');
-
+    // The sentinel is evidence in the tool output and the report, not something the
+    // agent must repeat in its closing message.
+    const toolOutputs = result.toolCalls.map(c => String(c.output ?? '')).join('\n');
     const outPath = path.join(repoDir, 'detector-output.md');
     expect(fs.existsSync(outPath)).toBe(true);
     const out = fs.readFileSync(outPath, 'utf-8');
+    expect(toolOutputs.includes('IMPECCABLE_READY') || out.includes('IMPECCABLE_READY')).toBe(true);
     expect(out).toContain('FINDING-001');
     expect(out).toContain('[ai-color-palette]');
     expect(out).toContain('[low-contrast]');
@@ -837,6 +852,8 @@ Then write ${repoDir}/detector-output.md: one FINDING-NNN row per rule in the DE
       // REPORT_DIR must sit under <gstack home>/projects/<slug>/designs/ for the wrapper's allow-list.
       const allowed = path.join(gstackHome, 'projects', 'shim', 'designs', 'design-audit-20260908');
       fs.mkdirSync(path.join(allowed, 'dom', 'run1'), { recursive: true });
+      // The agent's $B commands and this test's cleanup share ONE daemon, scoped to this run.
+      const browseState = path.join(gstackHome, 'browse.json');
       try {
         const result = await runSkillTest({
           prompt: `Read design-review-detector.md (the /design-review detector block + Phase 0) and design-review-dom-dump.md (the Phase 3 DOM dump section).
@@ -848,13 +865,13 @@ Do not run npx. Do not fix anything.`,
           timeout: CAPTURE_LONG_MS,
           testName: 'design-review-detector-shim-dom',
           runId,
-          env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE, GSTACK_HOME: gstackHome },
+          env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), IMPECCABLE_FAKE_OUTPUT: DETECT_SAMPLE, GSTACK_HOME: gstackHome, BROWSE_STATE_FILE: browseState },
         });
         logCost('/design-review detector shim (dom)', result);
         recordE2E(evalCollector, '/design-review detector shim (dom)', 'Design review detector shim E2E (DOM mode)', result);
         expect(result.exitReason).toBe('success');
         const bash = result.toolCalls.filter(c => c.tool === 'Bash').map(c => String(c.input?.command ?? ''));
-        expect(bash.some(c => c.includes('dom-dump.js') && c.includes('--out') && c.includes('--raw'))).toBe(true);
+        expect(bash.some(c => c.includes('dom-dump.js') && c.includes('--out') && c.includes('--raw'))).toBe(true); // $B js "($_DUMP)()" with the file spliced in
         expect(bash.some(c => /gstack-design-detect\.ts scan /.test(c) && c.includes('dom/run1'))).toBe(true);
         expect(bash.some(c => /gstack-design-detect\.ts scan --changed/.test(c))).toBe(false);
         const dumps = fs.readdirSync(path.join(allowed, 'dom', 'run1')).filter(f => f.endsWith('.dom.html'));
@@ -865,7 +882,7 @@ Do not run npx. Do not fix anything.`,
         expect(out).toContain('static scan of the rendered DOM');
       } finally {
         server?.stop(true); server = null;
-        try { spawnSync(browseBin, ['stop'], { stdio: 'pipe', timeout: 10_000 }); } catch {}
+        try { spawnSync(browseBin, ['stop'], { stdio: 'pipe', timeout: 10_000, env: { ...process.env, BROWSE_STATE_FILE: browseState } }); } catch {}
         for (const d of [site, reportDir, gstackHome]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }
       }
     },
@@ -892,7 +909,7 @@ describeIfSelected('Design HTML slop gate E2E', ['design-html-slop-gate'], () =>
     engineDir = makeFakeEngine();
     const full = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
     const text = [
-      sliceBetween(full, '**Design detector (optional, deterministic):**', '<!-- SECTION_INDEX'),
+      sliceBetween(full, '**Design detector (optional, deterministic):**', '## Step 0: Input Detection'),
       sliceBetween(full, '### Slop Gate (bounded, never a loop)', '### Verification Screenshots'),
     ].join('\n\n---\n\n').replaceAll('$HOME/.claude/skills/gstack', ROOT).replaceAll('~/.claude/skills/gstack', ROOT);
     fs.writeFileSync(path.join(workDir, 'design-html-gate.md'), text);
@@ -913,7 +930,7 @@ Write ${workDir}/gate-output.md listing what you fixed and every remaining findi
       timeout: CAPTURE_MS,
       testName: 'design-html-slop-gate',
       runId,
-      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE },
+      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), IMPECCABLE_FAKE_OUTPUT: DETECT_SAMPLE },
     });
 
     logCost('/design-html slop gate', result);

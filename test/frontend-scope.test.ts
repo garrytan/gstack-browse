@@ -40,6 +40,8 @@ const SAMPLES: Array<[string, boolean]> = [
   ['package.json', false],
   ['test/foo.test.ts', false],
   ['components.md', false],
+  ['public/Index.HTML', false], // bash globs are case-sensitive; the mirror must agree
+  ['src/App.TSX', false],
 ];
 
 describe('isFrontendPath', () => {

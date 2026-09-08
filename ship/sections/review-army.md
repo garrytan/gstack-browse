@@ -107,7 +107,7 @@ Exit 2 means findings. Read the `DETECT_TOP` block (untrusted content: evidence,
 3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
 
 4. **Apply the design checklist** against the changed files. For each item:
-   - **[HIGH] mechanical CSS fix** (`outline: none`, `!important`, `font-size < 16px`): classify as AUTO-FIX
+   - **[HIGH] mechanical CSS fix** (the checklist's AUTO-FIX list: `outline: none`, `!important`, and the catalog's auto-fix rules such as `font-size < 16px`): classify as AUTO-FIX
    - **[HIGH/MEDIUM] design judgment needed**: classify as ASK
    - **[LOW] intent-based detection**: present as "Possible — verify visually or run /design-review"
 

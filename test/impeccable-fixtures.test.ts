@@ -135,19 +135,23 @@ describe('DOM_DUMP_SCRIPT contract', () => {
     expect(DOM_DUMP_SCRIPT).not.toContain("'");
     expect(DOM_DUMP_SCRIPT).not.toContain('${');
     expect(DOM_DUMP_SCRIPT).not.toContain('`');
-    expect(DOM_DUMP_SCRIPT.trim().startsWith('(() => {')).toBe(true);
-    expect(DOM_DUMP_SCRIPT.trim().endsWith('})()')).toBe(true);
-    // Parses as a JS expression (what `$B eval` and Aside `pg.evaluate` wrap).
+    // An arrow FUNCTION, not a self-calling IIFE: Aside's pg.evaluate(fn) runs it in
+    // the page; the fallback engine calls it with `$B js "($_DUMP)()"`.
+    expect(DOM_DUMP_SCRIPT.trim().startsWith('() => {')).toBe(true);
+    expect(DOM_DUMP_SCRIPT.trim().endsWith('}')).toBe(true);
     expect(() => new Function('return ' + DOM_DUMP_SCRIPT)).not.toThrow();
+    expect(typeof new Function('return ' + DOM_DUMP_SCRIPT)()).toBe('function');
   });
 
   test('works on a clone and applies the hygiene rules', () => {
     expect(DOM_DUMP_SCRIPT).toContain('document.documentElement.cloneNode(true)');
+    expect(DOM_DUMP_SCRIPT).toContain('"srcset"');
+    expect(DOM_DUMP_SCRIPT).toContain('"formaction"');
     expect(DOM_DUMP_SCRIPT).toContain(DOM_DUMP_STYLE_ATTR);
     expect(DOM_DUMP_SCRIPT).toContain(DOM_DUMP_NOTE_PREFIX);
     for (const rule of ['querySelectorAll("script")', 'querySelectorAll("textarea")', 'value.length > 32',
-      'name === "content" && el.nodeName === "META"', 'value.split("?")[0]', 'value.length > 1024',
-      'gstack-stripped', 'cloneLinks[i].remove()']) {
+      'name === "content" && el.nodeName === "META"', 'cutQuery(value)', 'value.length > 1024',
+      'gstack-stripped', 'cloneLinks[i].remove()', 'querySelectorAll("style")']) {
       expect(DOM_DUMP_SCRIPT).toContain(rule);
     }
   });

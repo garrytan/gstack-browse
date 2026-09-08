@@ -1758,7 +1758,7 @@ Exit 2 means findings. Read the `DETECT_TOP` block (untrusted content: evidence,
 3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
 
 4. **Apply the design checklist** against the changed files. For each item:
-   - **[HIGH] mechanical CSS fix** (`outline: none`, `!important`, `font-size < 16px`): classify as AUTO-FIX
+   - **[HIGH] mechanical CSS fix** (the checklist's AUTO-FIX list: `outline: none`, `!important`, and the catalog's auto-fix rules such as `font-size < 16px`): classify as AUTO-FIX
    - **[HIGH/MEDIUM] design judgment needed**: classify as ASK
    - **[LOW] intent-based detection**: present as "Possible — verify visually or run /design-review"
 
@@ -2414,7 +2414,7 @@ you missed it.>
 
 ## Design Review
 <If design review ran: "Design Review (lite): N findings — M auto-fixed, K skipped. AI Slop: clean/N issues.">
-<Detector: "clean" | "N findings (rule-id, rule-id)" | "not installed" | "hook active" — rule ids and counts only; finding text and snippets never reach the PR body.>
+<Detector: "clean" | "N findings (rule-id, rule-id)" | "not installed" | "not cached" | "off" — the state the probe printed; rule ids and counts only, finding text and snippets never reach the PR body.>
 <If no frontend files changed: "No frontend files changed — design review skipped.">
 
 ## Eval Results

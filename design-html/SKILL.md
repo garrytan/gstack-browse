@@ -686,7 +686,7 @@ For framework output, save to:
 **Always include in vanilla HTML:**
 - Pretext source (inlined or CDN, see above)
 - CSS custom properties for design tokens from DESIGN.md / Step 1 extraction
-- Google Fonts via `<link>` tags + `document.fonts.ready` gate before first `prepare()`
+- Fonts from the source DESIGN.md names (Google Fonts, Fontshare, or self-hosted) via `<link>` tags + `document.fonts.ready` gate before first `prepare()`
 - Semantic HTML5 (`<header>`, `<nav>`, `<main>`, `<section>`, `<footer>`)
 - Responsive behavior via Pretext relayout (not just media queries)
 - Breakpoint-specific adjustments at 375px, 768px, 1024px, 1440px

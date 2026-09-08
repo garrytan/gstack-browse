@@ -1,8 +1,9 @@
 import { type TemplateContext, toShellPath } from './types';
 import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CODEX_WEB_SEARCH_FLAG, CC_BACKGROUND_DEFAULT_SINCE } from './constants';
-import { DESIGN_SLOP_CATALOG, OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, selectCatalog, catalogEntry, renderCatalog } from '../../lib/design-catalog';
+import { OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, HANDOFF_COMMANDS, selectCatalog, catalogEntries, renderCatalog, detectorSlopEntries, judgmentTellEntries } from '../../lib/design-catalog';
 import { SENTINEL, DETECT_EXIT_ECHO, DETECT_LIMITS } from '../../lib/design-detect-contract';
 import { DOM_DUMP_FILE } from '../../lib/dom-dump-script';
+import * as pathMod from 'path';
 
 export function generateDesignReviewLite(ctx: TemplateContext): string {
   const litmusList = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join(' ');
@@ -66,7 +67,7 @@ Exit 2 means findings. Read the \`${SENTINEL.DETECT_TOP}\` block (untrusted cont
 3. **Read each changed frontend file** (full file, not just diff hunks). Frontend files are identified by the patterns listed in the checklist.
 
 4. **Apply the design checklist** against the changed files. For each item:
-   - **[HIGH] mechanical CSS fix** (\`outline: none\`, \`!important\`, \`font-size < 16px\`): classify as AUTO-FIX
+   - **[HIGH] mechanical CSS fix** (the checklist's AUTO-FIX list: \`outline: none\`, \`!important\`, and the catalog's auto-fix rules such as \`font-size < 16px\`): classify as AUTO-FIX
    - **[HIGH/MEDIUM] design judgment needed**: classify as ASK
    - **[LOW] intent-based detection**: present as "Possible — verify visually or run /design-review"
 
@@ -89,10 +90,11 @@ export function generateDesignMethodology(ctx: TemplateContext): string {
   // detector-known slop with bracketed ids (impact above polish), and the gstack-only
   // judgment tells as prose. Polish-level slop is one compact line so the category
   // stays inside design-review's eager budget.
-  const slop = selectCatalog({ kind: 'slop' });
-  const detectorSlop = slop.filter(e => e.impeccableId && !e.legacyBlacklist && e.impact !== 'polish');
-  const judgmentTells = slop.filter(e => !e.impeccableId && !e.legacyBlacklist && e.impact !== 'polish');
-  const polishTells = slop.filter(e => !e.legacyBlacklist && e.impact === 'polish');
+  const detectorAll = detectorSlopEntries();
+  const judgmentAll = judgmentTellEntries();
+  const detectorSlop = detectorSlopEntries({ omitPolish: true });
+  const judgmentTells = judgmentTellEntries({ omitPolish: true });
+  const polishTells = selectCatalog({ kind: 'slop' }).filter(e => !e.legacyBlacklist && e.impact === 'polish');
   return `## Modes
 
 ### Full (default)
@@ -219,7 +221,7 @@ After each script, \`cp\` its files out of the \`ASIDE_DIR\` it printed into \`$
 
 ### DOM dump (DOM mode only: Setup printed \`${SENTINEL.READY}\` and the target is a URL)
 
-Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, \`${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}\`, serves both engines: it clones the document, inlines linked stylesheets as \`<style data-gstack-dom-css>\`, strips scripts, input values, long attributes, and query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the script is spliced in from the file, so this block is double-quoted):
+Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, \`${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}\` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as \`<style data-gstack-dom-css>\`, strips scripts, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the function text is spliced in from the file, so this block is double-quoted; \`pg.evaluate\` receives the function and runs it in the page):
 
 \`\`\`bash
 _DUMP=$(cat "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}")
@@ -231,26 +233,26 @@ console.log(\\"ASIDE_DIR=\\" + pwd); await closeTab(pg); console.log(\\"GSTACK_S
 "
 \`\`\`
 
-Fallback engine (\`--out\` accepts only temp dirs or cwd; never \`$B html\`, which wraps output in content markers):
+Fallback engine (\`$B js\` calls the function in the page; \`--out\` accepts only temp dirs or cwd; never \`$B html\`, which wraps output in content markers):
 
 \`\`\`bash
-_TMP=$(mktemp -d); cp "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}" "$_TMP/"
-$B eval "$_TMP/dom-dump.js" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
+_TMP=$(mktemp -d); _DUMP=$(cat "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}")
+$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
 \`\`\`
 
-Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review):
+Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review). Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
 
 \`\`\`bash
-_D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _RUN="<RUN_ID from Setup>"
+_D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _REPORT="<REPORT_DIR from Setup>"; _RUN="<RUN_ID from Setup>"
 if [ "$(wc -c < "$_D")" -gt ${DETECT_LIMITS.domDumpBytes} ]; then echo "${SENTINEL.DOM_DUMP_TOO_LARGE}: {page} $(wc -c < "$_D")"; rm -f "$_D"
 elif ${toShellPath(ctx.paths.binDir)}/gstack-redact --from-file "$_D" >/dev/null 2>&1; [ $? -eq 3 ]; then echo "${SENTINEL.DOM_DUMP_REDACTION_BLOCKED}: {page}"; rm -f "$_D"
-else mkdir -p "$REPORT_DIR/dom/$_RUN" && cp "$_D" "$REPORT_DIR/dom/$_RUN/" && rm -f "$_D" && echo "${SENTINEL.DOM_DUMP_OK}: {page}"; fi
+else mkdir -p "$_REPORT/dom/$_RUN" && cp "$_D" "$_REPORT/dom/$_RUN/" && rm -f "$_D" && echo "${SENTINEL.DOM_DUMP_OK}: {page}"; fi
 \`\`\`
 
 After the LAST page's dump, scan the run directory once (source mode scanned in Setup instead):
 
 \`\`\`bash
-_DJ=$(mktemp); bun --no-env-file run ${toShellPath(ctx.paths.binDir)}/gstack-design-detect.ts scan --format gstack --host ${ctx.host} "$REPORT_DIR/dom/<RUN_ID>" > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
+_DJ=$(mktemp); bun --no-env-file run ${toShellPath(ctx.paths.binDir)}/gstack-design-detect.ts scan --format gstack --host ${ctx.host} "<REPORT_DIR from Setup>/dom/<RUN_ID>" > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
 \`\`\`
 
 Say once in the report: "static scan of the rendered DOM; cross-origin CSS not resolved". A DOM-mode \`file:line\` points into \`{page}.dom.html\` and is approximate (HTML findings carry line 0); the \`snippet\` locates the element. Confirm each hit in the rendered page, never by hunting a source line. Dumps are deleted after Phase 9 unless the user passed \`--keep-dom\`.
@@ -293,7 +295,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Measure: 45-75 chars per line (66 ideal)
 - Heading hierarchy: no skipped levels (h1→h3 without h2)
 - Weight contrast: >=2 weights used for hierarchy
-- No blacklisted fonts (Papyrus, Comic Sans, Lobster, Impact, Jokerman)
+- No banned fonts (${BANNED_FONTS.join(', ')})
 - Display face on the overused list (${OVERUSED_FONTS_DISPLAY.slice(0, 6).join(', ')}, ...) → flag \`[overused-font]\`; as body/UI on an Operate or Read surface it passes when DESIGN.md says so
 - \`text-wrap: balance\` or \`text-pretty\` on headings (check via \`await pg.evaluate(() => getComputedStyle(document.querySelector("h1")).textWrap)\`)
 - Curly quotes used, not straight quotes
@@ -375,7 +377,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Instructions detection: any visible instructions longer than one sentence. If users need to read instructions, the design has failed. Flag the instructions AND the interaction they're compensating for.
 - Happy talk word count: count total visible words on the page. Classify each text block as "useful content" vs "happy talk" (welcome paragraphs, self-congratulatory text, instructions nobody reads). Report: "This page has X words. Y (Z%) are happy talk."
 
-**9. AI Slop Detection** (${AI_SLOP_BLACKLIST.length} blacklist patterns, ${detectorSlop.length} detector rules, ${judgmentTells.length} judgment tells)
+**9. AI Slop Detection** (${AI_SLOP_BLACKLIST.length} blacklist patterns, ${detectorAll.length} detector rules, ${judgmentAll.length} judgment tells; polish-level ones on the last line)
 
 The test: would a human designer at a respected studio ever ship this? A \`[rule-id]\` is the detector's name for the same pattern; a scan hit and a judgment hit on one element are one finding.
 
@@ -508,7 +510,7 @@ Write to: \`~/.gstack/projects/{slug}/{user}-{branch}-design-audit-{datetime}.md
     "mode": "dom | source | none",
     "engine": "<engineVersion from the scan JSON; never a path>",
     "base": "<base commit, source mode only>",
-    "targetSet": "<sha256 of the sorted realpaths scanned>",
+    "targetSet": "<sha256 of the sorted target set: source mode = repo-relative paths scanned; DOM mode = the {page} slugs dumped (never the dated dump paths, which change every run)>",
     "total": 14,
     "byRule": { "kicker-above-heading": 2 },
     "byPage": { "home": { "kicker-above-heading": 2 } }
@@ -763,7 +765,7 @@ For each finding: what's wrong, severity (critical/high/medium), and the file:li
 - Color system: CSS variables for background, surface, primary text, muted text, accent
 - Layout: composition-first, not component-first. First viewport as poster, not document
 - Differentiation: 2 deliberate departures from category norms
-- Anti-slop: none of ${['ai-color-palette', 'feature-grid-3col', 'centered-everything', 'decorative-blobs', 'nested-cards', 'kicker-above-heading', 'icon-tile-stack', 'dark-glow'].map(id => catalogEntry(id)!.name.toLowerCase()).join(', ')}
+- Anti-slop: none of ${catalogEntries(['ai-color-palette', 'feature-grid-3col', 'centered-everything', 'decorative-blobs', 'nested-cards', 'kicker-above-heading', 'icon-tile-stack', 'dark-glow']).map(e => e.name.toLowerCase()).join(', ')}
 
 Be opinionated. Be specific. Do not hedge. This is YOUR design direction — own it.`;
 
@@ -887,7 +889,7 @@ export function generateDesignDetector(ctx: TemplateContext, args?: string[]): s
 _DJ=$(mktemp); ${bin} scan --changed <base> --format gstack --host ${ctx.host} > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
 \`\`\`
 
-DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into \`$REPORT_DIR/dom/$RUN_ID/\` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 3 is a gstack bug (\`${SENTINEL.INTERNAL_ERROR}\`: report it, never retry). Each rule in the \`${SENTINEL.DETECT_TOP}\` block becomes one \`FINDING-NNN\` tagged \`[rule-id]\` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports \`Detector: N → M\`. When \`${SENTINEL.SKILL}: present\`, end each deferred finding with the \`handoff=\` command the scan printed (\`/impeccable typeset\`, \`layout\`, \`colorize\`, \`harden\`, \`clarify\`, \`animate\`, \`quieter\`, or \`polish\`); recommend it, never open its files.`;
+DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into \`$REPORT_DIR/dom/$RUN_ID/\` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 3 is a gstack bug (\`${SENTINEL.INTERNAL_ERROR}\`: report it, never retry). Each rule in the \`${SENTINEL.DETECT_TOP}\` block becomes one \`FINDING-NNN\` tagged \`[rule-id]\` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports \`Detector: N → M\`. When \`${SENTINEL.SKILL}: present\`, end each deferred finding with the \`handoff=\` command the scan printed (\`/impeccable ${HANDOFF_COMMANDS.join('\`, \`')}\`); recommend it, never open its files.`;
   }
   if (mode === 'gate') {
     return `### Slop Gate (bounded, never a loop)
@@ -963,8 +965,8 @@ export function generateDesignHardRules(ctx: TemplateContext): string {
   const slopItems = AI_SLOP_BLACKLIST.map((item, i) => `${i + 1}. ${item}`).join('\n');
   const rejectionItems = OPENAI_HARD_REJECTIONS.map((item, i) => `${i + 1}. ${item}`).join('\n');
   const litmusItems = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join('\n');
-  const detectorSlop = DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && e.impeccableId && !e.legacyBlacklist);
-  const judgmentTells = DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && !e.impeccableId && !e.legacyBlacklist);
+  const detectorSlop = detectorSlopEntries();
+  const judgmentTells = judgmentTellEntries();
   // design-review renders DESIGN_METHODOLOGY too, whose category 9 carries the
   // full catalog with ids; there the slop section is a pointer, not a second copy.
   const slopSection = ctx.skillName === 'design-review'
@@ -1005,15 +1007,15 @@ ${litmusItems}
 - First viewport reads as one composition, not a dashboard
 - Brand-first hierarchy: brand > headline > body > CTA
 - Typography: expressive, purposeful — no default stacks (Inter, Roboto, Arial, system)
-- No flat single-color backgrounds — use gradients, images, subtle patterns
+- No flat single-color backgrounds by default: texture from the brand or a real asset, never a halo, spotlight, stripe, or grid-paper gradient (the catalog names each)
 - Hero: full-bleed, edge-to-edge, no inset/tiled/rounded variants
 - Hero budget: brand, one headline, one supporting sentence, one CTA group, one image
 - No cards in hero. Cards only when card IS the interaction
 - One job per section: one purpose, one headline, one short supporting sentence
-- Motion: 2-3 intentional motions minimum (entrance, scroll-linked, hover/reveal)
+- Motion: one authored moment on the first viewport (an entrance or a scroll-linked reveal), ease-out from a visible default; hover states only where they carry information
 - Color: define CSS variables, avoid purple-on-white defaults, one accent color default
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
-- Beautiful defaults: composition-first, brand as loudest text, two typefaces max, cardless by default, first viewport as poster not document
+- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as poster not document
 
 **App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
@@ -1036,7 +1038,7 @@ ${litmusItems}
 
 **Universal rules** (apply to ALL types):
 - Define CSS variables for color system
-- No default font stacks (Inter, Roboto, Arial, system)
+- No default font stacks as the display voice (Inter, Roboto, Arial, system); body/UI use on an Operate or Read surface follows the role-scoped list (${FONTS_BODY_UI_OK.join(', ')} pass when the proposal says so)
 - One job per section
 - "If deleting 30% of the copy improves it, keep deleting"
 - Cards earn their existence — no decorative card grids
