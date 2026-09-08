@@ -73,6 +73,50 @@ describe('gstack-memorable', () => {
     expect(missing.stderr).toBe('');
   });
 
+  test('enable refuses when Memorable already registered the hook itself', () => {
+    // Memorable's own installer (`memorable start`, `setup`, `install-hooks`)
+    // writes this same UserPromptSubmit hook under its own name, and that is
+    // the documented way to install the CLI. Registering ours beside it runs
+    // the command twice per prompt: injected twice, captured twice against the
+    // user's own allowance.
+    const f = fixture();
+    const theirs = `"${join(f.home, '.memorable', 'bin', 'memorable')}" hook user-prompt`;
+    writeFileSync(f.settings, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: theirs }] }] },
+    }));
+
+    const enabled = spawnSync(COMMAND, ['enable'], { env: envFor(f), encoding: 'utf8' });
+    expect(enabled.status).not.toBe(0);
+    expect(enabled.stderr).toContain('already registers this hook itself');
+    // It refused before doing anything: no consent recorded, settings untouched.
+    expect(existsSync(f.log)).toBe(false);
+    const after = JSON.parse(readFileSync(f.settings, 'utf8'));
+    const commands = after.hooks.UserPromptSubmit.flatMap((e: any) => e.hooks.map((h: any) => h.command));
+    expect(commands).toEqual([theirs]);
+  });
+
+  test('status names Memorable\'s own registration rather than reporting none', () => {
+    const f = fixture();
+    const theirs = `"${join(f.home, '.memorable', 'bin', 'memorable')}" hook user-prompt`;
+    writeFileSync(f.settings, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: theirs }] }] },
+    }));
+
+    const status = spawnSync(COMMAND, ['status'], { env: envFor(f), encoding: 'utf8' });
+    expect(status.status).toBe(0);
+    expect(status.stdout).toContain('registered by Memorable itself');
+    expect(status.stdout).not.toContain('not registered');
+  });
+
+  test('a foreign UserPromptSubmit hook is not mistaken for Memorable\'s', () => {
+    const f = fixture();
+    writeFileSync(f.settings, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/foreign/hook' }] }] },
+    }));
+    const enabled = spawnSync(COMMAND, ['enable'], { env: envFor(f), encoding: 'utf8' });
+    expect(enabled.status).toBe(0);
+  });
+
   test('status is read-only and reports both dependencies', () => {
     const f = fixture();
     const status = spawnSync(COMMAND, ['status'], { env: envFor(f), encoding: 'utf8' });
