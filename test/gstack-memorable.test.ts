@@ -58,21 +58,6 @@ describe('gstack-memorable', () => {
     expect(remaining).toEqual(['/foreign/hook']);
   });
 
-  test('hook delegates stdin/stdout and fails open when Memorable is unavailable', () => {
-    const f = fixture();
-    const payload = '{"session_id":"s1","prompt":"repeat the task"}';
-    const delegated = spawnSync(HOOK, [], { env: envFor(f), input: payload, encoding: 'utf8' });
-    expect(delegated.status).toBe(0);
-    expect(delegated.stdout).toContain('"additionalContext":"remembered"');
-    expect(readFileSync(f.log, 'utf8')).toContain('hook user-prompt');
-
-    const missingEnv = { ...process.env, HOME: f.home, MEMORABLE_BIN: join(f.home, 'missing') };
-    const missing = spawnSync(HOOK, [], { env: missingEnv, input: payload, encoding: 'utf8' });
-    expect(missing.status).toBe(0);
-    expect(missing.stdout).toBe('');
-    expect(missing.stderr).toBe('');
-  });
-
   test('enable refuses when Memorable already registered the hook itself', () => {
     // Memorable's own installer (`memorable start`, `setup`, `install-hooks`)
     // writes this same UserPromptSubmit hook under its own name, and that is

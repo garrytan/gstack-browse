@@ -12,7 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { spawnSync, type SpawnSyncOptions } from 'child_process';
+import { spawn, spawnSync, type SpawnSyncOptions } from 'child_process';
 
 // Forward slashes on purpose: Bun's spawnSync on Windows returns ENOENT for a
 // backslash exe path containing spaces.
@@ -40,4 +40,106 @@ export function runBin(name: string, args: string[], opts: SpawnSyncOptions) {
   return process.platform === 'win32'
     ? spawnSync(bashExe(), [bin, ...args], opts)
     : spawnSync(bin, args, opts);
+}
+
+export interface RunExternalOptions {
+  /** bytes written to the child's stdin, then stdin is closed */
+  input?: Buffer | string;
+  /** wall-clock limit; on expiry the child's whole process group is SIGKILLed */
+  timeoutMs: number;
+  /** stdout cap in bytes; exceeding it kills the group and reports error 'ENOBUFS' (default 1 MiB) */
+  maxBuffer?: number;
+  /** the child's COMPLETE environment (callers allowlist; never pass process.env for a third-party binary) */
+  env?: Record<string, string | undefined>;
+  cwd?: string;
+  /** test seam: override process.platform */
+  platform?: NodeJS.Platform;
+}
+
+export interface RunExternalResult {
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  stdout: Buffer;
+  /** last 500 bytes of stderr, for the error log — never forwarded */
+  stderrTail: string;
+  /** 'EPLATFORM' (win32 unsupported), 'ENOBUFS', 'ETIMEDOUT', or a spawn errno */
+  error?: string;
+  timedOut: boolean;
+}
+
+/**
+ * Run an EXTERNAL executable (not a gstack bin) with containment a hook can
+ * rely on:
+ *   - `detached: true` makes the child a process-group leader, so a timeout
+ *     kills the whole group (`process.kill(-pid)`) — a fork-style vendor shim
+ *     cannot outlive the reported timeout the way a bare child kill allows.
+ *   - stderr is drained continuously (an undrained pipe blocks a noisy child
+ *     before it writes stdout) and only its tail is kept, never forwarded.
+ *   - stdin gets an error listener, so a child that exits before reading a
+ *     large input surfaces EPIPE as a result, not an unhandled event.
+ *   - stdout is capped; the cap kills the group and reports ENOBUFS.
+ *   - win32 is refused ('EPLATFORM'): there are no process groups to kill, so
+ *     the containment guarantee cannot be given (Windows support for the
+ *     bridges that use this is tracked in TODOS.md).
+ * Async on purpose: spawnSync can only signal the direct child.
+ */
+export function runExternal(exe: string, args: string[], opts: RunExternalOptions): Promise<RunExternalResult> {
+  const platform = opts.platform ?? process.platform;
+  const maxBuffer = opts.maxBuffer ?? 1024 * 1024;
+  const empty = (error: string): RunExternalResult =>
+    ({ status: null, signal: null, stdout: Buffer.alloc(0), stderrTail: '', error, timedOut: false });
+  if (platform === 'win32') return Promise.resolve(empty('EPLATFORM'));
+  return new Promise((resolve) => {
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(exe, args, {
+        detached: true,
+        cwd: opts.cwd,
+        env: opts.env as NodeJS.ProcessEnv | undefined,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+    } catch (e) {
+      resolve(empty((e as NodeJS.ErrnoException)?.code ?? 'ESPAWN'));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    let total = 0;
+    let stderrTail = '';
+    let error: string | undefined;
+    let timedOut = false;
+    let done = false;
+    let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    const killGroup = (): void => {
+      try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* group already gone */ }
+      try { child.kill('SIGKILL'); } catch { /* already gone */ }
+    };
+    const finish = (status: number | null, signal: NodeJS.Signals | null): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      if (graceTimer) clearTimeout(graceTimer);
+      resolve({ status, signal, stdout: Buffer.concat(chunks), stderrTail, error, timedOut });
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      error = error ?? 'ETIMEDOUT';
+      killGroup();
+      // If 'close' never arrives (a grandchild holding the pipes open past the
+      // kill), resolve anyway: the caller's own deadline is what matters.
+      graceTimer = setTimeout(() => finish(null, 'SIGKILL'), 250);
+    }, Math.max(1, opts.timeoutMs));
+    child.on('error', (e) => { error = (e as NodeJS.ErrnoException)?.code ?? 'ESPAWN'; finish(null, null); });
+    child.stdout?.on('data', (d: Buffer) => {
+      if (done) return;
+      total += d.length;
+      if (total > maxBuffer) { error = 'ENOBUFS'; killGroup(); return; }
+      chunks.push(d);
+    });
+    child.stderr?.on('data', (d: Buffer) => { stderrTail = (stderrTail + d.toString('utf8')).slice(-500); });
+    child.on('close', (code, signal) => finish(code, signal));
+    if (child.stdin) {
+      child.stdin.on('error', (e) => { error = error ?? ((e as NodeJS.ErrnoException)?.code ?? 'EPIPE'); });
+      if (opts.input !== undefined) child.stdin.end(opts.input); else child.stdin.end();
+    }
+  });
 }
