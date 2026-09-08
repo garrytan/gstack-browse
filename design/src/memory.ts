@@ -84,7 +84,18 @@ Extract real values from what you see. Be specific about hex colors and font siz
 
     const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content?.trim() || "";
-    return JSON.parse(content) as ExtractedDesign;
+    // The model's JSON is unvalidated: default the arrays and coerce the strings so a null name
+    // cannot throw after the paid vision call.
+    const raw = JSON.parse(content) as Partial<Record<keyof ExtractedDesign, unknown>>;
+    const list = (v: unknown) => (Array.isArray(v) ? v : []);
+    const str = (v: unknown) => (v === null || v === undefined ? "" : String(v));
+    return {
+      colors: list(raw.colors).map((c) => ({ name: str((c as Record<string, unknown>)?.name), hex: str((c as Record<string, unknown>)?.hex), usage: str((c as Record<string, unknown>)?.usage) })),
+      typography: list(raw.typography).map((t) => ({ role: str((t as Record<string, unknown>)?.role), family: str((t as Record<string, unknown>)?.family), size: str((t as Record<string, unknown>)?.size), weight: str((t as Record<string, unknown>)?.weight) })),
+      spacing: list(raw.spacing).map(str),
+      layout: list(raw.layout).map(str),
+      mood: str(raw.mood),
+    };
   } catch (err: any) {
     console.error(`Design extraction error: ${err.message}`);
     return defaultDesign();
@@ -138,13 +149,13 @@ export function updateDesignMd(
   const designPath = linkPath;
 
   const colors: Record<string, string> = {};
-  for (const c of extracted.colors) {
-    const key = slug(c.name);
+  for (const c of extracted.colors ?? []) {
+    const key = slug(String(c.name ?? ""));
     if (key !== "token" && /^#[0-9a-fA-F]{3,8}$/.test(c.hex) && !(key in colors)) colors[key] = c.hex;
   }
   const typography: Record<string, Record<string, string>> = {};
-  for (const t of extracted.typography) {
-    const role = slug(t.role);
+  for (const t of extracted.typography ?? []) {
+    const role = slug(String(t.role ?? ""));
     if (role === "token" || typography[role]) continue;
     const entry: Record<string, string> = { fontFamily: t.family };
     if (t.size) entry.fontSize = t.size;

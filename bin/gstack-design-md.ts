@@ -28,7 +28,7 @@ import { SENTINEL } from '../lib/design-detect-contract';
 import { atomicWriteSync } from '../lib/fs-atomic';
 import {
   parseDesignMd, detectFormat, convertLegacy, renderDesignMd, tokensFlat, insertMarker,
-  type DesignMdDoc, type FormatChoice, FORMAT_CHOICES } from '../lib/design-md';
+  type DesignMdDoc, type FormatChoice, FORMAT_CHOICES, DesignMdEditRefused } from '../lib/design-md';
 
 /** The file itself, through any symlink (a `DESIGN.md -> docs/DESIGN.md` layout must edit the target, never replace the link). */
 function resolveFile(arg?: string): string {
@@ -67,7 +67,13 @@ export function main(argv = process.argv.slice(2)): number {
         process.stderr.write(`${SENTINEL.DESIGN_MD_FORMAT}: ${format}${reason ? ` (${reason})` : ''}; convert only accepts a legacy gstack DESIGN.md\n`);
         return 1;
       }
-      const out = renderDesignMd(convertLegacy(loaded.doc), { emitFrontmatter: true });
+      let out: string;
+      try {
+        out = renderDesignMd(convertLegacy(loaded.doc), { emitFrontmatter: true });
+      } catch (err) {
+        if (err instanceof DesignMdEditRefused) { process.stderr.write(`${SENTINEL.DESIGN_MD_CONVERT_REFUSED}: ${err.message.replace(/^[A-Z_]+: /, '')}\n`); return 2; }
+        throw err;
+      }
       if (flags.has('--write')) {
         fs.writeFileSync(`${file}.legacy.bak`, loaded.text);
         atomicWriteSync(file, out);

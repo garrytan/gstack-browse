@@ -128,15 +128,16 @@ export function parseDesignMd(text: string): DesignMdDoc {
     rest = rest.slice(legacyMarker[0].length);
   }
   if (rest.startsWith('---\n')) {
-    const end = rest.indexOf('\n---', 4);
-    if (end !== -1 && (rest[end + 4] === '\n' || end + 4 === rest.length)) {
-      frontmatterText = rest.slice(4, end + 1);
+    // The closing fence is a whole line of `---` (trailing spaces allowed, an editor artifact); a value line like `---x` is not one.
+    const close = /^---[ \t]*$/m.exec(rest.slice(4));
+    if (close) {
+      frontmatterText = rest.slice(4, 4 + close.index);
       const m = frontmatterText.match(YAML_MARKER_RE);
       if (m) marker = m[1] as FormatChoice;
       const parsed = parseYaml(frontmatterText);
       frontmatter = parsed.value;
       frontmatterError = parsed.error;
-      rest = rest.slice(end + 5);
+      rest = rest.slice(4 + close.index + close[0].length + 1);
     }
   }
 
@@ -160,14 +161,16 @@ export function parseDesignMd(text: string): DesignMdDoc {
  */
 function headingLines(lines: string[]): { heads: Array<{ index: number; heading: string }>; unclosedFence: boolean } {
   const heads: Array<{ index: number; heading: string }> = [];
-  let inFence = false;
+  let fence: string | null = null; // the opener's characters (``` or ~~~); only the same kind closes it
   for (let i = 0; i < lines.length; i++) {
-    if (/^```/.test(lines[i])) { inFence = !inFence; continue; }
-    if (inFence) continue;
+    const f = lines[i].match(/^(```|~~~)/);
+    if (f && fence === null) { fence = f[1]; continue; }
+    if (f && fence === f[1]) { fence = null; continue; }
+    if (fence !== null) continue;
     const h = lines[i].match(/^## (.+?)\s*$/);
     if (h) heads.push({ index: i, heading: h[1] });
   }
-  return { heads, unclosedFence: inFence };
+  return { heads, unclosedFence: fence !== null };
 }
 
 /** Thrown by the text-level editors when the file cannot be edited safely (an unclosed code fence). The bins print it as DESIGN_MD_EDIT_REFUSED and leave the file unchanged. */
@@ -220,8 +223,9 @@ export function detectFormat(doc: DesignMdDoc | null): { format: DesignMdFormat;
 function needsQuotes(s: string): boolean {
   // Control characters (an LLM-extracted font family with an embedded newline) must
   // go through the double-quoted form: a bare multi-line scalar does not parse back.
-  // `\s#` too: a plain scalar ending in ` #F59E0B` would parse back as a comment.
-  return s === '' || /[\x00-\x1f\x7f]/.test(s) || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s#|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/i.test(s);
+  // `\s#` too: a plain scalar ending in ` #F59E0B` would parse back as a comment. YAML 1.2 also
+  // reads 0x1F / 0o17 / .inf / .nan as numbers, so those shapes are quoted as well.
+  return s === '' || /[\x00-\x1f\x7f]/.test(s) || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s#|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$|^0[xob][0-9a-f_]+$|^[-+]?\.(inf|nan)$/i.test(s);
 }
 
 function yamlScalar(v: unknown): string {
@@ -242,7 +246,10 @@ export function emitYamlBlock(obj: Record<string, unknown>, indent = 0): string 
       out.push(emitYamlBlock(v as Record<string, unknown>, indent + 2));
     } else if (Array.isArray(v)) {
       out.push(`${pad}${key}:`);
-      for (const item of v) out.push(`${pad}  - ${yamlScalar(item)}`);
+      for (const item of v) {
+        if (item !== null && typeof item === 'object') throw new TypeError('emitYamlBlock: array items must be scalars (a nested object would be written as "[object Object]")');
+        out.push(`${pad}  - ${yamlScalar(item)}`);
+      }
     } else {
       out.push(`${pad}${key}: ${yamlScalar(v)}`);
     }
@@ -329,7 +336,8 @@ export function insertMarker(text: string, choice: FormatChoice): string {
   const src = text.slice(bom.length).replace(/\r\n/g, '\n');
   const stripped = src.replace(LEGACY_MARKER_RE, '');
   let out: string;
-  if (stripped.startsWith('---\n')) {
+  // Front matter, not "starts with ---": a legacy file opening with a horizontal rule gets the HTML comment.
+  if (parseDesignMd(stripped).frontmatterText !== null) {
     const withoutOld = stripped.replace(FRONTMATTER_OPEN_WITH_MARKER_RE, '---\n');
     out = withoutOld.replace(/^---\n/, `---\n# ${FORMAT_MARKER_PREFIX}${choice}\n`);
   } else {
@@ -431,6 +439,13 @@ function firstFontName(value: string): string | undefined {
  * its original order. Idempotent: converting the render again changes nothing.
  */
 export function convertLegacy(doc: DesignMdDoc, opts: { name?: string } = {}): DesignMdDoc {
+  // A heading the conversion consumes must be unique, or a second body would be silently dropped.
+  const counts = new Map<string, number>();
+  for (const s of doc.sections) counts.set(s.heading.trim().toLowerCase(), (counts.get(s.heading.trim().toLowerCase()) ?? 0) + 1);
+  for (const h of [...LEGACY_HEADINGS, 'Typography', 'Layout', 'Colors']) {
+    if ((counts.get(h.toLowerCase()) ?? 0) > 1) throw new DesignMdEditRefused(`legacy heading "## ${h}" appears more than once`);
+  }
+  if (counts.has('color') && counts.has('colors')) throw new DesignMdEditRefused('both "## Color" and "## Colors" are present');
   const title = doc.preamble.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const name = opts.name ?? (title ? title.replace(/^Design System\s*[—–-]\s*/i, '').trim() : 'Design System');
   const fm: Record<string, unknown> = { name };

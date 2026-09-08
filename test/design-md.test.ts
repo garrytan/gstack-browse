@@ -618,3 +618,62 @@ describe('bin/gstack-design-md.ts follows a symlinked DESIGN.md', () => {
     }
   });
 });
+
+describe('adversarial round: markdown edge cases the editors must survive', () => {
+  test('a legacy file that opens with a horizontal rule gets the HTML-comment marker, and the marker is read back', () => {
+    const legacy = '---\n\n# Design\n\n## Product Context\n\np\n\n## Aesthetic Direction\n\na\n';
+    expect(detectFormat(parseDesignMd(legacy)).format).toBe('legacy');
+    const marked = insertMarker(legacy, 'legacy-keep');
+    expect(marked).toBe('<!-- gstack: design-md-format=legacy-keep -->\n' + legacy);
+    expect(parseDesignMd(marked).marker).toBe('legacy-keep');
+  });
+
+  test('a closing front-matter fence with trailing spaces still closes; a `---x` value line does not', () => {
+    const doc = parseDesignMd('---\nname: x\ncolors:\n  a: "#fff"\n---  \n\n## Overview\n\no\n');
+    expect(doc.frontmatterText).toBe('name: x\ncolors:\n  a: "#fff"\n');
+    expect(detectFormat(doc).format).toBe('spec');
+    expect(doc.sections.map(s => s.heading)).toEqual(['Overview']);
+    const odd = parseDesignMd('---\nname: x\ndescription: ---x\ncolors:\n  a: "#fff"\n---\n\n## Overview\n\no\n');
+    expect(odd.frontmatter).toEqual({ name: 'x', description: '---x', colors: { a: '#fff' } });
+  });
+
+  test('~~~ fences hide headings like ``` fences, and only the same kind closes an opener', () => {
+    const src = '## Overview\n\n~~~\n## Fake\n```\nstill inside\n~~~\n\n## Colors\n\nc\n';
+    expect(parseDesignMd(src).sections.map(s => s.heading)).toEqual(['Overview', 'Colors']);
+    expect(spliceSection(src, 'Overview', 'NEW')).toBe('## Overview\n\nNEW\n\n## Colors\n\nc\n');
+  });
+
+  test('YAML 1.2 numeric shapes and nested array items are handled by the emitter', () => {
+    const yaml = emitYamlBlock({ typography: { body: { fontSize: '0x1F', fontWeight: '.inf', lineHeight: '0o17' } } });
+    expect(Bun.YAML.parse(yaml)).toEqual({ typography: { body: { fontSize: '0x1F', fontWeight: '.inf', lineHeight: '0o17' } } });
+    expect(() => emitYamlBlock({ components: [{ a: 1 }] } as never)).toThrow(/array items must be scalars/);
+  });
+
+  test('convert refuses a legacy file whose consumed heading repeats, instead of dropping a body', () => {
+    const dup = '# T\n\n## Product Context\n\np\n\n## Aesthetic Direction\n\na\n\n## Layout\n\nl1\n\n## Layout\n\nl2\n';
+    expect(() => convertLegacy(parseDesignMd(dup))).toThrow(/appears more than once/);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-md-dup-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'DESIGN.md'), dup);
+      const r = runBin(['convert', 'DESIGN.md', '--write'], dir);
+      expect(r.code).toBe(2);
+      expect(r.err).toContain('DESIGN_MD_CONVERT_REFUSED: legacy heading "## Layout" appears more than once');
+      expect(fs.readFileSync(path.join(dir, 'DESIGN.md'), 'utf-8')).toBe(dup);
+      expect(fs.existsSync(path.join(dir, 'DESIGN.md.legacy.bak'))).toBe(false);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('the design binary tolerates unvalidated extraction output (null names, missing arrays)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-md-null-'));
+    try {
+      updateDesignMd(dir, { colors: [{ name: null, hex: '#111111', usage: null }], typography: [{ role: null, family: 'X', size: null, weight: null }], spacing: [], layout: [], mood: '' } as never, 'm.png');
+      const out = fs.readFileSync(path.join(dir, 'DESIGN.md'), 'utf-8');
+      expect(out.startsWith('---\n')).toBe(true);
+      expect(Bun.YAML.parse(parseDesignMd(out).frontmatterText!)).toBeTruthy();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
