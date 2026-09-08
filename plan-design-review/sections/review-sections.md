@@ -79,10 +79,12 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 
 ### Design Hard Rules
 
-**Classifier — determine rule set before evaluating:**
-- **MARKETING/LANDING PAGE** (hero-driven, brand-forward, conversion-focused) → apply Landing Page Rules
-- **APP UI** (workspace-driven, data-dense, task-focused: dashboards, admin, settings) → apply App UI Rules
-- **HYBRID** (marketing shell with app-like sections) → apply Landing Page Rules to hero/marketing sections, App UI Rules to functional sections
+**Classifier: name the mode before you judge a pixel.** The mode is what the visitor's win looks like on THIS surface, not what the product is. A dev tool's landing page is Persuade. A fashion house's docs are Read.
+- **PERSUADE** (MARKETING/LANDING PAGE: hero-driven, brand-forward, pricing, campaigns) → they decide and act. Design IS the product. Apply Landing Page Rules.
+- **OPERATE** (APP UI: dashboards, admin, settings, editors, tools) → they finish a task. Scanability and native expectations beat expression; the brand lives in the details. Apply App UI Rules.
+- **READ** (docs, articles, guides, changelogs) → they understand something. Structure for comprehension, then make staying worth it. Apply Read Rules.
+- **EXPERIENCE** (portfolios, galleries, showcases) → they are inside the work. The artifact owns the first viewport; the interface gets out of the way. Apply Experience Rules.
+- **HYBRID** (marketing shell with app-like sections) → classify per section, not per page.
 
 **Hard rejection criteria** (instant-fail patterns — flag if ANY apply):
 1. Generic SaaS card grid as first impression
@@ -102,7 +104,7 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 6. Does motion improve hierarchy or atmosphere?
 7. Would design feel premium with all decorative shadows removed?
 
-**Landing page rules** (apply when classifier = MARKETING/LANDING):
+**Landing page rules** (apply when classifier = PERSUADE / MARKETING/LANDING):
 - First viewport reads as one composition, not a dashboard
 - Brand-first hierarchy: brand > headline > body > CTA
 - Typography: expressive, purposeful — no default stacks (Inter, Roboto, Arial, system)
@@ -116,7 +118,7 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
 - Beautiful defaults: composition-first, brand as loudest text, two typefaces max, cardless by default, first viewport as poster not document
 
-**App UI rules** (apply when classifier = APP UI):
+**App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
 - Dense but readable, minimal chrome
 - Organize: primary workspace, navigation, secondary context, one accent
@@ -124,6 +126,16 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 - Copy: utility language — orientation, status, action. Not mood/brand/aspiration
 - Cards only when card IS the interaction
 - Section headings state what area is or what user can do ("Selected KPIs", "Plan status")
+
+**Read rules** (apply when classifier = READ):
+- Measure 65-75ch, one reading column, headings closer to what follows than to what precedes
+- Wayfinding is a feature: where am I, what is next, where do I search
+- A docs index is Read, not Persuade: no hero, no CTA theater
+
+**Experience rules** (apply when classifier = EXPERIENCE):
+- The work fills the first viewport; chrome earns every pixel
+- One authored transition, not a scroll-jacked tour
+- Never crop the artifact to fit a template
 
 **Universal rules** (apply to ALL types):
 - Define CSS variables for color system
@@ -136,7 +148,17 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 - ALWAYS preserve visited vs unvisited link distinction (visited links must have a different color)
 - NEVER float headings between paragraphs (heading must be visually closer to the section it introduces than to the preceding section)
 
-**AI Slop blacklist** (the 10 patterns that scream "AI-generated"):
+**Reflexes no detector catches** (check by hand, every time):
+- **Browser surfaces carry the design.** Selection color, caret, scrollbars, focus rings, underline offset, tabular numerals all ship with browser defaults that belong to no design system. Theme them from the palette. Cheapest tell that a page was designed rather than assembled, and the one models skip most.
+- **One authored motion moment.** Not the same entrance on every section, not a hover effect on everything. Exponential ease-out from an already-visible default. Content never hides behind animation timing.
+- **Depth has an offset.** Shadows are offset plus soft blur. A zero-offset colored halo is decoration, not depth.
+- **Secondary text on a colored surface is tinted from that hue.** Never gray.
+- **More space above a heading than below it.** Read the computed values.
+- **Light or dark comes from the use scene.** Who, where, under what light: one sentence. Never from the category.
+
+**Calibration: the three looks.** AI-built interfaces land in one of three looks no matter what the product is: (1) cream ground, high-contrast serif display, terracotta or signal-red accent; (2) near-black, one neon accent, glowing edges; (3) broadsheet hairlines, italic display serif, tiny tracked mono labels. Each is fine when the brief asks for it. If the brief left the look open and you landed in one anyway, you stopped looking. The test: could someone guess your look from the category alone? From "the category, but avoiding the obvious"? Either way, start over. "It's about books, so cream and a serif" fails this test. Book cloth and jackets come in every saturated color there is.
+
+**AI Slop blacklist** (the 11 patterns that scream "AI-generated"):
 1. Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes
 2. **The 3-column feature grid:** icon-in-colored-circle + bold title + 2-line description, repeated 3x symmetrically. THE most recognizable AI layout.
 3. Icons in colored circles as section decoration (SaaS starter template look)
@@ -148,6 +170,9 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 9. Generic hero copy ("Welcome to [X]", "Unlock the power of...", "Your all-in-one solution for...")
 10. Cookie-cutter section rhythm (hero → 3 features → testimonials → pricing → CTA, every section same height)
 11. system-ui or `-apple-system` as the PRIMARY display/body font — the "I gave up on typography" signal. Pick a real typeface.
+
+Detector rule ids for the rest of the catalog (a `[rule-id]` in a finding is one of these): border-accent-on-rounded: Border accent on a rounded card; overused-font: Overused display font; flat-type-hierarchy: Flat type hierarchy; gradient-text: Gradient text; cream-palette: Cream default palette; nested-cards: Nested cards; monotonous-spacing: Monotonous spacing; bounce-easing: Bounce easing; pulsing-dot: Pulsing status dot; blinking-cursor: Blinking cursor effect; shape-assembled-illustration: Shape-assembled illustration; dark-glow: Dark-mode glow; radial-halo: Radial halo; radial-spotlight-glow: Radial spotlight glow; marquee: Logo marquee; icon-tile-stack: Icon tile above every heading; italic-serif-display: Italic serif display; hero-eyebrow-chip: Hero eyebrow chip; kicker-above-heading: Kicker above heading; numbered-section-labels: Numbered section labels; em-dash-overuse: Em-dash overuse; marketing-buzzword: Marketing buzzwords; aphoristic-cadence: Aphoristic cadence; oversized-h1: Oversized h1; extreme-negative-tracking: Extreme negative tracking; gpt-thin-border-wide-shadow: Thin border plus wide shadow; repeating-stripes-gradient: Repeating stripes gradient; codex-grid-background: Grid-paper background; theater-slop-phrase: Theater phrases; image-hover-transform: Image hover zoom.
+Judgment tells with no detector rule: gradient cta button, stock-photo hero, cards as the default component, generic testimonial section, left-text right-image hero, generic cta labels, hero metric template, identical card grids, glassmorphism, hand-drawn svg illustration, modal by default, monospace as costume, content stand-ins, mode picked by category, unthemed browser surfaces, missing states.
 
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.
 - "Cards with icons" → what differentiates these from every SaaS template?

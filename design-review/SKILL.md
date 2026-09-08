@@ -1084,7 +1084,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Heading hierarchy: no skipped levels (h1→h3 without h2)
 - Weight contrast: >=2 weights used for hierarchy
 - No blacklisted fonts (Papyrus, Comic Sans, Lobster, Impact, Jokerman)
-- If primary font is Inter/Roboto/Open Sans/Poppins → flag as potentially generic
+- Display face on the overused list (Inter, Roboto, Arial, Helvetica, Open Sans, Lato, ...) → flag `[overused-font]`; as body/UI on an Operate or Read surface it passes when DESIGN.md says so
 - `text-wrap: balance` or `text-pretty` on headings (check via `await pg.evaluate(() => getComputedStyle(document.querySelector("h1")).textWrap)`)
 - Curly quotes used, not straight quotes
 - Ellipsis character (`…`) not three dots (`...`)
@@ -1119,7 +1119,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Flex/grid used for layout (not JS measurement)
 - Breakpoints: mobile (375), tablet (768), desktop (1024), wide (1440)
 
-**5. Interaction States** (10 items)
+**5. Interaction States** (12 items)
 - Hover state on all interactive elements
 - `focus-visible` ring present (never `outline: none` without replacement)
 - Active/pressed state with depth effect or color shift
@@ -1131,6 +1131,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Touch targets >= 44px on all interactive elements
 - `cursor: pointer` on all clickable elements
 - Mindless choice audit: every decision point (button, link, dropdown, modal choice) is a mindless click (obvious what happens). If a click requires thought about whether it's the right choice, flag as HIGH.
+- Browser surfaces themed from the palette: `::selection`, caret, scrollbars, focus ring, underline offset, tabular numerals. Left at defaults, the page reads as assembled, not designed
 
 **6. Responsive Design** (8 items)
 - Mobile layout makes *design* sense (not just stacked desktop columns)
@@ -1142,13 +1143,14 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Forms usable on mobile (correct input types, no autoFocus on mobile)
 - No `user-scalable=no` or `maximum-scale=1` in viewport meta
 
-**7. Motion & Animation** (6 items)
+**7. Motion & Animation** (7 items)
 - Easing: ease-out for entering, ease-in for exiting, ease-in-out for moving
 - Duration: 50-700ms range (nothing slower unless page transition)
 - Purpose: every animation communicates something (state change, attention, spatial relationship)
 - `prefers-reduced-motion` respected (check: `await pg.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)`)
 - No `transition: all` — properties listed explicitly
 - Only `transform` and `opacity` animated (not layout properties like width, height, top, left)
+- One authored motion moment per page: not the same entrance on every section, not a hover effect on everything. Ease-out from an already-visible default; content never hides behind animation timing
 
 **8. Content & Microcopy** (8 items)
 - Empty states designed with warmth (message + action + illustration/icon)
@@ -1163,9 +1165,9 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Instructions detection: any visible instructions longer than one sentence. If users need to read instructions, the design has failed. Flag the instructions AND the interaction they're compensating for.
 - Happy talk word count: count total visible words on the page. Classify each text block as "useful content" vs "happy talk" (welcome paragraphs, self-congratulatory text, instructions nobody reads). Report: "This page has X words. Y (Z%) are happy talk."
 
-**9. AI Slop Detection** (10 anti-patterns — the blacklist)
+**9. AI Slop Detection** (11 blacklist patterns, 19 detector rules, 14 judgment tells)
 
-The test: would a human designer at a respected studio ever ship this?
+The test: would a human designer at a respected studio ever ship this? A `[rule-id]` is the detector's name for the same pattern; a scan hit and a judgment hit on one element are one finding.
 
 - Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes
 - **The 3-column feature grid:** icon-in-colored-circle + bold title + 2-line description, repeated 3x symmetrically. THE most recognizable AI layout.
@@ -1178,6 +1180,39 @@ The test: would a human designer at a respected studio ever ship this?
 - Generic hero copy ("Welcome to [X]", "Unlock the power of...", "Your all-in-one solution for...")
 - Cookie-cutter section rhythm (hero → 3 features → testimonials → pricing → CTA, every section same height)
 - system-ui or `-apple-system` as the PRIMARY display/body font — the "I gave up on typography" signal. Pick a real typeface.
+
+Detector rules that still need your judgment (the id is what the scan prints):
+- [overused-font] A training-data default as the display voice means you stopped looking. As body or UI on an Operate or Read surface, several of these are fine. Say which and why.
+- [flat-type-hierarchy] Headings within a step of body size. Pick a scale and let the levels differ by more than a weight.
+- [cream-palette] Cream ground, serif display, terracotta accent: look number one. Fine when the brief asked for it; a default when it did not.
+- [nested-cards] A card inside a card is always wrong. Cards are the lazy container; nesting them is the lazy container squared.
+- [shape-assembled-illustration] An illustration built from CSS shapes standing in for an asset. Produce the asset or ship nothing.
+- [marquee] An infinitely scrolling logo strip. If the logos matter, show them still; if they do not, cut them.
+- [icon-tile-stack] The rounded-square icon above every heading. Try side by side, or drop the container.
+- [italic-serif-display] Look three: the italic display serif reaching for editorial credibility. Earn it with the content or set the display upright.
+- [hero-eyebrow-chip] A pill-shaped label floating above the hero headline. The headline carries its own weight; cut the chip.
+- [kicker-above-heading] A kicker above a heading is the strongest default there is: the heading carries its own weight, so delete the label. If the user wants it anyway, comply and say the tradeoff once.
+- [aphoristic-cadence] Short. Punchy. Fragments. Every sentence a slogan. Write like a person explaining something.
+
+Mechanical detector rules, confirm in the render and move on: [border-accent-on-rounded] border accent on a rounded card; [gradient-text] gradient text; [dark-glow] dark-mode glow; [radial-halo] radial halo; [radial-spotlight-glow] radial spotlight glow; [marketing-buzzword] marketing buzzwords; [oversized-h1] oversized h1; [theater-slop-phrase] theater phrases.
+
+Judgment tells (no detector rule; you are the detector):
+- Gradient buttons as the primary call to action. One solid color the palette owns.
+- A generic stock-photo hero, or a gray placeholder div standing in for one. Show the product or show nothing.
+- Rounded cards with drop shadows as the container for everything. App UI made of stacked cards is not layout.
+- A testimonial row with avatars, five stars, and quotes nobody said. Real names with real claims, or cut it.
+- The cookie-cutter hero: headline left, screenshot right, two buttons. The first template every generator reaches for.
+- "Get Started" and "Learn More" as the only calls to action. Name the outcome the click buys.
+- Three big numbers with tiny labels under the hero ("10k+ users", "99.9%"). The template counts, not the product.
+- A grid of cards with the same shape, the same icon slot, the same two lines. Content of unequal weight given equal boxes.
+- Frosted-glass panels with blurred backdrops as the default surface. One translucent layer where it explains depth, not everywhere.
+- Generated SVG doodles and mascots in place of art direction. Commission or license an asset, or ship none.
+- Every secondary action in a modal. Inline, a side panel, or a new page usually costs the user less.
+- Sparklines, progress rings, and fake avatars filling space where content should be. Real data or an honest empty state.
+- Dark because it is a dev tool, light because it is health. Light or dark comes from the use scene: who, where, under what light.
+- Only the happy path is designed. Empty, loading, error, and long-content states are part of the component.
+
+Polish-level tells, note but do not grade: [monotonous-spacing], [bounce-easing], [pulsing-dot], [blinking-cursor], [numbered-section-labels], [em-dash-overuse], [extreme-negative-tracking], [gpt-thin-border-wide-shadow], [repeating-stripes-gradient], [codex-grid-background], [image-hover-transform], monospace as costume, unthemed browser surfaces.
 
 **10. Performance as Design** (6 items)
 - LCP < 2.0s (web apps), < 1.5s (informational sites)
@@ -1364,10 +1399,12 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 
 ### Design Hard Rules
 
-**Classifier — determine rule set before evaluating:**
-- **MARKETING/LANDING PAGE** (hero-driven, brand-forward, conversion-focused) → apply Landing Page Rules
-- **APP UI** (workspace-driven, data-dense, task-focused: dashboards, admin, settings) → apply App UI Rules
-- **HYBRID** (marketing shell with app-like sections) → apply Landing Page Rules to hero/marketing sections, App UI Rules to functional sections
+**Classifier: name the mode before you judge a pixel.** The mode is what the visitor's win looks like on THIS surface, not what the product is. A dev tool's landing page is Persuade. A fashion house's docs are Read.
+- **PERSUADE** (MARKETING/LANDING PAGE: hero-driven, brand-forward, pricing, campaigns) → they decide and act. Design IS the product. Apply Landing Page Rules.
+- **OPERATE** (APP UI: dashboards, admin, settings, editors, tools) → they finish a task. Scanability and native expectations beat expression; the brand lives in the details. Apply App UI Rules.
+- **READ** (docs, articles, guides, changelogs) → they understand something. Structure for comprehension, then make staying worth it. Apply Read Rules.
+- **EXPERIENCE** (portfolios, galleries, showcases) → they are inside the work. The artifact owns the first viewport; the interface gets out of the way. Apply Experience Rules.
+- **HYBRID** (marketing shell with app-like sections) → classify per section, not per page.
 
 **Hard rejection criteria** (instant-fail patterns — flag if ANY apply):
 1. Generic SaaS card grid as first impression
@@ -1387,7 +1424,7 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 6. Does motion improve hierarchy or atmosphere?
 7. Would design feel premium with all decorative shadows removed?
 
-**Landing page rules** (apply when classifier = MARKETING/LANDING):
+**Landing page rules** (apply when classifier = PERSUADE / MARKETING/LANDING):
 - First viewport reads as one composition, not a dashboard
 - Brand-first hierarchy: brand > headline > body > CTA
 - Typography: expressive, purposeful — no default stacks (Inter, Roboto, Arial, system)
@@ -1401,7 +1438,7 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
 - Beautiful defaults: composition-first, brand as loudest text, two typefaces max, cardless by default, first viewport as poster not document
 
-**App UI rules** (apply when classifier = APP UI):
+**App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
 - Dense but readable, minimal chrome
 - Organize: primary workspace, navigation, secondary context, one accent
@@ -1409,6 +1446,16 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - Copy: utility language — orientation, status, action. Not mood/brand/aspiration
 - Cards only when card IS the interaction
 - Section headings state what area is or what user can do ("Selected KPIs", "Plan status")
+
+**Read rules** (apply when classifier = READ):
+- Measure 65-75ch, one reading column, headings closer to what follows than to what precedes
+- Wayfinding is a feature: where am I, what is next, where do I search
+- A docs index is Read, not Persuade: no hero, no CTA theater
+
+**Experience rules** (apply when classifier = EXPERIENCE):
+- The work fills the first viewport; chrome earns every pixel
+- One authored transition, not a scroll-jacked tour
+- Never crop the artifact to fit a template
 
 **Universal rules** (apply to ALL types):
 - Define CSS variables for color system
@@ -1421,18 +1468,15 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - ALWAYS preserve visited vs unvisited link distinction (visited links must have a different color)
 - NEVER float headings between paragraphs (heading must be visually closer to the section it introduces than to the preceding section)
 
-**AI Slop blacklist** (the 10 patterns that scream "AI-generated"):
-1. Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes
-2. **The 3-column feature grid:** icon-in-colored-circle + bold title + 2-line description, repeated 3x symmetrically. THE most recognizable AI layout.
-3. Icons in colored circles as section decoration (SaaS starter template look)
-4. Centered everything (`text-align: center` on all headings, descriptions, cards)
-5. Uniform bubbly border-radius on every element (same large radius on everything)
-6. Decorative blobs, floating circles, wavy SVG dividers (if a section feels empty, it needs better content, not decoration)
-7. Emoji as design elements (rockets in headings, emoji as bullet points)
-8. Colored left-border on cards (`border-left: 3px solid <accent>`)
-9. Generic hero copy ("Welcome to [X]", "Unlock the power of...", "Your all-in-one solution for...")
-10. Cookie-cutter section rhythm (hero → 3 features → testimonials → pricing → CTA, every section same height)
-11. system-ui or `-apple-system` as the PRIMARY display/body font — the "I gave up on typography" signal. Pick a real typeface.
+**Reflexes no detector catches** (check by hand, every time):
+- **Depth has an offset.** Shadows are offset plus soft blur. A zero-offset colored halo is decoration, not depth.
+- **Secondary text on a colored surface is tinted from that hue.** Never gray.
+- **More space above a heading than below it.** Read the computed values.
+- **Light or dark comes from the use scene.** Who, where, under what light: one sentence. Never from the category.
+
+**Calibration: the three looks.** AI-built interfaces land in one of three looks no matter what the product is: (1) cream ground, high-contrast serif display, terracotta or signal-red accent; (2) near-black, one neon accent, glowing edges; (3) broadsheet hairlines, italic display serif, tiny tracked mono labels. Each is fine when the brief asks for it. If the brief left the look open and you landed in one anyway, you stopped looking. The test: could someone guess your look from the category alone? From "the category, but avoiding the obvious"? Either way, start over. "It's about books, so cream and a serif" fails this test. Book cloth and jackets come in every saturated color there is.
+
+**AI Slop blacklist:** the 11 legacy patterns, the 30 detector rules, and the 16 judgment tells are Methodology category 9. Grade against that list; do not re-derive it here.
 
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.
 

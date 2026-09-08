@@ -1,5 +1,6 @@
 import { type TemplateContext, toShellPath } from './types';
 import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CODEX_WEB_SEARCH_FLAG, CC_BACKGROUND_DEFAULT_SINCE } from './constants';
+import { DESIGN_SLOP_CATALOG, OVERUSED_FONTS_DISPLAY, selectCatalog, catalogEntry } from '../../lib/design-catalog';
 
 export function generateDesignReviewLite(ctx: TemplateContext): string {
   const litmusList = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join(' ');
@@ -68,6 +69,14 @@ Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "is
 // from lib/design-catalog.ts, the same catalog category 9 below renders. Edit the
 // catalog, never the checklist; gen-skill-docs rewrites it.
 export function generateDesignMethodology(_ctx: TemplateContext): string {
+  // Category 9 renders the catalog in three registers: the 11 legacy lines verbatim,
+  // detector-known slop with bracketed ids (impact above polish), and the gstack-only
+  // judgment tells as prose. Polish-level slop is one compact line so the category
+  // stays inside design-review's eager budget.
+  const slop = selectCatalog({ kind: 'slop' });
+  const detectorSlop = slop.filter(e => e.impeccableId && !e.legacyBlacklist && e.impact !== 'polish');
+  const judgmentTells = slop.filter(e => !e.impeccableId && !e.legacyBlacklist && e.impact !== 'polish');
+  const polishTells = slop.filter(e => !e.legacyBlacklist && e.impact === 'polish');
   return `## Modes
 
 ### Full (default)
@@ -231,7 +240,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Heading hierarchy: no skipped levels (h1→h3 without h2)
 - Weight contrast: >=2 weights used for hierarchy
 - No blacklisted fonts (Papyrus, Comic Sans, Lobster, Impact, Jokerman)
-- If primary font is Inter/Roboto/Open Sans/Poppins → flag as potentially generic
+- Display face on the overused list (${OVERUSED_FONTS_DISPLAY.slice(0, 6).join(', ')}, ...) → flag \`[overused-font]\`; as body/UI on an Operate or Read surface it passes when DESIGN.md says so
 - \`text-wrap: balance\` or \`text-pretty\` on headings (check via \`await pg.evaluate(() => getComputedStyle(document.querySelector("h1")).textWrap)\`)
 - Curly quotes used, not straight quotes
 - Ellipsis character (\`…\`) not three dots (\`...\`)
@@ -266,7 +275,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Flex/grid used for layout (not JS measurement)
 - Breakpoints: mobile (375), tablet (768), desktop (1024), wide (1440)
 
-**5. Interaction States** (10 items)
+**5. Interaction States** (12 items)
 - Hover state on all interactive elements
 - \`focus-visible\` ring present (never \`outline: none\` without replacement)
 - Active/pressed state with depth effect or color shift
@@ -278,6 +287,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Touch targets >= 44px on all interactive elements
 - \`cursor: pointer\` on all clickable elements
 - Mindless choice audit: every decision point (button, link, dropdown, modal choice) is a mindless click (obvious what happens). If a click requires thought about whether it's the right choice, flag as HIGH.
+- Browser surfaces themed from the palette: \`::selection\`, caret, scrollbars, focus ring, underline offset, tabular numerals. Left at defaults, the page reads as assembled, not designed
 
 **6. Responsive Design** (8 items)
 - Mobile layout makes *design* sense (not just stacked desktop columns)
@@ -289,13 +299,14 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Forms usable on mobile (correct input types, no autoFocus on mobile)
 - No \`user-scalable=no\` or \`maximum-scale=1\` in viewport meta
 
-**7. Motion & Animation** (6 items)
+**7. Motion & Animation** (7 items)
 - Easing: ease-out for entering, ease-in for exiting, ease-in-out for moving
 - Duration: 50-700ms range (nothing slower unless page transition)
 - Purpose: every animation communicates something (state change, attention, spatial relationship)
 - \`prefers-reduced-motion\` respected (check: \`await pg.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)\`)
 - No \`transition: all\` — properties listed explicitly
 - Only \`transform\` and \`opacity\` animated (not layout properties like width, height, top, left)
+- One authored motion moment per page: not the same entrance on every section, not a hover effect on everything. Ease-out from an already-visible default; content never hides behind animation timing
 
 **8. Content & Microcopy** (8 items)
 - Empty states designed with warmth (message + action + illustration/icon)
@@ -310,11 +321,21 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Instructions detection: any visible instructions longer than one sentence. If users need to read instructions, the design has failed. Flag the instructions AND the interaction they're compensating for.
 - Happy talk word count: count total visible words on the page. Classify each text block as "useful content" vs "happy talk" (welcome paragraphs, self-congratulatory text, instructions nobody reads). Report: "This page has X words. Y (Z%) are happy talk."
 
-**9. AI Slop Detection** (10 anti-patterns — the blacklist)
+**9. AI Slop Detection** (${AI_SLOP_BLACKLIST.length} blacklist patterns, ${detectorSlop.length} detector rules, ${judgmentTells.length} judgment tells)
 
-The test: would a human designer at a respected studio ever ship this?
+The test: would a human designer at a respected studio ever ship this? A \`[rule-id]\` is the detector's name for the same pattern; a scan hit and a judgment hit on one element are one finding.
 
 ${AI_SLOP_BLACKLIST.map(item => `- ${item}`).join('\n')}
+
+Detector rules that still need your judgment (the id is what the scan prints):
+${detectorSlop.filter(e => e.detect.includes('llm')).map(e => `- [${e.impeccableId}] ${e.prose}`).join('\n')}
+
+Mechanical detector rules, confirm in the render and move on: ${detectorSlop.filter(e => !e.detect.includes('llm')).map(e => `[${e.impeccableId}] ${e.name.toLowerCase()}`).join('; ')}.
+
+Judgment tells (no detector rule; you are the detector):
+${judgmentTells.map(e => `- ${e.prose}`).join('\n')}
+
+Polish-level tells, note but do not grade: ${polishTells.map(e => (e.impeccableId ? `[${e.impeccableId}]` : e.name.toLowerCase())).join(', ')}.
 
 **10. Performance as Design** (6 items)
 - LCP < 2.0s (web apps), < 1.5s (informational sites)
@@ -678,7 +699,7 @@ For each finding: what's wrong, severity (critical/high/medium), and the file:li
 - Color system: CSS variables for background, surface, primary text, muted text, accent
 - Layout: composition-first, not component-first. First viewport as poster, not document
 - Differentiation: 2 deliberate departures from category norms
-- Anti-slop: no purple gradients, no 3-column icon grids, no centered everything, no decorative blobs
+- Anti-slop: none of ${['ai-color-palette', 'feature-grid-3col', 'centered-everything', 'decorative-blobs', 'nested-cards', 'kicker-above-heading', 'icon-tile-stack', 'dark-glow'].map(id => catalogEntry(id)!.name.toLowerCase()).join(', ')}
 
 Be opinionated. Be specific. Do not hedge. This is YOUR design direction — own it.`;
 
@@ -787,18 +808,45 @@ ${ctx.paths.binDir}/gstack-review-log '{"skill":"design-outside-voices","timesta
 Replace STATUS with "clean" or "issues_found", SOURCE with "codex+subagent", "codex-only", "subagent-only", or "unavailable".`;
 }
 
-// ─── Design Hard Rules (OpenAI framework + gstack slop blacklist) ───
-export function generateDesignHardRules(_ctx: TemplateContext): string {
+// ─── Design Hard Rules (OpenAI framework + gstack slop catalog) ───
+// Modes (Persuade/Operate/Read/Experience), the craft-floor reflexes, and the
+// three-looks calibration are derived from pbakaus/impeccable reference/craft-floor.md
+// + new-work.md (Apache-2.0), rewritten in gstack's voice. See NOTICE.md.
+export function generateDesignHardRules(ctx: TemplateContext): string {
   const slopItems = AI_SLOP_BLACKLIST.map((item, i) => `${i + 1}. ${item}`).join('\n');
   const rejectionItems = OPENAI_HARD_REJECTIONS.map((item, i) => `${i + 1}. ${item}`).join('\n');
   const litmusItems = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join('\n');
+  const detectorSlop = DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && e.impeccableId && !e.legacyBlacklist);
+  const judgmentTells = DESIGN_SLOP_CATALOG.filter(e => e.kind === 'slop' && !e.impeccableId && !e.legacyBlacklist);
+  // design-review renders DESIGN_METHODOLOGY too, whose category 9 carries the
+  // full catalog with ids; there the slop section is a pointer, not a second copy.
+  const slopSection = ctx.skillName === 'design-review'
+    ? `**AI Slop blacklist:** the ${AI_SLOP_BLACKLIST.length} legacy patterns, the ${detectorSlop.length} detector rules, and the ${judgmentTells.length} judgment tells are Methodology category 9. Grade against that list; do not re-derive it here.`
+    : `**AI Slop blacklist** (the ${AI_SLOP_BLACKLIST.length} patterns that scream "AI-generated"):
+${slopItems}
+
+Detector rule ids for the rest of the catalog (a \`[rule-id]\` in a finding is one of these): ${detectorSlop.map(e => `${e.impeccableId}: ${e.name}`).join('; ')}.
+Judgment tells with no detector rule: ${judgmentTells.map(e => e.name.toLowerCase()).join(', ')}.`;
+
+  const reflexes = [
+    '- **Browser surfaces carry the design.** Selection color, caret, scrollbars, focus rings, underline offset, tabular numerals all ship with browser defaults that belong to no design system. Theme them from the palette. Cheapest tell that a page was designed rather than assembled, and the one models skip most.',
+    '- **One authored motion moment.** Not the same entrance on every section, not a hover effect on everything. Exponential ease-out from an already-visible default. Content never hides behind animation timing.',
+    '- **Depth has an offset.** Shadows are offset plus soft blur. A zero-offset colored halo is decoration, not depth.',
+    '- **Secondary text on a colored surface is tinted from that hue.** Never gray.',
+    '- **More space above a heading than below it.** Read the computed values.',
+    '- **Light or dark comes from the use scene.** Who, where, under what light: one sentence. Never from the category.',
+  ];
+  // design-review's Methodology categories 5 and 7 already carry the first two.
+  const reflexBlock = (ctx.skillName === 'design-review' ? reflexes.slice(2) : reflexes).join('\n');
 
   return `### Design Hard Rules
 
-**Classifier — determine rule set before evaluating:**
-- **MARKETING/LANDING PAGE** (hero-driven, brand-forward, conversion-focused) → apply Landing Page Rules
-- **APP UI** (workspace-driven, data-dense, task-focused: dashboards, admin, settings) → apply App UI Rules
-- **HYBRID** (marketing shell with app-like sections) → apply Landing Page Rules to hero/marketing sections, App UI Rules to functional sections
+**Classifier: name the mode before you judge a pixel.** The mode is what the visitor's win looks like on THIS surface, not what the product is. A dev tool's landing page is Persuade. A fashion house's docs are Read.
+- **PERSUADE** (MARKETING/LANDING PAGE: hero-driven, brand-forward, pricing, campaigns) → they decide and act. Design IS the product. Apply Landing Page Rules.
+- **OPERATE** (APP UI: dashboards, admin, settings, editors, tools) → they finish a task. Scanability and native expectations beat expression; the brand lives in the details. Apply App UI Rules.
+- **READ** (docs, articles, guides, changelogs) → they understand something. Structure for comprehension, then make staying worth it. Apply Read Rules.
+- **EXPERIENCE** (portfolios, galleries, showcases) → they are inside the work. The artifact owns the first viewport; the interface gets out of the way. Apply Experience Rules.
+- **HYBRID** (marketing shell with app-like sections) → classify per section, not per page.
 
 **Hard rejection criteria** (instant-fail patterns — flag if ANY apply):
 ${rejectionItems}
@@ -806,7 +854,7 @@ ${rejectionItems}
 **Litmus checks** (answer YES/NO for each — used for cross-model consensus scoring):
 ${litmusItems}
 
-**Landing page rules** (apply when classifier = MARKETING/LANDING):
+**Landing page rules** (apply when classifier = PERSUADE / MARKETING/LANDING):
 - First viewport reads as one composition, not a dashboard
 - Brand-first hierarchy: brand > headline > body > CTA
 - Typography: expressive, purposeful — no default stacks (Inter, Roboto, Arial, system)
@@ -820,7 +868,7 @@ ${litmusItems}
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
 - Beautiful defaults: composition-first, brand as loudest text, two typefaces max, cardless by default, first viewport as poster not document
 
-**App UI rules** (apply when classifier = APP UI):
+**App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
 - Dense but readable, minimal chrome
 - Organize: primary workspace, navigation, secondary context, one accent
@@ -828,6 +876,16 @@ ${litmusItems}
 - Copy: utility language — orientation, status, action. Not mood/brand/aspiration
 - Cards only when card IS the interaction
 - Section headings state what area is or what user can do ("Selected KPIs", "Plan status")
+
+**Read rules** (apply when classifier = READ):
+- Measure 65-75ch, one reading column, headings closer to what follows than to what precedes
+- Wayfinding is a feature: where am I, what is next, where do I search
+- A docs index is Read, not Persuade: no hero, no CTA theater
+
+**Experience rules** (apply when classifier = EXPERIENCE):
+- The work fills the first viewport; chrome earns every pixel
+- One authored transition, not a scroll-jacked tour
+- Never crop the artifact to fit a template
 
 **Universal rules** (apply to ALL types):
 - Define CSS variables for color system
@@ -840,8 +898,12 @@ ${litmusItems}
 - ALWAYS preserve visited vs unvisited link distinction (visited links must have a different color)
 - NEVER float headings between paragraphs (heading must be visually closer to the section it introduces than to the preceding section)
 
-**AI Slop blacklist** (the 10 patterns that scream "AI-generated"):
-${slopItems}
+**Reflexes no detector catches** (check by hand, every time):
+${reflexBlock}
+
+**Calibration: the three looks.** AI-built interfaces land in one of three looks no matter what the product is: (1) cream ground, high-contrast serif display, terracotta or signal-red accent; (2) near-black, one neon accent, glowing edges; (3) broadsheet hairlines, italic display serif, tiny tracked mono labels. Each is fine when the brief asks for it. If the brief left the look open and you landed in one anyway, you stopped looking. The test: could someone guess your look from the category alone? From "the category, but avoiding the obvious"? Either way, start over. "It's about books, so cream and a serif" fails this test. Book cloth and jackets come in every saturated color there is.
+
+${slopSection}
 
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.`;
 }

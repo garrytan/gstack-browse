@@ -1789,6 +1789,47 @@ describe('DESIGN_HARD_RULES resolver', () => {
     expect(content).toContain('Universal rules');
   });
 
+  test('classifier names the four visitor modes and keeps the legacy aliases', () => {
+    const content = readSkillUnion('plan-design-review');
+    for (const mode of ['PERSUADE', 'OPERATE', 'READ', 'EXPERIENCE', 'HYBRID']) expect(content).toContain(`**${mode}**`);
+    expect(content).toContain('Read rules');
+    expect(content).toContain('Experience rules');
+    expect(content).toContain('classify per section, not per page');
+  });
+
+  test('carries the craft-floor reflexes and the three-looks calibration', () => {
+    const content = readSkillUnion('plan-design-review');
+    expect(content).toContain('Reflexes no detector catches');
+    expect(content).toContain('Browser surfaces carry the design');
+    expect(content).toContain('One authored motion moment');
+    expect(content).toContain('Depth has an offset');
+    expect(content).toContain('Light or dark comes from the use scene');
+    expect(content).toContain('Calibration: the three looks');
+  });
+
+  test('slop section lists detector rule ids and judgment tells outside design-review', () => {
+    const content = readSkillUnion('plan-design-review');
+    expect(content).toContain('Detector rule ids for the rest of the catalog');
+    expect(content).toContain('nested-cards: Nested cards');
+    expect(content).toContain('Judgment tells with no detector rule');
+    // Never a bracketed gstack-only id.
+    expect(content).not.toContain('[hero-metrics]');
+  });
+
+  test('design-review renders the catalog once: Methodology category 9 carries it, Hard Rules points at it', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(content.split('### Design Hard Rules').length - 1).toBe(1);
+    // Category 9 lists the rule once; Typography points at the same id from its overused-face item.
+    expect(content.split('- [overused-font] ').length - 1).toBe(1);
+    expect(content.split('[overused-font]').length - 1).toBe(2);
+    expect(content).toContain('are Methodology category 9');
+    expect(content).toContain('**9. AI Slop Detection**');
+    expect(content).toContain('- [nested-cards] ');
+    expect(content).toContain('Judgment tells (no detector rule');
+    // The legacy blacklist is not repeated as a numbered list in design-review.
+    expect(content).not.toMatch(/^1\. Purple\/violet\/indigo/m);
+  });
+
   test('references shared AI slop blacklist items', () => {
     const content = readSkillUnion('plan-design-review');
     expect(content).toContain('3-column feature grid');

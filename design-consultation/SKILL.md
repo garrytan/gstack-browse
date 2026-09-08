@@ -862,7 +862,7 @@ codex exec "Given this product context, propose a complete design direction:
 - Color system: CSS variables for background, surface, primary text, muted text, accent
 - Layout: composition-first, not component-first. First viewport as poster, not document
 - Differentiation: 2 deliberate departures from category norms
-- Anti-slop: no purple gradients, no 3-column icon grids, no centered everything, no decorative blobs
+- Anti-slop: none of purple gradient palette, the 3-column feature grid, centered everything, decorative blobs and dividers, nested cards, kicker above heading, icon tile above every heading, dark-mode glow
 
 Be opinionated. Be specific. Do not hedge. This is YOUR design direction — own it." -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_DESIGN"
 ```
