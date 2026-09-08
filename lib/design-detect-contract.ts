@@ -40,6 +40,10 @@ export const SENTINEL = {
   DETECT_PARSE_ERROR: 'DETECT_PARSE_ERROR',
   DETECT_OUTPUT_TOO_LARGE: 'DETECT_OUTPUT_TOO_LARGE',
   INTERNAL_ERROR: 'DESIGN_DETECT_INTERNAL_ERROR',
+  /** printed by rendered bash: the temp file holding a scan's JSON */
+  DETECT_JSON: 'DETECT_JSON',
+  /** printed by rendered bash after a DOM dump is persisted */
+  DOM_DUMP_OK: 'DOM_DUMP_OK',
   DOM_DUMP_REDACTION_BLOCKED: 'DOM_DUMP_REDACTION_BLOCKED',
   DOM_DUMP_TOO_LARGE: 'DOM_DUMP_TOO_LARGE',
   DESIGN_MD_FORMAT: 'DESIGN_MD_FORMAT',
@@ -49,6 +53,18 @@ export const SENTINEL = {
 } as const;
 
 export type SentinelName = keyof typeof SENTINEL;
+
+/**
+ * Sentinels whose line explains itself after the colon (a path, a version, a
+ * reason). Prose need not teach them; the agent notes them and moves on. The
+ * contract test requires every OTHER sentinel to be taught somewhere the agent
+ * reads.
+ */
+export const SELF_DESCRIBING_SENTINELS: readonly string[] = [
+  SENTINEL.HOOK_OTHER, SENTINEL.IGNORED_FILES, SENTINEL.CONFIG_UNREADABLE, SENTINEL.ENV_IGNORED,
+  SENTINEL.ENGINE_UNTESTED, SENTINEL.DETECT_EXIT, SENTINEL.DETECT_REFUSED, SENTINEL.DETECT_NO_TARGETS,
+  SENTINEL.DETECT_TIMEOUT, SENTINEL.DETECT_PARSE_ERROR, SENTINEL.DETECT_OUTPUT_TOO_LARGE,
+];
 
 /** Engine versions the committed fixtures were captured from. */
 export const TESTED_ENGINE_VERSIONS: readonly string[] = ['0.1.3'];

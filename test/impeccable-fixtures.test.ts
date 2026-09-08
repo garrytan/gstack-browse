@@ -13,7 +13,7 @@
 import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
-import { DOM_DUMP_SCRIPT, DOM_DUMP_STYLE_ATTR, DOM_DUMP_NOTE_PREFIX } from '../lib/dom-dump-script';
+import { DOM_DUMP_SCRIPT, DOM_DUMP_STYLE_ATTR, DOM_DUMP_NOTE_PREFIX, DOM_DUMP_FILE } from '../lib/dom-dump-script';
 
 const FIXTURES = path.join(import.meta.dir, 'fixtures');
 const read = (name: string) => fs.readFileSync(path.join(FIXTURES, name), 'utf-8');
@@ -150,6 +150,13 @@ describe('DOM_DUMP_SCRIPT contract', () => {
       'gstack-stripped', 'cloneLinks[i].remove()']) {
       expect(DOM_DUMP_SCRIPT).toContain(rule);
     }
+  });
+
+  test('committed lib/dom-dump.js is the script byte-for-byte (gen-skill-docs writes it)', () => {
+    expect(DOM_DUMP_FILE).toBe('lib/dom-dump.js');
+    const committed = fs.readFileSync(path.join(import.meta.dir, '..', DOM_DUMP_FILE), 'utf-8');
+    expect(committed).toBe(DOM_DUMP_SCRIPT + '\n');
+    expect(() => new Function('return ' + committed)).not.toThrow();
   });
 
   test('lib module is pure: no I/O, no scripts/ imports', () => {

@@ -12,6 +12,7 @@
 import { discoverTemplates, discoverSectionTemplates } from './discover-skills';
 import { writeLlmsTxt } from './gen-llms-txt';
 import { generateDesignChecklistMd } from './resolvers/design-checklist';
+import { DOM_DUMP_SCRIPT, DOM_DUMP_FILE } from '../lib/dom-dump-script';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Host, TemplateContext } from './resolvers/types';
@@ -1112,21 +1113,29 @@ for (const currentHost of hostsToRun) {
     if (currentHost === 'claude'
         && !(currentHostConfig.generation.includeSkills?.length && !currentHostConfig.generation.includeSkills.includes('review'))
         && !currentHostConfig.generation.skipSkills?.includes('review')) {
-      const outputPath = path.join(OUT_DIR ?? ROOT, 'review', 'design-checklist.md');
-      const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
-      const content = generateDesignChecklistMd();
-      if (DRY_RUN) {
-        const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
-        if (existing !== content) {
-          console.log(`STALE: ${relOutput}`);
-          hasChanges = true;
+      // Two runtime assets derived from lib/ source: the checklist (from the
+      // catalog) and the DOM-dump script the browser engines load at runtime
+      // (from lib/dom-dump-script.ts, so the prose never carries the script).
+      const generatedAssets: Array<[string, string]> = [
+        [path.join('review', 'design-checklist.md'), generateDesignChecklistMd()],
+        [DOM_DUMP_FILE, DOM_DUMP_SCRIPT + '\n'],
+      ];
+      for (const [rel, content] of generatedAssets) {
+        const outputPath = path.join(OUT_DIR ?? ROOT, rel);
+        const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
+        if (DRY_RUN) {
+          const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+          if (existing !== content) {
+            console.log(`STALE: ${relOutput}`);
+            hasChanges = true;
+          } else {
+            console.log(`FRESH: ${relOutput}`);
+          }
         } else {
-          console.log(`FRESH: ${relOutput}`);
+          if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+          fs.writeFileSync(outputPath, content);
+          console.log(`GENERATED: ${relOutput}`);
         }
-      } else {
-        if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-        fs.writeFileSync(outputPath, content);
-        console.log(`GENERATED: ${relOutput}`);
       }
     }
 

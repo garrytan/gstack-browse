@@ -678,7 +678,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
       gateAfterStop: undefined, // operational skill, no plan-mode gate
     },
     behavioral: 'prompt',
-    maxSkeletonBytes: 52_900, // + v1.78 AUQ spawned-trigger objectivity (explicit declaration + interactive fence); measured 52_492
+    maxSkeletonBytes: 54_000, // + v1.82 design detector: {{DESIGN_DETECTOR}} probe + Step 4 slop gate + catalog id tags; measured 53_592
     minUnionBytes: 57_500, // Phase 4 wave 4; measured union 58,682
     mustContain: ["Don't make me think", "Users scan, they don't read", 'The Goodwill Reservoir', 'PRETEXT API CHEATSHEET', 'Pattern 3: Text around obstacles'],
   },

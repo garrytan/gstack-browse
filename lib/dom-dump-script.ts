@@ -2,7 +2,8 @@
 // in the page before handing the result to the design detector.
 //
 // Pure module: no I/O, no imports from scripts/. Consumers:
-//   scripts/resolvers/design.ts   renders it once as a fenced JS block (Phase 3)
+//   scripts/resolvers/design.ts   Phase 3 prose tells the agent to load lib/dom-dump.js
+//   lib/dom-dump.js               committed copy gen-skill-docs writes; the engines load it at runtime
 //   test/fixtures/*.dom.html      captured by running it through the browse engine
 //   test/impeccable-fixtures.test.ts  pins that the committed dump came from THIS script
 //
@@ -80,6 +81,14 @@ export const DOM_DUMP_SCRIPT = String.raw`(() => {
   if (scripts) notes.push("scripts stripped: " + scripts + "; styles injected at runtime not captured");
   return "<!DOCTYPE html>\n" + root.outerHTML + "\n<!-- gstack-dom-dump: " + notes.join("; ") + " -->\n";
 })()`;
+
+/**
+ * Committed copy of DOM_DUMP_SCRIPT for the browser engines to load at runtime
+ * (written by gen-skill-docs, pinned byte-equal by test/impeccable-fixtures.test.ts).
+ * Skills `cat` it into an Aside script or `cp` it beside `$B eval`; the prose
+ * never carries the script text.
+ */
+export const DOM_DUMP_FILE = 'lib/dom-dump.js';
 
 /** Marker the dump script leaves on the inlined-stylesheet node. */
 export const DOM_DUMP_STYLE_ATTR = 'data-gstack-dom-css';

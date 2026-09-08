@@ -11,7 +11,7 @@ import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS, DETECT_EXIT_ECHO } from '../lib/design-detect-contract';
+import { SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS, DETECT_EXIT_ECHO, SELF_DESCRIBING_SENTINELS } from '../lib/design-detect-contract';
 import { ADVISORY_RULE_IDS as _a } from '../lib/design-detect-contract';
 import { catalogEntry } from '../lib/design-catalog';
 
@@ -69,11 +69,27 @@ describe('contract shape', () => {
   });
 });
 
+describe('every printable sentinel is mentioned somewhere the agent reads', () => {
+  // DESIGN_MD_* sentinels arrive with the DESIGN.md tool wiring; until then they are contract-only.
+  const PENDING = new Set<string>([SENTINEL.DESIGN_MD_FORMAT, SENTINEL.DESIGN_MD_CONVERT_REFUSED, SENTINEL.DESIGN_MD_INTERNAL_ERROR, SENTINEL.DESIGN_MD_TOKEN_REF_INVALID]);
+  test('generated SKILL.md files, sections, or the checklist name each one', () => {
+    const corpus = [...agentReadableFiles()].filter(f => !f.includes(`${path.sep}scripts${path.sep}`)).map(f => fs.readFileSync(f, 'utf-8')).join('\n');
+    const selfDescribing = new Set(SELF_DESCRIBING_SENTINELS);
+    const missing = Object.values(SENTINEL).filter(v => !PENDING.has(v) && !selfDescribing.has(v) && !corpus.includes(v));
+    expect(missing).toEqual([]);
+    // self-describing ones are still contract-owned and still printed by the bin
+    for (const v of SELF_DESCRIBING_SENTINELS) expect(Object.values(SENTINEL)).toContain(v);
+  });
+});
+
 describe('every sentinel-shaped token the agent can read exists in the contract', () => {
   test('generated docs, sections, templates, resolvers, and the checklist', () => {
     const known = new Set<string>(Object.values(SENTINEL));
     const offenders: string[] = [];
+    // Resolvers are scanned for the strings they render, not their identifiers:
+    // an exported contract name (DETECT_EXIT_ECHO, DETECT_LIMITS) is not a sentinel.
     for (const file of agentReadableFiles()) {
+      if (file.includes(`${path.sep}scripts${path.sep}`)) continue;
       const text = fs.readFileSync(file, 'utf-8');
       for (const m of text.matchAll(TOKEN)) {
         const tok = m[1];

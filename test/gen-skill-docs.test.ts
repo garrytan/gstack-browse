@@ -1843,12 +1843,12 @@ describe('DESIGN_HARD_RULES resolver', () => {
   test('design-review renders the catalog once: Methodology category 9 carries it, Hard Rules points at it', () => {
     const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
     expect(content.split('### Design Hard Rules').length - 1).toBe(1);
-    // Category 9 lists the rule once; Typography points at the same id from its overused-face item.
-    expect(content.split('- [overused-font] ').length - 1).toBe(1);
+    // Category 9 lists the rule once (ids only); Typography points at the same id from its overused-face item.
     expect(content.split('[overused-font]').length - 1).toBe(2);
     expect(content).toContain('are Methodology category 9');
     expect(content).toContain('**9. AI Slop Detection**');
-    expect(content).toContain('- [nested-cards] ');
+    expect(content).toContain('Detector rules (ids only;');
+    expect(content).toContain('[nested-cards] nested cards');
     expect(content).toContain('Judgment tells (no detector rule');
     // The legacy blacklist is not repeated as a numbered list in design-review.
     expect(content).not.toMatch(/^1\. Purple\/violet\/indigo/m);
@@ -1870,6 +1870,93 @@ describe('DESIGN_HARD_RULES resolver', () => {
     const content = readSkillUnion('plan-design-review');
     expect(content).toContain('Brand/product unmistakable');
     expect(content).toContain('premium with all decorative shadows removed');
+  });
+});
+
+// --- {{DESIGN_DETECTOR}} resolver tests ---
+
+describe('DESIGN_DETECTOR resolver', () => {
+  const designReview = () => fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+  const designHtml = () => fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
+  const bashBlocksOf = (content: string) => [...content.matchAll(/```bash\n([\s\S]*?)```/g)].map(m => m[1]);
+
+  test('design-review carries the probe, Phase 0, the DOM dump, and the run id', () => {
+    const c = designReview();
+    expect(c).toContain('gstack-design-detect.ts probe --host claude');
+    expect(c).toContain('IMPECCABLE_READY');
+    expect(c).toContain('**Phase 0: mechanical scan**');
+    expect(c).toContain('scan --changed <base> --format gstack --host claude');
+    expect(c).toContain('### DOM dump (DOM mode only');
+    expect(c).toContain('data-gstack-dom-css');
+    expect(c).toContain('$B eval "$_TMP/dom-dump.js" --out "$_TMP/{page}.dom.html" --raw');
+    expect(c).toContain('DOM_DUMP_OK');
+    expect(c).toContain('DOM_DUMP_REDACTION_BLOCKED');
+    expect(c).toContain('DOM_DUMP_TOO_LARGE');
+    expect(c).toContain('REPORT_DIR="${GSTACK_HOME:-$HOME/.gstack}/projects/$SLUG/designs/design-audit-$(date +%Y%m%d)"');
+    expect(c).toContain('RUN_ID="$(date +%H%M%S)-$$"');
+    expect(c).toContain('"schemaVersion": 2');
+    expect(c).toContain('engine changed X → Y; rule set may differ');
+    expect(c).toContain('Detector: N → M');
+    expect(c).toContain('/impeccable typeset');
+  });
+
+  test('the DOM-dump script is loaded from lib/dom-dump.js, never inlined in the prose', () => {
+    const c = designReview();
+    expect(c).not.toMatch(/```js\n/);
+    expect(c).not.toContain('document.documentElement.cloneNode');
+    expect(c).toContain('_DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
+    expect(c).toContain('const html = await pg.evaluate($_DUMP);');
+    expect(c).toContain('cp "$HOME/.claude/skills/gstack/lib/dom-dump.js" "$_TMP/"');
+  });
+
+  test('design-html carries the probe and the bounded slop gate', () => {
+    const c = designHtml();
+    expect(c).toContain('gstack-design-detect.ts probe --host claude');
+    expect(c).toContain('### Slop Gate (bounded, never a loop)');
+    expect(c).toContain('One pass, not a loop.');
+    expect(c).toContain('impeccable-disable <rule>: <reason>');
+  });
+
+  test('ship and review unions reach the detector through review-lite and the checklist', () => {
+    const ship = readSkillUnion('ship');
+    expect(ship).toContain('**Mechanical pass first.**');
+    expect(ship).toContain('scan --changed <base> --format gstack --host claude');
+    expect(ship).toContain('"detector":D');
+    expect(ship).toContain('Detector: "clean" | "N findings');
+    const review = readSkillUnion('review');
+    expect(review).toContain('run the mechanical pass at the top of that checklist');
+    const checklist = fs.readFileSync(path.join(ROOT, 'review', 'design-checklist.md'), 'utf-8');
+    expect(checklist).toContain('**0. Mechanical pass first.**');
+    expect(checklist).toContain('IMPECCABLE_READY');
+  });
+
+  test('every rendered invocation uses bun --no-env-file and ends a scan with the exit echo; no bash block runs npx impeccable', () => {
+    for (const content of [designReview(), designHtml(), readSkillUnion('ship'), readSkillUnion('review'), fs.readFileSync(path.join(ROOT, 'review', 'design-checklist.md'), 'utf-8')]) {
+      for (const block of bashBlocksOf(content)) {
+        expect(block).not.toContain('npx impeccable');
+        for (const line of block.split('\n')) {
+          if (!line.includes('gstack-design-detect.ts')) continue;
+          expect(line).toContain('bun --no-env-file run ');
+          if (/gstack-design-detect\.ts scan /.test(line)) expect(line).toContain('echo "DETECT_EXIT_CODE=$?"');
+        }
+      }
+    }
+  });
+
+  test('--host is rendered per host', () => {
+    // Fresh codex render into a temp out-dir: the tracked tree is Claude-only and
+    // the gitignored .agents/ copy may be stale.
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-detector-host-'));
+    try {
+      const r = Bun.spawnSync(['bun', 'run', 'scripts/gen-skill-docs.ts', '--host', 'codex', '--out-dir', out], { cwd: ROOT, timeout: 120_000 });
+      expect(r.exitCode).toBe(0);
+      const codex = fs.readFileSync(path.join(out, '.agents', 'skills', 'gstack-design-review', 'SKILL.md'), 'utf-8');
+      expect(codex).toContain('gstack-design-detect.ts probe --host codex');
+      expect(codex).not.toContain('probe --host claude');
+      expect(codex).toContain('$GSTACK_ROOT/lib/dom-dump.js');
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
   });
 });
 
