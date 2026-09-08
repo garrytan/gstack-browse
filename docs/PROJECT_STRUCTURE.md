@@ -25,7 +25,7 @@ gstack/
 │   ├── gen-agents-digest.ts  # Generates the budget-capped instruction-tier digest (agents-digest/)
 │   ├── host-config.ts     # HostConfig interface + validator
 │   ├── host-config-export.ts  # Shell bridge for setup script
-│   ├── resolvers/   # Template resolver modules (preamble, aside = the Aside driver contract + research, browse = $B fallback setup + command reference, design, review, gbrain, etc.)
+│   ├── resolvers/   # Template resolver modules (preamble, aside = the Aside driver contract + research, browse = $B fallback setup + command reference, design, design-checklist = renders review/design-checklist.md from lib/design-catalog.ts, review, gbrain, etc.)
 │   ├── skill-check.ts     # Health dashboard
 │   ├── test-free-shards.ts  # Strict parallel free-suite runner (GSTACK_FREE_JOBS, opt-in flaky retry)
 │   ├── test-paid-shards.ts  # Sharded paid-tier runner (one Bun process per shard)
@@ -34,7 +34,7 @@ gstack/
 │   └── dev-skill.ts       # Watch mode
 ├── test/            # Skill validation + eval tests
 │   ├── helpers/     # skill-parser.ts, session-runner.ts, llm-judge.ts, eval-store.ts, aside-available.ts (Aside self-skip probe)
-│   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines
+│   ├── fixtures/    # Ground truth JSON, planted-bug fixtures, eval baselines, impeccable engine captures (impeccable-*.json, the dumped slop page, fake-impeccable.ts shim)
 │   ├── aside-driver.test.ts      # Tier 1: pins the {{ASIDE_SETUP}} contract sentences + the fallback hand-off
 │   ├── aside-render.test.ts      # Tier 1 pins + fake-executable runs on both engines + a live Aside render (self-skips without Aside)
 │   ├── gstack-render-cli.test.ts # Tier 1: bin/gstack-render.ts argv guards + output contract against a fake daemon
@@ -47,7 +47,7 @@ gstack/
 ├── plan-design-review/  # /plan-design-review skill (report-only design audit)
 ├── design-review/    # /design-review skill (design audit + fix loop)
 ├── ship/            # Ship workflow skill
-├── review/          # PR review skill
+├── review/          # PR review skill (checklist.md is hand-written; design-checklist.md is GENERATED from lib/design-catalog.ts)
 ├── plan-ceo-review/ # /plan-ceo-review skill
 ├── plan-eng-review/ # /plan-eng-review skill
 ├── autoplan/        # /autoplan skill (auto-review pipeline: CEO → design → DX → eng, eng always last)
@@ -84,7 +84,7 @@ gstack/
 ├── lib/             # Shared libraries (aside-render.ts = local-HTML rendering, Aside first, engine fallback; design-catalog.ts = the typed design anti-pattern catalog every design skill renders from; design-detect-contract.ts = detector sentinel vocabulary; design-md.ts = open DESIGN.md reader/writer; dom-dump-script.ts + generated dom-dump.js = rendered-DOM dump for the detector; frontend-scope.ts; claude-bin.ts, error-handling.ts, worktree.ts, egress-receipt.ts, context-bill.ts, redact-engine.ts, tracker-guard.ts, version-source.ts, code-intelligence/)
 │   └── diagram-render/  # Vendored mermaid + excalidraw runtimes, built into one offline bundle the renderer loads
 ├── patches/         # bun `patchedDependencies` patches (playwright-core windowsHide)
-├── docs/designs/    # Design documents (incl. fork-port-residual-2026-09/ evaluation evidence)
+├── docs/designs/    # Design documents (incl. IMPECCABLE_INTEROP.md = the design detector / catalog / open DESIGN.md record, and fork-port-residual-2026-09/ evaluation evidence)
 ├── setup-deploy/    # /setup-deploy skill (one-time deploy config)
 ├── .github/         # CI workflows + shared composite actions (.github/actions/) + Docker image (claude CLI pinned)
 │   ├── workflows/   # evals.yml (E2E on Ubicloud), quality-gate.yml (secret scan), dependency-review.yml, osv-scanner.yml, skill-docs.yml, actionlint.yml, and 8 more (windows, periodic evals, release gates, ci-image)
