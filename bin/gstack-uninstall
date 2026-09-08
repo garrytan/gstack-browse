@@ -157,6 +157,16 @@ if [ -x "$SETTINGS_HOOK" ]; then
   if "$SETTINGS_HOOK" remove-source --source verify-gate | grep -q "removed [1-9]"; then
     REMOVED+=("verification Stop hook")
   fi
+  # Memorable recall bridge (opt-in via bin/gstack-memorable; user-registered,
+  # ours to sweep). gstack removes only its own hook entry: the vendor's
+  # consent, if the user granted it, is theirs (`memorable disable|forget`).
+  if "$SETTINGS_HOOK" remove-source --source gstack-memorable | grep -q "removed [1-9]"; then
+    REMOVED+=("Memorable UserPromptSubmit hook (Memorable's own consent is unchanged: memorable disable | memorable forget)")
+  fi
+  # A kept config must never say memorable_recall=on with no hook behind it.
+  if [ "$KEEP_STATE" -eq 1 ] && [ -x "$(dirname "$0")/gstack-config" ]; then
+    "$(dirname "$0")/gstack-config" set memorable_recall off >/dev/null 2>&1 || true
+  fi
   # Identity sweep for untagged strays (Claude Code strips _gstack_source
   # tags; pre-v1.67 setups baked worktree paths). Removes every gstack-owned
   # hook item, live or dead — the binaries they point at are being deleted.
