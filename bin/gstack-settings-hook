@@ -115,6 +115,7 @@ var KNOWN_HOOKS = {
   "question-preference-hook": { source: "plan-tune-cathedral", event: "PreToolUse",   matcher: "(AskUserQuestion|mcp__.*__AskUserQuestion)", relpath: "hosts/claude/hooks/question-preference-hook" },
   "auq-error-fallback-hook":  { source: "auq-error-fallback",  event: "PostToolUse",  matcher: "(AskUserQuestion|mcp__.*__AskUserQuestion)", relpath: "hosts/claude/hooks/auq-error-fallback-hook" },
   "timeline-stop-hook":       { source: "gstack-timeline-stop", event: "Stop",        matcher: "", relpath: "hosts/claude/hooks/timeline-stop-hook" },
+  "memorable-user-prompt-hook": { source: "gstack-memorable", event: "UserPromptSubmit", matcher: "", relpath: "hosts/claude/hooks/memorable-user-prompt-hook" },
   "gstack-session-update":    { source: "gstack-session-update", event: "SessionStart", matcher: "", relpath: "bin/gstack-session-update" },
   "gstack-verify-gate":       { source: "verify-gate", event: "Stop", matcher: "", relpath: "bin/gstack-verify-gate" }
 };

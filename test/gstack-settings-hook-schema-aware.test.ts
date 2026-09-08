@@ -772,6 +772,80 @@ describe('remove-source: per-item', () => {
   });
 });
 
+describe('Memorable UserPromptSubmit hook ownership', () => {
+  const source = 'gstack-memorable';
+  const stale = '/old/worktree/hosts/claude/hooks/memorable-user-prompt-hook';
+  const canonical = '/stable/gstack/hosts/claude/hooks/memorable-user-prompt-hook';
+  const foreign = '/Users/me/my-user-prompt-hook';
+
+  test('ensure-event is idempotent once the canonical wrapper is registered', () => {
+    const args = [
+      'ensure-event', '--event', 'UserPromptSubmit',
+      '--command', canonical, '--source', source,
+    ];
+    const first = runIso(args);
+    expect(first.exitCode).toBe(0);
+    expect(first.stdout).toContain('hook registered');
+    const afterFirst = fs.readFileSync(settingsFile, 'utf-8');
+    const backupsAfterFirst = backups();
+
+    const second = runIso(args);
+    expect(second.exitCode).toBe(0);
+    expect(second.stdout).toContain('hook unchanged');
+    expect(fs.readFileSync(settingsFile, 'utf-8')).toBe(afterFirst);
+    expect(backups()).toEqual(backupsAfterFirst);
+    expect(settings().hooks.UserPromptSubmit).toHaveLength(1);
+  });
+
+  test('ensure-event re-points only the wrapper in a mixed entry and preserves the foreign hook', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [{
+          hooks: [
+            { type: 'command', command: foreign },
+            { type: 'command', command: stale },
+          ],
+        }],
+      },
+    }, null, 2));
+
+    const r = runIso([
+      'ensure-event', '--event', 'UserPromptSubmit',
+      '--command', canonical, '--source', source,
+    ]);
+    expect(r.exitCode).toBe(0);
+    const entries = settings().hooks.UserPromptSubmit;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].hooks).toEqual([
+      { type: 'command', command: foreign },
+      { type: 'command', command: canonical },
+    ]);
+    expect(entries[0]._gstack_source).toBeUndefined();
+  });
+
+  test('remove-source removes only the Memorable wrapper from a tagged mixed entry', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: {
+        UserPromptSubmit: [{
+          _gstack_source: source,
+          hooks: [
+            { type: 'command', command: foreign },
+            { type: 'command', command: stale },
+          ],
+        }],
+      },
+    }, null, 2));
+
+    const r = runIso(['remove-source', '--source', source]);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/removed 1 hook/);
+    const entries = settings().hooks.UserPromptSubmit;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].hooks).toEqual([{ type: 'command', command: foreign }]);
+    expect(entries[0]._gstack_source).toBeUndefined();
+  });
+});
+
 describe('prune-stale', () => {
   test('prunes dead gstack items; keeps live gstack and dead non-gstack', () => {
     const canon = mkCanon(tmpDir);

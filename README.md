@@ -292,6 +292,25 @@ prune-stale --repoint` removes dead gstack hook entries, re-points stale ones
 at the stable install, and collapses duplicates, printing one line (and
 writing a backup beside the file) only when it changed something.
 
+### Optional Memorable workflow memory (Claude Code only)
+
+gstack can connect Claude Code to the external `memorable` CLI for workflow
+capture and injection. It is off by default, and gstack does not install or
+bundle Memorable. When enabled, its hooks capture all Claude Code prompts, not
+only gstack commands, and inject relevant workflow guidance into later prompts.
+Review Memorable's storage and privacy settings before enabling it; Memorable,
+not gstack, owns the captured data and any network access.
+
+```bash
+bin/gstack-memorable enable
+bin/gstack-memorable status
+bin/gstack-memorable disable
+```
+
+The hooks fail open: if Memorable is missing or errors, Claude continues
+normally. This is recalled procedural guidance, not deterministic replay, and
+it is unrelated to Aside or browser automation.
+
 ### Continuous checkpoint mode (opt-in, local by default)
 
 Set `gstack-config set checkpoint_mode continuous` and skills auto-commit your work as you go with a `WIP:` prefix plus a structured `[gstack-context]` body (decisions, remaining work, failed approaches). Survives crashes and context switches. `/context-restore` reads those commits to reconstruct session state. `/ship` filter-squashes WIP commits before the PR (preserving non-WIP commits) so bisect stays clean. Push is opt-in via `checkpoint_push=true` — default is local-only so you don't trigger CI on every WIP commit.
