@@ -15,6 +15,7 @@ import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
+import { parseDesignMd, detectFormat, renderDesignMd, upsertSection, specSkeleton, tokensFlat } from "../../lib/design-md";
 
 export interface ExtractedDesign {
   colors: { name: string; hex: string; usage: string }[];
@@ -100,8 +101,13 @@ function defaultDesign(): ExtractedDesign {
 
 /**
  * Write or update DESIGN.md with extracted design patterns.
- * If DESIGN.md exists, appends an "Extracted from mockup" section.
- * If not, creates a new one.
+ *
+ * Existing file (spec, legacy, or anything with `##` sections): the
+ * "## Extracted Design Language" section is upserted through lib/design-md.ts,
+ * which splices the body only — front matter bytes are never re-emitted, and a
+ * spec file keeps its canonical section order (the extracted section is an extra
+ * after them). New file: a spec-format skeleton whose tokens come from the
+ * extraction (colors by name, typography by role) plus the extracted section.
  */
 export function updateDesignMd(
   repoRoot: string,
@@ -110,30 +116,46 @@ export function updateDesignMd(
 ): void {
   const designPath = path.join(repoRoot, "DESIGN.md");
   const timestamp = new Date().toISOString().split("T")[0];
-
   const section = formatExtractedSection(extracted, sourceMockup, timestamp);
+  const heading = "Extracted Design Language";
+  const body = section.split("\n").slice(1).join("\n"); // drop the "## Extracted Design Language" line
+
+  const write = (content: string) => {
+    const tmp = `${designPath}.tmp-${process.pid}`;
+    fs.writeFileSync(tmp, content);
+    fs.renameSync(tmp, designPath);
+  };
 
   if (fs.existsSync(designPath)) {
-    // Append to existing DESIGN.md
-    const existing = fs.readFileSync(designPath, "utf-8");
-
-    // Check if there's already an extracted section, replace it
-    const marker = "## Extracted Design Language";
-    if (existing.includes(marker)) {
-      const before = existing.split(marker)[0];
-      fs.writeFileSync(designPath, before.trimEnd() + "\n\n" + section);
-    } else {
-      fs.writeFileSync(designPath, existing.trimEnd() + "\n\n" + section);
-    }
+    const doc = parseDesignMd(fs.readFileSync(designPath, "utf-8"));
+    write(renderDesignMd(upsertSection(doc, heading, body)));
     console.error(`Updated DESIGN.md with extracted design language`);
-  } else {
-    // Create new DESIGN.md
-    const content = `# Design System
-
-${section}`;
-    fs.writeFileSync(designPath, content);
-    console.error(`Created DESIGN.md with extracted design language`);
+    return;
   }
+
+  const colors: Record<string, string> = {};
+  for (const c of extracted.colors) {
+    const key = c.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (key && /^#[0-9a-fA-F]{3,8}$/.test(c.hex) && !(key in colors)) colors[key] = c.hex;
+  }
+  const typography: Record<string, Record<string, string>> = {};
+  for (const t of extracted.typography) {
+    const role = t.role.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    if (!role || typography[role]) continue;
+    const entry: Record<string, string> = { fontFamily: t.family };
+    if (t.size) entry.fontSize = t.size;
+    if (t.weight) entry.fontWeight = t.weight;
+    typography[role] = entry;
+  }
+  const frontmatter: Record<string, unknown> = {};
+  if (Object.keys(colors).length) frontmatter.colors = colors;
+  if (Object.keys(typography).length) frontmatter.typography = typography;
+  const doc = specSkeleton("Design System", frontmatter, [
+    { heading: "Overview", body: `${extracted.mood}\n\nCreated by the gstack designer from an approved mockup (${path.basename(sourceMockup)}) on ${timestamp}.` },
+    { heading, body },
+  ]);
+  write(renderDesignMd(doc));
+  console.error(`Created DESIGN.md with extracted design language`);
 }
 
 function formatExtractedSection(
@@ -198,6 +220,15 @@ export function readDesignConstraints(repoRoot: string): string | null {
   if (!fs.existsSync(designPath)) return null;
 
   const content = fs.readFileSync(designPath, "utf-8");
+  const doc = parseDesignMd(content);
+  if (detectFormat(doc).format === "spec") {
+    // Spec file: the normative tokens first, then the Overview prose. Both fit
+    // the brief far better than the first 2000 bytes of YAML would.
+    const { tokens } = tokensFlat(doc.frontmatter);
+    const tokenLines = Object.entries(tokens).map(([k, v]) => `${k}: ${v}`).join("; ");
+    const overview = doc.sections.find((s) => s.canonical === "Overview")?.body ?? "";
+    return `Tokens: ${tokenLines}. ${overview}`.slice(0, 2000);
+  }
   // Truncate to first 2000 chars to keep brief reasonable
   return content.slice(0, 2000);
 }
