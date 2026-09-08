@@ -11,8 +11,12 @@
 //        ──► convertLegacy  ──► gstack's pre-spec DESIGN.md (Product Context, Aesthetic Direction,
 //                               Typography, Color, Spacing, Layout, Motion, Decisions Log) becomes
 //                               tokens + canonical sections; Motion and Decisions Log survive as extras
-//        ──► upsertSection  ──► body-only splice; front matter bytes are never re-emitted
+//        ──► upsertSection  ──► body-only splice on the parsed doc (files gstack writes from scratch)
 //        ──► renderDesignMd ──► marker, front matter, preamble, canonical sections in order, extras
+//   text ──► spliceSection / insertMarker ──► text-level edits of a file the USER owns: one section
+//                                             body or one marker line changes, every other byte and
+//                                             the file's line endings are untouched (the `mark` verb,
+//                                             the design binary's extraction section)
 //        ──► tokensFlat     ──► "colors.primary" → "#F59E0B"; {path} refs resolved to primitives
 //
 // Format marker (the user's one-time conversion answer, persisted in the file):
@@ -51,6 +55,10 @@ const MARKER_RE_BODY = FORMAT_MARKER_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&
 const LEGACY_MARKER_RE = new RegExp('^<!--\\s*' + MARKER_RE_BODY + '\\s*-->\\n?');
 /** `# gstack: design-md-format=...` as a YAML comment inside the front matter (spec files) */
 const YAML_MARKER_RE = new RegExp('^# ' + MARKER_RE_BODY + '\\s*$', 'm');
+/** The marker line inside front matter, newline included (renderDesignMd drops it before re-emitting the marker itself). */
+const YAML_MARKER_LINE_RE = new RegExp(YAML_MARKER_RE.source + '\\n', 'm');
+/** A front matter opener immediately followed by the marker line (insertMarker replaces the old choice). */
+const FRONTMATTER_OPEN_WITH_MARKER_RE = new RegExp('^---\\n' + YAML_MARKER_RE.source.replace(/^\^/, '') + '\\n', 'm');
 /** Maximum `{path}` reference hops before a chain counts as a cycle. */
 export const TOKEN_REF_MAX_HOPS = 8;
 /** Headings that mark gstack's pre-spec file by themselves (either one is enough evidence of a legacy shape). */
@@ -60,7 +68,7 @@ export type DesignMdFormat = 'spec' | 'legacy' | 'unknown' | 'missing';
 export type FormatCode = 'spec' | 'legacy' | 'missing' | 'frontmatter-unparsable' | 'ambiguous' | 'no-token-groups' | 'no-shape';
 
 /** Headings that identify gstack's pre-spec DESIGN.md. */
-export const LEGACY_HEADINGS = ['Product Context', 'Aesthetic Direction', 'Color', 'Spacing', 'Decisions Log'];
+export const LEGACY_HEADINGS = [...LEGACY_IDENTITY_HEADINGS, 'Color', 'Spacing', 'Decisions Log'];
 
 export interface Section {
   heading: string;
@@ -128,29 +136,44 @@ export function parseDesignMd(text: string): DesignMdDoc {
   }
 
   const lines = rest.split('\n');
-  const sections: Section[] = [];
-  const preambleLines: string[] = [];
-  let cur: { heading: string; lines: string[] } | null = null;
-  let inFence = false;
-  for (const line of lines) {
-    if (/^```/.test(line)) inFence = !inFence;
-    const h = !inFence ? line.match(/^## (.+?)\s*$/) : null;
-    if (h) {
-      if (cur) sections.push(finish(cur));
-      cur = { heading: h[1], lines: [] };
-    } else if (cur) {
-      cur.lines.push(line);
-    } else {
-      preambleLines.push(line);
-    }
-  }
-  if (cur) sections.push(finish(cur));
+  const heads = headingLines(lines);
+  const preambleLines = lines.slice(0, heads[0]?.index ?? lines.length);
+  const sections: Section[] = heads.map((h, k) => {
+    const canonical = canonicalFor(h.heading);
+    const body = lines.slice(h.index + 1, heads[k + 1]?.index ?? lines.length).join('\n').replace(/\s+$/, '');
+    return { heading: h.heading, ...(canonical ? { canonical } : {}), body };
+  });
   return { frontmatterText, frontmatter, frontmatterError, marker, preamble: preambleLines.join('\n').trim(), sections };
+}
 
-  function finish(c: { heading: string; lines: string[] }): Section {
-    const canonical = canonicalFor(c.heading);
-    return { heading: c.heading, ...(canonical ? { canonical } : {}), body: c.lines.join('\n').replace(/\s+$/, '') };
+/**
+ * The `## ` headings of a body, with code fences skipped. The one section-
+ * boundary rule, shared by parseDesignMd and spliceSection so they cannot drift.
+ * An unclosed fence is treated as prose (fence tracking off for that file):
+ * a stray ``` must never swallow every later section of a file gstack edits.
+ */
+function headingLines(lines: string[]): Array<{ index: number; heading: string }> {
+  const fences = lines.filter(l => /^```/.test(l)).length;
+  const trackFences = fences % 2 === 0;
+  const out: Array<{ index: number; heading: string }> = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (trackFences && /^```/.test(lines[i])) { inFence = !inFence; continue; }
+    if (inFence) continue;
+    const h = lines[i].match(/^## (.+?)\s*$/);
+    if (h) out.push({ index: i, heading: h[1] });
   }
+  return out;
+}
+
+/** Does a section heading name the requested section? By canonical name when the request has one, else by exact (case-insensitive) heading. */
+function headingMatches(heading: string, wanted: string, canonical: CanonicalSection | null): boolean {
+  return canonical ? canonicalFor(heading) === canonical : heading.trim().toLowerCase() === wanted.trim().toLowerCase();
+}
+
+/** The file's dominant line ending; text-level editors restore it so a CRLF file stays CRLF. */
+function eolOf(text: string): string {
+  return text.includes('\r\n') ? '\r\n' : '\n';
 }
 
 // ── Format detection ─────────────────────────────────────────────────────────
@@ -184,7 +207,9 @@ export function detectFormat(doc: DesignMdDoc | null): { format: DesignMdFormat;
 // ── YAML block emitter ───────────────────────────────────────────────────────
 
 function needsQuotes(s: string): boolean {
-  return s === '' || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/i.test(s);
+  // Control characters (an LLM-extracted font family with an embedded newline) must
+  // go through the double-quoted form: a bare multi-line scalar does not parse back.
+  return s === '' || /[\x00-\x1f\x7f]/.test(s) || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/i.test(s);
 }
 
 function yamlScalar(v: unknown): string {
@@ -224,7 +249,7 @@ export function renderDesignMd(doc: DesignMdDoc, opts: RenderOptions = {}): stri
   const parts: string[] = [];
   const fm = opts.emitFrontmatter && doc.frontmatter ? emitYamlBlock(doc.frontmatter) + '\n' : doc.frontmatterText;
   if (fm !== null) {
-    const body = fm.replace(new RegExp(YAML_MARKER_RE.source + '\\n', 'm'), '');
+    const body = fm.replace(YAML_MARKER_LINE_RE, '');
     parts.push('---');
     if (doc.marker) parts.push(`# ${FORMAT_MARKER_PREFIX}${doc.marker}`);
     parts.push(body.replace(/\n$/, ''));
@@ -259,29 +284,24 @@ export function renderDesignMd(doc: DesignMdDoc, opts: RenderOptions = {}): stri
  * writes from scratch (convert, skeletons).
  */
 export function spliceSection(text: string, heading: string, body: string): string {
+  const eol = eolOf(text);
   const src = text.replace(/\r\n/g, '\n');
   const canonical = canonicalFor(heading);
   const lines = src.split('\n');
-  let inFence = false;
-  let start = -1;
-  let end = lines.length;
-  for (let i = 0; i < lines.length; i++) {
-    if (/^```/.test(lines[i])) inFence = !inFence;
-    if (inFence) continue;
-    const h = lines[i].match(/^## (.+?)\s*$/);
-    if (!h) continue;
-    if (start === -1) {
-      const matches = canonical ? canonicalFor(h[1]) === canonical : h[1].trim().toLowerCase() === heading.trim().toLowerCase();
-      if (matches) start = i;
-    } else { end = i; break; }
-  }
+  const heads = headingLines(lines);
+  const k = heads.findIndex(h => headingMatches(h.heading, heading, canonical));
   const block = `## ${canonical ?? heading}\n\n${body.replace(/\s+$/, '')}\n`;
-  if (start === -1) {
-    return src.replace(/\s*$/, '') + '\n\n' + block;
+  let out: string;
+  if (k === -1) {
+    out = src.replace(/\s*$/, '') + '\n\n' + block;
+  } else {
+    const start = heads[k].index;
+    const end = heads[k + 1]?.index ?? lines.length;
+    const before = lines.slice(0, start).join('\n');
+    const after = lines.slice(end).join('\n');
+    out = before + (before ? '\n' : '') + block + (after.trim() ? '\n' + after.replace(/^\n+/, '') : '');
   }
-  const before = lines.slice(0, start).join('\n');
-  const after = lines.slice(end).join('\n');
-  return before + (before ? '\n' : '') + block + (after.trim() ? '\n' + after.replace(/^\n+/, '') : (after.endsWith('\n') ? '' : ''));
+  return eol === '\n' ? out : out.replace(/\n/g, eol);
 }
 
 /**
@@ -290,27 +310,27 @@ export function spliceSection(text: string, heading: string, body: string): stri
  * marker; every other byte is untouched.
  */
 export function insertMarker(text: string, choice: FormatChoice): string {
+  const eol = eolOf(text);
   const src = text.replace(/\r\n/g, '\n');
   const stripped = src.replace(LEGACY_MARKER_RE, '');
+  let out: string;
   if (stripped.startsWith('---\n')) {
-    const withoutOld = stripped.replace(new RegExp('^---\\n' + YAML_MARKER_RE.source.replace(/^\^/, '') + '\\n', 'm'), '---\n');
-    return withoutOld.replace(/^---\n/, `---\n# ${FORMAT_MARKER_PREFIX}${choice}\n`);
+    const withoutOld = stripped.replace(FRONTMATTER_OPEN_WITH_MARKER_RE, '---\n');
+    out = withoutOld.replace(/^---\n/, `---\n# ${FORMAT_MARKER_PREFIX}${choice}\n`);
+  } else {
+    out = `<!-- ${FORMAT_MARKER_PREFIX}${choice} -->\n` + stripped;
   }
-  return `<!-- ${FORMAT_MARKER_PREFIX}${choice} -->\n` + stripped;
+  return eol === '\n' ? out : out.replace(/\n/g, eol);
 }
 
 /** Replace or add a section; canonical names slot into spec order, extras append. Body-only: front matter bytes untouched. */
 export function upsertSection(doc: DesignMdDoc, heading: string, body: string): DesignMdDoc {
   const canonical = canonicalFor(heading);
   const sections = doc.sections.map(s => ({ ...s }));
-  const idx = sections.findIndex(s => (canonical ? s.canonical === canonical : s.heading.trim().toLowerCase() === heading.trim().toLowerCase()));
+  const idx = sections.findIndex(s => headingMatches(s.heading, heading, canonical));
   const next: Section = { heading: canonical ?? heading, ...(canonical ? { canonical } : {}), body: body.replace(/\s+$/, '') };
   if (idx >= 0) sections[idx] = next; else sections.push(next);
   return { ...doc, sections };
-}
-
-export function setMarker(doc: DesignMdDoc, marker: FormatChoice): DesignMdDoc {
-  return { ...doc, marker };
 }
 
 // ── Tokens ───────────────────────────────────────────────────────────────────

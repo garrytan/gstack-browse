@@ -28,8 +28,7 @@ import { SENTINEL } from '../lib/design-detect-contract';
 import { atomicWriteSync } from '../lib/fs-atomic';
 import {
   parseDesignMd, detectFormat, convertLegacy, renderDesignMd, tokensFlat, insertMarker,
-  type DesignMdDoc, type FormatChoice,
-} from '../lib/design-md';
+  type DesignMdDoc, type FormatChoice, FORMAT_CHOICES } from '../lib/design-md';
 
 function resolveFile(arg?: string): string {
   return path.resolve(arg ?? 'DESIGN.md');
@@ -86,8 +85,8 @@ export function main(argv = process.argv.slice(2)): number {
     }
     case 'mark': {
       const choice = positional[0] as FormatChoice | undefined;
-      if (choice !== 'spec' && choice !== 'legacy-keep') {
-        process.stderr.write('usage: gstack-design-md.ts mark <spec|legacy-keep> [DESIGN.md]\n');
+      if (!(FORMAT_CHOICES as readonly string[]).includes(choice)) {
+        process.stderr.write(`usage: gstack-design-md.ts mark <${FORMAT_CHOICES.join('|')}> [DESIGN.md]\n`);
         return 2;
       }
       const file = resolveFile(positional[1]);
@@ -103,7 +102,7 @@ export function main(argv = process.argv.slice(2)): number {
       return 0;
     }
     default:
-      process.stderr.write('usage: gstack-design-md.ts check [file] | convert [file] [--write] | tokens [file] | mark <spec|legacy-keep> [file]\n');
+      process.stderr.write(`usage: gstack-design-md.ts check [file] | convert [file] [--write] | tokens [file] | mark <${FORMAT_CHOICES.join('|')}> [file]\n`);
       return 2;
   }
 }

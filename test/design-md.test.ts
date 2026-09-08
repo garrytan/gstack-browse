@@ -15,7 +15,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import {
   parseDesignMd, detectFormat, renderDesignMd, upsertSection, convertLegacy, tokensFlat,
-  emitYamlBlock, setMarker, specSkeleton, spliceSection, insertMarker, CANONICAL_SECTIONS, TOKEN_GROUPS, isLegacyGstackFormat,
+  emitYamlBlock, specSkeleton, spliceSection, insertMarker, CANONICAL_SECTIONS, TOKEN_GROUPS, isLegacyGstackFormat,
 } from '../lib/design-md';
 import { updateDesignMd, readDesignConstraints } from '../design/src/memory';
 
@@ -196,9 +196,9 @@ describe('render + upsert', () => {
     expect(insertMarker(kept, 'legacy-keep')).toBe(kept);
   });
 
-  test('setMarker on a spec file writes the YAML comment on line 2 and nothing else moves', () => {
+  test('a marker on the parsed doc renders as the YAML comment on line 2 and nothing else moves', () => {
     const noMarker = SPEC.replace('# gstack: design-md-format=spec\n', '');
-    const out = renderDesignMd(setMarker(parseDesignMd(noMarker), 'spec'));
+    const out = renderDesignMd({ ...parseDesignMd(noMarker), marker: 'spec' });
     expect(out.split('\n').slice(0, 3)).toEqual(['---', '# gstack: design-md-format=spec', 'name: Heritage']);
   });
 });
@@ -543,5 +543,35 @@ describe('design binary: updateDesignMd is frontmatter-safe', () => {
       expect(constraints.startsWith('Tokens: colors.primary: #F59E0B')).toBe(true);
       expect(constraints).toContain('Serious tool built with care.');
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+describe('text-level editors keep line endings and respect fences', () => {
+  const SPEC_LF = ['---', 'name: x', 'colors:', '  a: "#fff"', '---', '', '## Overview', '', 'o', '', '## Colors', '', 'c', ''].join('\n');
+
+  test('insertMarker and spliceSection preserve CRLF line endings', () => {
+    const crlf = SPEC_LF.replace(/\n/g, '\r\n');
+    const marked = insertMarker(crlf, 'spec');
+    expect(marked).toBe(crlf.replace('---\r\n', '---\r\n# gstack: design-md-format=spec\r\n'));
+    expect(marked).not.toMatch(/[^\r]\n/);
+    const legacyCrlf = '# T\r\n\r\n## Product Context\r\n\r\np\r\n';
+    expect(insertMarker(legacyCrlf, 'legacy-keep')).toBe('<!-- gstack: design-md-format=legacy-keep -->\r\n' + legacyCrlf);
+    const spliced = spliceSection(crlf, 'Colors', 'Ink only.');
+    expect(spliced).toBe(SPEC_LF.replace('## Colors\n\nc\n', '## Colors\n\nInk only.\n').replace(/\n/g, '\r\n'));
+    expect(spliceSection(SPEC_LF, 'Colors', 'Ink only.')).not.toContain('\r');
+  });
+
+  test('a fenced ## inside a section does not end it; an unclosed fence is prose, so later sections survive', () => {
+    const src = '## A\n\nbody\n\n```md\n## Not a heading\n```\n\n## B\n\nb body\n';
+    expect(spliceSection(src, 'A', 'x')).toBe('## A\n\nx\n\n## B\n\nb body\n');
+    expect(parseDesignMd(src).sections.map(s => s.heading)).toEqual(['A', 'B']);
+    const unclosed = '## A\n\nbody\n\n```\nunclosed\n\n## B\n\nb body\n';
+    expect(spliceSection(unclosed, 'A', 'x')).toBe('## A\n\nx\n\n## B\n\nb body\n');
+    expect(parseDesignMd(unclosed).sections.map(s => s.heading)).toEqual(['A', 'B']);
+  });
+
+  test('a token value with an embedded newline is quoted and parses back', () => {
+    const yaml = emitYamlBlock({ typography: { body: { fontFamily: 'Foo\nBar', fontSize: '16px\tx' } } });
+    expect(Bun.YAML.parse(yaml)).toEqual({ typography: { body: { fontFamily: 'Foo\nBar', fontSize: '16px\tx' } } });
   });
 });
