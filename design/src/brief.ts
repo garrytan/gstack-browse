@@ -1,6 +1,7 @@
 /**
  * Structured design brief — the interface between skill prose and image generation.
  */
+import { MOCKUP_NEVER_NAMES } from "../../lib/design-catalog";
 
 export interface DesignBrief {
   goal: string;           // "Dashboard for coding assessment tool"
@@ -30,6 +31,10 @@ export function briefToPrompt(brief: DesignBrief): string {
   if (brief.reference) {
     lines.push(`Design reference: ${brief.reference}`);
   }
+
+  // Generation-time slop guard: the catalog's mockupNever names, so the model
+  // never reaches for purple gradients, icon tiles, or cream defaults on its own.
+  lines.push(`Never: ${MOCKUP_NEVER_NAMES.join(", ")}.`);
 
   lines.push(
     "The mockup should look like a real production UI, not a wireframe or concept art.",

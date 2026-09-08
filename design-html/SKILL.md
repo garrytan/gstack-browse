@@ -699,9 +699,15 @@ For framework output, save to:
 
 **Never include (AI slop blacklist):**
 - Purple/blue gradients as default <!-- ai-color-palette -->
+- Cream-and-serif default palette <!-- cream-palette -->
+- Gradient text <!-- gradient-text -->
 - Generic 3-column feature grids <!-- feature-grid-3col -->
+- Identical card grids, nested cards <!-- identical-cards --> <!-- nested-cards -->
 - Center-everything layouts with no visual hierarchy <!-- centered-everything -->
+- Kickers or icon tiles above headings <!-- kicker-above-heading --> <!-- icon-tile-stack -->
+- Hero metric rows ("10k+ users") <!-- hero-metrics -->
 - Decorative blobs, waves, or geometric patterns not in the mockup <!-- decorative-blobs -->
+- Glowing edges or pulsing status dots <!-- dark-glow --> <!-- pulsing-dot -->
 - Stock photo placeholder divs <!-- stock-photo-hero -->
 - "Get Started" / "Learn More" generic CTAs not from the mockup <!-- generic-cta-copy -->
 - Rounded-corner cards with drop shadows as the default component <!-- card-default-component -->
@@ -709,7 +715,7 @@ For framework output, save to:
 - Generic testimonial sections <!-- generic-testimonials -->
 - Cookie-cutter hero sections with left-text right-image <!-- split-hero-template -->
 
-The comment on each line is the pattern's id in gstack's design catalog (`lib/design-catalog.ts`); the catalog is the authoritative name for these, and the same ids come back from the design detector.
+Each `<!-- id -->` is the pattern's id in `lib/design-catalog.ts`; the design detector reports the same ids.
 
 ---
 

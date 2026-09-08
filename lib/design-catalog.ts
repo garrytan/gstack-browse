@@ -84,6 +84,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'color', kind: 'slop', detect: ['engine', 'grep', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     heuristic: 'Look for `linear-gradient` with values in the `#6366f1` to `#8b5cf6` range, or CSS custom properties resolving to purple/violet.',
     handoff: 'colorize', source: 'both', legacyBlacklist: true,
+    mockupNever: true,
   },
   {
     id: 'feature-grid-3col', name: 'The 3-column feature grid',
@@ -181,18 +182,21 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'color', kind: 'slop', detect: ['engine', 'grep'], confidence: 'HIGH', tier: 'ask', impact: 'medium',
     heuristic: 'Grep for `background-clip: text` next to a gradient background.',
     handoff: 'colorize', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'cream-palette', impeccableId: 'cream-palette', name: 'Cream default palette',
     prose: 'Cream ground, serif display, terracotta accent: look number one. Fine when the brief asked for it; a default when it did not.',
     category: 'color', kind: 'slop', detect: ['engine', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     handoff: 'colorize', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'nested-cards', impeccableId: 'nested-cards', name: 'Nested cards',
     prose: 'A card inside a card is always wrong. Cards are the lazy container; nesting them is the lazy container squared.',
     category: 'scaffold', kind: 'slop', detect: ['engine', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     handoff: 'layout', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'monotonous-spacing', impeccableId: 'monotonous-spacing', name: 'Monotonous spacing',
@@ -213,6 +217,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'motion', kind: 'slop', detect: ['engine', 'grep'], confidence: 'MEDIUM', tier: 'ask', impact: 'polish',
     heuristic: 'Grep for infinite keyframe animations on small round elements.',
     handoff: 'animate', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'blinking-cursor', impeccableId: 'blinking-cursor', name: 'Blinking cursor effect',
@@ -232,6 +237,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'surface', kind: 'slop', detect: ['engine', 'grep'], confidence: 'HIGH', tier: 'ask', impact: 'medium',
     heuristic: 'Grep `box-shadow` for a zero x/y offset with a large blur and a saturated color.',
     handoff: 'colorize', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'radial-halo', impeccableId: 'radial-halo', name: 'Radial halo',
@@ -256,6 +262,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     prose: 'The rounded-square icon above every heading. Try side by side, or drop the container.',
     category: 'scaffold', kind: 'slop', detect: ['engine', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     handoff: 'layout', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'italic-serif-display', impeccableId: 'italic-serif-display', name: 'Italic serif display',
@@ -275,6 +282,7 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'scaffold', kind: 'slop', detect: ['engine', 'grep', 'llm'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     heuristic: 'Look for a short uppercase, tracked element immediately before an h1 or h2.',
     handoff: 'layout', source: 'impeccable',
+    mockupNever: true,
   },
   {
     id: 'numbered-section-labels', impeccableId: 'numbered-section-labels', name: 'Numbered section labels',
@@ -392,12 +400,14 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     prose: 'Three big numbers with tiny labels under the hero ("10k+ users", "99.9%"). The template counts, not the product.',
     category: 'scaffold', kind: 'slop', detect: ['llm'], confidence: 'LOW', tier: 'ask', impact: 'medium',
     handoff: 'clarify', source: 'gstack',
+    mockupNever: true,
   },
   {
     id: 'identical-cards', name: 'Identical card grids',
     prose: 'A grid of cards with the same shape, the same icon slot, the same two lines. Content of unequal weight given equal boxes.',
     category: 'scaffold', kind: 'slop', detect: ['llm'], confidence: 'LOW', tier: 'ask', impact: 'medium',
     handoff: 'layout', source: 'gstack',
+    mockupNever: true,
   },
   {
     id: 'glassmorphism', name: 'Glassmorphism',
@@ -634,6 +644,18 @@ export const DESIGN_SLOP_CATALOG: DesignSlopEntry[] = [
     category: 'type', kind: 'quality', detect: ['engine'], confidence: 'MEDIUM', tier: 'ask', impact: 'medium',
     handoff: 'polish', source: 'impeccable',
   },
+];
+
+// ── Mockup prompt ──
+
+/**
+ * Plain-English names of the entries flagged `mockupNever`, deduped: the design
+ * binary appends "Never: <names>." to every image-generation prompt
+ * (design/src/brief.ts) so mockups stop reaching for these before the
+ * comparison board opens. Exactly ten ids carry the flag (test-enforced).
+ */
+export const MOCKUP_NEVER_NAMES: readonly string[] = [
+  ...new Set(DESIGN_SLOP_CATALOG.filter(e => e.mockupNever).map(e => e.name)),
 ];
 
 // ── Fonts ──
