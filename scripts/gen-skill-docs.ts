@@ -11,6 +11,7 @@
 
 import { discoverTemplates, discoverSectionTemplates } from './discover-skills';
 import { writeLlmsTxt } from './gen-llms-txt';
+import { generateDesignChecklistMd } from './resolvers/design-checklist';
 import * as fs from 'fs';
 import * as path from 'path';
 import type { Host, TemplateContext } from './resolvers/types';
@@ -1101,6 +1102,32 @@ for (const currentHost of hostsToRun) {
         lines: content.split('\n').length,
         tokens: Math.round(content.length / 4),
       });
+    }
+
+    // ─── review/design-checklist.md (generated from lib/design-catalog.ts) ───
+    // A Claude-side runtime asset: setup links it from review/ and the other
+    // hosts copy or inline the Claude render (hosts/opencode.ts), so it is
+    // written for the CLAUDE host only. Honors OUT_DIR (outputs-only rule) and
+    // takes part in the DRY_RUN freshness gate exactly like sections above.
+    if (currentHost === 'claude'
+        && !(currentHostConfig.generation.includeSkills?.length && !currentHostConfig.generation.includeSkills.includes('review'))
+        && !currentHostConfig.generation.skipSkills?.includes('review')) {
+      const outputPath = path.join(OUT_DIR ?? ROOT, 'review', 'design-checklist.md');
+      const relOutput = path.relative(OUT_DIR || ROOT, outputPath);
+      const content = generateDesignChecklistMd();
+      if (DRY_RUN) {
+        const existing = fs.existsSync(outputPath) ? fs.readFileSync(outputPath, 'utf-8') : '';
+        if (existing !== content) {
+          console.log(`STALE: ${relOutput}`);
+          hasChanges = true;
+        } else {
+          console.log(`FRESH: ${relOutput}`);
+        }
+      } else {
+        if (OUT_DIR) fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        fs.writeFileSync(outputPath, content);
+        console.log(`GENERATED: ${relOutput}`);
+      }
     }
 
     // Generate the OpenClaw orchestrator-injection docs (gstack-lite / gstack-full /

@@ -64,8 +64,9 @@ ${ctx.paths.binDir}/gstack-review-log '{"skill":"design-review-lite","timestamp"
 Substitute: TIMESTAMP = ISO 8601 datetime, STATUS = "clean" if 0 findings or "issues_found", N = total findings, M = auto-fixed count, COMMIT = output of \`git rev-parse --short HEAD\`.${codexBlock}`;
 }
 
-// NOTE: design-checklist.md is a subset of this methodology for code-level detection.
-// When adding items here, also update review/design-checklist.md, and vice versa.
+// NOTE: review/design-checklist.md is GENERATED (scripts/resolvers/design-checklist.ts)
+// from lib/design-catalog.ts, the same catalog category 9 below renders. Edit the
+// catalog, never the checklist; gen-skill-docs rewrites it.
 export function generateDesignMethodology(_ctx: TemplateContext): string {
   return `## Modes
 
