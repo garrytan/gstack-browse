@@ -276,16 +276,18 @@ For framework output, save to:
 - Real content extracted from the mockup (never lorem ipsum)
 
 **Never include (AI slop blacklist):**
-- Purple/blue gradients as default
-- Generic 3-column feature grids
-- Center-everything layouts with no visual hierarchy
-- Decorative blobs, waves, or geometric patterns not in the mockup
-- Stock photo placeholder divs
-- "Get Started" / "Learn More" generic CTAs not from the mockup
-- Rounded-corner cards with drop shadows as the default component
-- Emoji as visual elements
-- Generic testimonial sections
-- Cookie-cutter hero sections with left-text right-image
+- Purple/blue gradients as default <!-- ai-color-palette -->
+- Generic 3-column feature grids <!-- feature-grid-3col -->
+- Center-everything layouts with no visual hierarchy <!-- centered-everything -->
+- Decorative blobs, waves, or geometric patterns not in the mockup <!-- decorative-blobs -->
+- Stock photo placeholder divs <!-- stock-photo-hero -->
+- "Get Started" / "Learn More" generic CTAs not from the mockup <!-- generic-cta-copy -->
+- Rounded-corner cards with drop shadows as the default component <!-- card-default-component -->
+- Emoji as visual elements <!-- emoji-decoration -->
+- Generic testimonial sections <!-- generic-testimonials -->
+- Cookie-cutter hero sections with left-text right-image <!-- split-hero-template -->
+
+The comment on each line is the pattern's id in gstack's design catalog (`lib/design-catalog.ts`); the catalog is the authoritative name for these, and the same ids come back from the design detector.
 
 ---
 

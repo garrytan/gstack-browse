@@ -1816,6 +1816,30 @@ describe('DESIGN_HARD_RULES resolver', () => {
     expect(content).not.toContain('[hero-metrics]');
   });
 
+  test('design-consultation carries the font procedure, role-scoped lists, color strategies, and catalog bullets', () => {
+    const content = readSkillUnion('design-consultation');
+    expect(content).toContain('Choosing faces: a procedure, not a menu');
+    expect(content).toContain('**Overused as display**');
+    expect(content).toContain('Fine as body/UI on an Operate or Read surface');
+    expect(content).toContain('**Banned in any role:** Papyrus');
+    expect(content).toContain('Restrained (1 accent + neutrals');
+    expect(content).toContain('Drenched (color as the primary design tool');
+    expect(content).toContain('Light vs dark is not one of the dials');
+    expect(content).toContain('Calibration: the three looks');
+    // Bullets are prose only: never a bracketed rule id in the proposal skill.
+    expect(content).toContain('- A card inside a card is always wrong.');
+    expect(content).not.toMatch(/^- \[[a-z-]+\] /m);
+    // The old menu is gone.
+    expect(content).not.toContain('Font recommendations by purpose');
+  });
+
+  test('design-html blacklist lines carry catalog ids', () => {
+    const content = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
+    expect(content).toContain('**Never include (AI slop blacklist):**');
+    expect(content).toContain('Purple/blue gradients as default <!-- ai-color-palette -->');
+    expect(content).toContain('lib/design-catalog.ts');
+  });
+
   test('design-review renders the catalog once: Methodology category 9 carries it, Hard Rules points at it', () => {
     const content = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
     expect(content.split('### Design Hard Rules').length - 1).toBe(1);

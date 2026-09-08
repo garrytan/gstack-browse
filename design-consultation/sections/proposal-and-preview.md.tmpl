@@ -35,6 +35,8 @@ The SAFE/RISK breakdown is critical. Design coherence is table stakes — every 
 
 ### Your Design Knowledge (use to inform proposals — do NOT display as tables)
 
+**Calibration: the three looks.** AI-built interfaces land in one of three looks no matter what the product is: (1) cream ground, high-contrast serif display, terracotta or signal-red accent; (2) near-black, one neon accent, glowing edges; (3) broadsheet hairlines, italic display serif, tiny tracked mono labels. Each is fine when the brief asks for it. If the brief left the look open and you landed in one anyway, you stopped looking. The test: could someone guess your look from the category alone? From "the category, but avoiding the obvious"? Either way, start over. "It's about books, so cream and a serif" fails this test. Book cloth and jackets come in every saturated color there is.
+
 **Aesthetic directions** (pick the one that fits the product):
 - Brutally Minimal — Type and whitespace only. No decoration. Modernist.
 - Maximalist Chaos — Dense, layered, pattern-heavy. Y2K meets contemporary.
@@ -51,48 +53,25 @@ The SAFE/RISK breakdown is critical. Design coherence is table stakes — every 
 
 **Layout approaches:** grid-disciplined (strict columns, predictable alignment) / creative-editorial (asymmetry, overlap, grid-breaking) / hybrid (grid for app, creative for marketing)
 
-**Color approaches:** restrained (1 accent + neutrals, color is rare and meaningful) / balanced (primary + secondary, semantic colors for hierarchy) / expressive (color as a primary design tool, bold palettes)
+**Color approaches:** Restrained (1 accent + neutrals, color is rare and meaningful) / Committed (one hue owns the page, neutrals derive from it) / Full palette (primary + secondary + semantic colors for hierarchy) / Drenched (color as the primary design tool, surfaces carry it)
 
 **Motion approaches:** minimal-functional (only transitions that aid comprehension) / intentional (subtle entrance animations, meaningful state transitions) / expressive (full choreography, scroll-driven, playful)
 
-**Font recommendations by purpose:**
-- Display/Hero: Satoshi, General Sans, Instrument Serif, Fraunces, Clash Grotesk, Cabinet Grotesk
-- Body: Instrument Sans, DM Sans, Source Sans 3, Geist, Plus Jakarta Sans, Outfit
-- Data/Tables: Geist (tabular-nums), DM Sans (tabular-nums), JetBrains Mono, IBM Plex Mono
-- Code: JetBrains Mono, Fira Code, Berkeley Mono, Geist Mono
+**Choosing faces: a procedure, not a menu.** Type comes from the subject's world, in the mode's register. (1) Name the world: the publication, notation, identity program, or object this audience already reads. (2) Shortlist three faces per role (display, body, label, mono) from that world. (3) Strike anything on the overused list for the role it would play. (4) Verify availability this session: WebSearch or Aside the Google Fonts / Fontshare page, or confirm the license of a self-hosted face. Unverified faces do not go in the proposal. (5) State the loading strategy with the name.
 
-**Font blacklist** (never recommend):
-Papyrus, Comic Sans, Lobster, Impact, Jokerman, Bleeding Cowboys, Permanent Marker, Bradley Hand, Brush Script, Hobo, Trajan, Raleway, Clash Display, Courier New (for body)
+{{OVERUSED_FONTS}}
 
-**Overused fonts** (never recommend as primary — use only if user specifically requests):
-Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk.
-
-Space Grotesk is on the list specifically because every AI design tool converges on it
-as "the safe alternative to Inter." That's the convergence trap. Treat it the same as
-Inter: only use if the user asks for it by name.
-
-**Anti-convergence directive:** Across multiple generations in the same project, VARY
-light/dark, fonts, and aesthetic directions. Never propose the same choices twice
-without explicit justification. If the user's prior session used Geist + dark + editorial,
-propose something different this time (or explicitly acknowledge you're doubling down
-because it fits the brief). Convergence across generations is slop.
+**Anti-convergence directive:** Across generations in the same project, VARY the aesthetic direction, faces, and palette strategy. Light vs dark is not one of the dials: it comes from the use scene (who, where, under what light) and stays put unless the scene changes. Doubling down is allowed if you say why. Convergence across generations is slop.
 
 **AI slop anti-patterns** (never include in your recommendations):
-- Purple/violet gradients as default accent
-- 3-column feature grid with icons in colored circles
-- Centered everything with uniform spacing
-- Uniform bubbly border-radius on all elements
-- Gradient buttons as the primary CTA pattern
-- Generic stock-photo-style hero sections
-- system-ui / -apple-system as the primary display or body font (the "I gave up on typography" signal)
-- "Built for X" / "Designed for Y" marketing copy patterns
+{{DESIGN_SLOP_BULLETS}}
 
 ### Coherence Validation
 
 When the user overrides one section, check if the rest still coheres. Flag mismatches with a gentle nudge — never block:
 
 - Brutalist/Minimal aesthetic + expressive motion → "Heads up: brutalist aesthetics usually pair with minimal motion. Your combo is unusual — which is fine if intentional. Want me to suggest motion that fits, or keep it?"
-- Expressive color + restrained decoration → "Bold palette with minimal decoration can work, but the colors will carry a lot of weight. Want me to suggest decoration that supports the palette?"
+- Drenched color + restrained decoration → "Bold palette with minimal decoration can work, but the colors will carry a lot of weight. Want me to suggest decoration that supports the palette?"
 - Creative-editorial layout + data-heavy product → "Editorial layouts are gorgeous but can fight data density. Want me to show how a hybrid approach keeps both?"
 - Always accept the user's final choice. Never refuse to proceed.
 

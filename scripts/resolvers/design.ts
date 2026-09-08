@@ -1,6 +1,6 @@
 import { type TemplateContext, toShellPath } from './types';
 import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CODEX_WEB_SEARCH_FLAG, CC_BACKGROUND_DEFAULT_SINCE } from './constants';
-import { DESIGN_SLOP_CATALOG, OVERUSED_FONTS_DISPLAY, selectCatalog, catalogEntry } from '../../lib/design-catalog';
+import { DESIGN_SLOP_CATALOG, OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, selectCatalog, catalogEntry, renderCatalog } from '../../lib/design-catalog';
 
 export function generateDesignReviewLite(ctx: TemplateContext): string {
   const litmusList = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join(' ');
@@ -806,6 +806,27 @@ ${synthesisSection}
 ${ctx.paths.binDir}/gstack-review-log '{"skill":"design-outside-voices","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 \`\`\`
 Replace STATUS with "clean" or "issues_found", SOURCE with "codex+subagent", "codex-only", "subagent-only", or "unavailable".`;
+}
+
+// ─── Overused fonts (role-scoped) + slop bullets for the proposal skills ───
+// The font procedure and the role-scoped lists are derived from
+// pbakaus/impeccable reference/new-work.md (Apache-2.0), rewritten. See NOTICE.md.
+export function generateOverusedFonts(_ctx: TemplateContext): string {
+  const free = FONTS_VERIFIED_FREE;
+  return `**Overused as display** (never the display voice on a Persuade or Experience surface; the detector flags several as \`overused-font\`): ${OVERUSED_FONTS_DISPLAY.join(', ')}.
+
+**Fine as body/UI on an Operate or Read surface when the proposal says so:** ${FONTS_BODY_UI_OK.join(', ')}. **Mono for data and code:** ${FONTS_MONO_OK.join(', ')}.
+
+**Banned in any role:** ${BANNED_FONTS.join(', ')}.
+
+**Freely available faces on no default list** (verified ${free.verified}; re-verify in-session before naming one): ${free.fontshare.join(', ')} (Fontshare); ${free.googleFonts.join(', ')} (Google Fonts). Short on purpose. A long list of "good" fonts is how the last convergence happened.
+
+User asks for a listed face by name: comply, state the tradeoff once.`;
+}
+
+/** Prose-only slop bullets for the proposal skills: no ids, polish-level tells omitted. */
+export function generateDesignSlopBullets(_ctx: TemplateContext): string {
+  return renderCatalog({ kind: 'slop', style: 'bullets', omitImpact: ['polish'] });
 }
 
 // ─── Design Hard Rules (OpenAI framework + gstack slop catalog) ───

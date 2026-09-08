@@ -178,6 +178,22 @@ describe('renderCatalog', () => {
   });
 });
 
+describe('design-html blacklist is derived-by-test (decision 31)', () => {
+  test('every <!-- id --> on the Never-include list names a catalog entry', () => {
+    const tmpl = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md.tmpl'), 'utf-8');
+    const start = tmpl.indexOf('**Never include (AI slop blacklist):**');
+    expect(start).toBeGreaterThan(0);
+    const block = tmpl.slice(start, tmpl.indexOf('\n\n', start + 10));
+    const lines = block.split('\n').filter(l => l.startsWith('- '));
+    expect(lines.length).toBeGreaterThanOrEqual(10);
+    for (const line of lines) {
+      const m = line.match(/<!-- ([a-z0-9-]+) -->$/);
+      expect(m, line).not.toBeNull();
+      expect(catalogEntry(m![1]), m![1]).toBeDefined();
+    }
+  });
+});
+
 describe('module purity', () => {
   test('imports nothing (no I/O, no scripts/); loading it prints nothing', () => {
     const file = path.join(ROOT, 'lib', 'design-catalog.ts');
