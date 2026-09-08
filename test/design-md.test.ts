@@ -21,7 +21,8 @@ import { updateDesignMd, readDesignConstraints } from '../design/src/memory';
 
 const ROOT = path.join(import.meta.dir, '..');
 const BIN = path.join(ROOT, 'bin', 'gstack-design-md.ts');
-const LEGACY = fs.readFileSync(path.join(ROOT, 'DESIGN.md'), 'utf-8');
+// gstack's own DESIGN.md is now in the open format; its pre-conversion form is the legacy fixture.
+const LEGACY = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'design-md-legacy.md'), 'utf-8');
 
 const SPEC = `---
 # gstack: design-md-format=spec
@@ -80,10 +81,14 @@ describe('parse + detect', () => {
     expect(detectFormat(doc)).toEqual({ format: 'spec' });
   });
 
-  test("gstack's own DESIGN.md is legacy; a fresh file is unknown; nothing is missing", () => {
+  test("the legacy fixture is legacy, gstack's own DESIGN.md is spec; a fresh file is unknown; nothing is missing", () => {
     const doc = parseDesignMd(LEGACY);
     expect(isLegacyGstackFormat(doc)).toBe(true);
     expect(detectFormat(doc)).toEqual({ format: 'legacy' });
+    const own = parseDesignMd(fs.readFileSync(path.join(ROOT, 'DESIGN.md'), 'utf-8'));
+    expect(detectFormat(own)).toEqual({ format: 'spec' });
+    expect(own.marker).toBe('spec');
+    expect(tokensFlat(own.frontmatter).errors).toEqual([]);
     expect(detectFormat(parseDesignMd('# Hello\n\nJust prose.\n')).format).toBe('unknown');
     expect(detectFormat(null)).toEqual({ format: 'missing' });
   });
@@ -191,7 +196,7 @@ describe('tokens', () => {
   });
 });
 
-describe("convertLegacy on gstack's own DESIGN.md", () => {
+describe('convertLegacy on the legacy fixture (gstack\'s pre-conversion DESIGN.md)', () => {
   const converted = convertLegacy(parseDesignMd(LEGACY));
   const out = renderDesignMd(converted, { emitFrontmatter: true });
 
