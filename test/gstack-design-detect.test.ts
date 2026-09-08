@@ -901,24 +901,101 @@ describe('scan: option-like bases and page-controlled inline ignores', () => {
     expect(r2.code).toBe(1);
   });
 
-  test.skipIf(!POSIX)('DOM dumps under the designs root scan with --no-inline-ignores; repository files keep their inline ignores', () => {
-    const designs = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'design-audit-20260908', 'dom-ignores');
-    fs.mkdirSync(designs, { recursive: true });
-    fs.writeFileSync(path.join(designs, 'home.dom.html'), '<!-- impeccable-disable --><html></html>');
+  test.skipIf(!POSIX)('page dumps under designs/<audit>/dom/ scan with --no-inline-ignores; repository files and gstack-authored designs artifacts keep their inline ignores', () => {
+    const audit = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'design-audit-20260908-ignores');
+    const dom = path.join(audit, 'dom', 'run1');
+    fs.mkdirSync(dom, { recursive: true });
+    fs.writeFileSync(path.join(dom, 'home.dom.html'), '<!-- impeccable-disable --><html></html>');
+    const artifact = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'hero-20260908', 'finalized.html');
+    fs.mkdirSync(path.dirname(artifact), { recursive: true });
+    fs.writeFileSync(artifact, '<!-- impeccable-disable ai-color-palette: user agreed --><html></html>');
     const log = path.join(SANDBOX, 'argv-ignores.log');
     fs.rmSync(log, { force: true });
     try {
-      const r = run(['scan', '--format', 'gstack', 'src/styles.css', path.join(designs, 'home.dom.html')], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
+      const r = run(['scan', '--format', 'gstack', 'src/styles.css', path.join(dom, 'home.dom.html'), artifact], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_LOG: log } });
       expect(r.code).toBe(2);
       const calls = fs.readFileSync(log, 'utf-8').trim().split('\n').map(l => JSON.parse(l).argv as string[]);
       expect(calls).toHaveLength(2);
-      const repoCall = calls.find(a => a.some(x => x.endsWith('styles.css')))!;
+      const plainCall = calls.find(a => a.some(x => x.endsWith('styles.css')))!;
       const domCall = calls.find(a => a.some(x => x.endsWith('home.dom.html')))!;
-      expect(repoCall).not.toContain('--no-inline-ignores');
+      expect(plainCall).not.toContain('--no-inline-ignores');
+      expect(plainCall.some(x => x.endsWith('finalized.html'))).toBe(true); // the design-html gate's inline disable keeps working
       expect(domCall).toContain('--no-inline-ignores');
       expect(domCall.indexOf('--no-inline-ignores')).toBeLessThan(domCall.findIndex(x => x.endsWith('home.dom.html')));
+      const doc = JSON.parse(r.out);
+      expect(doc.untrusted).toEqual(['findings[].file', 'findings[].snippet', 'findings[].message', 'findings[].value', 'diagnostics[]']);
     } finally {
-      fs.rmSync(designs, { recursive: true, force: true });
+      fs.rmSync(audit, { recursive: true, force: true });
+      fs.rmSync(path.dirname(artifact), { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('from HOME (no repository) HOME-rooted installs are READY, HOME files are refused as targets, and a dump still scans without inline ignores', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-fake-home-'));
+    const cache = path.join(home, '.impeccable', 'bin', '0.1.3');
+    fs.mkdirSync(cache, { recursive: true });
+    fs.copyFileSync(FAKE, path.join(cache, 'impeccable'));
+    fs.chmodSync(path.join(cache, 'impeccable'), 0o755);
+    fs.writeFileSync(path.join(home, 'secret.css'), 'a{}');
+    const dom = path.join(GSTACK_HOME, 'projects', 'x', 'designs', 'design-audit-20260908-home', 'dom', 'run1');
+    fs.mkdirSync(dom, { recursive: true });
+    fs.writeFileSync(path.join(dom, 'home.dom.html'), '<html></html>');
+    const log = path.join(SANDBOX, 'argv-home.log');
+    fs.rmSync(log, { force: true });
+    try {
+      const probe = run(['probe'], { cwd: home, env: { HOME: home, IMPECCABLE_HOME: path.join(home, '.impeccable'), IMPECCABLE_BIN: '' } });
+      expect(lines(probe.out)[0]).toBe(`${SENTINEL.READY}: ${fs.realpathSync(path.join(cache, 'impeccable'))}`);
+      const r = run(['scan', '--format', 'gstack', path.join(home, 'secret.css'), path.join(dom, 'home.dom.html')], { cwd: home, env: { HOME: home, IMPECCABLE_HOME: path.join(home, '.impeccable'), IMPECCABLE_BIN: '', IMPECCABLE_FAKE_LOG: log } });
+      expect(r.err).toContain(`${SENTINEL.DETECT_REFUSED}: ${path.join(home, 'secret.css')}`);
+      const calls = fs.readFileSync(log, 'utf-8').trim().split('\n').map(l => JSON.parse(l).argv as string[]);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toContain('--no-inline-ignores');
+      expect(calls[0].some(x => x.endsWith('secret.css'))).toBe(false);
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+      fs.rmSync(path.dirname(path.dirname(dom)), { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('engine ids that are prototype members or fail the shape check count as unmapped, never as object keys', () => {
+    const out = path.join(SANDBOX, 'proto-ids.json');
+    fs.writeFileSync(out, JSON.stringify([
+      { antipattern: 'constructor', file: 'a.css', line: 1 }, { antipattern: '__proto__', file: 'a.css', line: 2 },
+      { antipattern: '__proto__', file: 'a.css', line: 3 }, { antipattern: 'low-contrast', file: 'a.css', line: 4 }, { antipattern: 'Bad Id!!', file: 'a.css', line: 5 },
+    ]));
+    const r = run(['scan', '--format', 'gstack', 'src/styles.css'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_OUTPUT: out } });
+    const doc = JSON.parse(r.out);
+    expect(doc.total).toBe(5);
+    // `__proto__` and `Bad Id!!` fail the id shape and count as unmapped; `constructor` passes it and must be an own key, never Object.prototype's.
+    expect(Object.entries(doc.byRule).sort()).toEqual([['constructor', 1], ['low-contrast', 1], ['unmapped', 3]]);
+    expect(doc.findings.map((f: { impeccableId: string }) => f.impeccableId)).toEqual(['constructor', 'unmapped', 'unmapped', 'low-contrast', 'unmapped']);
+  });
+
+  test.skipIf(!POSIX)('the whole-scan budget stops a huge target set instead of grinding batch after batch', () => {
+    const many = path.join(REPO, 'src', 'many');
+    fs.mkdirSync(many, { recursive: true });
+    for (let i = 0; i < 1100; i++) fs.writeFileSync(path.join(many, `f${i}.css`), 'a{}');
+    try {
+      const r = run(['scan', '--format', 'gstack', 'src/many'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '250', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '400' } });
+      expect(r.code).toBe(2); // a directory target is one batch (the fake reports findings): the budget test needs files
+      const files = fs.readdirSync(many).map(f => path.join('src', 'many', f));
+      const r2 = run(['scan', '--format', 'gstack', ...files], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '250', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '400' } });
+      expect(r2.err).toMatch(/DETECT_TIMEOUT: whole-scan budget 2000ms exceeded, \d+ of 11 batches not run/);
+      expect(r2.code).toBe(1);
+    } finally {
+      fs.rmSync(many, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX)('detector.ignoreValues from the project config are surfaced on their own line', () => {
+    const dir = path.join(REPO, '.impeccable');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ detector: { ignoreValues: ['#8b5cf6', 'Inter'] } }));
+    try {
+      const r = run(['probe'], { env: { IMPECCABLE_BIN: FAKE } });
+      expect(r.out).toContain(`${SENTINEL.IGNORED_VALUES}: #8b5cf6,Inter`);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 });

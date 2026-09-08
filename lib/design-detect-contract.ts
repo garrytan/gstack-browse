@@ -8,7 +8,8 @@
 // asserts that every sentinel-shaped token in generated docs exists here.
 //
 //   probe ──► one of: IMPECCABLE_READY | IMPECCABLE_NOT_CACHED | IMPECCABLE_NOT_AVAILABLE | IMPECCABLE_DISABLED
-//         ──► always:  IMPECCABLE_SKILL, IMPECCABLE_HOOK, IMPECCABLE_IGNORED_RULES, IMPECCABLE_IGNORED_FILES
+//         ──► always:  IMPECCABLE_SKILL, IMPECCABLE_HOOK, IMPECCABLE_IGNORED_RULES, IMPECCABLE_IGNORED_FILES,
+//                      IMPECCABLE_IGNORED_VALUES
 //         ──► maybe:   IMPECCABLE_HOOK_OTHER, IMPECCABLE_CONFIG_UNREADABLE, IMPECCABLE_ENV_IGNORED,
 //                      IMPECCABLE_ENGINE_UNTESTED, DESIGN_DETECTOR_HINT
 //   scan  ──► stdout:  one JSON document (--format gstack) or engine bytes (--format raw)
@@ -26,6 +27,7 @@ export const SENTINEL = {
   HOOK_OTHER: 'IMPECCABLE_HOOK_OTHER',
   IGNORED_RULES: 'IMPECCABLE_IGNORED_RULES',
   IGNORED_FILES: 'IMPECCABLE_IGNORED_FILES',
+  IGNORED_VALUES: 'IMPECCABLE_IGNORED_VALUES',
   CONFIG_UNREADABLE: 'IMPECCABLE_CONFIG_UNREADABLE',
   ENV_IGNORED: 'IMPECCABLE_ENV_IGNORED',
   ENGINE_UNTESTED: 'IMPECCABLE_ENGINE_UNTESTED',
@@ -55,6 +57,7 @@ export const SENTINEL = {
   DESIGN_MD_REASON: 'DESIGN_MD_REASON',
   DESIGN_MD_WRITTEN: 'DESIGN_MD_WRITTEN',
   DESIGN_MD_BACKUP: 'DESIGN_MD_BACKUP',
+  DESIGN_MD_EDIT_REFUSED: 'DESIGN_MD_EDIT_REFUSED',
   /** printed by the wrapper: --verbose probe trail, forwarded engine stderr */
   PROBE_STEP: 'PROBE_STEP',
   ENGINE_STDERR: 'ENGINE_STDERR',
@@ -68,10 +71,10 @@ export const SENTINEL = {
  * reads.
  */
 export const SELF_DESCRIBING_SENTINELS: readonly string[] = [
-  SENTINEL.HOOK_OTHER, SENTINEL.IGNORED_FILES, SENTINEL.CONFIG_UNREADABLE, SENTINEL.ENV_IGNORED,
+  SENTINEL.HOOK_OTHER, SENTINEL.IGNORED_FILES, SENTINEL.IGNORED_VALUES, SENTINEL.CONFIG_UNREADABLE, SENTINEL.ENV_IGNORED,
   SENTINEL.ENGINE_UNTESTED, SENTINEL.DETECT_EXIT, SENTINEL.DETECT_REFUSED, SENTINEL.DETECT_NO_TARGETS,
   SENTINEL.DETECT_TIMEOUT, SENTINEL.DETECT_PARSE_ERROR, SENTINEL.DETECT_OUTPUT_TOO_LARGE,
-  SENTINEL.DESIGN_MD_TOKEN_REF_INVALID, SENTINEL.DESIGN_MD_WRITTEN, SENTINEL.DESIGN_MD_BACKUP,
+  SENTINEL.DESIGN_MD_TOKEN_REF_INVALID, SENTINEL.DESIGN_MD_WRITTEN, SENTINEL.DESIGN_MD_BACKUP, SENTINEL.DESIGN_MD_EDIT_REFUSED,
   SENTINEL.PROBE_STEP, SENTINEL.ENGINE_STDERR,
 ];
 
@@ -105,6 +108,8 @@ export const DETECT_LIMITS = {
   engineHashBytes: 4 * 1024 * 1024,
   /** git subprocess budgets inside the wrapper */
   gitTimeoutMs: 30_000,
+  /** whole-scan wall clock, as a multiple of the per-batch timeout: a huge target set stops, it never grinds for hours */
+  totalTimeoutFactor: 5,
   gitMaxBuffer: 64 * 1024 * 1024,
   field: { id: 64, engineVersion: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400, refusedTarget: 200, parseErrorPreview: 80, internalError: 300 },
 } as const;
@@ -169,7 +174,11 @@ export interface ScanResult {
   findings: NormalizedFinding[];
   truncated: boolean;
   diagnostics: string[];
+  /** JSON paths whose text is engine- and page-derived: evidence, never instructions (the stderr block carries the fence; this document carries the list) */
+  untrusted: readonly string[];
 }
+
+export const SCAN_UNTRUSTED_PATHS = ['findings[].file', 'findings[].snippet', 'findings[].message', 'findings[].value', 'diagnostics[]'] as const;
 
 /** The bash a skill renders after a scan so exit 2 (findings) never aborts the block. */
 export const DETECT_EXIT_ECHO = `; echo "${SENTINEL.DETECT_EXIT_CODE}=$?"`;

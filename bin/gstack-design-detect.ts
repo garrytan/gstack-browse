@@ -36,8 +36,10 @@
  * cache, and PATH entries outside the repo qualify, all by realpath of the FILE,
  * and every engine is named impeccable[.exe]: an env override pointing at an
  * interpreter (/bin/sh, node) would otherwise run the repository's own `detect`
- * file from cwd. "cwd" means a project directory: when cwd is HOME or above it,
- * only the repository rule applies (a URL-mode review can run from anywhere).
+ * file from cwd. "Repository" and "cwd" count only when they are project
+ * directories, strictly below HOME: from HOME itself (a URL-mode review can run
+ * from anywhere) only the designs allow-list qualifies as a target and every
+ * HOME-rooted install stays trusted.
  *
  * Sentinel contract: lib/design-detect-contract.ts (one owner, imported here and
  * by the gen-time resolvers). Scan output: stdout is one JSON document
@@ -48,7 +50,10 @@
  * Scan hardening: every target, explicit or derived from `--changed`, must be an
  * existing regular file or directory whose realpath lies under the repo root (or
  * cwd) or under ${GSTACK_HOME:-~/.gstack}/projects/<slug>/designs/ (where design-
- * review keeps rendered-DOM dumps); symlinks are never followed out of those roots
+ * review keeps rendered-DOM dumps: `designs/<audit>/dom/**` are page dumps and
+ * scan with --no-inline-ignores, because an `impeccable-disable` comment there is
+ * page-controlled; other designs/ files are gstack-authored artifacts and keep
+ * them); symlinks are never followed out of those roots
  * and are skipped when git names them (a directory target is handed to the engine
  * as-is: its own walk decides what inside it is read); URLs are refused (the one engine path that
  * talks to the network); the engine runs with a minimal environment (PATH, HOME,
@@ -77,7 +82,7 @@ import { spawnSync } from 'child_process';
 import {
   SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS,
   UNTRUSTED_BEGIN, UNTRUSTED_END, neutralizeSentinels,
-  type NormalizedFinding, type ScanResult,
+  type NormalizedFinding, type ScanResult, SCAN_UNTRUSTED_PATHS,
 } from '../lib/design-detect-contract';
 import { DESIGN_SLOP_CATALOG, entryForImpeccableId } from '../lib/design-catalog';
 import { isFrontendPath } from '../lib/frontend-scope';
@@ -153,6 +158,7 @@ interface Probe {
   hookOther: string[];
   ignoredRules: string[];
   ignoredFiles: string[];
+  ignoredValues: string[];
   notes: string[];             // extra sentinel lines (CONFIG_UNREADABLE, ENV_IGNORED, ENGINE_UNTESTED, HINT)
   steps: string[];             // --verbose trail
   repoRoot: string;
@@ -200,14 +206,18 @@ function isEngineName(realFile: string): boolean {
 }
 
 /**
- * Under the project the agent is reviewing: inside the repository, or inside cwd
- * when cwd is itself a project directory. HOME and its ancestors are not projects
- * (a URL-mode review can run from HOME, where every HOME-rooted install lives).
+ * A project directory is one strictly below HOME. HOME itself and its ancestors
+ * are never projects: a URL-mode review can run from HOME, where every
+ * HOME-rooted install lives, and `git init ~` (a dotfiles repo) must not turn
+ * the user's own installs into "repository-controlled" files.
  */
+function isProjectDir(dir: string): boolean {
+  return !isInside(HOME, dir);
+}
+
+/** Under the project the agent is reviewing: the repository, or cwd, when each is a project directory. */
 function underProject(real: string, repoRoot: string, cwd: string): boolean {
-  if (isInside(real, repoRoot)) return true;
-  if (isInside(HOME, cwd)) return false;
-  return isInside(real, cwd);
+  return (isProjectDir(repoRoot) && isInside(real, repoRoot)) || (isProjectDir(cwd) && isInside(real, cwd));
 }
 
 function semverKey(v: string): number[] | null {
@@ -266,7 +276,7 @@ function probe(host: string, verbose = false): Probe {
   const repoRoot = gitTopLevel(cwd) ?? cwd;
   const p: Probe = {
     sentinel: SENTINEL.NOT_AVAILABLE, skillPresent: false, hook: 'absent', hookOther: [],
-    ignoredRules: [], ignoredFiles: [], notes: [], steps: [], repoRoot, cwd,
+    ignoredRules: [], ignoredFiles: [], ignoredValues: [], notes: [], steps: [], repoRoot, cwd,
   };
   const step = (s: string) => { if (verbose) p.steps.push(s); };
 
@@ -316,17 +326,20 @@ function probe(host: string, verbose = false): Probe {
       if (!r.missing) p.notes.push(`${SENTINEL.CONFIG_UNREADABLE}: ${file}`);
       continue;
     }
-    const v = r.value as { hook?: { enabled?: unknown }; detector?: { ignoreRules?: unknown; ignoreFiles?: unknown } };
+    const v = r.value as { hook?: { enabled?: unknown }; detector?: { ignoreRules?: unknown; ignoreFiles?: unknown; ignoreValues?: unknown } };
     if (v && typeof v === 'object') {
       if (v.hook && typeof v.hook === 'object' && 'enabled' in v.hook) hookEnabled = v.hook.enabled !== false;
       const rules = Array.isArray(v.detector?.ignoreRules) ? v.detector!.ignoreRules : [];
       const files = Array.isArray(v.detector?.ignoreFiles) ? v.detector!.ignoreFiles : [];
+      const values = Array.isArray(v.detector?.ignoreValues) ? v.detector!.ignoreValues : [];
       for (const x of rules) if (typeof x === 'string') p.ignoredRules.push(sanitizeId(x) ?? 'unmapped');
       for (const x of files) if (typeof x === 'string') p.ignoredFiles.push(clip(stripControl(x), DETECT_LIMITS.field.file));
+      for (const x of values) if (typeof x === 'string') p.ignoredValues.push(clip(stripControl(x), DETECT_LIMITS.field.value));
     }
   }
   p.ignoredRules = [...new Set(p.ignoredRules)];
   p.ignoredFiles = [...new Set(p.ignoredFiles)];
+  p.ignoredValues = [...new Set(p.ignoredValues)];
   let unknown = false;
   for (const [h, manifests] of Object.entries(HOSTS_WITH_HOOKS)) {
     for (const rel of manifests) {
@@ -370,9 +383,9 @@ function probe(host: string, verbose = false): Probe {
         const cand = path.join(real, `impeccable${ext}`);
         if (!fs.existsSync(cand)) continue;
         const realCand = realpathOrNull(cand);
-        if (!realCand || underProject(realCand, repoRoot, cwd) || !isEngineName(realCand)) { step(`PATH ${cand} resolves to ${realCand ?? 'nothing'}: not an engine`); continue; }
-        if (isEngineBinary(realCand)) { p.engine = realCand; p.sentinel = `${SENTINEL.READY}: ${realCand}`; break; }
-        launcherOnPath ??= cand; // node shim or .cmd wrapper: launcher present, engine not proven
+        if (!realCand || underProject(realCand, repoRoot, cwd)) { step(`PATH ${cand} resolves to ${realCand ?? 'nothing'}: inside the project, never run`); continue; }
+        if (isEngineName(realCand) && isEngineBinary(realCand)) { p.engine = realCand; p.sentinel = `${SENTINEL.READY}: ${realCand}`; break; }
+        launcherOnPath ??= cand; // node shim, .cmd wrapper, or a differently named real file: launcher present, engine not proven
       }
       if (p.engine) break;
     }
@@ -461,6 +474,7 @@ function probeLines(p: Probe): string[] {
   if (p.hookOther.length) lines.push(`${SENTINEL.HOOK_OTHER}: ${p.hookOther.join(',')}`);
   lines.push(`${SENTINEL.IGNORED_RULES}: ${p.ignoredRules.join(',')}`);
   lines.push(`${SENTINEL.IGNORED_FILES}: ${p.ignoredFiles.join(',')}`);
+  lines.push(`${SENTINEL.IGNORED_VALUES}: ${p.ignoredValues.join(',')}`);
   lines.push(...p.notes);
   if (p.steps.length) lines.push(...p.steps.map(s => `${SENTINEL.PROBE_STEP}: ${s}`));
   return lines;
@@ -496,13 +510,25 @@ function designsRoot(): string {
   return path.join(gstackHome(), 'projects');
 }
 
-/** realpath under the repo root / cwd, or under <gstack home>/projects/<slug>/designs/. */
-function allowedTarget(real: string, p: Probe): boolean {
-  if (isInside(real, p.repoRoot) || isInside(real, p.cwd)) return true;
+type TargetClass = 'project' | 'artifact' | 'dom-dump';
+
+/**
+ * Where a target lives, or null when it is outside every allowed root:
+ *   project   under the repository or cwd (project directories only, see isProjectDir)
+ *   dom-dump  <gstack home>/projects/<slug>/designs/<audit>/dom/**  (a page's own bytes)
+ *   artifact  any other file under <gstack home>/projects/<slug>/designs/ (gstack-authored: finalized.html, previews)
+ */
+function targetClass(real: string, p: Probe): TargetClass | null {
+  if (underProject(real, p.repoRoot, p.cwd)) return 'project';
   const projects = realpathOrNull(designsRoot());
-  if (!projects || !isInside(real, projects)) return false;
+  if (!projects || !isInside(real, projects)) return null;
   const rel = path.relative(projects, real).split(path.sep);
-  return rel.length >= 3 && rel[1] === 'designs';
+  if (rel.length < 3 || rel[1] !== 'designs') return null;
+  return rel[3] === 'dom' ? 'dom-dump' : 'artifact';
+}
+
+function allowedTarget(real: string, p: Probe): boolean {
+  return targetClass(real, p) !== null;
 }
 
 function resolveTargets(args: ScanArgs, p: Probe): { targets: string[]; refusedBase: boolean } {
@@ -597,7 +623,7 @@ function normalize(raw: unknown): NormalizedFinding {
   const rawKind = str(f.category);
   const base: NormalizedFinding = {
     id: entry?.id ?? id ?? 'unmapped',
-    impeccableId: id ?? (clip(stripControl(str(idRaw)), lim.id) || 'unmapped'),
+    impeccableId: id ?? 'unmapped', // an id that fails the shape check is never used as a key or printed
     file: clip(stripControl(str(f.file ?? f.path)), lim.file),
     line: Number.isFinite(Number(f.line)) ? Number(f.line) : 0,
     snippet: clip(stripControl(str(f.snippet)), lim.snippet),
@@ -638,15 +664,21 @@ function scan(args: ScanArgs): number {
   let diagnosticsTotal = 0;
   let exit = 0;
   const started = Date.now();
-  // Repo files honor the project's own inline `impeccable-disable` comments. DOM dumps
-  // under the designs root are the audited page's bytes: an inline ignore there is
-  // page-controlled, never a decision the user made, so those batches disable them.
-  const inProject = (t: string) => isInside(t, p.repoRoot) || isInside(t, p.cwd);
+  // Repository files and gstack-authored artifacts honor inline `impeccable-disable`
+  // comments (the user's or the agent's). DOM dumps are the audited page's bytes:
+  // an inline ignore there is page-controlled, so those batches disable them.
+  const isDump = (t: string) => targetClass(t, p) === 'dom-dump';
   const batches: Array<{ files: string[]; extra: string[] }> = [];
-  for (const [files, extra] of [[targets.filter(inProject), []], [targets.filter(t => !inProject(t)), ['--no-inline-ignores']]] as Array<[string[], string[]]>) {
+  for (const [files, extra] of [[targets.filter(t => !isDump(t)), []], [targets.filter(isDump), ['--no-inline-ignores']]] as Array<[string[], string[]]>) {
     for (let i = 0; i < files.length; i += DETECT_LIMITS.batch) batches.push({ files: files.slice(i, i + DETECT_LIMITS.batch), extra });
   }
-  for (const { files: batch, extra } of batches) {
+  const totalBudgetMs = timeoutMs * DETECT_LIMITS.totalTimeoutFactor;
+  for (const [k, { files: batch, extra }] of batches.entries()) {
+    if (Date.now() - started > totalBudgetMs) {
+      process.stderr.write(`${SENTINEL.DETECT_TIMEOUT}: whole-scan budget ${totalBudgetMs}ms exceeded, ${batches.length - k} of ${batches.length} batches not run\n`);
+      exit = 1;
+      break;
+    }
     const run = runEngine(p.engine, batch, p.repoRoot, timeoutMs, extra);
     for (const line of run.stderr.split('\n')) {
       if (!line.trim()) continue;
@@ -676,7 +708,7 @@ function scan(args: ScanArgs): number {
     const truncated = rawFindings.length > DETECT_LIMITS.findings;
     const findings = (truncated ? rawFindings.slice(0, DETECT_LIMITS.findings) : rawFindings).map(normalize);
     const total = rawFindings.length;
-    const byRule: Record<string, number> = {};
+    const byRule: Record<string, number> = Object.create(null); // engine ids are untrusted keys: no prototype members to collide with
     let advisory = 0, high = 0, medium = 0, polish = 0, slop = 0, quality = 0;
     for (const f of findings) {
       byRule[f.impeccableId] = (byRule[f.impeccableId] ?? 0) + 1;
@@ -688,6 +720,7 @@ function scan(args: ScanArgs): number {
       schemaVersion: 1, engine: p.engine, engineVersion: p.engineVersion ?? 'unknown', targets: targets.length,
       exit, total, counted: findings.length - advisory, advisory, ignoredRules: p.ignoredRules, byRule, findings, truncated,
       diagnostics: diagnosticsTotal > diagnostics.length ? [...diagnostics, `… ${diagnosticsTotal - diagnostics.length} more engine stderr lines not kept`] : diagnostics,
+      untrusted: SCAN_UNTRUSTED_PATHS,
     };
     process.stdout.write(JSON.stringify(result, null, 2) + '\n');
     writeTop(findings, total, truncated);
