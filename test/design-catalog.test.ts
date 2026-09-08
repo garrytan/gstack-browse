@@ -176,7 +176,7 @@ const MOCKUP_NEVER_IDS = ['kicker-above-heading', 'icon-tile-stack', 'gradient-t
 
 function designHtmlNeverIds(): string[] {
   const tmpl = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md.tmpl'), 'utf-8');
-  const start = tmpl.indexOf('**Never include (AI slop blacklist):**');
+  const start = tmpl.indexOf('**Never include by default (AI slop blacklist):**');
   expect(start).toBeGreaterThan(0);
   const block = tmpl.slice(start, tmpl.indexOf('\n\n', start + 10));
   const lines = block.split('\n').filter(l => l.startsWith('- '));

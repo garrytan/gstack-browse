@@ -49,17 +49,12 @@ function renderSlopItem(e: DesignSlopEntry): string {
   return `- **[${e.confidence}]**${id} ${prose}${heuristic}${values}`;
 }
 
-/** Font names without role qualifiers, for a grep. */
-function bannedFontNames(): string[] {
-  return BANNED_FONTS.map(f => f.replace(/\s*\(.*\)$/, ''));
-}
-
 export function generateDesignChecklistMd(): string {
   const slop = checklistSlopEntries();
   return `${DESIGN_CHECKLIST_HEADER}
 # ${DESIGN_CHECKLIST_TITLE}
 
-> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of \`lib/design-catalog.ts\` plus the legacy blacklist lines, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run \`bun run gen:skill-docs\`.
+> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of \`lib/design-catalog.ts\` plus the legacy blacklist lines: a subset of what DESIGN_METHODOLOGY category 9 renders, drawn from the same catalog, so the shared entries cannot drift. Edit the catalog, then run \`bun run gen:skill-docs\`.
 
 ## Instructions
 
@@ -152,7 +147,7 @@ ${slop.map(renderSlopItem).join('\n\n')}
 
 - **[HIGH]** Heading hierarchy skipping levels: \`h1\` followed by \`h3\` without an \`h2\` in the same file/component. Check HTML/JSX for heading tags.
 
-- **[HIGH]** Blacklisted fonts: ${bannedFontNames().join(', ')}. Grep \`font-family\` for these names.
+- **[HIGH]** Blacklisted fonts: ${BANNED_FONTS.join(', ')}. Grep \`font-family\` for these names.
 
 ### 3. Spacing & Layout (4 items)
 

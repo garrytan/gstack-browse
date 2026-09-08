@@ -871,7 +871,7 @@ Do not run npx. Do not fix anything.`,
         recordE2E(evalCollector, '/design-review detector shim (dom)', 'Design review detector shim E2E (DOM mode)', result);
         expect(result.exitReason).toBe('success');
         const bash = result.toolCalls.filter(c => c.tool === 'Bash').map(c => String(c.input?.command ?? ''));
-        expect(bash.some(c => c.includes('dom-dump.js') && c.includes('--out') && c.includes('--raw'))).toBe(true); // $B js "($_DUMP)()" with the file spliced in
+        expect(bash.some(c => c.includes('dom-dump.js') && c.includes('--out') && c.includes('--raw'))).toBe(true); // $B js '('"$_DUMP"')()' with the file spliced in
         expect(bash.some(c => /gstack-design-detect\.ts scan /.test(c) && c.includes('dom/run1'))).toBe(true);
         expect(bash.some(c => /gstack-design-detect\.ts scan --changed/.test(c))).toBe(false);
         const dumps = fs.readdirSync(path.join(allowed, 'dom', 'run1')).filter(f => f.endsWith('.dom.html'));

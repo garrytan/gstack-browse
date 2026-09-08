@@ -36,7 +36,7 @@
     "impeccable-detect-dom-sample.json": {
       "mode": "dom",
       "dump": "review-eval-design-slop.dom.html",
-      "dumpedWith": "browse goto http://127.0.0.1:<port>/index.html; browse js \"($(cat lib/dom-dump.js))()\" --out <tmp>/review-eval-design-slop.dom.html --raw (the arrow function in lib/dom-dump.js, called in the page; same form the skill renders for the fallback engine)",
+      "dumpedWith": "browse goto http://127.0.0.1:<port>/index.html; browse js '('\"$(cat lib/dom-dump.js)\"')()' --out <tmp>/review-eval-design-slop.dom.html --raw (the arrow function in lib/dom-dump.js, called in the page; same form the skill renders for the fallback engine)",
       "command": "impeccable detect --json review-eval-design-slop.dom.html",
       "exit": 2,
       "stderrBytes": 0,

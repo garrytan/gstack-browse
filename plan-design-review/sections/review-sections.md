@@ -116,7 +116,7 @@ FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 - Motion: one authored moment on the first viewport (an entrance or a scroll-linked reveal), ease-out from a visible default; hover states only where they carry information
 - Color: define CSS variables, avoid purple-on-white defaults, one accent color default
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
-- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as poster not document
+- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as one composition, not a document (poster in stance, not in type size: display stays under 6rem)
 
 **App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors

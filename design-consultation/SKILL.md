@@ -950,7 +950,7 @@ already knows. A good test: would this insight save time in a future session? If
 1. **Propose, don't present menus.** You are a consultant, not a form. Make opinionated recommendations based on the product context, then let the user adjust.
 2. **Every recommendation needs a rationale.** Never say "I recommend X" without "because Y."
 3. **Coherence over individual choices.** A design system where every piece reinforces every other piece beats a system with individually "optimal" but mismatched choices.
-4. **Never recommend blacklisted or overused fonts as primary.** If the user specifically requests one, comply but explain the tradeoff.
+4. **Never a banned face in any role, never an overused face as the display voice.** Body or UI on an Operate or Read surface follows the role-scoped list in the proposal section. If the user asks for a listed face by name, comply and state the tradeoff once.
 5. **The preview page must be beautiful.** It's the first visual output and sets the tone for the whole skill.
 6. **Conversational tone.** This isn't a rigid workflow. If the user wants to talk through a decision, engage as a thoughtful design partner.
 7. **Accept the user's final choice.** Nudge on coherence issues, but never block or refuse to write a DESIGN.md because you disagree with a choice.

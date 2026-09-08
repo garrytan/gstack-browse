@@ -136,7 +136,7 @@ describe('DOM_DUMP_SCRIPT contract', () => {
     expect(DOM_DUMP_SCRIPT).not.toContain('${');
     expect(DOM_DUMP_SCRIPT).not.toContain('`');
     // An arrow FUNCTION, not a self-calling IIFE: Aside's pg.evaluate(fn) runs it in
-    // the page; the fallback engine calls it with `$B js "($_DUMP)()"`.
+    // the page; the fallback engine calls it with `$B js '('"$_DUMP"')()'`.
     expect(DOM_DUMP_SCRIPT.trim().startsWith('() => {')).toBe(true);
     expect(DOM_DUMP_SCRIPT.trim().endsWith('}')).toBe(true);
     expect(() => new Function('return ' + DOM_DUMP_SCRIPT)).not.toThrow();
@@ -151,7 +151,7 @@ describe('DOM_DUMP_SCRIPT contract', () => {
     expect(DOM_DUMP_SCRIPT).toContain(DOM_DUMP_NOTE_PREFIX);
     for (const rule of ['querySelectorAll("script")', 'querySelectorAll("textarea")', 'value.length > 32',
       'name === "content" && el.nodeName === "META"', 'cutQuery(value)', 'value.length > 1024',
-      'gstack-stripped', 'cloneLinks[i].remove()', 'querySelectorAll("style")']) {
+      'gstack-stripped', 'cloneLinks[i].remove()', 'querySelectorAll("style")', 'querySelectorAll("template, noscript")', 'name.indexOf("on") === 0']) {
       expect(DOM_DUMP_SCRIPT).toContain(rule);
     }
   });

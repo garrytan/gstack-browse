@@ -1835,7 +1835,7 @@ describe('DESIGN_HARD_RULES resolver', () => {
 
   test('design-html blacklist lines carry catalog ids', () => {
     const content = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
-    expect(content).toContain('**Never include (AI slop blacklist):**');
+    expect(content).toContain('**Never include by default (AI slop blacklist):**');
     expect(content).toContain('Purple/blue gradients as default <!-- ai-color-palette -->');
     expect(content).toContain('lib/design-catalog.ts');
   });
@@ -1888,7 +1888,7 @@ describe('DESIGN_DETECTOR resolver', () => {
     expect(c).toContain('scan --changed <base> --format gstack --host claude');
     expect(c).toContain('### DOM dump (DOM mode only');
     expect(c).toContain('data-gstack-dom-css');
-    expect(c).toContain('$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw');
+    expect(c).toContain(`$B js '('"$_DUMP"')()' --out "$_TMP/{page}.dom.html" --raw`);
     expect(c).toContain('DOM_DUMP_OK');
     expect(c).toContain('DOM_DUMP_REDACTION_BLOCKED');
     expect(c).toContain('DOM_DUMP_TOO_LARGE');
@@ -1905,8 +1905,29 @@ describe('DESIGN_DETECTOR resolver', () => {
     expect(c).not.toMatch(/```js\n/);
     expect(c).not.toContain('document.documentElement.cloneNode');
     expect(c).toContain('_DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
-    expect(c).toContain('const html = await pg.evaluate($_DUMP);');
+    expect(c).toContain(`const html = await pg.evaluate('"$_DUMP"');`);
     expect(c).toContain('_TMP=$(mktemp -d); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
+  });
+
+  test('every rendered Aside script is single-quoted: a page-controlled <url> is never inside a double-quoted bash string', () => {
+    const files = [...fs.readdirSync(ROOT).filter(d => fs.existsSync(path.join(ROOT, d, 'SKILL.md'))).map(d => path.join(ROOT, d, 'SKILL.md')),
+      ...fs.readdirSync(ROOT).flatMap(d => fs.existsSync(path.join(ROOT, d, 'sections')) ? fs.readdirSync(path.join(ROOT, d, 'sections')).filter(f => f.endsWith('.md')).map(f => path.join(ROOT, d, 'sections', f)) : [])];
+    expect(files.length).toBeGreaterThan(10);
+    for (const f of files) {
+      const c = fs.readFileSync(f, 'utf-8');
+      expect(c, path.relative(ROOT, f)).not.toMatch(/^aside repl "/m);
+    }
+  });
+
+  test('the E2E fixture slice markers exist in the rendered design skills (a template rename fails here, not in paid CI)', () => {
+    const dr = designReview();
+    const dh = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
+    for (const [a, b] of [['**Design detector (optional, deterministic):**', '**Create output directories:**'], ['**Phase 0: mechanical scan**', '## Phases 1-6'], ['### DOM dump (DOM mode only', '### Auth Detection']]) {
+      expect(sliceBetween(dr, a, b).length, `${a} .. ${b}`).toBeGreaterThan(100);
+    }
+    for (const [a, b] of [['**Design detector (optional, deterministic):**', '## Step 0: Input Detection'], ['### Slop Gate (bounded, never a loop)', '### Verification Screenshots']]) {
+      expect(sliceBetween(dh, a, b).length, `${a} .. ${b}`).toBeGreaterThan(100);
+    }
   });
 
   test('design-html carries the probe and the bounded slop gate', () => {
@@ -2612,6 +2633,7 @@ describe('Factory generation (--host factory)', () => {
 // ─── Parameterized host smoke tests (config-driven) ─────────
 
 import { ALL_HOST_CONFIGS, getExternalHosts } from '../hosts/index';
+import { sliceBetween } from './helpers/skill-fixture';
 
 describe('Parameterized host smoke tests', () => {
   // Every external host was rendered up front by the module-level

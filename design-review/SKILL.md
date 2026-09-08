@@ -813,7 +813,7 @@ echo "REPORT_DIR: $REPORT_DIR"; echo "RUN_ID: $RUN_ID"
 
 Remember `RUN_ID` and restate it literally in later blocks (each bash block is a fresh shell). DOM dumps land in `$REPORT_DIR/dom/$RUN_ID/`; nothing from earlier runs is touched.
 
-**Phase 0: mechanical scan** (only after `IMPECCABLE_READY`). Pick the mode once: a URL target (any URL, localhost included) is DOM mode; diff-aware with no URL is source mode. Source mode scans the changed frontend files now:
+**Phase 0: mechanical scan** (only after `IMPECCABLE_READY`). Pick the mode once: a URL target (any URL, localhost included) is DOM mode; diff-aware with no URL is source mode. Source mode scans the changed frontend files now, against the base branch (`gh pr view --json baseRefName -q .baseRefName`, else `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; never assume `main`; an unknown base is refused, exit 1):
 
 ```bash
 _DJ=$(mktemp); bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts scan --changed <base> --format gstack --host claude > "$_DJ"; echo "DETECT_EXIT_CODE=$?"; echo "DETECT_JSON=$_DJ"
@@ -961,7 +961,7 @@ Comprehensive review: 10-15 pages, every interaction flow, exhaustive checklist.
 
 ### Diff-aware (automatic when on a feature branch with no URL)
 When on a feature branch, scope to pages affected by the branch changes:
-1. Analyze the branch diff: `git diff main...HEAD --name-only`
+1. Analyze the branch diff: `git diff <base>...HEAD --name-only` (the base branch: `gh pr view --json baseRefName -q .baseRefName`, else `gh repo view --json defaultBranchRef -q .defaultBranchRef.name`; never assume `main`)
 2. Map changed files to affected pages/routes
 3. Detect running app on common local ports (3000, 4000, 8080)
 4. Audit only affected pages, compare design quality before/after
@@ -1074,31 +1074,31 @@ After each script, `cp` its files out of the `ASIDE_DIR` it printed into `$REPOR
 
 ### DOM dump (DOM mode only: Setup printed `IMPECCABLE_READY` and the target is a URL)
 
-Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, `$HOME/.claude/skills/gstack/lib/dom-dump.js` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as `<style data-gstack-dom-css>`, strips scripts, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the function text is spliced in from the file, so this block is double-quoted; `pg.evaluate` receives the function and runs it in the page):
+Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, `$HOME/.claude/skills/gstack/lib/dom-dump.js` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as `<style data-gstack-dom-css>`, strips scripts, templates, noscript blocks, inline event handlers, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page. The script stays single-quoted like every other Aside script, so the URL and the page slug are never inside a double-quoted bash string; only the function text is spliced in from the file through a closed-quote segment, and `pg.evaluate` receives the function and runs it in the page (`{page}` is the screenshot slug: letters, digits, hyphens):
 
 ```bash
 _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")
-aside repl "
-const pg = await openTab(\"<url>\");
-const html = await pg.evaluate($_DUMP);
-await fs.writeFile(path.join(pwd, \"{page}.dom.html\"), html);
-console.log(\"ASIDE_DIR=\" + pwd); await closeTab(pg); console.log(\"GSTACK_STEP_OK\");
-"
+aside repl '
+const pg = await openTab("<url>");
+const html = await pg.evaluate('"$_DUMP"');
+await fs.writeFile(path.join(pwd, "{page}.dom.html"), html);
+console.log("ASIDE_DIR=" + pwd); await closeTab(pg); console.log("GSTACK_STEP_OK");
+'
 ```
 
-Fallback engine (`$B js` calls the function in the page; `--out` accepts only temp dirs or cwd; never `$B html`, which wraps output in content markers):
+Fallback engine (`$B js` calls the function in the page, spliced the same way; `--out` accepts only temp dirs or cwd; never `$B html`, which wraps output in content markers):
 
 ```bash
 _TMP=$(mktemp -d); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")
-$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
+$B js '('"$_DUMP"')()' --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
 ```
 
-Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review). Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
+Persist it into this run's directory, size-capped and redaction-checked: a HIGH finding, or a redaction tool that fails to run, skips the page, not the review. Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
 
 ```bash
 _D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _REPORT="<REPORT_DIR from Setup>"; _RUN="<RUN_ID from Setup>"
 if [ "$(wc -c < "$_D")" -gt 10485760 ]; then echo "DOM_DUMP_TOO_LARGE: {page} $(wc -c < "$_D")"; rm -f "$_D"
-elif $HOME/.claude/skills/gstack/bin/gstack-redact --from-file "$_D" >/dev/null 2>&1; [ $? -eq 3 ]; then echo "DOM_DUMP_REDACTION_BLOCKED: {page}"; rm -f "$_D"
+elif $HOME/.claude/skills/gstack/bin/gstack-redact --from-file "$_D" --max-bytes 10485760 >/dev/null 2>&1; _RC=$?; [ "$_RC" -ne 0 ] && [ "$_RC" -ne 2 ]; then echo "DOM_DUMP_REDACTION_BLOCKED: {page} redact-exit=$_RC"; rm -f "$_D"
 else mkdir -p "$_REPORT/dom/$_RUN" && cp "$_D" "$_REPORT/dom/$_RUN/" && rm -f "$_D" && echo "DOM_DUMP_OK: {page}"; fi
 ```
 
@@ -1501,7 +1501,7 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - Motion: one authored moment on the first viewport (an entrance or a scroll-linked reveal), ease-out from a visible default; hover states only where they carry information
 - Color: define CSS variables, avoid purple-on-white defaults, one accent color default
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
-- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as poster not document
+- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as one composition, not a document (poster in stance, not in type size: display stays under 6rem)
 
 **App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors
@@ -1590,7 +1590,7 @@ codex exec "Review the frontend source code in this repo. Evaluate against these
 - Color: CSS variables with defined system, or hardcoded hex scattered?
 - Responsive: breakpoints defined? calc(100svh - header) for heroes? Mobile tested?
 - A11y: ARIA landmarks, alt text, contrast ratios, 44px touch targets?
-- Motion: 2-3 intentional animations, or zero / ornamental only?
+- Motion: one authored moment (an entrance or scroll-linked reveal, ease-out from a visible default) plus state transitions only where they carry information, or zero / ornamental only?
 - Cards: used only when card IS the interaction? No decorative card grids?
 
 First classify as MARKETING/LANDING PAGE vs APP UI vs HYBRID, then apply matching rules.

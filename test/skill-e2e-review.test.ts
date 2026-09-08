@@ -274,10 +274,11 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       // Issue 7: 3-column feature grid — LOW
       if (review.includes('3-column') || review.includes('three-column') || review.includes('feature grid') || review.includes('icon') || review.includes('circle')) detected++;
       // Signal 8: the mechanical pass (fake impeccable engine via IMPECCABLE_BIN) surfaced a detector row
-      if (review.includes('detector') || review.includes('[ai-color-palette]') || review.includes('[low-contrast]') || review.includes('impeccable')) detected++;
+      const detectorSeen = review.includes('detector') || review.includes('[ai-color-palette]') || review.includes('[low-contrast]') || review.includes('impeccable');
 
-      console.log(`Design review detected ${detected}/8 planted signals`);
-      expect(detected).toBeGreaterThanOrEqual(4);
+      console.log(`Design review detected ${detected}/7 planted checklist signals; detector rows surfaced: ${detectorSeen}`);
+      expect(detected).toBeGreaterThanOrEqual(4); // the LLM-checklist bar, unchanged by the detector
+      expect(detectorSeen).toBe(true); // the fake engine's rows are deterministic; the review must carry them
     }
   }, CAPTURE_MS);
 });

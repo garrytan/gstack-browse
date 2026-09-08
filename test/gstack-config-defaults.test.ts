@@ -158,6 +158,14 @@ describe('design_detector (auto|off, rejecting validator)', () => {
     expect(get('design_detector').out).toBe('auto');
   });
 
+  test('list and defaults enumerate design_detector', () => {
+    for (const verb of ['list', 'defaults']) {
+      const r = spawnSync('bash', [CONFIG_BIN, verb], { encoding: 'utf-8', timeout: 30_000, env: { ...process.env, GSTACK_STATE_ROOT: STATE } });
+      expect(r.status).toBe(0);
+      expect(r.stdout).toMatch(/design_detector:\s+auto/);
+    }
+  });
+
   test('set off / set auto round-trip', () => {
     spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector', 'off'], { encoding: 'utf-8', timeout: 30_000, env: { ...process.env, GSTACK_STATE_ROOT: STATE } });
     expect(get('design_detector').out).toBe('off');

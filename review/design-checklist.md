@@ -1,7 +1,7 @@
 <!-- GENERATED from lib/design-catalog.ts via scripts/resolvers/design-checklist.ts. Run: bun run gen:skill-docs -->
 # Design Review Checklist (Lite)
 
-> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of `lib/design-catalog.ts` plus the legacy blacklist lines, the same entries DESIGN_METHODOLOGY category 9 renders, so the two cannot drift. Edit the catalog, then run `bun run gen:skill-docs`.
+> **Generated from the catalog.** Category 1 renders the grep-detectable slop entries of `lib/design-catalog.ts` plus the legacy blacklist lines: a subset of what DESIGN_METHODOLOGY category 9 renders, drawn from the same catalog, so the shared entries cannot drift. Edit the catalog, then run `bun run gen:skill-docs`.
 
 ## Instructions
 

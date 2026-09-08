@@ -697,7 +697,7 @@ For framework output, save to:
 - `prefers-reduced-motion` for animation respect
 - Real content extracted from the mockup (never lorem ipsum)
 
-**Never include (AI slop blacklist):**
+**Never include by default (AI slop blacklist):** an approved mockup that carries one, a DESIGN.md blessing, or an explicit user ask overrides it; say the tradeoff once.
 - Purple/blue gradients as default <!-- ai-color-palette -->
 - Cream-and-serif default palette <!-- cream-palette -->
 - Gradient text <!-- gradient-text -->
@@ -759,7 +759,7 @@ If the Setup probe printed `IMPECCABLE_READY`, scan the finalized page once befo
 _DJ=$(mktemp); bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts scan --format gstack --host claude <finalized.html> > "$_DJ"; echo "DETECT_EXIT_CODE=$?"; echo "DETECT_JSON=$_DJ"
 ```
 
-Exit 2 → one surgical fix pass over the non-advisory rules in the `DETECT_TOP` block, then scan once more. Whatever remains, present the page with those findings listed as accepted-with-reason: a pattern the approved mockup contains, a value DESIGN.md's tokens bless, or an inline `<!-- impeccable-disable <rule>: <reason> -->` the user agreed to. One pass, not a loop. Any other first line from the probe: skip, no ceremony.
+Exit 2 → one surgical fix pass over the non-advisory rules in the `DETECT_TOP` block, then scan once more. Whatever remains, present the page with those findings listed as accepted-with-reason: a pattern the approved mockup contains, a value DESIGN.md's tokens bless or a pattern its Decisions Log or Do's and Don'ts records as intentional, or an inline `<!-- impeccable-disable <rule>: <reason> -->` the user agreed to. One pass, not a loop. Any other first line from the probe: skip, no ceremony.
 
 ### Verification Screenshots
 

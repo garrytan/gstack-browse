@@ -32,6 +32,8 @@ const SAMPLES: Array<[string, boolean]> = [
   ['public/index.html', true],
   ['tailwind.config.js', true],
   ['postcss.config.cjs', true],
+  ['src/tailwind.config.js', false], // the bash glob is matched against the whole repo-relative path: root-level configs only
+  ['packages/ui/postcss.config.cjs', false],
   ['app/assets/stylesheets/app.css', true],
   ['lib/util/components/helper.rb', true],
   ['lib/server.ts', false],

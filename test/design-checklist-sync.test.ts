@@ -12,7 +12,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import {
   generateDesignChecklistMd, checklistSlopEntries,
-  DESIGN_CHECKLIST_HEADER, DESIGN_CHECKLIST_TITLE, DESIGN_CHECKLIST_SLOP_HEADING,
+  DESIGN_CHECKLIST_HEADER, DESIGN_CHECKLIST_TITLE, DESIGN_CHECKLIST_SLOP_HEADING, autoFixEntries,
 } from '../scripts/resolvers/design-checklist';
 import { DESIGN_SLOP_CATALOG, BANNED_FONTS } from '../lib/design-catalog';
 import { AI_SLOP_BLACKLIST } from '../scripts/resolvers/constants';
@@ -38,6 +38,17 @@ describe('review/design-checklist.md is generated', () => {
     // Fixed sections other readers depend on.
     for (const h of ['## Instructions', '## Confidence Tiers', '## Classification', '## Output Format', '## Categories', '## Suppressions']) {
       expect(md).toContain(h);
+    }
+  });
+
+  test('the Classification AUTO-FIX list renders every auto-fix catalog entry with its id', () => {
+    const md = generateDesignChecklistMd();
+    const block = md.slice(md.indexOf('**AUTO-FIX**'), md.indexOf('**ASK**'));
+    const entries = autoFixEntries();
+    expect(entries.length).toBeGreaterThan(0);
+    for (const e of entries) {
+      expect(e.tier).toBe('auto-fix');
+      expect(block).toContain(`- [${e.impeccableId}] ${e.prose}`);
     }
   });
 
@@ -94,6 +105,28 @@ describe('gen-skill-docs writes the checklist for the Claude host only', () => {
 
       // The tracked file was never touched by either --out-dir render.
       expect(fs.statSync(CHECKLIST).mtimeMs).toBe(before);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  }, 300_000);
+
+  test('--host claude --out-dir also renders lib/dom-dump.js; a modified out-dir copy flips --dry-run to STALE', () => {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-assets-'));
+    try {
+      const claude = runGen(['--host', 'claude', '--out-dir', out]);
+      expect(claude.status).toBe(0);
+      expect(claude.stdout).toContain('GENERATED: lib/dom-dump.js');
+      const dump = fs.readFileSync(path.join(out, 'lib', 'dom-dump.js'), 'utf-8');
+      expect(dump).toBe(fs.readFileSync(path.join(ROOT, 'lib', 'dom-dump.js'), 'utf-8'));
+      const fresh = runGen(['--host', 'claude', '--out-dir', out, '--dry-run']);
+      expect(fresh.stdout).toContain('FRESH: lib/dom-dump.js');
+      expect(fresh.stdout).toContain('FRESH: review/design-checklist.md');
+      fs.appendFileSync(path.join(out, 'review', 'design-checklist.md'), '\nhand edit\n');
+      fs.writeFileSync(path.join(out, 'lib', 'dom-dump.js'), '// tampered\n');
+      const stale = runGen(['--host', 'claude', '--out-dir', out, '--dry-run']);
+      expect(stale.stdout).toContain('STALE: review/design-checklist.md');
+      expect(stale.stdout).toContain('STALE: lib/dom-dump.js');
+      expect(stale.status).not.toBe(0);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
     }

@@ -994,18 +994,6 @@ function findTemplates(): string[] {
 const ALL_HOSTS: Host[] = ALL_HOST_NAMES as Host[];
 
 /**
- * The generator's whole executable body. Import-purity contract: importing
- * this module must NEVER touch the tree — test/gen-skill-docs.test.ts pulls
- * assertSinglePreamble via require(), test/catalog-trim.test.ts imports
- * helpers, and before this guard existed every such import regenerated all
- * 71 SKILL.md in place at module-load time (the root cause of half the
- * TREE_MUTATING serial shard; hazard class #2532). Pinned by
- * test/gen-skill-docs-import-purity.test.ts.
- *
- * Returns the process exit code. Kept synchronous so the module stays
- * require()-able (see the llms.txt IIFE note below).
- */
-/**
  * Write one generated file, or under DRY_RUN compare it to what is on disk and
  * print STALE/FRESH. Returns true when the file is stale (dry run) — the caller
  * folds that into its host-level `hasChanges`. Shared by sections and the
@@ -1028,6 +1016,19 @@ function emitGenerated(outputPath: string, content: string): boolean {
   console.log(`GENERATED: ${relOutput}`);
   return false;
 }
+
+/**
+ * The generator's whole executable body. Import-purity contract: importing
+ * this module must NEVER touch the tree — test/gen-skill-docs.test.ts pulls
+ * assertSinglePreamble via require(), test/catalog-trim.test.ts imports
+ * helpers, and before this guard existed every such import regenerated all
+ * 71 SKILL.md in place at module-load time (the root cause of half the
+ * TREE_MUTATING serial shard; hazard class #2532). Pinned by
+ * test/gen-skill-docs-import-purity.test.ts.
+ *
+ * Returns the process exit code. Kept synchronous so the module stays
+ * require()-able (see the llms.txt IIFE note below).
+ */
 
 export function main(): number {
 const hostsToRun: Host[] = HOST_ARG_VAL === 'all' ? ALL_HOSTS : [HOST];

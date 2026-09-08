@@ -9,7 +9,8 @@
  * existing <style> nodes), <meta content> emptied (viewport kept), query
  * strings cut from every URL attribute, script bodies emptied, linked
  * stylesheets inlined with author hex restored, cross-origin sheets named in
- * the trailing note, inlined <link> nodes removed.
+ * the trailing note and removed from the markup, inlined <link> nodes removed,
+ * <template> and <noscript> subtrees dropped, inline on* handlers dropped.
  */
 import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
@@ -48,7 +49,8 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
 <input value="SECRET INPUT"><textarea>SECRET TEXT</textarea>
 <a href="/page?token=SECRET">link</a>
 <img src="/img.png?sig=SECRETSIG" srcset="/a.png?s=SECRETSET 1x, /b.png?s=SECRETSET2 2x">
-<form action="/submit?csrf=SECRETCSRF"><button formaction="/alt?f=SECRETFORM">go</button></form>
+<form action="/submit?csrf=SECRETCSRF"><button formaction="/alt?f=SECRETFORM" onclick="track('SECRETHANDLER')">go</button></form>
+<template><input value="SECRET TEMPLATE"><a href="/t?x=SECRETTPL">t</a></template><noscript><img src="/px.gif?id=SECRETNOSCRIPT"></noscript>
 <style>.inline { background: url("${big}") }</style>
 <div data-long="${'L'.repeat(40)}" data-short="ok" title="${big}">x</div>
 <img src="${big}">
@@ -79,7 +81,7 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       expect(html).toContain(`<style ${DOM_DUMP_STYLE_ATTR}=""`);
       expect(html).toContain('#6366f1');
       expect(html).not.toMatch(/<link[^>]*href="styles\.css"/);
-      expect(html).toMatch(/<link[^>]*cross-origin\.css/);
+      expect(html).not.toMatch(/<link[^>]*cross-origin\.css/); // named in the note, removed from the markup: the engine never sees a remote stylesheet
       expect(html).toContain(`<!-- ${DOM_DUMP_NOTE_PREFIX} `);
       expect(html).toContain('cross-origin stylesheets not resolved');
       expect(html).toContain('scripts stripped: 1');
@@ -94,6 +96,12 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       expect(html).not.toContain('SECRETSET');
       expect(html).not.toContain('SECRETCSRF');
       expect(html).not.toContain('SECRETFORM');
+      expect(html).not.toContain('SECRETHANDLER');
+      expect(html).not.toMatch(/ onclick=/);
+      expect(html).not.toContain('SECRET TEMPLATE');
+      expect(html).not.toContain('SECRETTPL');
+      expect(html).not.toContain('SECRETNOSCRIPT');
+      expect(html).not.toMatch(/<template|<noscript/);
       expect(html).toContain('srcset="/a.png 1x, /b.png 2x"');
       expect(html).not.toContain('L'.repeat(40));
       expect(html).toContain('data-short="ok"');
@@ -105,5 +113,5 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       fs.rmSync(site, { recursive: true, force: true });
       fs.rmSync(tmp, { recursive: true, force: true });
     }
-  }, 120_000);
+  }, 180_000);
 });

@@ -62,7 +62,7 @@ The SAFE/RISK breakdown is critical. Design coherence is table stakes — every 
 
 **Choosing faces: a procedure, not a menu.** Type comes from the subject's world, in the mode's register. (1) Name the world: the publication, notation, identity program, or object this audience already reads. (2) Shortlist three faces per role (display, body, label, mono) from that world. (3) Strike anything on the overused list for the role it would play. (4) Verify availability this session: WebSearch or Aside the Google Fonts / Fontshare page, or confirm the license of a self-hosted face. Unverified faces do not go in the proposal. (5) State the loading strategy with the name.
 
-**Overused as display** (never the display voice on a Persuade or Experience surface; the detector flags several as `overused-font`): Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk, Space Mono, Fraunces, Playfair Display, Cormorant, Lora, Crimson, Newsreader, Syne, IBM Plex Sans, IBM Plex Serif, DM Sans, DM Serif, Outfit, Plus Jakarta Sans, Instrument Sans, Geist.
+**Overused as display** (never the display voice, on any surface; the body/UI exception below is the only one; the detector flags several as `overused-font`): Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk, Space Mono, Fraunces, Playfair Display, Cormorant, Lora, Crimson, Newsreader, Syne, IBM Plex Sans, IBM Plex Serif, DM Sans, DM Serif, Outfit, Plus Jakarta Sans, Instrument Sans, Geist.
 
 **Fine as body/UI on an Operate or Read surface when the proposal says so:** DM Sans, Instrument Sans, IBM Plex Sans. **Mono for data and code:** JetBrains Mono, IBM Plex Mono, Fira Code.
 

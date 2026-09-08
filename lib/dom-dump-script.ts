@@ -34,7 +34,10 @@
 //     the inlined CSS, and in existing <style> nodes.
 //   - The trailing comment names what the dump cannot contain (shadow DOM,
 //     constructed stylesheets, runtime-injected styles when scripts were
-//     stripped) so the report can say so once.
+//     stripped) so the report can say so once. <template> and <noscript>
+//     subtrees (invisible to the querySelectorAll walk) and inline on*
+//     handlers are removed; cross-origin <link> nodes leave the clone too,
+//     so the file handed to the engine names no remote stylesheet.
 export const DOM_DUMP_SCRIPT = String.raw`() => {
   const root = document.documentElement.cloneNode(true);
   const head = root.querySelector("head") || root;
@@ -51,6 +54,7 @@ export const DOM_DUMP_SCRIPT = String.raw`() => {
       if (cloneLinks[i]) cloneLinks[i].remove();
     } catch (err) {
       crossOrigin.push(sheet.href || "(unknown)");
+      if (cloneLinks[i]) cloneLinks[i].remove();
     }
   });
   const dataUrl = new RegExp("url\\((\"?)data:[^)]{1024,}\\)", "g");
@@ -74,11 +78,13 @@ export const DOM_DUMP_SCRIPT = String.raw`() => {
     if (el.textContent) { el.textContent = ""; scripts += 1; }
   }
   for (const el of Array.from(root.querySelectorAll("textarea"))) el.textContent = "";
+  for (const el of Array.from(root.querySelectorAll("template, noscript"))) el.remove();
   for (const el of Array.from(root.querySelectorAll("*"))) {
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name;
       const value = attr.value;
-      if (name === "value" && (el.nodeName === "INPUT" || el.nodeName === "TEXTAREA")) el.setAttribute(name, "");
+      if (name.indexOf("on") === 0) el.removeAttribute(name);
+      else if (name === "value" && (el.nodeName === "INPUT" || el.nodeName === "TEXTAREA")) el.setAttribute(name, "");
       else if ((name === "value" || name.indexOf("data-") === 0) && value.length > 32) el.setAttribute(name, "");
       else if (name === "content" && el.nodeName === "META" && el.getAttribute("name") !== "viewport") el.setAttribute(name, "");
       else if (name === "srcset") el.setAttribute(name, value.split(",").map((c) => { const parts = c.trim().split(/\s+/); parts[0] = cutQuery(parts[0] || ""); return parts.join(" "); }).join(", "));

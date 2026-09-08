@@ -3,7 +3,6 @@ import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CODEX_
 import { OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, HANDOFF_COMMANDS, selectCatalog, catalogEntries, renderCatalog, detectorSlopEntries, judgmentTellEntries } from '../../lib/design-catalog';
 import { SENTINEL, DETECT_EXIT_ECHO, DETECT_LIMITS } from '../../lib/design-detect-contract';
 import { DOM_DUMP_FILE } from '../../lib/dom-dump-script';
-import * as pathMod from 'path';
 
 export function generateDesignReviewLite(ctx: TemplateContext): string {
   const litmusList = OPENAI_LITMUS_CHECKS.map((item, i) => `${i + 1}. ${item}`).join(' ');
@@ -108,7 +107,7 @@ Comprehensive review: 10-15 pages, every interaction flow, exhaustive checklist.
 
 ### Diff-aware (automatic when on a feature branch with no URL)
 When on a feature branch, scope to pages affected by the branch changes:
-1. Analyze the branch diff: \`git diff main...HEAD --name-only\`
+1. Analyze the branch diff: \`git diff <base>...HEAD --name-only\` (the base branch: \`gh pr view --json baseRefName -q .baseRefName\`, else \`gh repo view --json defaultBranchRef -q .defaultBranchRef.name\`; never assume \`main\`)
 2. Map changed files to affected pages/routes
 3. Detect running app on common local ports (3000, 4000, 8080)
 4. Audit only affected pages, compare design quality before/after
@@ -221,31 +220,31 @@ After each script, \`cp\` its files out of the \`ASIDE_DIR\` it printed into \`$
 
 ### DOM dump (DOM mode only: Setup printed \`${SENTINEL.READY}\` and the target is a URL)
 
-Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, \`${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}\` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as \`<style data-gstack-dom-css>\`, strips scripts, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page (the function text is spliced in from the file, so this block is double-quoted; \`pg.evaluate\` receives the function and runs it in the page):
+Rule 4 forbids reading source, so the detector reads the rendered page. One shared script, \`${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}\` (an arrow function the page runs), serves both engines: it clones the document, inlines linked stylesheets as \`<style data-gstack-dom-css>\`, strips scripts, templates, noscript blocks, inline event handlers, input values, long attributes, and URL query strings, and notes what it cannot capture (shadow DOM, constructed and runtime-injected styles). Aside, third script per page. The script stays single-quoted like every other Aside script, so the URL and the page slug are never inside a double-quoted bash string; only the function text is spliced in from the file through a closed-quote segment, and \`pg.evaluate\` receives the function and runs it in the page (\`{page}\` is the screenshot slug: letters, digits, hyphens):
 
 \`\`\`bash
 _DUMP=$(cat "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}")
-aside repl "
-const pg = await openTab(\\"<url>\\");
-const html = await pg.evaluate($_DUMP);
-await fs.writeFile(path.join(pwd, \\"{page}.dom.html\\"), html);
-console.log(\\"ASIDE_DIR=\\" + pwd); await closeTab(pg); console.log(\\"GSTACK_STEP_OK\\");
-"
+aside repl '
+const pg = await openTab("<url>");
+const html = await pg.evaluate('"$_DUMP"');
+await fs.writeFile(path.join(pwd, "{page}.dom.html"), html);
+console.log("ASIDE_DIR=" + pwd); await closeTab(pg); console.log("GSTACK_STEP_OK");
+'
 \`\`\`
 
-Fallback engine (\`$B js\` calls the function in the page; \`--out\` accepts only temp dirs or cwd; never \`$B html\`, which wraps output in content markers):
+Fallback engine (\`$B js\` calls the function in the page, spliced the same way; \`--out\` accepts only temp dirs or cwd; never \`$B html\`, which wraps output in content markers):
 
 \`\`\`bash
 _TMP=$(mktemp -d); _DUMP=$(cat "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_FILE}")
-$B js "($_DUMP)()" --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
+$B js '('"$_DUMP"')()' --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
 \`\`\`
 
-Persist it into this run's directory, size-capped and redaction-checked (a HIGH finding skips the page, not the review). Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
+Persist it into this run's directory, size-capped and redaction-checked: a HIGH finding, or a redaction tool that fails to run, skips the page, not the review. Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
 
 \`\`\`bash
 _D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _REPORT="<REPORT_DIR from Setup>"; _RUN="<RUN_ID from Setup>"
 if [ "$(wc -c < "$_D")" -gt ${DETECT_LIMITS.domDumpBytes} ]; then echo "${SENTINEL.DOM_DUMP_TOO_LARGE}: {page} $(wc -c < "$_D")"; rm -f "$_D"
-elif ${toShellPath(ctx.paths.binDir)}/gstack-redact --from-file "$_D" >/dev/null 2>&1; [ $? -eq 3 ]; then echo "${SENTINEL.DOM_DUMP_REDACTION_BLOCKED}: {page}"; rm -f "$_D"
+elif ${toShellPath(ctx.paths.binDir)}/gstack-redact --from-file "$_D" --max-bytes ${DETECT_LIMITS.domDumpBytes} >/dev/null 2>&1; _RC=$?; [ "$_RC" -ne 0 ] && [ "$_RC" -ne 2 ]; then echo "${SENTINEL.DOM_DUMP_REDACTION_BLOCKED}: {page} redact-exit=$_RC"; rm -f "$_D"
 else mkdir -p "$_REPORT/dom/$_RUN" && cp "$_D" "$_REPORT/dom/$_RUN/" && rm -f "$_D" && echo "${SENTINEL.DOM_DUMP_OK}: {page}"; fi
 \`\`\`
 
@@ -716,7 +715,7 @@ LITMUS CHECKS — answer YES or NO for each:
 ${litmusList}
 
 HARD RULES — first classify as MARKETING/LANDING PAGE vs APP UI vs HYBRID, then flag violations of the matching rule set:
-- MARKETING: First viewport as one composition, brand-first hierarchy, full-bleed hero, 2-3 intentional motions, composition-first layout
+- MARKETING: First viewport as one composition, brand-first hierarchy, full-bleed hero, one authored motion moment on the first viewport, composition-first layout
 - APP UI: Calm surface hierarchy, dense but readable, utility language, minimal chrome
 - UNIVERSAL: CSS variables for colors, no default font stacks, one job per section, cards earn existence
 
@@ -738,7 +737,7 @@ For each finding: what's wrong, severity (critical/high/medium), and the fix.`;
 - Color: CSS variables with defined system, or hardcoded hex scattered?
 - Responsive: breakpoints defined? calc(100svh - header) for heroes? Mobile tested?
 - A11y: ARIA landmarks, alt text, contrast ratios, 44px touch targets?
-- Motion: 2-3 intentional animations, or zero / ornamental only?
+- Motion: one authored moment (an entrance or scroll-linked reveal, ease-out from a visible default) plus state transitions only where they carry information, or zero / ornamental only?
 - Cards: used only when card IS the interaction? No decorative card grids?
 
 First classify as MARKETING/LANDING PAGE vs APP UI vs HYBRID, then apply matching rules.
@@ -883,7 +882,7 @@ export function generateDesignDetector(ctx: TemplateContext, args?: string[]): s
   const bin = `bun --no-env-file run ${toShellPath(ctx.paths.binDir)}/gstack-design-detect.ts`;
   const mode = args?.[0] ?? 'probe';
   if (mode === 'phase0') {
-    return `**Phase 0: mechanical scan** (only after \`${SENTINEL.READY}\`). Pick the mode once: a URL target (any URL, localhost included) is DOM mode; diff-aware with no URL is source mode. Source mode scans the changed frontend files now:
+    return `**Phase 0: mechanical scan** (only after \`${SENTINEL.READY}\`). Pick the mode once: a URL target (any URL, localhost included) is DOM mode; diff-aware with no URL is source mode. Source mode scans the changed frontend files now, against the base branch (\`gh pr view --json baseRefName -q .baseRefName\`, else \`gh repo view --json defaultBranchRef -q .defaultBranchRef.name\`; never assume \`main\`; an unknown base is refused, exit 1):
 
 \`\`\`bash
 _DJ=$(mktemp); ${bin} scan --changed <base> --format gstack --host ${ctx.host} > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
@@ -900,7 +899,7 @@ If the Setup probe printed \`${SENTINEL.READY}\`, scan the finalized page once b
 _DJ=$(mktemp); ${bin} scan --format gstack --host ${ctx.host} <finalized.html> > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
 \`\`\`
 
-Exit 2 → one surgical fix pass over the non-advisory rules in the \`${SENTINEL.DETECT_TOP}\` block, then scan once more. Whatever remains, present the page with those findings listed as accepted-with-reason: a pattern the approved mockup contains, a value DESIGN.md's tokens bless, or an inline \`<!-- impeccable-disable <rule>: <reason> -->\` the user agreed to. One pass, not a loop. Any other first line from the probe: skip, no ceremony.`;
+Exit 2 → one surgical fix pass over the non-advisory rules in the \`${SENTINEL.DETECT_TOP}\` block, then scan once more. Whatever remains, present the page with those findings listed as accepted-with-reason: a pattern the approved mockup contains, a value DESIGN.md's tokens bless or a pattern its Decisions Log or Do's and Don'ts records as intentional, or an inline \`<!-- impeccable-disable <rule>: <reason> -->\` the user agreed to. One pass, not a loop. Any other first line from the probe: skip, no ceremony.`;
   }
   return `**Design detector (optional, deterministic):** gstack runs impeccable's engine when the user installed it, and never installs, downloads, or runs anything that could download (that includes \`npx impeccable\` and the skill's launcher).
 
@@ -941,7 +940,7 @@ ${check}
 // pbakaus/impeccable reference/new-work.md (Apache-2.0), rewritten. See NOTICE.md.
 export function generateOverusedFonts(_ctx: TemplateContext): string {
   const free = FONTS_VERIFIED_FREE;
-  return `**Overused as display** (never the display voice on a Persuade or Experience surface; the detector flags several as \`overused-font\`): ${OVERUSED_FONTS_DISPLAY.join(', ')}.
+  return `**Overused as display** (never the display voice, on any surface; the body/UI exception below is the only one; the detector flags several as \`overused-font\`): ${OVERUSED_FONTS_DISPLAY.join(', ')}.
 
 **Fine as body/UI on an Operate or Read surface when the proposal says so:** ${FONTS_BODY_UI_OK.join(', ')}. **Mono for data and code:** ${FONTS_MONO_OK.join(', ')}.
 
@@ -954,7 +953,7 @@ User asks for a listed face by name: comply, state the tradeoff once.`;
 
 /** Prose-only slop bullets for the proposal skills: no ids, polish-level tells omitted. */
 export function generateDesignSlopBullets(_ctx: TemplateContext): string {
-  return renderCatalog({ kind: 'slop', style: 'bullets', omitImpact: ['polish'] });
+  return renderCatalog({ kind: 'slop', omitImpact: ['polish'] });
 }
 
 // ─── Design Hard Rules (OpenAI framework + gstack slop catalog) ───
@@ -1015,7 +1014,7 @@ ${litmusItems}
 - Motion: one authored moment on the first viewport (an entrance or a scroll-linked reveal), ease-out from a visible default; hover states only where they carry information
 - Color: define CSS variables, avoid purple-on-white defaults, one accent color default
 - Copy: product language not design commentary. "If deleting 30% improves it, keep deleting"
-- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as poster not document
+- Beautiful defaults: composition-first, brand as loudest text, two text faces max (plus a mono for data and code), cardless by default, first viewport as one composition, not a document (poster in stance, not in type size: display stays under 6rem)
 
 **App UI rules** (apply when classifier = OPERATE / APP UI):
 - Calm surface hierarchy, strong typography, few colors

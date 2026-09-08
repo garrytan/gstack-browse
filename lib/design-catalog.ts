@@ -7,8 +7,9 @@
 //
 //   lib/design-catalog.ts
 //     ├─ scripts/resolvers/constants.ts          AI_SLOP_BLACKLIST: the 11 legacy lines, verbatim, in order
-//     ├─ scripts/resolvers/design.ts             DESIGN_METHODOLOGY cat 9, DESIGN_HARD_RULES,
-//     │                                          DESIGN_REVIEW_LITE, OVERUSED_FONTS, DESIGN_SLOP_BULLETS
+//     ├─ scripts/resolvers/design.ts             DESIGN_METHODOLOGY cat 9, DESIGN_HARD_RULES, DESIGN_DETECTOR
+//     │                                          (handoffs), OVERUSED_FONTS, DESIGN_SLOP_BULLETS, and the
+//     │                                          design-html anti-slop line (catalogEntries)
 //     ├─ scripts/resolvers/design-checklist.ts   review/design-checklist.md (generated)
 //     ├─ bin/gstack-design-detect.ts             normalizes engine findings by impeccableId
 //     └─ design/src/brief.ts                     MOCKUP_NEVER_NAMES in the image-generation prompt
@@ -65,7 +66,7 @@ export interface DesignSlopEntry {
   mockupNever?: true;
 }
 
-/** Training-data defaults: never the display voice on a Persuade or Experience surface. */
+/** Training-data defaults: never the display voice on any surface (body/UI on Operate/Read is the one exception, FONTS_BODY_UI_OK). */
 const OVERUSED_DISPLAY = [
   'Inter', 'Roboto', 'Arial', 'Helvetica', 'Open Sans', 'Lato', 'Montserrat', 'Poppins',
   'Space Grotesk', 'Space Mono', 'Fraunces', 'Playfair Display', 'Cormorant', 'Lora', 'Crimson',
@@ -657,7 +658,7 @@ export const MOCKUP_NEVER_NAMES: readonly string[] = [
 
 // ── Fonts ──
 
-/** Never the display voice on Persuade/Experience; the detector flags several as `overused-font`. */
+/** Never the display voice; the detector flags several as `overused-font`. */
 export const OVERUSED_FONTS_DISPLAY: readonly string[] = OVERUSED_DISPLAY;
 
 /** Never, in any role. */

@@ -13,7 +13,9 @@ const EXTENSIONS = new Set([
   '.html',
 ]);
 
-const BASENAME_PREFIXES = ['tailwind.config.', 'postcss.config.'];
+// Root-level only: the bash arm's glob (`tailwind.config.*`) is matched against the
+// whole repo-relative path, so a nested `apps/web/tailwind.config.js` is not frontend there.
+const ROOT_CONFIG_PREFIXES = ['tailwind.config.', 'postcss.config.'];
 
 /** Repo-relative path (forward slashes) → is it a frontend file per gstack-diff-scope? */
 export function isFrontendPath(relPath: string): boolean {
@@ -22,7 +24,7 @@ export function isFrontendPath(relPath: string): boolean {
   const dot = base.lastIndexOf('.');
   const ext = dot >= 0 ? base.slice(dot) : ''; // case-sensitive, exactly like gstack-diff-scope's globs
   if (EXTENSIONS.has(ext)) return true;
-  if (BASENAME_PREFIXES.some(p => base.startsWith(p))) return true;
+  if (!rel.includes('/') && ROOT_CONFIG_PREFIXES.some(p => base.startsWith(p))) return true;
   if (rel.startsWith('app/views/')) return true;
   if (rel.includes('/components/')) return true;
   if (rel.startsWith('styles/') || rel.startsWith('css/')) return true;
