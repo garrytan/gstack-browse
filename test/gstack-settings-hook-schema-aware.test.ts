@@ -846,6 +846,152 @@ describe('Memorable UserPromptSubmit hook ownership', () => {
   });
 });
 
+describe('remove-source: identity-aware (tag OR table)', () => {
+  // Claude Code strips _gstack_source when it rewrites settings.json. A
+  // tag-only remove-source therefore no-ops on exactly the entries it was
+  // written for (the PR #2831 disable bug). Identity via KNOWN_HOOKS now
+  // drives removal; the tag is metadata.
+  const memo = '/stable/gstack/hosts/claude/hooks/memorable-user-prompt-hook';
+  const foreign = '/Users/me/my-user-prompt-hook';
+  const vendor = '"/Users/me/.memorable/bin/memorable" hook user-prompt';
+
+  test('removes an UNTAGGED single-item memorable entry by identity', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: memo, timeout: 5 }] }] },
+    }, null, 2));
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/removed 1 /);
+    expect(settings().hooks).toBeUndefined();
+  });
+
+  test('untagged mixed entry: only the memorable item goes, the foreign item stays, no tag is added', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [
+        { type: 'command', command: foreign },
+        { type: 'command', command: memo },
+      ] }] },
+    }, null, 2));
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.stdout).toMatch(/removed 1 /);
+    const entries = settings().hooks.UserPromptSubmit;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].hooks).toEqual([{ type: 'command', command: foreign }]);
+    expect(entries[0]._gstack_source).toBeUndefined();
+  });
+
+  test('the bash-prefixed, quoted (Windows) form is recognised and removed', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `bash "${memo}"` }] }] },
+    }, null, 2));
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.stdout).toMatch(/removed 1 /);
+    expect(settings().hooks).toBeUndefined();
+  });
+
+  test('CRITICAL regression: identity is per source -- another source\'s tag-stripped item is never touched', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: {
+        Stop: [{ hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/timeline-stop-hook' }] }],
+        PostToolUse: [{ matcher: AUQ_MATCHER, hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/question-log-hook' }] }],
+      },
+    }, null, 2));
+    const r = run(['remove-source', '--source', 'plan-tune-cathedral']);
+    expect(r.stdout).toMatch(/removed 1 /);          // its own tag-stripped question-log item
+    const s = settings();
+    expect(s.hooks.Stop).toHaveLength(1);              // timeline (gstack-timeline-stop) untouched
+    expect(s.hooks.PostToolUse).toBeUndefined();
+  });
+
+  test('a tagged entry of source A holding an item of source B keeps B\'s item and its tag (nothing of A inside)', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { Stop: [{ _gstack_source: 'plan-tune-cathedral', hooks: [
+        { type: 'command', command: '/x/hosts/claude/hooks/timeline-stop-hook' },
+      ] }] },
+    }, null, 2));
+    const before = fs.readFileSync(settingsFile, 'utf-8');
+    const r = run(['remove-source', '--source', 'plan-tune-cathedral']);
+    expect(r.stdout).toMatch(/removed 0 /);
+    expect(fs.readFileSync(settingsFile, 'utf-8')).toBe(before);
+  });
+
+  test('a foreign-only entry is untouched byte for byte and no backup is written', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: foreign }] }, { hooks: [{ type: 'command', command: vendor }] }] },
+    }, null, 2));
+    const before = fs.readFileSync(settingsFile, 'utf-8');
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/removed 0 /);
+    expect(fs.readFileSync(settingsFile, 'utf-8')).toBe(before);
+    expect(backups()).toEqual([]);
+  });
+
+  test('a tagged legacy stray (single item, no table row) is still removed', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({
+      hooks: { UserPromptSubmit: [{ _gstack_source: 'gstack-memorable', hooks: [{ type: 'command', command: '/legacy/anything' }] }] },
+    }, null, 2));
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.stdout).toMatch(/removed 1 /);
+    expect(settings().hooks).toBeUndefined();
+  });
+});
+
+describe('list-items: read-only identity view', () => {
+  const memo = '/stable/gstack/hosts/claude/hooks/memorable-user-prompt-hook';
+  const foreign = '/Users/me/my-user-prompt-hook';
+  const vendor = '"/Users/me/.memorable/bin/memorable" hook user-prompt';
+  const weird = '/tab\tand\nnewline/hook';
+  const seed = () => fs.writeFileSync(settingsFile, JSON.stringify({
+    hooks: { UserPromptSubmit: [
+      { hooks: [{ type: 'command', command: foreign }, { type: 'command', command: memo }] },
+      { hooks: [{ type: 'command', command: vendor }] },
+      { hooks: [{ type: 'command', command: weird }] },
+    ] },
+  }, null, 2));
+
+  test('--owned-by prints only the table-identified item, as a JSON string literal, tag or no tag', () => {
+    seed();
+    const r = run(['list-items', '--event', 'UserPromptSubmit', '--owned-by', 'gstack-memorable']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout.trim().split('\n')).toEqual([JSON.stringify(memo)]);
+  });
+
+  test('--command-regex is a JavaScript RegExp applied only to items no table row owns', () => {
+    seed();
+    const r = run(['list-items', '--event', 'UserPromptSubmit', '--command-regex', '[Mm]emorable.*hook\\s+user-prompt']);
+    expect(r.stdout.trim().split('\n')).toEqual([JSON.stringify(vendor)]);
+  });
+
+  test('every line is one JSON literal: tabs and newlines inside a command cannot split it', () => {
+    seed();
+    const r = run(['list-items', '--event', 'UserPromptSubmit']);
+    const lines = r.stdout.trim().split('\n');
+    expect(lines).toHaveLength(4);
+    expect(lines.map((l) => JSON.parse(l))).toEqual([foreign, memo, vendor, weird]);
+  });
+
+  test('no matches, an unknown event, or no settings file -> empty stdout, exit 0', () => {
+    seed();
+    expect(run(['list-items', '--event', 'UserPromptSubmit', '--owned-by', 'verify-gate'])).toMatchObject({ exitCode: 0, stdout: '' });
+    expect(run(['list-items', '--event', 'Notification'])).toMatchObject({ exitCode: 0, stdout: '' });
+    fs.rmSync(settingsFile);
+    expect(run(['list-items', '--event', 'UserPromptSubmit'])).toMatchObject({ exitCode: 0, stdout: '' });
+  });
+
+  test('exit codes mirror the mutating verbs: 1 usage, 3 unparseable, 4 unexpected shape', () => {
+    seed();
+    expect(run(['list-items']).exitCode).toBe(1);
+    expect(run(['list-items', '--event', 'UserPromptSubmit', '--command-regex', '(']).exitCode).toBe(1);
+    fs.writeFileSync(settingsFile, '{bad json');
+    expect(run(['list-items', '--event', 'UserPromptSubmit']).exitCode).toBe(3);
+    fs.writeFileSync(settingsFile, JSON.stringify({ hooks: { UserPromptSubmit: {} } }));
+    const r = run(['list-items', '--event', 'UserPromptSubmit']);
+    expect(r.exitCode).toBe(4);
+    expect(r.stderr).toContain('not an array');
+  });
+});
+
 describe('prune-stale', () => {
   test('prunes dead gstack items; keeps live gstack and dead non-gstack', () => {
     const canon = mkCanon(tmpDir);
