@@ -1,113 +1,332 @@
-import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join, resolve } from 'path';
+/**
+ * bin/gstack-memorable — the enable/disable/status CLI of the Memorable
+ * recall bridge. Free tier; the vendor is a fake sh script that only logs
+ * its argv (these verbs must never execute it).
+ *
+ * Isolation per test: HOME, GSTACK_HOME/STATE_ROOT/STATE_DIR (config +
+ * lock), GSTACK_SETTINGS_FILE, and CLAUDE_CONFIG_DIR whose skills/gstack is
+ * a symlink to this repo, so the canonical resolver finds THIS tree's hook
+ * (and VERSION matches). GSTACK_MEMORABLE_BIN names the fake.
+ */
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
-const ROOT = resolve(import.meta.dir, '..');
-const COMMAND = join(ROOT, 'bin', 'gstack-memorable');
-const HOOK = join(ROOT, 'hosts', 'claude', 'hooks', 'memorable-user-prompt-hook');
-const homes: string[] = [];
+const ROOT = path.resolve(import.meta.dir, '..');
+const BIN = path.join(ROOT, 'bin', 'gstack-memorable');
+const CONFIG = path.join(ROOT, 'bin', 'gstack-config');
+const HOOK_REL = 'hosts/claude/hooks/memorable-user-prompt-hook';
 
-afterEach(() => {
-  for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
+let home: string;
+let env: Record<string, string>;
+let settings: string;
+let canonical: string;
+
+beforeEach(() => {
+  home = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memorable-bin-'));
+  const claude = path.join(home, '.claude');
+  fs.mkdirSync(path.join(claude, 'skills'), { recursive: true });
+  canonical = path.join(claude, 'skills', 'gstack');
+  fs.symlinkSync(ROOT, canonical);
+  settings = path.join(claude, 'settings.json');
+  const fake = path.join(home, 'memorable');
+  fs.writeFileSync(fake, `#!/bin/sh\nprintf '%s\\n' "$*" >> "$HOME/calls.log"\n`, { mode: 0o755 });
+  env = {
+    PATH: process.env.PATH ?? '',
+    HOME: home,
+    CLAUDE_CONFIG_DIR: claude,
+    GSTACK_SETTINGS_FILE: settings,
+    GSTACK_HOME: path.join(home, '.gstack'),
+    GSTACK_STATE_ROOT: path.join(home, '.gstack'),
+    GSTACK_STATE_DIR: path.join(home, '.gstack'),
+    GSTACK_MEMORABLE_BIN: fake,
+  };
+});
+afterEach(() => { fs.rmSync(home, { recursive: true, force: true }); });
+
+function run(args: string[], extra: Record<string, string> = {}) {
+  const r = spawnSync('bash', [BIN, ...args], { env: { ...env, ...extra }, encoding: 'utf8', timeout: 30_000 });
+  return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+const readSettings = (): any => JSON.parse(fs.readFileSync(settings, 'utf8'));
+const gate = () => spawnSync('bash', [CONFIG, 'get', 'memorable_recall'], { env, encoding: 'utf8', timeout: 20_000 }).stdout.trim();
+const setGate = (v: string) => spawnSync('bash', [CONFIG, 'set', 'memorable_recall', v], { env, encoding: 'utf8', timeout: 20_000 });
+const vendorCalled = () => fs.existsSync(path.join(home, 'calls.log'));
+const vendorOwn = () => `"${path.join(home, '.memorable', 'bin', 'memorable')}" hook user-prompt`;
+const writeSettings = (obj: unknown) => fs.writeFileSync(settings, JSON.stringify(obj, null, 2));
+const commands = () => readSettings().hooks.UserPromptSubmit.flatMap((e: any) => e.hooks.map((h: any) => h.command));
+
+describe('enable', () => {
+  test('registers the CANONICAL hook path with timeout 5, sets the gate on, never runs the vendor, explains the hand-off', () => {
+    const r = run(['enable']);
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe('');
+    const entries = readSettings().hooks.UserPromptSubmit;
+    expect(entries).toHaveLength(1);
+    expect(entries[0]._gstack_source).toBe('gstack-memorable');
+    expect(entries[0].hooks).toEqual([{ type: 'command', command: `${canonical}/${HOOK_REL}`, timeout: 5 }]);
+    expect(entries[0].hooks[0].command.startsWith(env.CLAUDE_CONFIG_DIR)).toBe(true); // canonical, not ROOT
+    expect(gate()).toBe('on');
+    expect(vendorCalled()).toBe(false);
+    for (const s of ['registered', 'memorable_recall=on', 'gstack-egress list --sink memorable-recall', 'gstack-memorable disable',
+      'within a few seconds', 'gstack-memorable status', 'memorable enable', 'memorable forget', 'HIGH-tier'] ) {
+      expect(r.stdout).toContain(s);
+    }
+  });
+
+  test('twice: unchanged, one entry; over a stale worktree path: re-pointed', () => {
+    expect(run(['enable']).stdout).toContain('registered');
+    const again = run(['enable']);
+    expect(again.status).toBe(0);
+    expect(again.stdout).toContain('unchanged');
+    expect(readSettings().hooks.UserPromptSubmit).toHaveLength(1);
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `/dead/worktree/${HOOK_REL}`, timeout: 5 }] }] } });
+    const rp = run(['enable']);
+    expect(rp.status).toBe(0);
+    expect(rp.stdout).toContain('re-pointed');
+    expect(commands()).toEqual([`${canonical}/${HOOK_REL}`]);
+  });
+
+  test('refuses without a stable install (no canonical tree), writes nothing', () => {
+    fs.rmSync(canonical);
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('run ./setup');
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(gate()).toBe('off');
+  });
+
+  test('refuses a mixed-version stable install (old hook without the .ts twin, different VERSION)', () => {
+    fs.rmSync(canonical);
+    fs.mkdirSync(path.join(canonical, 'hosts', 'claude', 'hooks'), { recursive: true });
+    fs.mkdirSync(path.join(canonical, 'bin'), { recursive: true });
+    for (const rel of ['bin/gstack-session-update', HOOK_REL]) fs.writeFileSync(path.join(canonical, rel), '#!/bin/sh\n', { mode: 0o755 });
+    fs.copyFileSync(path.join(ROOT, 'bin', 'gstack-settings-hook'), path.join(canonical, 'bin', 'gstack-settings-hook'));
+    fs.chmodSync(path.join(canonical, 'bin', 'gstack-settings-hook'), 0o755);
+    fs.writeFileSync(path.join(canonical, 'VERSION'), '0.0.0.0\n');
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/predates this bridge|is version '0.0.0.0'/);
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(gate()).toBe('off');
+  });
+
+  test('refuses when the vendor CLI is absent; never installs anything', () => {
+    const r = run(['enable'], { GSTACK_MEMORABLE_BIN: path.join(home, 'nope') });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('npm i -g memorable-cli');
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(gate()).toBe('off');
+  });
+
+  test("refuses when Memorable registered the hook itself (the real 0.5.18 installer string); settings and gate untouched", () => {
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: vendorOwn() }] }] } });
+    const before = fs.readFileSync(settings, 'utf8');
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('already registers this hook itself');
+    expect(r.stderr).toContain(settings);
+    expect(fs.readFileSync(settings, 'utf8')).toBe(before);
+    expect(gate()).toBe('off');
+    expect(vendorCalled()).toBe(false);
+  });
+
+  test('a foreign UserPromptSubmit hook is not mistaken for the vendor: enable proceeds beside it', () => {
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/foreign/hook' }] }] } });
+    expect(run(['enable']).status).toBe(0);
+    expect(commands()).toEqual(['/foreign/hook', `${canonical}/${HOOK_REL}`]);
+  });
+
+  test('corrupt settings.json: exit 3, gate stays off; unexpected shape: exit 4', () => {
+    fs.writeFileSync(settings, '{not json');
+    let r = run(['enable']);
+    expect(r.status).toBe(3);
+    expect(r.stderr).toContain('not valid JSON');
+    expect(gate()).toBe('off');
+    writeSettings({ hooks: { UserPromptSubmit: {} } });
+    r = run(['enable']);
+    expect(r.status).toBe(4);
+    expect(gate()).toBe('off');
+  });
+
+  test('refuses on Windows (deferred whole, D21) without touching anything', () => {
+    const r = run(['enable'], { GSTACK_MEMORABLE_TEST_UNAME: 'MINGW64_NT-10.0' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('Windows is not supported');
+    expect(fs.existsSync(settings)).toBe(false);
+  });
+
+  test('when recording consent fails, prior state is restored: a fresh registration is removed, a pre-existing one kept', () => {
+    // make config.yaml unwritable AFTER the gate was read: point the state dir at a read-only file
+    const roState = path.join(home, 'ro-state');
+    fs.mkdirSync(roState);
+    fs.writeFileSync(path.join(roState, 'config.yaml'), 'telemetry: off\n', { mode: 0o444 });
+    fs.chmodSync(roState, 0o555);
+    const ro = { GSTACK_HOME: roState, GSTACK_STATE_ROOT: roState, GSTACK_STATE_DIR: roState };
+    const r = run(['enable'], ro);
+    fs.chmodSync(roState, 0o755);
+    if (r.status === 0) {
+      // running as a user that ignores file modes (root in CI): the write succeeded, nothing to assert on rollback
+      expect(r.stdout).toContain('enabled');
+      return;
+    }
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('could not record consent');
+    expect(fs.existsSync(settings) ? (readSettings().hooks ?? {}).UserPromptSubmit : undefined).toBeUndefined(); // fresh registration rolled back
+  });
 });
 
-function fixture() {
-  const home = mkdtempSync(join(tmpdir(), 'gstack-memorable-'));
-  homes.push(home);
-  const claude = join(home, '.claude');
-  mkdirSync(claude, { recursive: true });
-  const settings = join(claude, 'settings.json');
-  const log = join(home, 'calls.log');
-  const fake = join(home, 'memorable');
-  writeFileSync(fake, `#!/bin/sh\nprintf '%s\\n' "$*" >> "${log}"\nif [ "$1" = hook ]; then printf '%s' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"remembered"}}'; fi\n`);
-  chmodSync(fake, 0o700);
-  return { home, settings, log, fake };
-}
-
-function envFor(f: ReturnType<typeof fixture>) {
-  return {
-    ...process.env,
-    HOME: f.home,
-    GSTACK_SETTINGS_FILE: f.settings,
-    MEMORABLE_BIN: f.fake,
-  };
-}
-
-describe('gstack-memorable', () => {
-  test('enable registers the hook; disable removes it without deleting foreign hooks', () => {
-    const f = fixture();
-    writeFileSync(f.settings, JSON.stringify({
-      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/foreign/hook' }] }] },
-    }));
-
-    const enabled = spawnSync(COMMAND, ['enable'], { env: envFor(f), encoding: 'utf8' });
-    expect(enabled.status).toBe(0);
-    expect(readFileSync(f.log, 'utf8')).toContain('enable');
-    let settings = JSON.parse(readFileSync(f.settings, 'utf8'));
-    const commands = settings.hooks.UserPromptSubmit.flatMap((e: any) => e.hooks.map((h: any) => h.command));
-    expect(commands).toContain('/foreign/hook');
-    expect(commands).toContain(HOOK);
-
-    const disabled = spawnSync(COMMAND, ['disable'], { env: envFor(f), encoding: 'utf8' });
-    expect(disabled.status).toBe(0);
-    expect(readFileSync(f.log, 'utf8')).toContain('disable');
-    settings = JSON.parse(readFileSync(f.settings, 'utf8'));
-    const remaining = settings.hooks.UserPromptSubmit.flatMap((e: any) => e.hooks.map((h: any) => h.command));
-    expect(remaining).toEqual(['/foreign/hook']);
+describe('disable', () => {
+  test('removes a TAG-STRIPPED registration by identity, sets the gate off, keeps the foreign sibling, exit 0', () => {
+    setGate('on');
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [
+      { type: 'command', command: '/foreign/hook' },
+      { type: 'command', command: `${canonical}/${HOOK_REL}`, timeout: 5 },
+    ] }] } });
+    const r = run(['disable']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('consent: memorable_recall=off');
+    expect(r.stdout).toContain('hook: removed');
+    expect(r.stdout).toContain('In-flight prompts');
+    expect(commands()).toEqual(['/foreign/hook']);
+    expect(gate()).toBe('off');
+    expect(vendorCalled()).toBe(false);
   });
 
-  test('enable refuses when Memorable already registered the hook itself', () => {
-    // Memorable's own installer (`memorable start`, `setup`, `install-hooks`)
-    // writes this same UserPromptSubmit hook under its own name, and that is
-    // the documented way to install the CLI. Registering ours beside it runs
-    // the command twice per prompt: injected twice, captured twice against the
-    // user's own allowance.
-    const f = fixture();
-    const theirs = `"${join(f.home, '.memorable', 'bin', 'memorable')}" hook user-prompt`;
-    writeFileSync(f.settings, JSON.stringify({
-      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: theirs }] }] },
-    }));
-
-    const enabled = spawnSync(COMMAND, ['enable'], { env: envFor(f), encoding: 'utf8' });
-    expect(enabled.status).not.toBe(0);
-    expect(enabled.stderr).toContain('already registers this hook itself');
-    // It refused before doing anything: no consent recorded, settings untouched.
-    expect(existsSync(f.log)).toBe(false);
-    const after = JSON.parse(readFileSync(f.settings, 'utf8'));
-    const commands = after.hooks.UserPromptSubmit.flatMap((e: any) => e.hooks.map((h: any) => h.command));
-    expect(commands).toEqual([theirs]);
+  test('vendor CLI absent: still exit 0, gate off, says there is nothing of the vendor to revoke', () => {
+    run(['enable']);
+    const r = run(['disable'], { GSTACK_MEMORABLE_BIN: path.join(home, 'nope') });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('nothing of the vendor');
+    expect(gate()).toBe('off');
+    expect(readSettings().hooks).toBeUndefined();
   });
 
-  test('status names Memorable\'s own registration rather than reporting none', () => {
-    const f = fixture();
-    const theirs = `"${join(f.home, '.memorable', 'bin', 'memorable')}" hook user-prompt`;
-    writeFileSync(f.settings, JSON.stringify({
-      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: theirs }] }] },
-    }));
-
-    const status = spawnSync(COMMAND, ['status'], { env: envFor(f), encoding: 'utf8' });
-    expect(status.status).toBe(0);
-    expect(status.stdout).toContain('registered by Memorable itself');
-    expect(status.stdout).not.toContain('not registered');
+  test('never runs memorable disable; tells the user the vendor consent is separate', () => {
+    run(['enable']);
+    const r = run(['disable']);
+    expect(r.stdout).toContain('memorable disable | memorable forget');
+    expect(vendorCalled()).toBe(false);
   });
 
-  test('a foreign UserPromptSubmit hook is not mistaken for Memorable\'s', () => {
-    const f = fixture();
-    writeFileSync(f.settings, JSON.stringify({
-      hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/foreign/hook' }] }] },
-    }));
-    const enabled = spawnSync(COMMAND, ['enable'], { env: envFor(f), encoding: 'utf8' });
-    expect(enabled.status).toBe(0);
+  test('corrupt settings.json: the gate goes off FIRST, the failure is reported, exit non-zero', () => {
+    setGate('on');
+    fs.writeFileSync(settings, '{not json');
+    const r = run(['disable']);
+    expect(r.status).toBe(3);
+    expect(gate()).toBe('off');
+    expect(r.stdout).toContain('consent: memorable_recall=off');
+    expect(r.stderr).toContain('not valid JSON');
   });
 
-  test('status is read-only and reports both dependencies', () => {
-    const f = fixture();
-    const status = spawnSync(COMMAND, ['status'], { env: envFor(f), encoding: 'utf8' });
-    expect(status.status).toBe(0);
-    expect(status.stdout).toContain('Memorable CLI: available');
-    expect(status.stdout).toContain('Claude UserPromptSubmit hook: not registered');
-    expect(existsSync(f.log)).toBe(false);
+  test('nothing registered: idempotent, exit 0', () => {
+    const r = run(['disable']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('hook: removed');
+  });
+});
+
+describe('status (read-only)', () => {
+  test('fresh: vendor found, gate off, not registered; writes nothing, never runs the vendor', () => {
+    const r = run(['status']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('Memorable CLI: available');
+    expect(r.stdout).toContain('memorable_recall: off');
+    expect(r.stdout).toContain('not registered');
+    expect(fs.existsSync(settings)).toBe(false);
+    expect(vendorCalled()).toBe(false);
+  });
+
+  test('tag-stripped gstack registration, plain and bash-prefixed quoted: "registered by gstack"', () => {
+    setGate('on');
+    for (const cmd of [`${canonical}/${HOOK_REL}`, `bash "${canonical}/${HOOK_REL}"`]) {
+      writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: cmd }] }] } });
+      const r = run(['status']);
+      expect(r.stdout).toContain('registered by gstack');
+      expect(r.stdout).not.toContain('not registered');
+      expect(r.stdout).not.toContain('mismatch');
+    }
+  });
+
+  test("vendor-own registration: 'registered by Memorable itself'", () => {
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: vendorOwn() }] }] } });
+    const r = run(['status']);
+    expect(r.stdout).toContain('registered by Memorable itself');
+    expect(r.stdout).toContain('would refuse');
+  });
+
+  test('mismatch lines: gate on with no hook; hook present with gate off; both registered', () => {
+    setGate('on');
+    expect(run(['status']).stdout).toContain('mismatch: gate on, no hook');
+    setGate('off');
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}` }] }, { hooks: [{ type: 'command', command: vendorOwn() }] }] } });
+    const r = run(['status']);
+    expect(r.stdout).toContain('registered by BOTH');
+    expect(r.stdout).toContain('hook is inert');
+  });
+
+  test('unparseable settings and bun missing are named, exit 0', () => {
+    fs.writeFileSync(settings, '{bad');
+    expect(run(['status']).stdout).toContain('unknown (');
+    const r = run(['status'], { PATH: '/usr/bin:/bin' });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('bun: missing');
+  });
+
+  test('tails recent hook errors and counts receipts for the sink', () => {
+    fs.mkdirSync(env.GSTACK_HOME, { recursive: true });
+    fs.writeFileSync(path.join(env.GSTACK_HOME, 'hook-errors.log'), '2026-09-08T00:00:00Z memorable-user-prompt-hook: vendor timeout\n');
+    const r = run(['status']);
+    expect(r.stdout).toContain('recent hook errors');
+    expect(r.stdout).toContain('vendor timeout');
+    expect(r.stdout).toMatch(/receipts: \d+ for sink memorable-recall/);
+  });
+
+  test('vendor resolution precedence: GSTACK_MEMORABLE_BIN > MEMORABLE_BIN > ~/.memorable/bin/memorable > PATH; an unresolvable override is an error', () => {
+    const mk = (p: string) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, '#!/bin/sh\n', { mode: 0o755 }); return p; };
+    const a = mk(path.join(home, 'a', 'memorable'));
+    const b = mk(path.join(home, 'b', 'memorable'));
+    const pinned = mk(path.join(home, '.memorable', 'bin', 'memorable'));
+    const onPath = mk(path.join(home, 'pathdir', 'memorable'));
+    const base = { GSTACK_MEMORABLE_BIN: '', MEMORABLE_BIN: '', PATH: `${path.join(home, 'pathdir')}:${env.PATH}` };
+    expect(run(['status'], { ...base, GSTACK_MEMORABLE_BIN: a, MEMORABLE_BIN: b }).stdout).toContain(`available (${a})`);
+    expect(run(['status'], { ...base, MEMORABLE_BIN: b }).stdout).toContain(`available (${b})`);
+    expect(run(['status'], base).stdout).toContain(`available (${pinned})`);
+    fs.rmSync(pinned);
+    expect(run(['status'], base).stdout).toContain(`available (${onPath})`);
+    expect(run(['status'], { ...base, GSTACK_MEMORABLE_BIN: path.join(home, 'missing') }).stdout).toContain('not found');
+  });
+});
+
+describe('lifecycle lock and static pins', () => {
+  test('two concurrent enables serialise: one entry, gate on, both exit 0', async () => {
+    const kids = [0, 1].map(() => Bun.spawn(['bash', BIN, 'enable'], { env, stdout: 'pipe', stderr: 'pipe' }));
+    const codes = await Promise.all(kids.map((k) => k.exited));
+    expect(codes).toEqual([0, 0]);
+    expect(readSettings().hooks.UserPromptSubmit).toHaveLength(1);
+    expect(gate()).toBe('on');
+    expect(fs.existsSync(path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock'))).toBe(false);
+  }, 30_000);
+
+  test('a stale lock (older than 30 s) is taken over, a fresh one is waited on', () => {
+    const lock = path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock');
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, 'ts'), String(Math.floor(Date.now() / 1000) - 120));
+    fs.writeFileSync(path.join(lock, 'owner'), '999999');
+    expect(run(['enable']).status).toBe(0);
+    expect(fs.existsSync(lock)).toBe(false);
+  });
+
+  test('source pins: canonical-only command, Windows refusal, no vendor invocation, explicit-status style', () => {
+    const src = fs.readFileSync(BIN, 'utf8');
+    expect(src).toContain('IS_WINDOWS');
+    expect(src).not.toMatch(/--command "\$ROOT_DIR/);
+    expect(src).toContain('CANONICAL_GSTACK_ROOT');
+    expect(src).not.toMatch(/"\$vendor" (enable|disable|status)/);
+    expect(src).toContain('set -uo pipefail');
+    expect(src).not.toContain('set -euo');
+    expect(src).toContain('BASH_COMPAT=50');
   });
 });
