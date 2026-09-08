@@ -292,6 +292,49 @@ prune-stale --repoint` removes dead gstack hook entries, re-points stale ones
 at the stable install, and collapses duplicates, printing one line (and
 writing a backup beside the file) only when it changed something.
 
+### Optional Memorable workflow memory (Claude Code only)
+
+gstack can connect Claude Code to the external `memorable` CLI for workflow
+capture and injection. It is off by default, and gstack does not install or
+bundle Memorable. When enabled, its hooks capture all Claude Code prompts, not
+only gstack commands, and inject relevant workflow guidance into later prompts.
+Review Memorable's storage and privacy settings before enabling it; Memorable,
+not gstack, owns the captured data and any network access.
+
+```bash
+bin/gstack-memorable enable
+bin/gstack-memorable status
+bin/gstack-memorable disable
+```
+
+The hooks fail open: if Memorable is missing or errors, Claude continues
+normally. This is recalled procedural guidance, not deterministic replay, and
+it is unrelated to Aside or browser automation.
+
+**Exactly what leaves the machine, per command this bridge can trigger.** The
+hook makes no network call of its own; every row below is the third-party CLI
+acting under its own consent, which is why there is no gstack egress receipt to
+read. `gstack-egress` will not show these.
+
+| Command | What leaves the machine |
+|---|---|
+| `command -v memorable`, `gstack-memorable status` | Nothing. Both are local reads. |
+| `gstack-memorable enable` | Nothing from gstack. It runs `memorable enable`, which records consent on your machine. |
+| the hook, on every prompt | The prompt text you typed, to Memorable's embed endpoint, when the local lexical match misses. Nothing else at prompt time. |
+| capture, at session end | Memorable's own hook, not this bridge and not gstack's consent. It sends the finished session's tool calls and their arguments to Memorable's extraction API under `memorable enable`. Turn it off with `memorable disable`. |
+
+**What gstack pin-tests, and what is Memorable's own claim.** gstack tests the
+gating and the wiring: that `enable` refuses when Memorable already registered
+the hook itself, that `disable` removes only gstack's entry and never a foreign
+one, that the hook exits zero and silent when the binary is missing, and that
+`status` writes nothing. Everything past the process boundary is Memorable's
+claim and not ours: what it stores, where it stores it, what it sends, and what
+`memorable disable` and `memorable forget` actually erase. The CLI is a
+closed-source npm package from a third party.
+
+Full guide, including what to do when Memorable already registered the hook
+itself: [docs/memorable-workflow-memory.md](docs/memorable-workflow-memory.md).
+
 ### Continuous checkpoint mode (opt-in, local by default)
 
 Set `gstack-config set checkpoint_mode continuous` and skills auto-commit your work as you go with a `WIP:` prefix plus a structured `[gstack-context]` body (decisions, remaining work, failed approaches). Survives crashes and context switches. `/context-restore` reads those commits to reconstruct session state. `/ship` filter-squashes WIP commits before the PR (preserving non-WIP commits) so bisect stays clean. Push is opt-in via `checkpoint_push=true` — default is local-only so you don't trigger CI on every WIP commit.

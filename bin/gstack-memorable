@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# Opt-in wiring between gstack's Claude hook manager and Memorable.
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SETTINGS_HOOK="$SCRIPT_DIR/gstack-settings-hook"
+SETTINGS_FILE="${GSTACK_SETTINGS_FILE:-${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json}"
+MEMORABLE_HOOK="$ROOT_DIR/hosts/claude/hooks/memorable-user-prompt-hook"
+HOOK_SOURCE="gstack-memorable"
+
+usage() {
+  cat <<EOF
+Usage: gstack-memorable <enable|disable|status>
+
+  enable   Enable Memorable, then register its Claude UserPromptSubmit hook
+  disable  Remove the gstack hook, then disable Memorable
+  status   Report Memorable CLI availability and hook registration
+EOF
+}
+
+resolve_memorable() {
+  if [ -n "${MEMORABLE_BIN:-}" ]; then
+    [ -f "$MEMORABLE_BIN" ] && [ -x "$MEMORABLE_BIN" ] || return 1
+    printf '%s\n' "$MEMORABLE_BIN"
+    return 0
+  fi
+
+  if [ -n "${HOME:-}" ] && [ -f "$HOME/.memorable/bin/memorable" ] && [ -x "$HOME/.memorable/bin/memorable" ]; then
+    printf '%s\n' "$HOME/.memorable/bin/memorable"
+    return 0
+  fi
+
+  command -v memorable 2>/dev/null
+}
+
+require_memorable() {
+  MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" || {
+    echo "gstack-memorable: Memorable CLI not found; install memorable-cli or set MEMORABLE_BIN." >&2
+    return 1
+  }
+  [ -n "$MEMORABLE_CLI" ] || return 1
+}
+
+# Memorable's own installer registers the SAME UserPromptSubmit hook, under
+# its own name and outside gstack's table. `memorable start`, `memorable setup`
+# and `memorable install-hooks` all do it, and that is the documented way to
+# install the CLI — so on most machines it is already there before gstack is
+# asked. Registering ours beside it runs the same command twice on every
+# prompt: context injected twice, and the session captured twice against the
+# user's own extraction allowance.
+#
+# Matched on the command, not on a tag, for the same reason the hook table in
+# gstack-settings-hook matches on command: Claude Code rewrites settings and
+# private tags do not survive it.
+memorable_own_hook() {
+  [ -f "$SETTINGS_FILE" ] || return 1
+  GSTACK_SETTINGS_PATH="$SETTINGS_FILE" bun -e '
+    const fs = require("fs");
+    let s = {};
+    try { s = JSON.parse(fs.readFileSync(process.env.GSTACK_SETTINGS_PATH, "utf8")); } catch { process.exit(1); }
+    const groups = (s.hooks && s.hooks.UserPromptSubmit) || [];
+    const ours = process.env.GSTACK_MEMORABLE_HOOK || "";
+    for (const g of groups) {
+      for (const h of (g.hooks || [])) {
+        const c = String(h.command || "");
+        if (c === ours || c.includes("memorable-user-prompt-hook")) continue;
+        if (/memorable/i.test(c) && /hook\s+user-prompt/.test(c)) { console.log(c); process.exit(0); }
+      }
+    }
+    process.exit(1);
+  ' 2>/dev/null
+}
+
+hook_present() {
+  [ -x "$SETTINGS_HOOK" ] || return 1
+  if "$SETTINGS_HOOK" list-sources 2>/dev/null |
+    awk -F '\t' -v source="$HOOK_SOURCE" '
+      $1 == "UserPromptSubmit" && $2 == source { found = 1 }
+      END { exit(found ? 0 : 1) }
+    '; then
+    return 0
+  fi
+
+  # Claude Code may strip the private source tag when it rewrites settings.
+  # A no-op diff still proves that the canonical command itself is present.
+  "$SETTINGS_HOOK" diff-event \
+    --event UserPromptSubmit \
+    --command "$MEMORABLE_HOOK" \
+    --source "$HOOK_SOURCE" 2>/dev/null |
+    awk '
+      /^--- BEFORE$/ { section = 1; saw_before = 1; next }
+      /^--- AFTER$/  { section = 2; saw_after = 1; next }
+      section == 1 { before = before $0 "\n" }
+      section == 2 { after = after $0 "\n" }
+      END { exit(saw_before && saw_after && before == after ? 0 : 1) }
+    '
+}
+
+enable_memorable() {
+  local existing
+  require_memorable || return 1
+  [ -x "$SETTINGS_HOOK" ] || {
+    echo "gstack-memorable: missing hook manager: $SETTINGS_HOOK" >&2
+    return 1
+  }
+  [ -x "$MEMORABLE_HOOK" ] || {
+    echo "gstack-memorable: missing executable hook: $MEMORABLE_HOOK" >&2
+    return 1
+  }
+
+  existing="$(GSTACK_MEMORABLE_HOOK="$MEMORABLE_HOOK" memorable_own_hook)" && {
+    cat >&2 <<EOF
+gstack-memorable: Memorable already registers this hook itself:
+  $existing
+
+Registering gstack's as well would run it twice on every prompt: injected
+twice, and the session captured twice against your extraction allowance.
+
+Keep the one you have, or hand it to gstack: delete that entry from
+  $SETTINGS_FILE
+and run this again. Memorable has no command to remove its own hook.
+EOF
+    return 1
+  }
+
+  "$MEMORABLE_CLI" enable || return $?
+  "$SETTINGS_HOOK" ensure-event \
+    --event UserPromptSubmit \
+    --command "$MEMORABLE_HOOK" \
+    --source "$HOOK_SOURCE"
+}
+
+disable_memorable() {
+  local hook_rc=0 cli_rc=0
+
+  if [ -x "$SETTINGS_HOOK" ]; then
+    "$SETTINGS_HOOK" remove-source --source "$HOOK_SOURCE" || hook_rc=$?
+  else
+    echo "gstack-memorable: missing hook manager: $SETTINGS_HOOK" >&2
+    hook_rc=1
+  fi
+
+  if require_memorable; then
+    "$MEMORABLE_CLI" disable || cli_rc=$?
+  else
+    cli_rc=1
+  fi
+
+  [ "$hook_rc" -eq 0 ] && [ "$cli_rc" -eq 0 ]
+}
+
+status_memorable() {
+  local existing
+  if MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" && [ -n "$MEMORABLE_CLI" ]; then
+    printf 'Memorable CLI: available (%s)\n' "$MEMORABLE_CLI"
+  else
+    echo "Memorable CLI: unavailable"
+  fi
+
+  if hook_present; then
+    echo "Claude UserPromptSubmit hook: registered by gstack"
+  elif existing="$(GSTACK_MEMORABLE_HOOK="$MEMORABLE_HOOK" memorable_own_hook)"; then
+    printf 'Claude UserPromptSubmit hook: registered by Memorable itself (%s)\n' "$existing"
+    echo "  gstack is not managing it; 'gstack-memorable enable' would double it."
+  else
+    echo "Claude UserPromptSubmit hook: not registered"
+  fi
+}
+
+case "${1:-}" in
+  enable)  enable_memorable ;;
+  disable) disable_memorable ;;
+  status)  status_memorable ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac
