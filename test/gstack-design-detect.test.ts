@@ -453,6 +453,32 @@ describe('scan', () => {
   });
 });
 
+describe('design-review REPORT_DIR agrees with the allow-list', () => {
+  test.skipIf(!POSIX)('the template expression, evaluated with GSTACK_HOME set, lands under <gstack home>/projects/<slug>/designs/ and a dump there is scanned', () => {
+    const tmpl = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md.tmpl'), 'utf-8');
+    const m = tmpl.match(/^REPORT_DIR="(.+)"$/m);
+    expect(m).not.toBeNull();
+    const expr = m![1];
+    expect(expr.startsWith('${GSTACK_HOME:-$HOME/.gstack}/projects/$SLUG/designs/')).toBe(true);
+    const r = spawnSync('bash', ['-c', `SLUG=my-repo; echo "${expr}"`], { encoding: 'utf-8', timeout: 30_000, env: { PATH: process.env.PATH!, HOME: path.join(SANDBOX, 'fake-home'), GSTACK_HOME } });
+    const reportDir = r.stdout.trim();
+    expect(reportDir.startsWith(path.join(GSTACK_HOME, 'projects', 'my-repo', 'designs', 'design-audit-'))).toBe(true);
+    const dom = path.join(reportDir, 'dom', '120000-1');
+    fs.mkdirSync(dom, { recursive: true });
+    fs.writeFileSync(path.join(dom, 'home.dom.html'), '<html></html>');
+    const log = path.join(SANDBOX, 'argv-report.log');
+    fs.rmSync(log, { force: true });
+    try {
+      const s = run(['scan', '--format', 'gstack', dom + '/home.dom.html'], { env: { IMPECCABLE_BIN: FAKE, FAKE_IMPECCABLE_LOG: log } });
+      expect(s.err).not.toContain(SENTINEL.DETECT_REFUSED);
+      const argv = JSON.parse(fs.readFileSync(log, 'utf-8').trim().split('\n')[0]).argv as string[];
+      expect(argv.slice(2)).toEqual([fs.realpathSync(path.join(dom, 'home.dom.html'))]);
+    } finally {
+      fs.rmSync(path.join(GSTACK_HOME, 'projects'), { recursive: true, force: true });
+    }
+  });
+});
+
 describe('rules', () => {
   test('prints every mapped id with kind/impact/tier/handoff and the tested engine versions', () => {
     const r = run(['rules']);

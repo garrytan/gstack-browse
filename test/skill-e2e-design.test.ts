@@ -6,7 +6,7 @@ import {
   ROOT, runId, evalsEnabled, selectedTests,
   describeIfSelected, testConcurrentIfSelected,
   copyDirSync, logCost, recordE2E,
-  createEvalCollector, finalizeEvalCollector,
+  createEvalCollector, finalizeEvalCollector, browseBin,
 } from './helpers/e2e-helpers';
 import { asideAvailable } from './helpers/aside-available';
 import { spawnSync } from 'child_process';
@@ -700,4 +700,232 @@ Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion call
 // Module-level afterAll — finalize eval collector after all tests complete
 afterAll(async () => {
   await finalizeEvalCollector(evalCollector);
+});
+
+// --- Design detector (impeccable engine shim) E2E ---
+//
+// The user-installed impeccable engine is stood in for by test/fixtures/
+// fake-impeccable.ts (prints the captured detect --json sample, exit 2),
+// reached through IMPECCABLE_BIN from OUTSIDE the temp repo (the wrapper
+// ignores an in-repo IMPECCABLE_BIN by design). The skill text the agent reads
+// is the extracted Setup detector block + Phase 0 (+ the Phase 3 DOM-dump
+// section for the DOM case), never the 1,500-line SKILL.md, with the installed
+// bin path pointed at THIS checkout so the test does not depend on ~/.claude.
+
+const FAKE_ENGINE_SRC = path.join(ROOT, 'test', 'fixtures', 'fake-impeccable.ts');
+const DETECT_SAMPLE = path.join(ROOT, 'test', 'fixtures', 'impeccable-detect-sample.json');
+
+function sliceBetween(text: string, start: string, end: string): string {
+  const i = text.indexOf(start);
+  if (i < 0) throw new Error(`marker not found: ${start}`);
+  const j = text.indexOf(end, i + start.length);
+  return text.slice(i, j > i ? j : undefined);
+}
+
+/** design-review's detector prose with the installed bin/lib paths rewritten to this checkout. */
+function detectorSkillText(sections: Array<[string, string]>): string {
+  const full = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+  return sections.map(([a, b]) => sliceBetween(full, a, b)).join('\n\n---\n\n')
+    .replaceAll('$HOME/.claude/skills/gstack', ROOT)
+    .replaceAll('~/.claude/skills/gstack', ROOT);
+}
+
+function makeFakeEngine(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-fake-impeccable-'));
+  fs.copyFileSync(FAKE_ENGINE_SRC, path.join(dir, 'impeccable'));
+  fs.chmodSync(path.join(dir, 'impeccable'), 0o755);
+  return dir;
+}
+
+describeIfSelected('Design review detector shim E2E', ['design-review-detector-shim', 'design-review-detector-shim-dom'], () => {
+  let repoDir: string;
+  let engineDir: string;
+  let server: ReturnType<typeof Bun.serve> | null = null;
+
+  beforeAll(() => {
+    repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-detector-shim-'));
+    const run = (cmd: string, args: string[]) => spawnSync(cmd, args, { cwd: repoDir, stdio: 'pipe', timeout: 5000 });
+    run('git', ['init', '-b', 'main']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    fs.writeFileSync(path.join(repoDir, 'index.html'), '<h1>Clean</h1>\n');
+    fs.writeFileSync(path.join(repoDir, 'styles.css'), 'body { font-size: 16px; }\n');
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'initial']);
+    run('git', ['checkout', '-b', 'feature/landing']);
+    fs.writeFileSync(path.join(repoDir, 'index.html'), fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.html'), 'utf-8'));
+    fs.writeFileSync(path.join(repoDir, 'styles.css'), fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.css'), 'utf-8'));
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'add landing page']);
+    engineDir = makeFakeEngine();
+    fs.writeFileSync(
+      path.join(repoDir, 'design-review-detector.md'),
+      detectorSkillText([
+        ['**Design detector (optional, deterministic):**', '**Create output directories:**'],
+        ['**Phase 0: mechanical scan**', '## Phases 1-6'],
+      ]),
+    );
+    fs.writeFileSync(
+      path.join(repoDir, 'design-review-dom-dump.md'),
+      detectorSkillText([['### DOM dump (DOM mode only', '### Auth Detection']]),
+    );
+  });
+
+  afterAll(() => {
+    server?.stop(true);
+    try { fs.rmSync(repoDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(engineDir, { recursive: true, force: true }); } catch {}
+  });
+
+  testConcurrentIfSelected('design-review-detector-shim', async () => {
+    const result = await runSkillTest({
+      prompt: `You are in a git repo on branch feature/landing with changes against main (the base branch).
+Read design-review-detector.md: it is the Setup "Design detector" block and "Phase 0: mechanical scan" from /design-review.
+This is a diff-aware run with no URL, so it is SOURCE mode. Run the probe, then the Phase 0 source-mode scan with base main, exactly as written (use --host claude).
+Do not run any browser step, do not fix anything, do not run npx.
+Then write ${repoDir}/detector-output.md: one FINDING-NNN row per rule in the DETECT_TOP block, each tagged with its [rule-id] and the printed impact, plus the first line the probe printed.`,
+      workingDirectory: repoDir,
+      maxTurns: 15,
+      timeout: CAPTURE_MS,
+      testName: 'design-review-detector-shim',
+      runId,
+      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE },
+    });
+
+    logCost('/design-review detector shim (source)', result);
+    recordE2E(evalCollector, '/design-review detector shim', 'Design review detector shim E2E (source mode)', result);
+    expect(result.exitReason).toBe('success');
+
+    const bash = result.toolCalls.filter(c => c.tool === 'Bash').map(c => String(c.input?.command ?? ''));
+    expect(bash.some(c => c.includes('gstack-design-detect.ts probe'))).toBe(true);
+    expect(bash.some(c => /gstack-design-detect\.ts scan --changed main/.test(c))).toBe(true);
+    expect(bash.some(c => c.includes('npx impeccable'))).toBe(false);
+    expect(result.output).toContain('IMPECCABLE_READY');
+
+    const outPath = path.join(repoDir, 'detector-output.md');
+    expect(fs.existsSync(outPath)).toBe(true);
+    const out = fs.readFileSync(outPath, 'utf-8');
+    expect(out).toContain('FINDING-001');
+    expect(out).toContain('[ai-color-palette]');
+    expect(out).toContain('[low-contrast]');
+  }, CAPTURE_MS);
+
+  // DOM mode needs a browser engine for the dump: gstack's own browse binary
+  // (CI builds it with build:gates). Self-skips when it is absent, like the
+  // other render gates.
+  testConcurrentIfSelected(
+    'design-review-detector-shim-dom',
+    async () => {
+      if (!fs.existsSync(browseBin)) {
+        console.log('design-review-detector-shim (dom mode): browse binary absent, skipping (build it with bun run build:gates)');
+        return;
+      }
+      const site = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-detector-site-'));
+      fs.copyFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.html'), path.join(site, 'index.html'));
+      fs.copyFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.css'), path.join(site, 'styles.css'));
+      server = Bun.serve({
+        hostname: '127.0.0.1', port: 0,
+        fetch(req) {
+          const p = new URL(req.url).pathname.replace(/^\//, '') || 'index.html';
+          const f = path.join(site, p);
+          return fs.existsSync(f) ? new Response(Bun.file(f)) : new Response('not found', { status: 404 });
+        },
+      });
+      const url = `http://127.0.0.1:${server.port}/index.html`;
+      const reportDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-detector-report-'));
+      const gstackHome = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-detector-home-'));
+      // REPORT_DIR must sit under <gstack home>/projects/<slug>/designs/ for the wrapper's allow-list.
+      const allowed = path.join(gstackHome, 'projects', 'shim', 'designs', 'design-audit-20260908');
+      fs.mkdirSync(path.join(allowed, 'dom', 'run1'), { recursive: true });
+      try {
+        const result = await runSkillTest({
+          prompt: `Read design-review-detector.md (the /design-review detector block + Phase 0) and design-review-dom-dump.md (the Phase 3 DOM dump section).
+The target is the URL ${url}, so this is DOM mode: never scan source files.
+Aside is NOT available; use the fallback browser engine: $B is ${browseBin}. Run "$B goto ${url}" first, then follow the fallback-engine DOM dump steps exactly as written, with {page} = home, REPORT_DIR=${allowed}, RUN_ID=run1, and --host claude. Then run the single scan over ${allowed}/dom/run1 and write ${allowed}/detector-output.md with one FINDING-NNN row per rule in the DETECT_TOP block, each tagged [rule-id], and the line "static scan of the rendered DOM; cross-origin CSS not resolved".
+Do not run npx. Do not fix anything.`,
+          workingDirectory: repoDir,
+          maxTurns: 25,
+          timeout: CAPTURE_LONG_MS,
+          testName: 'design-review-detector-shim-dom',
+          runId,
+          env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE, GSTACK_HOME: gstackHome },
+        });
+        logCost('/design-review detector shim (dom)', result);
+        recordE2E(evalCollector, '/design-review detector shim (dom)', 'Design review detector shim E2E (DOM mode)', result);
+        expect(result.exitReason).toBe('success');
+        const bash = result.toolCalls.filter(c => c.tool === 'Bash').map(c => String(c.input?.command ?? ''));
+        expect(bash.some(c => c.includes('dom-dump.js') && c.includes('--out') && c.includes('--raw'))).toBe(true);
+        expect(bash.some(c => /gstack-design-detect\.ts scan /.test(c) && c.includes('dom/run1'))).toBe(true);
+        expect(bash.some(c => /gstack-design-detect\.ts scan --changed/.test(c))).toBe(false);
+        const dumps = fs.readdirSync(path.join(allowed, 'dom', 'run1')).filter(f => f.endsWith('.dom.html'));
+        expect(dumps.length).toBeGreaterThan(0);
+        expect(fs.readFileSync(path.join(allowed, 'dom', 'run1', dumps[0]), 'utf-8')).toContain('data-gstack-dom-css');
+        const out = fs.readFileSync(path.join(allowed, 'detector-output.md'), 'utf-8');
+        expect(out).toContain('[ai-color-palette]');
+        expect(out).toContain('static scan of the rendered DOM');
+      } finally {
+        server?.stop(true); server = null;
+        try { spawnSync(browseBin, ['stop'], { stdio: 'pipe', timeout: 10_000 }); } catch {}
+        for (const d of [site, reportDir, gstackHome]) { try { fs.rmSync(d, { recursive: true, force: true }); } catch {} }
+      }
+    },
+    CAPTURE_LONG_MS,
+  );
+});
+
+describeIfSelected('Design HTML slop gate E2E', ['design-html-slop-gate'], () => {
+  let workDir: string;
+  let engineDir: string;
+
+  beforeAll(() => {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-html-gate-'));
+    const run = (cmd: string, args: string[]) => spawnSync(cmd, args, { cwd: workDir, stdio: 'pipe', timeout: 5000 });
+    run('git', ['init', '-b', 'main']);
+    run('git', ['config', 'user.email', 'test@test.com']);
+    run('git', ['config', 'user.name', 'Test']);
+    const css = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.css'), 'utf-8');
+    const html = fs.readFileSync(path.join(ROOT, 'test', 'fixtures', 'review-eval-design-slop.html'), 'utf-8')
+      .replace('<link rel="stylesheet" href="styles.css">', `<style>\n${css}\n</style>`);
+    fs.writeFileSync(path.join(workDir, 'finalized.html'), html);
+    run('git', ['add', '.']);
+    run('git', ['commit', '-m', 'finalized html']);
+    engineDir = makeFakeEngine();
+    const full = fs.readFileSync(path.join(ROOT, 'design-html', 'SKILL.md'), 'utf-8');
+    const text = [
+      sliceBetween(full, '**Design detector (optional, deterministic):**', '<!-- SECTION_INDEX'),
+      sliceBetween(full, '### Slop Gate (bounded, never a loop)', '### Verification Screenshots'),
+    ].join('\n\n---\n\n').replaceAll('$HOME/.claude/skills/gstack', ROOT).replaceAll('~/.claude/skills/gstack', ROOT);
+    fs.writeFileSync(path.join(workDir, 'design-html-gate.md'), text);
+  });
+
+  afterAll(() => {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(engineDir, { recursive: true, force: true }); } catch {}
+  });
+
+  testConcurrentIfSelected('design-html-slop-gate', async () => {
+    const result = await runSkillTest({
+      prompt: `Read design-html-gate.md: the /design-html detector probe block and its "Slop Gate (bounded, never a loop)" step.
+finalized.html in this directory is the finished page. Run the probe (--host claude), then the slop gate on finalized.html exactly as written: one surgical fix pass over the non-advisory findings, one rescan, then stop.
+Write ${workDir}/gate-output.md listing what you fixed and every remaining finding as accepted-with-reason, each tagged with its [rule-id]. Do not take screenshots, do not run npx, do not scan more than twice.`,
+      workingDirectory: workDir,
+      maxTurns: 20,
+      timeout: CAPTURE_MS,
+      testName: 'design-html-slop-gate',
+      runId,
+      env: { IMPECCABLE_BIN: path.join(engineDir, 'impeccable'), FAKE_IMPECCABLE_OUTPUT: DETECT_SAMPLE },
+    });
+
+    logCost('/design-html slop gate', result);
+    recordE2E(evalCollector, '/design-html slop gate', 'Design HTML slop gate E2E', result);
+    expect(result.exitReason).toBe('success');
+    const scans = result.toolCalls.filter(c => c.tool === 'Bash' && /gstack-design-detect\.ts scan /.test(String(c.input?.command ?? '')));
+    expect(scans.length).toBeGreaterThanOrEqual(1);
+    expect(scans.length).toBeLessThanOrEqual(2);
+    const outPath = path.join(workDir, 'gate-output.md');
+    expect(fs.existsSync(outPath)).toBe(true);
+    const out = fs.readFileSync(outPath, 'utf-8').toLowerCase();
+    expect(out).toContain('ai-color-palette');
+    expect(out).toContain('accepted');
+  }, CAPTURE_MS);
 });

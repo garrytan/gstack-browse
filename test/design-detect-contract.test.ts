@@ -19,7 +19,7 @@ const ROOT = path.join(import.meta.dir, '..');
 const TOKEN = /\b(IMPECCABLE_[A-Z_]+|DETECT_[A-Z_]+|DESIGN_MD_[A-Z_]+|DOM_DUMP_[A-Z_]+|DESIGN_DETECTOR_[A-Z_]+|DESIGN_DETECT_[A-Z_]+)\b/g;
 // Things that look like sentinels but are env vars / flags the prose legitimately names.
 // Env vars, flags, and resolver placeholder names the prose legitimately names.
-const NOT_SENTINELS = new Set(['IMPECCABLE_BIN', 'IMPECCABLE_HOME', 'IMPECCABLE_HOOK_DISABLED', 'DESIGN_DETECT_TIMEOUT_MS', 'DESIGN_MD_CHECK', 'DESIGN_DETECTOR']);
+const NOT_SENTINELS = new Set(['IMPECCABLE_BIN', 'IMPECCABLE_HOME', 'IMPECCABLE_HOOK_DISABLED', 'DESIGN_DETECT_TIMEOUT_MS', 'DESIGN_MD_CHECK', 'DESIGN_DETECTOR', 'IMPECCABLE_INTEROP' /* docs/designs/IMPECCABLE_INTEROP.md */]);
 
 function* agentReadableFiles(): Generator<string> {
   const skip = new Set(['node_modules', '.git', 'dist', 'build', 'test', 'docs', '.context', '.claude', '.agents', '.factory', '.cursor', '.kiro', '.opencode', '.openclaw', '.hermes', '.slate', '.gstack', '.gbrain', '.conductor']);

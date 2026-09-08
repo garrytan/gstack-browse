@@ -172,6 +172,7 @@ The diff adds a new "returned" status to the Order model. Your job is to check i
 
 describeIfSelected('Review design lite E2E', ['review-design-lite'], () => {
   let designDir: string;
+  let fakeEngineDir: string;
 
   beforeAll(() => {
     designDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-design-lite-'));
@@ -206,12 +207,22 @@ describeIfSelected('Review design lite E2E', ['review-design-lite'], () => {
       extractSkillSections(path.join(ROOT, 'review'), REVIEW_E2E_SECTIONS),
     );
     fs.copyFileSync(path.join(ROOT, 'review', 'checklist.md'), path.join(designDir, 'review-checklist.md'));
-    fs.copyFileSync(path.join(ROOT, 'review', 'design-checklist.md'), path.join(designDir, 'review-design-checklist.md'));
+    // The checklist's mechanical pass (step 0) runs the design detector from the
+    // installed gstack bin; point it at THIS checkout so the test is hermetic.
+    fs.writeFileSync(
+      path.join(designDir, 'review-design-checklist.md'),
+      fs.readFileSync(path.join(ROOT, 'review', 'design-checklist.md'), 'utf-8').replaceAll('~/.claude/skills/gstack/bin', path.join(ROOT, 'bin')),
+    );
     fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(designDir, 'review-greptile-triage.md'));
+    // Fake impeccable engine OUTSIDE the repo (the wrapper ignores an in-repo IMPECCABLE_BIN).
+    fakeEngineDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-fake-impeccable-'));
+    fs.copyFileSync(path.join(ROOT, 'test', 'fixtures', 'fake-impeccable.ts'), path.join(fakeEngineDir, 'impeccable'));
+    fs.chmodSync(path.join(fakeEngineDir, 'impeccable'), 0o755);
   });
 
   afterAll(() => {
     try { fs.rmSync(designDir, { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(fakeEngineDir, { recursive: true, force: true }); } catch {}
   });
 
   testConcurrentIfSelected('review-design-lite', async () => {
@@ -233,6 +244,10 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       timeout: CAPTURE_MS,
       testName: 'review-design-lite',
       runId,
+      env: {
+        IMPECCABLE_BIN: path.join(fakeEngineDir, 'impeccable'),
+        FAKE_IMPECCABLE_OUTPUT: path.join(ROOT, 'test', 'fixtures', 'impeccable-detect-sample.json'),
+      },
     });
 
     logCost('/review design lite', result);
@@ -259,8 +274,10 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       if (review.includes('welcome to') || review.includes('all-in-one') || review.includes('generic') || review.includes('hero copy') || review.includes('ai slop')) detected++;
       // Issue 7: 3-column feature grid — LOW
       if (review.includes('3-column') || review.includes('three-column') || review.includes('feature grid') || review.includes('icon') || review.includes('circle')) detected++;
+      // Signal 8: the mechanical pass (fake impeccable engine via IMPECCABLE_BIN) surfaced a detector row
+      if (review.includes('detector') || review.includes('[ai-color-palette]') || review.includes('[low-contrast]') || review.includes('impeccable')) detected++;
 
-      console.log(`Design review detected ${detected}/7 planted issues`);
+      console.log(`Design review detected ${detected}/8 planted signals`);
       expect(detected).toBeGreaterThanOrEqual(4);
     }
   }, CAPTURE_MS);

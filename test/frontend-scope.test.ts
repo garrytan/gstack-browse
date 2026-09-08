@@ -57,7 +57,7 @@ describe.skipIf(!POSIX)('parity with bin/gstack-diff-scope', () => {
   test('SCOPE_FRONTEND agrees with isFrontendPath for every sample, one file per diff', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-scope-parity-'));
     const git = (...a: string[]) => {
-      const r = spawnSync('git', a, { cwd: dir, encoding: 'utf-8' });
+      const r = spawnSync('git', a, { cwd: dir, encoding: 'utf-8', timeout: 30_000 });
       if (r.status !== 0) throw new Error(r.stderr);
     };
     try {
@@ -73,7 +73,7 @@ describe.skipIf(!POSIX)('parity with bin/gstack-diff-scope', () => {
         fs.mkdirSync(path.dirname(full), { recursive: true });
         fs.writeFileSync(full, '/* x */\n');
         git('add', '-A'); git('commit', '-q', '-m', rel);
-        const r = spawnSync('bash', [path.join(ROOT, 'bin', 'gstack-diff-scope'), 'main'], { cwd: dir, encoding: 'utf-8' });
+        const r = spawnSync('bash', [path.join(ROOT, 'bin', 'gstack-diff-scope'), 'main'], { cwd: dir, encoding: 'utf-8', timeout: 30_000 });
         const bashSays = /SCOPE_FRONTEND=true/.test(r.stdout);
         if (bashSays !== expected) mismatches.push(`${rel}: bash=${bashSays} ts=${expected}`);
         git('checkout', '-q', 'main'); git('branch', '-q', '-D', 'probe');
