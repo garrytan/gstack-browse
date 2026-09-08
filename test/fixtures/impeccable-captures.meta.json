@@ -1,0 +1,47 @@
+{
+  "capturedAt": "2026-09-08",
+  "engine": {
+    "version": "0.1.3",
+    "release": "engine-v0.1.3",
+    "platform": "linux-x64",
+    "installedBy": "npx impeccable install (human-initiated, scratch directory outside the repo)",
+    "binaryPath": "<skill>/scripts/bin/linux-x64/impeccable",
+    "binaryNote": "the engine is installed as a sibling of the launcher (<skill>/scripts/impeccable), not under ~/.impeccable/bin/, in a project-scoped install"
+  },
+  "registry": {
+    "file": "impeccable-antipatterns.json",
+    "upstream": "crates/live/assets/antipatterns.json",
+    "commit": "87d8f6d686782561fb572758d9a9bb8596a1a0e7",
+    "entries": 61,
+    "fields": ["id", "name", "category", "description"],
+    "note": "no severity or advisory field in the registry; advisory status (em-dash-overuse) is engine-side"
+  },
+  "captures": {
+    "impeccable-detect-sample.json": {
+      "mode": "source",
+      "command": "impeccable detect --json index.html styles.css",
+      "cwd": "a copy of test/fixtures/review-eval-design-slop.{html,css} named index.html + styles.css so the <link> resolves",
+      "exit": 2,
+      "stderrBytes": 0,
+      "pathsNormalized": { "index.html": "test/fixtures/review-eval-design-slop.html", "styles.css": "test/fixtures/review-eval-design-slop.css" }
+    },
+    "impeccable-detect-dom-sample.json": {
+      "mode": "dom",
+      "dump": "review-eval-design-slop.dom.html",
+      "dumpedWith": "browse goto http://127.0.0.1:<port>/index.html; browse eval dom-dump.js --out <tmp>/review-eval-design-slop.dom.html --raw (script: lib/dom-dump-script.ts DOM_DUMP_SCRIPT)",
+      "command": "impeccable detect --json review-eval-design-slop.dom.html",
+      "exit": 2,
+      "stderrBytes": 0,
+      "pathsNormalized": { "review-eval-design-slop.dom.html": "test/fixtures/review-eval-design-slop.dom.html", "http://127.0.0.1:<port>/": "http://127.0.0.1/" }
+    },
+    "impeccable-detect-help.txt": { "command": "impeccable detect --help" }
+  },
+  "findingFields": ["antipattern", "name", "description", "severity", "category", "file", "line", "snippet"],
+  "notes": [
+    "HTML-mode findings carry line 0; snippet is the locator",
+    "the static engine reads inline <style> in a .html file: the DOM dump yields the same id set as the source scan",
+    "without the rgb()->hex fold in the dump script the DOM scan loses ai-color-palette (CSSOM serializes hex as rgb)",
+    "a <link rel=stylesheet> left in the dump makes the engine warn on stderr about an unreadable stylesheet; the dump script removes inlined links",
+    "the planted fixture has no border-left, so side-tab never fires on it; ai-color-palette is the deterministic slop id"
+  ]
+}
