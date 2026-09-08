@@ -41,10 +41,13 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
     });
     const big = 'data:image/png;base64,' + 'A'.repeat(1500);
     fs.writeFileSync(path.join(site, 'styles.css'), '.hero { background: linear-gradient(135deg, #6366f1, #8b5cf6); } .x { background-image: url("' + big + '"); } .y { background: url("/y.png?token=SECRETCSS") }\n');
+    fs.writeFileSync(path.join(site, 'print.css'), '.p { font-size: 4px }\n');
+    fs.writeFileSync(path.join(site, 'alt.css'), '.alt { color: #ff00ff }\n');
     fs.writeFileSync(path.join(site, 'index.html'), `<!DOCTYPE html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="description" content="SECRET DESCRIPTION">
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="http://127.0.0.1:1/cross-origin.css">
+<link rel="stylesheet" media="print" href="print.css"><link rel="alternate stylesheet" href="alt.css" title="alt">
 <script>window.__x = "SCRIPT BODY";</script></head><body>
 <input value="SECRET INPUT"><textarea>SECRET TEXT</textarea>
 <a href="/page?token=SECRET">link</a>
@@ -109,6 +112,9 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       expect(html).toContain('url("/y.png")');
       expect(html).not.toContain('SECRETSRCDOC');
       expect(html).not.toContain('SECRETXLINK');
+      expect(html).toMatch(/@media print \{[\s\S]*font-size: 4px[\s\S]*\}/); // a print sheet is scanned as print CSS, not as the page's styles
+      expect(html).not.toContain('#ff00ff'); // an alternate stylesheet is not active CSS
+      expect(html).not.toMatch(/<link[^>]*alt\.css/);
       expect(html).toContain('srcset="/a.png 1x, /b.png 2x"');
       expect(html).not.toContain('L'.repeat(40));
       expect(html).toContain('data-short="ok"');

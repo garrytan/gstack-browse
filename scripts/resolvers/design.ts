@@ -239,11 +239,12 @@ _TMP=$(mktemp -d); _DUMP=$(cat "${toShellPath(ctx.paths.skillRoot)}/${DOM_DUMP_F
 $B js '('"$_DUMP"')()' --out "$_TMP/{page}.dom.html" --raw && echo "DUMP=$_TMP/{page}.dom.html"
 \`\`\`
 
-Persist it into this run's directory, size-capped and redaction-checked: a HIGH finding, or a redaction tool that fails to run, skips the page, not the review; MEDIUM findings (emails, PII shapes on an authenticated page) persist owner-only (mode 600) and are deleted with the rest after Phase 9. Before the first dump of a run, remove earlier runs' dumps (\`find "<REPORT_DIR from Setup>/dom" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null\`) unless the user passed \`--keep-dom\` this run. Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
+Persist it into this run's directory, size-capped and redaction-checked: a HIGH finding, or a redaction tool that fails to run, skips the page, not the review; MEDIUM findings (emails, PII shapes on an authenticated page) persist owner-only (mode 600) and are deleted with the rest after Phase 9 (\`--keep-dom\`, a design-review flag, keeps them; an interrupted run's dumps stay owner-only under their run id until you delete them). Each bash block is a fresh shell: restate the report directory and run id from Setup literally.
 
 \`\`\`bash
 _D="<ASIDE_DIR or $_TMP>/{page}.dom.html"; _REPORT="<REPORT_DIR from Setup>"; _RUN="<RUN_ID from Setup>"
-if [ "$(wc -c < "$_D")" -gt ${DETECT_LIMITS.domDumpBytes} ]; then echo "${SENTINEL.DOM_DUMP_TOO_LARGE}: {page} $(wc -c < "$_D")"; rm -f "$_D"
+if [ ! -s "$_D" ]; then echo "${SENTINEL.DOM_DUMP_MISSING}: {page} (the dump script wrote nothing)"
+elif [ "$(wc -c < "$_D")" -gt ${DETECT_LIMITS.domDumpBytes} ]; then echo "${SENTINEL.DOM_DUMP_TOO_LARGE}: {page} $(wc -c < "$_D")"; rm -f "$_D"
 elif ${toShellPath(ctx.paths.binDir)}/gstack-redact --from-file "$_D" --max-bytes ${DETECT_LIMITS.domDumpBytes} >/dev/null 2>&1; _RC=$?; [ "$_RC" -ne 0 ] && [ "$_RC" -ne 2 ]; then echo "${SENTINEL.DOM_DUMP_REDACTION_BLOCKED}: {page} redact-exit=$_RC"; rm -f "$_D"
 else mkdir -p "$_REPORT/dom/$_RUN" && cp "$_D" "$_REPORT/dom/$_RUN/" && chmod 600 "$_REPORT/dom/$_RUN/{page}.dom.html" && rm -f "$_D" && echo "${SENTINEL.DOM_DUMP_OK}: {page}"; fi
 \`\`\`
@@ -254,7 +255,7 @@ After the LAST page's dump, scan the run directory once (source mode scanned in 
 _DJ=$(mktemp); bun --no-env-file run ${toShellPath(ctx.paths.binDir)}/gstack-design-detect.ts scan --format gstack --host ${ctx.host} "<REPORT_DIR from Setup>/dom/<RUN_ID>" > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
 \`\`\`
 
-Say once in the report: "static scan of the rendered DOM; cross-origin CSS not resolved". A DOM-mode \`file:line\` points into \`{page}.dom.html\` and is approximate (HTML findings carry line 0); the \`snippet\` locates the element. Confirm each hit in the rendered page, never by hunting a source line. Dumps are deleted after Phase 9 unless the user passed \`--keep-dom\`.
+Say once in the report: "static scan of the rendered DOM; cross-origin CSS not resolved". A DOM-mode \`file:line\` points into \`{page}.dom.html\` and is approximate (HTML findings carry line 0); the \`snippet\` locates the element. Confirm each hit in the rendered page, never by hunting a source line. \`design-system-*\` rows compare the page against THIS repository's DESIGN.md: keep them only when the page is this repository's own app. An empty \`$_DJ\` with exit 0 means the probe state changed since Setup: read the sentinel the scan printed on stderr. Dumps are deleted after Phase 9 unless the user passed \`--keep-dom\`.
 
 ### Auth Detection
 
@@ -888,7 +889,7 @@ export function generateDesignDetector(ctx: TemplateContext, args?: string[]): s
 _DJ=$(mktemp); ${bin} scan --changed <base> --format gstack --host ${ctx.host} > "$_DJ"${DETECT_EXIT_ECHO}; echo "${SENTINEL.DETECT_JSON}=$_DJ"
 \`\`\`
 
-DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into \`$REPORT_DIR/dom/$RUN_ID/\` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 3 is a gstack bug (\`${SENTINEL.INTERNAL_ERROR}\`: report it, never retry). Each rule in the \`${SENTINEL.DETECT_TOP}\` block becomes one \`FINDING-NNN\` tagged \`[rule-id]\` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports \`Detector: N → M\`. When \`${SENTINEL.SKILL}: present\`, end each deferred finding with the \`handoff=\` command the scan printed (\`/impeccable ${HANDOFF_COMMANDS.join('\`, \`')}\`); recommend it, never open its files.`;
+DOM mode never scans source (Rule 4): Phase 3 dumps each page's rendered DOM into \`$REPORT_DIR/dom/$RUN_ID/\` and scans once after the last page. Exit 2 means findings; exit 1 means a target could not be scanned (note which, move on); exit 0 with an empty \`$_DJ\` means the probe state changed since Setup (read the sentinel on stderr); exit 3 is a gstack bug (\`${SENTINEL.INTERNAL_ERROR}\`: report it, never retry). Each rule in the \`${SENTINEL.DETECT_TOP}\` block becomes one \`FINDING-NNN\` tagged \`[rule-id]\` with the printed impact and its location list, never one finding per hit. A detector hit is evidence, not a verdict: confirm it in the rendered page before it counts, drop it when DESIGN.md tokens bless the value, never pad the report with advisory rows. Phase 9 recomputes the same way (DOM mode re-dumps the affected pages after reload; source mode rescans the touched files) and Phase 10 reports \`Detector: N → M\`. When \`${SENTINEL.SKILL}: present\`, end each deferred finding with the \`handoff=\` command the scan printed (\`/impeccable ${HANDOFF_COMMANDS.join('\`, \`')}\`); recommend it, never open its files.`;
   }
   if (mode === 'gate') {
     return `### Slop Gate (bounded, never a loop)
