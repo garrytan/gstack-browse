@@ -139,3 +139,29 @@ describe('gstack-config defaults (gate, free)', () => {
     expect(get('transcript_ingest_mode').out).toBe('off');
   });
 });
+
+describe('design_detector (auto|off, rejecting validator)', () => {
+  test('defaults to auto', () => {
+    expect(get('design_detector')).toEqual({ out: 'auto', code: 0 });
+  });
+
+  test('set to an invalid value exits 1 and leaves the file unchanged', () => {
+    const file = path.join(STATE, 'config.yaml');
+    const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null;
+    const r = spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector', 'maybe'], {
+      encoding: 'utf-8', timeout: 30_000, env: { ...process.env, GSTACK_STATE_ROOT: STATE },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("design_detector 'maybe' not recognized");
+    const after = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null;
+    expect(after).toBe(before);
+    expect(get('design_detector').out).toBe('auto');
+  });
+
+  test('set off / set auto round-trip', () => {
+    spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector', 'off'], { encoding: 'utf-8', timeout: 30_000, env: { ...process.env, GSTACK_STATE_ROOT: STATE } });
+    expect(get('design_detector').out).toBe('off');
+    spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector', 'auto'], { encoding: 'utf-8', timeout: 30_000, env: { ...process.env, GSTACK_STATE_ROOT: STATE } });
+    expect(get('design_detector').out).toBe('auto');
+  });
+});

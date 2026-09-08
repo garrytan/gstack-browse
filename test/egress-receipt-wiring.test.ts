@@ -143,6 +143,14 @@ const SCANNER_EXEMPT: Record<string, string> = {
     'skill prose templates — agent-executed instructions rendered into SKILL.md, not gstack binaries',
 };
 
+// Documented non-sink (not an exemption; nothing here matches the scanner):
+// bin/gstack-design-detect.ts spawns a third-party engine binary the USER
+// installed (impeccable) over local file paths under the repo root or the
+// design-report allow-list. URL targets are refused, so gstack never asks the
+// engine to touch the network; the engine's own network behavior is not audited
+// by gstack (NOTICE.md says so). This is a class the tripwire cannot see —
+// a spawned binary, not curl/fetch/git — recorded here so the posture is explicit.
+
 function isExempt(rel: string): string | undefined {
   for (const [key, reason] of Object.entries(SCANNER_EXEMPT)) {
     if (rel === key || rel.startsWith(`${key}/`)) return reason;
