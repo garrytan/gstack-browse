@@ -12,6 +12,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { installFakeImpeccable } from './helpers/fake-impeccable';
 
 const evalCollector = createEvalCollector('e2e-review');
 
@@ -215,9 +216,7 @@ describeIfSelected('Review design lite E2E', ['review-design-lite'], () => {
     );
     fs.copyFileSync(path.join(ROOT, 'review', 'greptile-triage.md'), path.join(designDir, 'review-greptile-triage.md'));
     // Fake impeccable engine OUTSIDE the repo (the wrapper ignores an in-repo IMPECCABLE_BIN).
-    fakeEngineDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-fake-impeccable-'));
-    fs.copyFileSync(path.join(ROOT, 'test', 'fixtures', 'fake-impeccable.ts'), path.join(fakeEngineDir, 'impeccable'));
-    fs.chmodSync(path.join(fakeEngineDir, 'impeccable'), 0o755);
+    fakeEngineDir = installFakeImpeccable('skill-e2e-fake-impeccable-').dir;
   });
 
   afterAll(() => {
@@ -246,7 +245,7 @@ Important: The design checklist should catch issues like blacklisted fonts, smal
       runId,
       env: {
         IMPECCABLE_BIN: path.join(fakeEngineDir, 'impeccable'),
-        FAKE_IMPECCABLE_OUTPUT: path.join(ROOT, 'test', 'fixtures', 'impeccable-detect-sample.json'),
+        IMPECCABLE_FAKE_OUTPUT: path.join(ROOT, 'test', 'fixtures', 'impeccable-detect-sample.json'),
       },
     });
 

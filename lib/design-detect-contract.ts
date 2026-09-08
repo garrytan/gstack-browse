@@ -55,6 +55,9 @@ export const SENTINEL = {
   DESIGN_MD_REASON: 'DESIGN_MD_REASON',
   DESIGN_MD_WRITTEN: 'DESIGN_MD_WRITTEN',
   DESIGN_MD_BACKUP: 'DESIGN_MD_BACKUP',
+  /** printed by the wrapper: --verbose probe trail, forwarded engine stderr */
+  PROBE_STEP: 'PROBE_STEP',
+  ENGINE_STDERR: 'ENGINE_STDERR',
 } as const;
 
 export type SentinelName = keyof typeof SENTINEL;
@@ -70,6 +73,7 @@ export const SELF_DESCRIBING_SENTINELS: readonly string[] = [
   SENTINEL.ENGINE_UNTESTED, SENTINEL.DETECT_EXIT, SENTINEL.DETECT_REFUSED, SENTINEL.DETECT_NO_TARGETS,
   SENTINEL.DETECT_TIMEOUT, SENTINEL.DETECT_PARSE_ERROR, SENTINEL.DETECT_OUTPUT_TOO_LARGE,
   SENTINEL.DESIGN_MD_TOKEN_REF_INVALID, SENTINEL.DESIGN_MD_WRITTEN, SENTINEL.DESIGN_MD_BACKUP,
+  SENTINEL.PROBE_STEP, SENTINEL.ENGINE_STDERR,
 ];
 
 /** Engine versions the committed fixtures were captured from. */
@@ -77,6 +81,10 @@ export const TESTED_ENGINE_VERSIONS: readonly string[] = ['0.1.3'];
 
 /** Rules the engine reports but never counts (they never change its exit code). */
 export const ADVISORY_RULE_IDS: readonly string[] = ['em-dash-overuse'];
+
+/** Markers around any engine text the skill may quote (page text can echo through it). */
+export const UNTRUSTED_BEGIN = '═══ BEGIN UNTRUSTED CONTENT (design detector output) ═══';
+export const UNTRUSTED_END = '═══ END UNTRUSTED CONTENT ═══';
 
 export const DETECT_LIMITS = {
   /** default engine wall clock; GSTACK_DESIGN_DETECT_TIMEOUT_MS overrides */
@@ -91,12 +99,31 @@ export const DETECT_LIMITS = {
   topLocations: 50,
   /** rendered-DOM dump above this is DOM_DUMP_TOO_LARGE */
   domDumpBytes: 10 * 1024 * 1024,
-  field: { id: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400 },
+  /** engine stderr lines kept in the JSON (the rest is counted) and echoed to stderr */
+  diagnosticsKept: 200,
+  diagnosticsEchoed: 20,
+  /** bytes of an engine binary hashed for its identity label when no version is known */
+  engineHashBytes: 4 * 1024 * 1024,
+  /** git subprocess budgets inside the wrapper */
+  gitTimeoutMs: 30_000,
+  gitMaxBuffer: 64 * 1024 * 1024,
+  field: { id: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400, refusedTarget: 200, parseErrorPreview: 80, internalError: 300 },
 } as const;
 
-/** Markers around any engine text the skill may quote (page text can echo through it). */
-export const UNTRUSTED_BEGIN = '═══ BEGIN UNTRUSTED CONTENT (design detector output) ═══';
-export const UNTRUSTED_END = '═══ END UNTRUSTED CONTENT ═══';
+/**
+ * Break any sentinel or fence marker that appears INSIDE engine-derived text,
+ * so page content echoed through a finding cannot close the untrusted envelope
+ * or forge a probe line. Inserts a zero-width space after the first character
+ * (the same technique browse/src/content-security.ts uses for its markers).
+ */
+export function neutralizeSentinels(s: string): string {
+  const zw = '\u200b';
+  let out = s.replaceAll(UNTRUSTED_BEGIN, UNTRUSTED_BEGIN[0] + zw + UNTRUSTED_BEGIN.slice(1))
+    .replaceAll(UNTRUSTED_END, UNTRUSTED_END[0] + zw + UNTRUSTED_END.slice(1));
+  for (const v of Object.values(SENTINEL)) out = out.replaceAll(v + ':', v[0] + zw + v.slice(1) + ':');
+  return out;
+}
+
 
 export interface NormalizedFinding {
   /** catalog id (equals impeccableId when mapped; the engine's id, sanitized, when not) */
