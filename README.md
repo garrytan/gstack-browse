@@ -332,6 +332,9 @@ claim and not ours: what it stores, where it stores it, what it sends, and what
 `memorable disable` and `memorable forget` actually erase. The CLI is a
 closed-source npm package from a third party.
 
+Full guide, including what to do when Memorable already registered the hook
+itself: [docs/memorable-workflow-memory.md](docs/memorable-workflow-memory.md).
+
 ### Continuous checkpoint mode (opt-in, local by default)
 
 Set `gstack-config set checkpoint_mode continuous` and skills auto-commit your work as you go with a `WIP:` prefix plus a structured `[gstack-context]` body (decisions, remaining work, failed approaches). Survives crashes and context switches. `/context-restore` reads those commits to reconstruct session state. `/ship` filter-squashes WIP commits before the PR (preserving non-WIP commits) so bisect stays clean. Push is opt-in via `checkpoint_push=true` — default is local-only so you don't trigger CI on every WIP commit.
