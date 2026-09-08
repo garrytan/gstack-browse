@@ -20,7 +20,7 @@ Source: `git diff origin/main --shortstat`, `lib/design-catalog.ts` (`bun -e` ov
 | Skills that run the detector | 0 | 4 (`/design-review`, `/design-html`, `/review`, `/ship`) | same rule ids everywhere |
 | What a scan can read | source files | source files or the rendered DOM of a live URL | works on deployed sites |
 | DESIGN.md format gstack writes | private schema | open DESIGN.md spec | impeccable and Stitch read it |
-| New test cases | | 194 across 11 files | free suite: 9,206 tests, 12/12 paid E2E |
+| New `test()` declarations (platform-gated ones included) | | 194 across 11 files | free suite: 9,206 tests, 12/12 paid E2E |
 
 The row you feel is the first one: a purple gradient, a kicker above a heading, a nested card, or `Inter` as the display face is a machine finding with a file:line before anyone forms an opinion, so the review's judgment goes to hierarchy, trust, and copy.
 
