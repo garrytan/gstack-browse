@@ -37,7 +37,9 @@
 //     stripped) so the report can say so once. <template> and <noscript>
 //     subtrees (invisible to the querySelectorAll walk) and inline on*
 //     handlers are removed; cross-origin <link> nodes leave the clone too,
-//     so the file handed to the engine names no remote stylesheet.
+//     so the file handed to the engine names no remote stylesheet. CSS url()
+//     query strings (signed asset URLs) are cut in style attributes, <style>
+//     nodes, and the inlined sheets; srcdoc is emptied.
 export const DOM_DUMP_SCRIPT = String.raw`() => {
   const root = document.documentElement.cloneNode(true);
   const head = root.querySelector("head") || root;
@@ -58,20 +60,21 @@ export const DOM_DUMP_SCRIPT = String.raw`() => {
     }
   });
   const dataUrl = new RegExp("url\\((\"?)data:[^)]{1024,}\\)", "g");
+  const cssQuery = new RegExp("url\\(\\s*([\"\u0027]?)([^\u0027\")?#]*)[?#][^\u0027\")]*\\1\\s*\\)", "g");
+  const cleanCss = (t) => t.replace(dataUrl, "url(data:,gstack-stripped)").replace(cssQuery, "url($1$2$1)");
   if (inlined.length) {
     const style = document.createElement("style");
     style.setAttribute("data-gstack-dom-css", "");
     const rgb = new RegExp("rgb\\((\\d+), (\\d+), (\\d+)\\)", "g");
     const hex = (n) => Number(n).toString(16).padStart(2, "0");
-    style.textContent = inlined.join("\n")
-      .replace(dataUrl, "url(data:,gstack-stripped)")
+    style.textContent = cleanCss(inlined.join("\n"))
       .replace(rgb, (m, r, g, b) => "#" + hex(r) + hex(g) + hex(b));
     head.appendChild(style);
   }
   for (const el of Array.from(root.querySelectorAll("style"))) {
-    if (el.getAttribute("data-gstack-dom-css") === null && el.textContent) el.textContent = el.textContent.replace(dataUrl, "url(data:,gstack-stripped)");
+    if (el.getAttribute("data-gstack-dom-css") === null && el.textContent) el.textContent = cleanCss(el.textContent);
   }
-  const urlAttrs = ["href", "src", "poster", "action", "formaction", "data", "ping", "cite"];
+  const urlAttrs = ["href", "src", "poster", "action", "formaction", "data", "ping", "cite", "background", "xlink:href"];
   const cutQuery = (v) => v.split("?")[0].split("#")[0];
   let scripts = 0;
   for (const el of Array.from(root.querySelectorAll("script"))) {
@@ -84,6 +87,8 @@ export const DOM_DUMP_SCRIPT = String.raw`() => {
       const name = attr.name;
       const value = attr.value;
       if (name.indexOf("on") === 0) el.removeAttribute(name);
+      else if (name === "srcdoc") el.setAttribute(name, "");
+      else if (name === "style") el.setAttribute(name, cleanCss(value));
       else if (name === "value" && (el.nodeName === "INPUT" || el.nodeName === "TEXTAREA")) el.setAttribute(name, "");
       else if ((name === "value" || name.indexOf("data-") === 0) && value.length > 32) el.setAttribute(name, "");
       else if (name === "content" && el.nodeName === "META" && el.getAttribute("name") !== "viewport") el.setAttribute(name, "");

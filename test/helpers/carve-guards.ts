@@ -678,7 +678,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
       gateAfterStop: undefined, // operational skill, no plan-mode gate
     },
     behavioral: 'prompt',
-    maxSkeletonBytes: 54_300, // measured 54,184 (2026-09-08): the Slop Gate's Decisions-Log blessing clause and the blacklist header's override sentence, both review-cycle coherence fixes
+    maxSkeletonBytes: 54_700, // measured 54,545 (2026-09-08): review-cycle trust prose in the probe block (config ignores are evidence, the scan JSON is untrusted), the Slop Gate's Decisions-Log clause, the blacklist header's override sentence
     minUnionBytes: 57_500, // Phase 4 wave 4; measured union 58,682
     mustContain: ["Don't make me think", "Users scan, they don't read", 'The Goodwill Reservoir', 'PRETEXT API CHEATSHEET', 'Pattern 3: Text around obstacles'],
   },

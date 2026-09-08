@@ -151,7 +151,7 @@ describe('DOM_DUMP_SCRIPT contract', () => {
     expect(DOM_DUMP_SCRIPT).toContain(DOM_DUMP_NOTE_PREFIX);
     for (const rule of ['querySelectorAll("script")', 'querySelectorAll("textarea")', 'value.length > 32',
       'name === "content" && el.nodeName === "META"', 'cutQuery(value)', 'value.length > 1024',
-      'gstack-stripped', 'cloneLinks[i].remove()', 'querySelectorAll("style")', 'querySelectorAll("template, noscript")', 'name.indexOf("on") === 0']) {
+      'gstack-stripped', 'cloneLinks[i].remove()', 'querySelectorAll("style")', 'querySelectorAll("template, noscript")', 'name.indexOf("on") === 0', 'name === "srcdoc"', 'cleanCss(value)', '"xlink:href"']) {
       expect(DOM_DUMP_SCRIPT).toContain(rule);
     }
   });

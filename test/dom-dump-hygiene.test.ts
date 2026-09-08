@@ -40,7 +40,7 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       },
     });
     const big = 'data:image/png;base64,' + 'A'.repeat(1500);
-    fs.writeFileSync(path.join(site, 'styles.css'), '.hero { background: linear-gradient(135deg, #6366f1, #8b5cf6); } .x { background-image: url("' + big + '"); }\n');
+    fs.writeFileSync(path.join(site, 'styles.css'), '.hero { background: linear-gradient(135deg, #6366f1, #8b5cf6); } .x { background-image: url("' + big + '"); } .y { background: url("/y.png?token=SECRETCSS") }\n');
     fs.writeFileSync(path.join(site, 'index.html'), `<!DOCTYPE html><html><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width"><meta name="description" content="SECRET DESCRIPTION">
 <link rel="stylesheet" href="styles.css">
@@ -51,6 +51,7 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
 <img src="/img.png?sig=SECRETSIG" srcset="/a.png?s=SECRETSET 1x, /b.png?s=SECRETSET2 2x">
 <form action="/submit?csrf=SECRETCSRF"><button formaction="/alt?f=SECRETFORM" onclick="track('SECRETHANDLER')">go</button></form>
 <template><input value="SECRET TEMPLATE"><a href="/t?x=SECRETTPL">t</a></template><noscript><img src="/px.gif?id=SECRETNOSCRIPT"></noscript>
+<div style="background-image:url(https://cdn.example/x.png?X-Amz-Signature=SECRETSIG2)">s</div><iframe srcdoc="<input value='SECRETSRCDOC'>"></iframe><svg><use xlink:href="/s.svg?v=SECRETXLINK"></use></svg>
 <style>.inline { background: url("${big}") }</style>
 <div data-long="${'L'.repeat(40)}" data-short="ok" title="${big}">x</div>
 <img src="${big}">
@@ -102,6 +103,12 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       expect(html).not.toContain('SECRETTPL');
       expect(html).not.toContain('SECRETNOSCRIPT');
       expect(html).not.toMatch(/<template|<noscript/);
+      expect(html).not.toContain('SECRETSIG2');
+      expect(html).toContain('url(https://cdn.example/x.png)');
+      expect(html).not.toContain('SECRETCSS');
+      expect(html).toContain('url("/y.png")');
+      expect(html).not.toContain('SECRETSRCDOC');
+      expect(html).not.toContain('SECRETXLINK');
       expect(html).toContain('srcset="/a.png 1x, /b.png 2x"');
       expect(html).not.toContain('L'.repeat(40));
       expect(html).toContain('data-short="ok"');
