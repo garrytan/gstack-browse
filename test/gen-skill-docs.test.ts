@@ -2002,6 +2002,26 @@ describe('DESIGN_MD_CHECK resolver and open DESIGN.md adoption', () => {
   });
 });
 
+// --- PRODUCT.md prefill + /impeccable handoffs ---
+
+describe('PRODUCT.md prefill and /impeccable handoffs', () => {
+  test('design-consultation and design-shotgun read PRODUCT.md and never open the impeccable skill', () => {
+    for (const skill of ['design-consultation', 'design-shotgun']) {
+      const c = readSkillUnion(skill);
+      expect(c).toContain('cat PRODUCT.md 2>/dev/null | head -120 || echo "NO_PRODUCT_MD"');
+      expect(c).toContain('do not re-ask');
+      expect(c).toContain('Never open `.claude/skills/impeccable/**`');
+    }
+  });
+
+  test('handoffs are gated on IMPECCABLE_SKILL: present in review-lite and design-review', () => {
+    expect(readSkillUnion('ship')).toContain('IMPECCABLE_SKILL: present`, end each NEEDS INPUT detector row with the `handoff=` command');
+    const dr = fs.readFileSync(path.join(ROOT, 'design-review', 'SKILL.md'), 'utf-8');
+    expect(dr).toContain('a deferred one ends with its `handoff=` command when `IMPECCABLE_SKILL: present`');
+    expect(dr).toContain('skip every detector step, including `/impeccable` handoff lines');
+  });
+});
+
 // --- Extended DESIGN_SKETCH resolver tests ---
 
 describe('DESIGN_SKETCH extended with outside voices', () => {

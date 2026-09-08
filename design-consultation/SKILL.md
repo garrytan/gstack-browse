@@ -484,10 +484,13 @@ bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-md.ts check 
 **Gather product context from the codebase:**
 
 ```bash
+cat PRODUCT.md 2>/dev/null | head -120 || echo "NO_PRODUCT_MD"
 cat README.md 2>/dev/null | head -50
 cat package.json 2>/dev/null | head -20
 ls src/ app/ pages/ components/ 2>/dev/null | head -30
 ```
+
+A `PRODUCT.md` (impeccable's product-context file) already answers the product questions below: treat it as the user's prior answers, confirm them in one line, and do not re-ask. Never open `.claude/skills/impeccable/**` or any other skill's files; PRODUCT.md and DESIGN.md are the shared surface.
 
 Look for office-hours output:
 
