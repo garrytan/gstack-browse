@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Optional Memorable UserPromptSubmit hook. Missing or failing integrations
+# must never interrupt Claude Code.
+set -u
+
+resolve_memorable() {
+  if [ -n "${MEMORABLE_BIN:-}" ]; then
+    [ -f "$MEMORABLE_BIN" ] && [ -x "$MEMORABLE_BIN" ] || return 1
+    printf '%s\n' "$MEMORABLE_BIN"
+    return 0
+  fi
+
+  if [ -n "${HOME:-}" ] && [ -f "$HOME/.memorable/bin/memorable" ] && [ -x "$HOME/.memorable/bin/memorable" ]; then
+    printf '%s\n' "$HOME/.memorable/bin/memorable"
+    return 0
+  fi
+
+  command -v memorable 2>/dev/null
+}
+
+MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" || exit 0
+[ -n "$MEMORABLE_CLI" ] || exit 0
+
+(exec "$MEMORABLE_CLI" hook user-prompt) || exit 0
+exit 0

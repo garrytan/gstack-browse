@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Opt-in wiring between gstack's Claude hook manager and Memorable.
+set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SETTINGS_HOOK="$SCRIPT_DIR/gstack-settings-hook"
+MEMORABLE_HOOK="$ROOT_DIR/hosts/claude/hooks/memorable-user-prompt-hook"
+HOOK_SOURCE="gstack-memorable"
+
+usage() {
+  cat <<EOF
+Usage: gstack-memorable <enable|disable|status>
+
+  enable   Enable Memorable, then register its Claude UserPromptSubmit hook
+  disable  Remove the gstack hook, then disable Memorable
+  status   Report Memorable CLI availability and hook registration
+EOF
+}
+
+resolve_memorable() {
+  if [ -n "${MEMORABLE_BIN:-}" ]; then
+    [ -f "$MEMORABLE_BIN" ] && [ -x "$MEMORABLE_BIN" ] || return 1
+    printf '%s\n' "$MEMORABLE_BIN"
+    return 0
+  fi
+
+  if [ -n "${HOME:-}" ] && [ -f "$HOME/.memorable/bin/memorable" ] && [ -x "$HOME/.memorable/bin/memorable" ]; then
+    printf '%s\n' "$HOME/.memorable/bin/memorable"
+    return 0
+  fi
+
+  command -v memorable 2>/dev/null
+}
+
+require_memorable() {
+  MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" || {
+    echo "gstack-memorable: Memorable CLI not found; install memorable-cli or set MEMORABLE_BIN." >&2
+    return 1
+  }
+  [ -n "$MEMORABLE_CLI" ] || return 1
+}
+
+hook_present() {
+  [ -x "$SETTINGS_HOOK" ] || return 1
+  if "$SETTINGS_HOOK" list-sources 2>/dev/null |
+    awk -F '\t' -v source="$HOOK_SOURCE" '
+      $1 == "UserPromptSubmit" && $2 == source { found = 1 }
+      END { exit(found ? 0 : 1) }
+    '; then
+    return 0
+  fi
+
+  # Claude Code may strip the private source tag when it rewrites settings.
+  # A no-op diff still proves that the canonical command itself is present.
+  "$SETTINGS_HOOK" diff-event \
+    --event UserPromptSubmit \
+    --command "$MEMORABLE_HOOK" \
+    --source "$HOOK_SOURCE" 2>/dev/null |
+    awk '
+      /^--- BEFORE$/ { section = 1; saw_before = 1; next }
+      /^--- AFTER$/  { section = 2; saw_after = 1; next }
+      section == 1 { before = before $0 "\n" }
+      section == 2 { after = after $0 "\n" }
+      END { exit(saw_before && saw_after && before == after ? 0 : 1) }
+    '
+}
+
+enable_memorable() {
+  require_memorable || return 1
+  [ -x "$SETTINGS_HOOK" ] || {
+    echo "gstack-memorable: missing hook manager: $SETTINGS_HOOK" >&2
+    return 1
+  }
+  [ -x "$MEMORABLE_HOOK" ] || {
+    echo "gstack-memorable: missing executable hook: $MEMORABLE_HOOK" >&2
+    return 1
+  }
+
+  "$MEMORABLE_CLI" enable || return $?
+  "$SETTINGS_HOOK" ensure-event \
+    --event UserPromptSubmit \
+    --command "$MEMORABLE_HOOK" \
+    --source "$HOOK_SOURCE"
+}
+
+disable_memorable() {
+  local hook_rc=0 cli_rc=0
+
+  if [ -x "$SETTINGS_HOOK" ]; then
+    "$SETTINGS_HOOK" remove-source --source "$HOOK_SOURCE" || hook_rc=$?
+  else
+    echo "gstack-memorable: missing hook manager: $SETTINGS_HOOK" >&2
+    hook_rc=1
+  fi
+
+  if require_memorable; then
+    "$MEMORABLE_CLI" disable || cli_rc=$?
+  else
+    cli_rc=1
+  fi
+
+  [ "$hook_rc" -eq 0 ] && [ "$cli_rc" -eq 0 ]
+}
+
+status_memorable() {
+  if MEMORABLE_CLI="$(resolve_memorable 2>/dev/null)" && [ -n "$MEMORABLE_CLI" ]; then
+    printf 'Memorable CLI: available (%s)\n' "$MEMORABLE_CLI"
+  else
+    echo "Memorable CLI: unavailable"
+  fi
+
+  if hook_present; then
+    echo "Claude UserPromptSubmit hook: registered"
+  else
+    echo "Claude UserPromptSubmit hook: not registered"
+  fi
+}
+
+case "${1:-}" in
+  enable)  enable_memorable ;;
+  disable) disable_memorable ;;
+  status)  status_memorable ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; exit 1 ;;
+esac

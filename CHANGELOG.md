@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+- Added `bin/gstack-memorable enable|status|disable`, a default-off, Claude
+  Code-only bridge to the external `memorable` CLI. When enabled, its hooks
+  capture all Claude Code prompts, not only gstack commands, and inject relevant
+  workflow guidance. Hook failures fail open so Claude continues normally. This
+  is procedural guidance, not deterministic replay, and is unrelated to Aside.
+
 ## [1.81.0.0] - 2026-09-06
 
 **Aside is the browser gstack drives first. Every browsing skill, the PDF and diagram renderer, and web research go through it.**
