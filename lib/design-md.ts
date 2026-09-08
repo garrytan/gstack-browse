@@ -14,9 +14,10 @@
 //        ──► upsertSection  ──► body-only splice on the parsed doc (files gstack writes from scratch)
 //        ──► renderDesignMd ──► marker, front matter, preamble, canonical sections in order, extras
 //   text ──► spliceSection / insertMarker ──► text-level edits of a file the USER owns: one section
-//                                             body or one marker line changes, every other byte and
-//                                             the file's line endings are untouched (the `mark` verb,
-//                                             the design binary's extraction section)
+//                                             body or one marker line changes; the BOM, the majority
+//                                             line ending, and every other line survive (the `mark`
+//                                             verb, the design binary's extraction section). A file
+//                                             with an unclosed fence is refused (DesignMdEditRefused).
 //        ──► tokensFlat     ──► "colors.primary" → "#F59E0B"; {path} refs resolved to primitives
 //
 // Format marker (the user's one-time conversion answer, persisted in the file):
@@ -52,9 +53,10 @@ export const FORMAT_CHOICES = ['spec', 'legacy-keep'] as const;
 export type FormatChoice = (typeof FORMAT_CHOICES)[number];
 const MARKER_RE_BODY = FORMAT_MARKER_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(' + FORMAT_CHOICES.join('|') + ')';
 /** `<!-- gstack: design-md-format=... -->` on line 1 (legacy files) */
-const LEGACY_MARKER_RE = new RegExp('^<!--\\s*' + MARKER_RE_BODY + '\\s*-->\\n?');
+const LEGACY_MARKER_RE = new RegExp('^<!--[ \\t]*' + MARKER_RE_BODY + '[ \\t]*-->\\n?');
 /** `# gstack: design-md-format=...` as a YAML comment inside the front matter (spec files) */
-const YAML_MARKER_RE = new RegExp('^# ' + MARKER_RE_BODY + '\\s*$', 'm');
+// `[ \\t]*$`, never `\\s*$`: a multi-line match would swallow the blank line after the marker.
+const YAML_MARKER_RE = new RegExp('^# ' + MARKER_RE_BODY + '[ \\t]*$', 'm');
 /** The marker line inside front matter, newline included (renderDesignMd drops it before re-emitting the marker itself). */
 const YAML_MARKER_LINE_RE = new RegExp(YAML_MARKER_RE.source + '\\n', 'm');
 /** A front matter opener immediately followed by the marker line (insertMarker replaces the old choice). */
@@ -109,8 +111,11 @@ function parseYaml(text: string): { value: Record<string, unknown> | null; error
   }
 }
 
+/** A UTF-8 byte-order mark (Windows editors write one); text-level editors keep it at byte 0. */
+const BOM = '\uFEFF';
+
 export function parseDesignMd(text: string): DesignMdDoc {
-  const src = text.replace(/\r\n/g, '\n');
+  const src = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   let rest = src;
   let marker: FormatChoice | null = null;
   let frontmatterText: string | null = null;
@@ -136,7 +141,7 @@ export function parseDesignMd(text: string): DesignMdDoc {
   }
 
   const lines = rest.split('\n');
-  const heads = headingLines(lines);
+  const { heads } = headingLines(lines);
   const preambleLines = lines.slice(0, heads[0]?.index ?? lines.length);
   const sections: Section[] = heads.map((h, k) => {
     const canonical = canonicalFor(h.heading);
@@ -147,23 +152,27 @@ export function parseDesignMd(text: string): DesignMdDoc {
 }
 
 /**
- * The `## ` headings of a body, with code fences skipped. The one section-
+ * The `## ` headings of a body, with code fences skipped: the one section-
  * boundary rule, shared by parseDesignMd and spliceSection so they cannot drift.
- * An unclosed fence is treated as prose (fence tracking off for that file):
- * a stray ``` must never swallow every later section of a file gstack edits.
+ * Markdown semantics: an unclosed fence runs to the end of the file, so nothing
+ * after it is a heading. Readers accept that; spliceSection refuses to edit such
+ * a file (`unclosedFence`), because "which section" is ambiguous there.
  */
-function headingLines(lines: string[]): Array<{ index: number; heading: string }> {
-  const fences = lines.filter(l => /^```/.test(l)).length;
-  const trackFences = fences % 2 === 0;
-  const out: Array<{ index: number; heading: string }> = [];
+function headingLines(lines: string[]): { heads: Array<{ index: number; heading: string }>; unclosedFence: boolean } {
+  const heads: Array<{ index: number; heading: string }> = [];
   let inFence = false;
   for (let i = 0; i < lines.length; i++) {
-    if (trackFences && /^```/.test(lines[i])) { inFence = !inFence; continue; }
+    if (/^```/.test(lines[i])) { inFence = !inFence; continue; }
     if (inFence) continue;
     const h = lines[i].match(/^## (.+?)\s*$/);
-    if (h) out.push({ index: i, heading: h[1] });
+    if (h) heads.push({ index: i, heading: h[1] });
   }
-  return out;
+  return { heads, unclosedFence: inFence };
+}
+
+/** Thrown by the text-level editors when the file cannot be edited safely (an unclosed code fence). The bins print it as DESIGN_MD_EDIT_REFUSED and leave the file unchanged. */
+export class DesignMdEditRefused extends Error {
+  constructor(reason: string) { super(`${SENTINEL.DESIGN_MD_EDIT_REFUSED}: ${reason}; file unchanged`); this.name = 'DesignMdEditRefused'; }
 }
 
 /** Does a section heading name the requested section? By canonical name when the request has one, else by exact (case-insensitive) heading. */
@@ -171,9 +180,11 @@ function headingMatches(heading: string, wanted: string, canonical: CanonicalSec
   return canonical ? canonicalFor(heading) === canonical : heading.trim().toLowerCase() === wanted.trim().toLowerCase();
 }
 
-/** The file's dominant line ending; text-level editors restore it so a CRLF file stays CRLF. */
+/** The file's majority line ending; text-level editors restore it so a CRLF file stays CRLF (a lone stray CRLF in an LF file does not flip the file). */
 function eolOf(text: string): string {
-  return text.includes('\r\n') ? '\r\n' : '\n';
+  const crlf = (text.match(/\r\n/g) ?? []).length;
+  const lf = (text.match(/\n/g) ?? []).length - crlf;
+  return crlf > lf ? '\r\n' : '\n';
 }
 
 // ── Format detection ─────────────────────────────────────────────────────────
@@ -209,7 +220,8 @@ export function detectFormat(doc: DesignMdDoc | null): { format: DesignMdFormat;
 function needsQuotes(s: string): boolean {
   // Control characters (an LLM-extracted font family with an embedded newline) must
   // go through the double-quoted form: a bare multi-line scalar does not parse back.
-  return s === '' || /[\x00-\x1f\x7f]/.test(s) || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/i.test(s);
+  // `\s#` too: a plain scalar ending in ` #F59E0B` would parse back as a comment.
+  return s === '' || /[\x00-\x1f\x7f]/.test(s) || /^[\s#&*!|>'"%@`{[\]},:?-]|[:#]\s|\s#|\s$|^(true|false|null|yes|no|on|off|~)$|^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/i.test(s);
 }
 
 function yamlScalar(v: unknown): string {
@@ -284,11 +296,13 @@ export function renderDesignMd(doc: DesignMdDoc, opts: RenderOptions = {}): stri
  * writes from scratch (convert, skeletons).
  */
 export function spliceSection(text: string, heading: string, body: string): string {
+  const bom = text.startsWith(BOM) ? BOM : '';
   const eol = eolOf(text);
-  const src = text.replace(/\r\n/g, '\n');
+  const src = text.slice(bom.length).replace(/\r\n/g, '\n');
   const canonical = canonicalFor(heading);
   const lines = src.split('\n');
-  const heads = headingLines(lines);
+  const { heads, unclosedFence } = headingLines(lines);
+  if (unclosedFence) throw new DesignMdEditRefused('unclosed code fence (```) makes the section boundaries ambiguous');
   const k = heads.findIndex(h => headingMatches(h.heading, heading, canonical));
   const block = `## ${canonical ?? heading}\n\n${body.replace(/\s+$/, '')}\n`;
   let out: string;
@@ -301,7 +315,7 @@ export function spliceSection(text: string, heading: string, body: string): stri
     const after = lines.slice(end).join('\n');
     out = before + (before ? '\n' : '') + block + (after.trim() ? '\n' + after.replace(/^\n+/, '') : '');
   }
-  return eol === '\n' ? out : out.replace(/\n/g, eol);
+  return bom + (eol === '\n' ? out : out.replace(/\n/g, eol));
 }
 
 /**
@@ -310,8 +324,9 @@ export function spliceSection(text: string, heading: string, body: string): stri
  * marker; every other byte is untouched.
  */
 export function insertMarker(text: string, choice: FormatChoice): string {
+  const bom = text.startsWith(BOM) ? BOM : '';
   const eol = eolOf(text);
-  const src = text.replace(/\r\n/g, '\n');
+  const src = text.slice(bom.length).replace(/\r\n/g, '\n');
   const stripped = src.replace(LEGACY_MARKER_RE, '');
   let out: string;
   if (stripped.startsWith('---\n')) {
@@ -320,7 +335,7 @@ export function insertMarker(text: string, choice: FormatChoice): string {
   } else {
     out = `<!-- ${FORMAT_MARKER_PREFIX}${choice} -->\n` + stripped;
   }
-  return eol === '\n' ? out : out.replace(/\n/g, eol);
+  return bom + (eol === '\n' ? out : out.replace(/\n/g, eol));
 }
 
 /** Replace or add a section; canonical names slot into spec order, extras append. Body-only: front matter bytes untouched. */

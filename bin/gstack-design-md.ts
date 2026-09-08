@@ -30,8 +30,10 @@ import {
   parseDesignMd, detectFormat, convertLegacy, renderDesignMd, tokensFlat, insertMarker,
   type DesignMdDoc, type FormatChoice, FORMAT_CHOICES } from '../lib/design-md';
 
+/** The file itself, through any symlink (a `DESIGN.md -> docs/DESIGN.md` layout must edit the target, never replace the link). */
 function resolveFile(arg?: string): string {
-  return path.resolve(arg ?? 'DESIGN.md');
+  const p = path.resolve(arg ?? 'DESIGN.md');
+  try { return fs.realpathSync(p); } catch { return p; }
 }
 
 function load(file: string): { text: string; doc: DesignMdDoc } | null {

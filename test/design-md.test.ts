@@ -15,7 +15,7 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import {
   parseDesignMd, detectFormat, renderDesignMd, upsertSection, convertLegacy, tokensFlat,
-  emitYamlBlock, specSkeleton, spliceSection, insertMarker, CANONICAL_SECTIONS, TOKEN_GROUPS, isLegacyGstackFormat,
+  emitYamlBlock, specSkeleton, spliceSection, insertMarker, DesignMdEditRefused, CANONICAL_SECTIONS, TOKEN_GROUPS, isLegacyGstackFormat,
 } from '../lib/design-md';
 import { updateDesignMd, readDesignConstraints } from '../design/src/memory';
 
@@ -561,17 +561,60 @@ describe('text-level editors keep line endings and respect fences', () => {
     expect(spliceSection(SPEC_LF, 'Colors', 'Ink only.')).not.toContain('\r');
   });
 
-  test('a fenced ## inside a section does not end it; an unclosed fence is prose, so later sections survive', () => {
+  test('a fenced ## inside a section does not end it; an unclosed fence runs to EOF for readers and refuses the edit', () => {
     const src = '## A\n\nbody\n\n```md\n## Not a heading\n```\n\n## B\n\nb body\n';
     expect(spliceSection(src, 'A', 'x')).toBe('## A\n\nx\n\n## B\n\nb body\n');
     expect(parseDesignMd(src).sections.map(s => s.heading)).toEqual(['A', 'B']);
     const unclosed = '## A\n\nbody\n\n```\nunclosed\n\n## B\n\nb body\n';
-    expect(spliceSection(unclosed, 'A', 'x')).toBe('## A\n\nx\n\n## B\n\nb body\n');
-    expect(parseDesignMd(unclosed).sections.map(s => s.heading)).toEqual(['A', 'B']);
+    expect(parseDesignMd(unclosed).sections.map(s => s.heading)).toEqual(['A']); // markdown: everything after the fence is code
+    expect(() => spliceSection(unclosed, 'A', 'x')).toThrow(DesignMdEditRefused);
+    expect(() => spliceSection(unclosed, 'A', 'x')).toThrow(/DESIGN_MD_EDIT_REFUSED: unclosed code fence/);
+    // the design binary skips the write and says why, rather than editing an ambiguous file
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-md-fence-'));
+    fs.writeFileSync(path.join(dir, 'DESIGN.md'), unclosed);
+    updateDesignMd(dir, { colors: [{ name: 'Ink', hex: '#111111', usage: 'text' }], typography: [], spacing: [], layout: [], mood: '' }, 'm.png');
+    expect(fs.readFileSync(path.join(dir, 'DESIGN.md'), 'utf-8')).toBe(unclosed);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('re-marking a marked spec file changes nothing; a stray CRLF does not flip an LF file; a BOM stays at byte 0', () => {
+    const marked = insertMarker(SPEC_LF, 'spec');
+    expect(insertMarker(marked, 'spec')).toBe(marked); // the old regex ate the blank line after the marker
+    expect(insertMarker(marked, 'legacy-keep')).toBe(marked.replace('design-md-format=spec', 'design-md-format=legacy-keep'));
+    const stray = SPEC_LF.replace('name: x\n', 'name: x\r\n');
+    expect(spliceSection(stray, 'Colors', 'c2')).not.toContain('\r'); // majority LF wins; the one stray CRLF is normalized, nothing else flips
+    const bom = '\uFEFF' + SPEC_LF;
+    expect(insertMarker(bom, 'spec')).toBe('\uFEFF' + insertMarker(SPEC_LF, 'spec'));
+    expect(spliceSection(bom, 'Colors', 'c2')).toBe('\uFEFF' + spliceSection(SPEC_LF, 'Colors', 'c2'));
+    expect(parseDesignMd(bom).frontmatterText).not.toBeNull();
+    expect(detectFormat(parseDesignMd(bom)).format).toBe('spec');
+  });
+
+  test('a scalar with a space-hash (an inline comment shape) is quoted and parses back', () => {
+    const yaml = emitYamlBlock({ colors: { amber: 'amber #F59E0B' } });
+    expect(Bun.YAML.parse(yaml)).toEqual({ colors: { amber: 'amber #F59E0B' } });
   });
 
   test('a token value with an embedded newline is quoted and parses back', () => {
     const yaml = emitYamlBlock({ typography: { body: { fontFamily: 'Foo\nBar', fontSize: '16px\tx' } } });
     expect(Bun.YAML.parse(yaml)).toEqual({ typography: { body: { fontFamily: 'Foo\nBar', fontSize: '16px\tx' } } });
+  });
+});
+
+describe('bin/gstack-design-md.ts follows a symlinked DESIGN.md', () => {
+  test('mark edits the target file and leaves the link a link', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-md-link-'));
+    fs.mkdirSync(path.join(dir, 'docs'));
+    const legacy = '# T\n\n## Product Context\n\np\n\n## Aesthetic Direction\n\na\n';
+    fs.writeFileSync(path.join(dir, 'docs', 'DESIGN.md'), legacy);
+    fs.symlinkSync(path.join('docs', 'DESIGN.md'), path.join(dir, 'DESIGN.md'));
+    try {
+      const r = spawnSync(process.execPath, ['--no-env-file', 'run', BIN, 'mark', 'legacy-keep', 'DESIGN.md'], { cwd: dir, encoding: 'utf-8', timeout: 30_000 });
+      expect(r.status).toBe(0);
+      expect(fs.lstatSync(path.join(dir, 'DESIGN.md')).isSymbolicLink()).toBe(true);
+      expect(fs.readFileSync(path.join(dir, 'docs', 'DESIGN.md'), 'utf-8')).toBe('<!-- gstack: design-md-format=legacy-keep -->\n' + legacy);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

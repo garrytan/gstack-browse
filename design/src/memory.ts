@@ -15,7 +15,7 @@ import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
-import { parseDesignMd, detectFormat, renderDesignMd, spliceSection, specSkeleton, tokensFlat, slug } from "../../lib/design-md";
+import { parseDesignMd, detectFormat, renderDesignMd, spliceSection, specSkeleton, tokensFlat, slug, DesignMdEditRefused } from "../../lib/design-md";
 import { atomicWriteSync } from "../../lib/fs-atomic";
 
 /** The section the extraction owns in DESIGN.md (replaced on every run). */
@@ -118,15 +118,24 @@ export function updateDesignMd(
   extracted: ExtractedDesign,
   sourceMockup: string,
 ): void {
-  const designPath = path.join(repoRoot, "DESIGN.md");
+  const linkPath = path.join(repoRoot, "DESIGN.md");
   const timestamp = new Date().toISOString().split("T")[0];
   const body = formatExtractedSection(extracted, sourceMockup, timestamp);
 
-  if (fs.existsSync(designPath)) {
-    atomicWriteSync(designPath, spliceSection(fs.readFileSync(designPath, "utf-8"), EXTRACTED_SECTION_HEADING, body));
+  if (fs.existsSync(linkPath)) {
+    const designPath = fs.realpathSync(linkPath); // edit the file behind a symlink, never replace the link
+    let next: string;
+    try {
+      next = spliceSection(fs.readFileSync(designPath, "utf-8"), EXTRACTED_SECTION_HEADING, body);
+    } catch (err) {
+      if (err instanceof DesignMdEditRefused) { console.error(`DESIGN.md not updated: ${err.message}`); return; }
+      throw err;
+    }
+    atomicWriteSync(designPath, next);
     console.error(`Updated DESIGN.md with extracted design language`);
     return;
   }
+  const designPath = linkPath;
 
   const colors: Record<string, string> = {};
   for (const c of extracted.colors) {
