@@ -1,33 +1,34 @@
 /**
- * lib/dom-dump.js hygiene, exercised in a real browser through gstack's own
- * browse binary (`$B eval <file> --out <path> --raw`, the same fallback path
- * /design-review renders). Self-skips when no browse binary is built
- * (`bun run build:gates`), like the other render gates.
+ * lib/dom-dump.js hygiene, exercised in a real Chromium page. The script is the
+ * arrow function Aside runs through `pg.evaluate` and the fallback engine runs
+ * through `$B js`; here Playwright's `page.evaluate` calls it the same way.
+ * Chromium is driven directly through playwright-core (the engine the browse
+ * daemon wraps) rather than through the daemon: no state file, no health
+ * window, nothing to starve under a sharded CI run. Self-skips when the
+ * Playwright Chromium bundle is not installed (`npx playwright install chromium`).
  *
  * Pins the rules the DOM dump promises before a page leaves the browser:
  * input values dropped, long data: URLs replaced (attributes, inlined CSS, and
  * existing <style> nodes), <meta content> emptied (viewport kept), query
- * strings cut from every URL attribute, script bodies emptied, linked
- * stylesheets inlined with author hex restored, cross-origin sheets named in
- * the trailing note and removed from the markup, inlined <link> nodes removed,
- * <template> and <noscript> subtrees dropped, inline on* handlers dropped.
+ * strings cut from every URL attribute and from CSS url() in style attributes,
+ * <style> nodes, and inlined sheets, script bodies emptied, linked stylesheets
+ * inlined with author hex restored, cross-origin sheets named in the trailing
+ * note and removed from the markup, print sheets wrapped in their @media,
+ * alternate sheets dropped, <template> and <noscript> subtrees dropped, inline
+ * on* handlers dropped, srcdoc emptied.
  */
 import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { spawnSync } from 'child_process';
-import { DOM_DUMP_STYLE_ATTR, DOM_DUMP_NOTE_PREFIX } from '../lib/dom-dump-script';
+import { chromium } from 'playwright';
+import { DOM_DUMP_SCRIPT, DOM_DUMP_STYLE_ATTR, DOM_DUMP_NOTE_PREFIX } from '../lib/dom-dump-script';
 
-const ROOT = path.join(import.meta.dir, '..');
-const CANDIDATES = [path.join(ROOT, 'browse', 'dist', 'browse'), path.join(os.homedir(), '.claude', 'skills', 'gstack', 'browse', 'dist', 'browse')];
-const BROWSE = CANDIDATES.find(p => fs.existsSync(p));
+const CHROMIUM = process.env.GSTACK_CHROMIUM_PATH || (() => { try { return chromium.executablePath(); } catch { return ''; } })();
+const CHROMIUM_AVAILABLE = Boolean(CHROMIUM) && fs.existsSync(CHROMIUM);
 const POSIX = process.platform !== 'win32';
-// Launching Chromium is load-sensitive (a cold daemon can miss the CLI's health
-// window on a busy dev box). Runs in CI and on explicit opt-in; skips otherwise.
-const OPTED_IN = Boolean(process.env.CI || process.env.GSTACK_DOM_DUMP_HYGIENE);
 
-describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (CI or GSTACK_DOM_DUMP_HYGIENE=1)', () => {
+describe.skipIf(!CHROMIUM_AVAILABLE || !POSIX)('lib/dom-dump.js in a real DOM (Playwright Chromium)', () => {
   test('applies every hygiene rule and inlines the linked stylesheet', async () => {
     const site = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-dom-dump-site-'));
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-dom-dump-out-'));
@@ -60,27 +61,11 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
 <img src="${big}">
 </body></html>`);
     const url = `http://127.0.0.1:${server.port}/index.html`;
-    // Own daemon: BROWSE_STATE_FILE scopes the state dir, lock, port file, and
-    // profile to this test, so it never shares (or stops) another session's daemon.
-    fs.mkdirSync(path.join(tmp, '.gstack'), { recursive: true });
-    const env = { ...process.env, BROWSE_STATE_FILE: path.join(tmp, '.gstack', 'browse.json') };
-    const browse = (args: string[]) => spawnSync(BROWSE!, args, { encoding: 'utf-8', timeout: 90_000, env });
+    const browser = await chromium.launch({ headless: true, executablePath: CHROMIUM, timeout: 90_000 });
     try {
-      // A cold daemon start can miss the CLI's ~8 s health window on a loaded
-      // machine (CI shards, a concurrent eval run). Bounded retries, then fail loud.
-      let go = browse(['goto', url]);
-      for (let attempt = 0; attempt < 6 && go.status !== 0; attempt++) {
-        Bun.sleepSync(10_000);
-        go = browse(['goto', url]);
-      }
-      expect(go.status, go.stderr + go.stdout).toBe(0);
-      // The same invocation the skill renders for the fallback engine: the arrow
-      // function spliced from lib/dom-dump.js and called in the page.
-      const dump = fs.readFileSync(path.join(ROOT, 'lib', 'dom-dump.js'), 'utf-8');
-      const out = path.join(tmp, 'index.dom.html');
-      const ev = browse(['js', `(${dump})()`, '--out', out, '--raw']);
-      expect(ev.status, ev.stderr + ev.stdout).toBe(0);
-      const html = fs.readFileSync(out, 'utf-8');
+      const page = await browser.newPage();
+      await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
+      const html = String(await page.evaluate(`(${DOM_DUMP_SCRIPT})()`));
       expect(html.startsWith('<!DOCTYPE html>')).toBe(true);
       expect(html).toContain(`<style ${DOM_DUMP_STYLE_ATTR}=""`);
       expect(html).toContain('#6366f1');
@@ -121,8 +106,8 @@ describe.skipIf(!BROWSE || !POSIX || !OPTED_IN)('lib/dom-dump.js in a real DOM (
       expect(html).not.toContain('A'.repeat(1500));
       expect(html).toContain('data:,gstack-stripped');
     } finally {
+      await browser.close().catch(() => {});
       server.stop(true);
-      try { browse(['stop']); } catch {}
       fs.rmSync(site, { recursive: true, force: true });
       fs.rmSync(tmp, { recursive: true, force: true });
     }
