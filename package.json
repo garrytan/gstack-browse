@@ -60,7 +60,7 @@
     "html-to-docx": "1.8.0",
     "marked": "^18.0.11",
     "playwright": "^1.62.1",
-    "socks": "^2.8.9"
+    "socks": "^2.8.10"
   },
   "engines": {
     "bun": ">=1.0.0"
