@@ -21,9 +21,13 @@ Unmodified copy:
 - `test/fixtures/impeccable-antipatterns.json`: `crates/live/assets/antipatterns.json` at commit 87d8f6d6 (engine-v0.1.3), wrapped in a `_source` provenance object.
 
 Not distributed: `bin/gstack-design-detect.ts` invokes an impeccable engine the
-user installed. gstack does not ship, download, or install that engine, and does
-not audit its network behavior; the wrapper refuses URL targets so gstack never
-asks it to touch the network.
+user installed. gstack does not ship or mirror that engine and never runs impeccable's
+installer or launcher. The one download gstack can make is the engine binary
+itself, only after the user accepts a design skill's one-time offer: fetched from
+impeccable's own GitHub release into `~/.impeccable/bin/<version>/`, verified
+against the checksum pinned in `lib/design-detect-contract.ts`, and recorded in
+the egress ledger first. gstack does not audit the engine's network behavior; the
+wrapper refuses URL targets so gstack never asks it to touch the network.
 
 ## DESIGN.md specification — Copyright Google LLC — Apache License 2.0
 

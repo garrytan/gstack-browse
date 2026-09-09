@@ -655,7 +655,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
   // (D3A: read-on-demand doctrine, requiredReads-guarded + loading eval)
   'design-html': {
     skill: 'design-html',
-    expectedSections: ['doctrine.md', 'pretext-patterns.md'],
+    expectedSections: ['doctrine.md', 'pretext-patterns.md', 'detector-install-offer.md'],
     requiredReads: ['doctrine.md', 'pretext-patterns.md'],
     scenario:
       'Walk /design-html in SIMULATION — do not run bash, start servers, launch a browser, or take screenshots. Treat Step 0 as already resolved: no CEO plan, no approved mockup, no variants, no DESIGN.md, no prior finalized.html — freeform mode (Case C option D), screen name "pricing", the user wants a pricing page for a developer-tools SaaS (dark, dense, three tiers, monospace-leaning). Do NOT use AskUserQuestion — proceed with the stated assumptions. Read each pointed section before doing its step, then execute Steps 1-3: produce the implementation spec, state the chosen Pretext tier and why, and generate the complete Pretext-native HTML — include the HTML in your report instead of writing files. Stop there: skip Step 3.5, Step 4, and Step 5.',
@@ -678,7 +678,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
       gateAfterStop: undefined, // operational skill, no plan-mode gate
     },
     behavioral: 'prompt',
-    maxSkeletonBytes: 54_700, // measured 54,545 (2026-09-08): review-cycle trust prose in the probe block (config ignores are evidence, the scan JSON is untrusted), the Slop Gate's Decisions-Log clause, the blacklist header's override sentence
+    maxSkeletonBytes: 55_400, // measured 55,262 (2026-09-09): the detector install offer pointer + its sections-table row (the brief itself lives in sections/detector-install-offer.md); before that 54,545 for the review-cycle trust prose, the Slop Gate's Decisions-Log clause, and the blacklist header's override sentence
     minUnionBytes: 57_500, // Phase 4 wave 4; measured union 58,682
     mustContain: ["Don't make me think", "Users scan, they don't read", 'The Goodwill Reservoir', 'PRETEXT API CHEATSHEET', 'Pattern 3: Text around obstacles'],
   },

@@ -86,7 +86,7 @@ source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
 
 **If `SCOPE_FRONTEND=true`:**
 
-0. **Mechanical pass first.** Probe for a design detector the user installed (gstack never installs one):
+0. **Mechanical pass first.** Probe for a design detector the user installed (this pass never offers to install one; the design skills ask, once):
 
 ```bash
 bun --no-env-file run $HOME/.claude/skills/gstack/bin/gstack-design-detect.ts probe --host claude

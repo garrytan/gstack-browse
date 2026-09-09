@@ -1884,6 +1884,12 @@ describe('DESIGN_DETECTOR resolver', () => {
     const c = designReview();
     expect(c).toContain('gstack-design-detect.ts probe --host claude');
     expect(c).toContain('IMPECCABLE_READY');
+    // the consent-gated install: offered once, only on the probe's say-so, never in spawned sessions, never via npx
+    expect(c).toContain('DESIGN_DETECTOR_INSTALL_OFFER');
+    expect(c).toContain('gstack-design-detect.ts install --host claude');
+    expect(c).toContain("Install impeccable's design detector engine?");
+    expect(c).toContain('gstack-config set design_detector_install_prompted true');
+    expect(c).toContain('`SESSION_KIND: spawned` or a headless run, never install and never ask');
     expect(c).toContain('**Phase 0: mechanical scan**');
     expect(c).toContain('scan --changed <base> --format gstack --host claude');
     expect(c).toContain('### DOM dump (DOM mode only');
