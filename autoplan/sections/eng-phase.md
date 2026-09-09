@@ -10,7 +10,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   **Codex eng voice** (via Bash):
   ```bash
   _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-  _gstack_codex_timeout_wrapper 600 codex exec "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/gstack). These are AI assistant skill definitions meant for a different system. Stay focused on repository code only.
+  _gstack_codex_timeout_wrapper 540 codex exec "IMPORTANT: Do NOT read or execute any SKILL.md files or files in skill definition directories (paths containing skills/gstack). These are AI assistant skill definitions meant for a different system. Stay focused on repository code only.
 
   Review this plan for architectural issues, missing edge cases,
   and hidden complexity. Be adversarial.
@@ -23,12 +23,12 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   File: <plan_path>" -C "$_REPO_ROOT" -s read-only -c 'web_search="cached"' < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
-    _gstack_codex_log_event "codex_timeout" "600"
+    _gstack_codex_log_event "codex_timeout" "540"
     _gstack_codex_log_hang "autoplan" "0"
-    echo "[codex stalled past 10 minutes — tagging as [codex-unavailable] for this phase and proceeding with Claude subagent only]"
+    echo "[codex stalled past 9 minutes — tagging as [codex-unavailable] for this phase and proceeding with Claude subagent only]"
   fi
   ```
-  Timeout: 10 minutes (shell-wrapper) + 12 minutes (Bash outer gate). On hang, auto-degrades this phase's Codex voice.
+  Timeout: 9 minutes (shell-wrapper) + 10 minutes (Bash outer gate — `timeout: 600000`, the host cap). On hang, auto-degrades this phase's Codex voice.
 
   **Claude eng subagent** (via Agent tool, `run_in_background: false` — same foreground contract as Phase 1):
   "Read the plan file at <plan_path>. You are an independent senior engineer
