@@ -72,14 +72,15 @@ export async function callJudge<T>(
   // GSTACK_EVAL_MODEL_JUDGE > GSTACK_EVAL_MODEL > frontier default. The old
   // inline `GSTACK_EVAL_MODEL_JUDGE || sonnet` silently ignored the global
   // GSTACK_EVAL_MODEL override that every other eval call site honors.
-  // opts (temperature/max_tokens) exist for bounded judgments like armJudge;
-  // defaults preserve prior behavior.
+  // Thinking and answer text share max_tokens. The old 1024-token budget
+  // could be exhausted before a frontier judge emitted any JSON.
   const resolvedModel = resolveEvalModel('judge', model);
+  const maxTokens = opts?.max_tokens ?? 8192;
   const client = new Anthropic();
 
   const makeRequest = () => client.messages.create({
     model: resolvedModel,
-    max_tokens: opts?.max_tokens ?? 1024,
+    max_tokens: maxTokens,
     ...(opts?.temperature !== undefined ? { temperature: opts.temperature } : {}),
     messages: [{ role: 'user', content: prompt }],
   });
@@ -104,6 +105,9 @@ export async function callJudge<T>(
     }
   }
 
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(`Judge response truncated at max_tokens=${maxTokens} (model=${resolvedModel})`);
+  }
   const text = response.content
     .filter(block => block.type === 'text')
     .map(block => block.text)

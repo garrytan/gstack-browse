@@ -329,7 +329,7 @@ Logging simplification's advisories as `findings: 0` would auto-gate the
 lens into permanent silence after 10 dispatches.
 
 Include the Design specialist even though it uses `design-checklist.md` instead of the specialist schema files.
-Remember these stats — you will need them for the review-log entry in Step 5.8.
+Remember these stats — you will need them for the review-log persist.
 
 ---
 
@@ -391,6 +391,8 @@ If no prior reviews exist or none have a `findings` array, skip this step silent
 
 Output a summary header: `Pre-Landing Review: N issues (X critical, Y informational)`
 
+**Resume the Step 9 checklist at item 4 below.** The intervening Step 9.x specialist phases augment items 1-3; they do not replace the Fix-First processing and persistence that follow.
+
 4. **Classify each finding from both the checklist pass and specialist review (Step 9.1-Step 9.2) as AUTO-FIX or ASK** per the Fix-First Heuristic in
    checklist.md. Critical findings lean toward ASK; informational lean toward AUTO-FIX.
 
@@ -404,9 +406,9 @@ Output a summary header: `Pre-Landing Review: N issues (X critical, Y informatio
    - If 3 or fewer ASK items, you may use individual AskUserQuestion calls instead
 
 7. **After all fixes (auto + user-approved):**
-   - If ANY fixes were applied: commit fixed files by name (`git add <fixed-files> && git commit -m "fix: pre-landing review fixes"`), then **stay in this invocation and loop**: re-run the test suite (Step 5) on the fixed code, then re-run this review (Step 9 items 2-6) against the updated diff. Repeat until one full pass applies ZERO fixes — tests green and review clean — then continue to Step 12. NEVER stop to tell the user to run `/ship` again; a fix-and-rerun cycle has no user decision in it, and stopping there breaks the fully-automated contract (#2391).
+   - If ANY fixes were applied: commit fixed files by name (`git add <fixed-files> && git commit -m "fix: pre-landing review fixes"`), then **stay in this invocation and loop**: re-run the test suite (Step 5) on the fixed code, then re-run this review (Step 9 items 2-6) against the updated diff. Repeat until one full pass applies ZERO fixes — tests green and review clean — then continue to Step 10. NEVER stop to tell the user to run `/ship` again; a fix-and-rerun cycle has no user decision in it, and stopping there breaks the fully-automated contract (#2391).
    - **Bound: 3 fix cycles.** If the 3rd cycle still applies fixes, STOP and report which findings keep reappearing — a review that won't converge is a genuine blocker worth human eyes, not a re-run request.
-   - If no fixes applied (all ASK items skipped, or no issues found): continue to Step 12.
+   - If no fixes applied (all ASK items skipped, or no issues found): continue to Step 10.
 
 8. Output summary: `Pre-Landing Review: N issues — M auto-fixed, K asked (J fixed, L skipped)`
 

@@ -20,8 +20,8 @@ import type { TemplateContext, ResolverFn } from './types';
 import { generatePreamble } from './preamble';
 import { generateTestFailureTriage } from './preamble';
 import { generateDesignMethodology, generateDesignHardRules, generateDesignOutsideVoices, generateDesignReviewLite, generateDesignSketch, generateDesignSetup, generateDesignMockup, generateDesignShotgunLoop, generateTasteProfile, generateUXPrinciples } from './design';
-import { generateTestBootstrap, generateTestCoverageAuditPlan, generateTestCoverageAuditShip } from './testing';
-import { generateReviewDashboard, generatePlanFileReviewReport, generateExitPlanModeGate, generateAntiShortcutClause, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generateCodexDocReview, generatePlanCompletionAuditShip, generatePlanCompletionAuditReview, generatePlanVerificationExec, generateScopeDrift, generateCrossReviewDedup } from './review';
+import { generateTestBootstrap, generateTestCoverageAuditPlan, generateTestCoverageAuditShip, generateTestCoverageGateShip } from './testing';
+import { generateReviewDashboard, generatePlanFileReviewReport, generateExitPlanModeGate, generateAntiShortcutClause, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generateCodexDocReview, generatePlanCompletionAuditShip, generatePlanCompletionGateShip, generatePlanCompletionAuditReview, generatePlanVerificationExec, generateScopeDrift, generateCrossReviewDedup } from './review';
 import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateQAMethodology, generateCoAuthorTrailer, generateChangelogWorkflow, generateCodexWebSearchFlag, generateCodexModelConfigFlag, generateCodexReviewModelConfigFlag, generateClaudeModelFlag, generateSetupCommand } from './utility';
 import { generateLearningsSearch, generateLearningsLog } from './learnings';
 import { generateConfidenceCalibration } from './confidence';
@@ -72,6 +72,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   TEST_BOOTSTRAP: generateTestBootstrap,
   TEST_COVERAGE_AUDIT_PLAN: generateTestCoverageAuditPlan,
   TEST_COVERAGE_AUDIT_SHIP: generateTestCoverageAuditShip,
+  TEST_COVERAGE_GATE_SHIP: generateTestCoverageGateShip,
   TEST_FAILURE_TRIAGE: generateTestFailureTriage,
   SPEC_REVIEW_LOOP: generateSpecReviewLoop,
   DESIGN_SKETCH: generateDesignSketch,
@@ -86,6 +87,7 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   CODEX_PLAN_REVIEW: generateCodexPlanReview,
   CODEX_DOC_REVIEW: generateCodexDocReview,
   PLAN_COMPLETION_AUDIT_SHIP: generatePlanCompletionAuditShip,
+  PLAN_COMPLETION_GATE_SHIP: generatePlanCompletionGateShip,
   PLAN_COMPLETION_AUDIT_REVIEW: generatePlanCompletionAuditReview,
   PLAN_VERIFICATION_EXEC: generatePlanVerificationExec,
   CO_AUTHOR_TRAILER: generateCoAuthorTrailer,

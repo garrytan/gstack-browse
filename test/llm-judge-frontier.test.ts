@@ -24,6 +24,22 @@ describe('frontier Claude judge compatibility', () => {
       { type: 'text', text: '{"score":4}' },
     ] } as never);
     expect(await callJudge('score this', 'claude-fable-5-1')).toEqual({ score: 4 });
+    expect(create.mock.calls[0][0].max_tokens).toBe(8192);
+  });
+
+  test('preserves an explicit output budget', async () => {
+    create.mockResolvedValue({ content: [{ type: 'text', text: '{"score":5}' }] } as never);
+    await callJudge('score this', 'claude-sonnet-4-6', { max_tokens: 2048 });
+    expect(create.mock.calls[0][0].max_tokens).toBe(2048);
+  });
+
+  test('rejects token exhaustion even when a partial answer contains valid JSON', async () => {
+    create.mockResolvedValue({
+      stop_reason: 'max_tokens',
+      content: [{ type: 'text', text: '{"score":4}' }],
+    } as never);
+    await expect(callJudge('score this', 'claude-fable-5-1', { max_tokens: 1024 }))
+      .rejects.toThrow('Judge response truncated at max_tokens=1024');
   });
 
   test('keeps text-only responses and explicit model options working', async () => {

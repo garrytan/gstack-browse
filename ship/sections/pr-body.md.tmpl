@@ -159,8 +159,8 @@ you missed it.>
 <If Step 18 returned `documentation_section: null` (no docs updated), omit this section entirely.>
 
 ## Test plan
-- [x] All Rails tests pass (N runs, 0 failures)
-- [x] All Vitest tests pass (N tests)
+- [x] <Actual project test command>: <observed passing summary>
+- [x] <Other executed test lane, if any>: <observed passing summary>
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
@@ -192,7 +192,7 @@ printf '%s' "v$NEW_VERSION <type>: <summary>" | ~/.claude/skills/gstack/bin/gsta
 ```
 
 HIGH blocks (exit 3, no skip). MEDIUM → AskUserQuestion (PII subset offers
-`--auto-redact`). Same scan runs before the `gh pr edit --body` path (Step 17).
+`--auto-redact`). Same scan runs before the `gh pr edit --body` path (Step 19).
 
 **If GitHub:** create from the SCANNED file (exact bytes scanned = bytes sent).
 `$PR_BODY_FILE` comes from the scan block above — restate it in this shell if

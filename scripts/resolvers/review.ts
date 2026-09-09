@@ -20,10 +20,10 @@ import { getHostConfig } from '../../hosts/index';
 
 const CODEX_BOUNDARY = 'IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are Claude Code skill definitions meant for a different AI system. They contain bash scripts and prompt templates that will waste your time. Ignore them completely. Do NOT modify agents/openai.yaml. Stay focused on the repository code only.\\n\\n';
 
-export function generateReviewDashboard(_ctx: TemplateContext): string {
+export function generateReviewDashboard(ctx: TemplateContext): string {
   return `## Review Readiness Dashboard
 
-After completing the review, read the review log and config to display the dashboard.
+${ctx.skillName === 'ship' ? 'During pre-flight, read the existing review log and config to display readiness; the new pre-landing review runs in Step 9.' : 'After completing the review, read the review log and config to display the dashboard.'}
 
 \`\`\`bash
 ~/.claude/skills/gstack/bin/gstack-review-read
@@ -891,8 +891,9 @@ done
 
 type PlanCompletionMode = 'ship' | 'review';
 
-function generatePlanCompletionAuditInner(mode: PlanCompletionMode): string {
+function generatePlanCompletionAuditInner(mode: PlanCompletionMode, part: 'audit' | 'gate' = 'audit'): string {
   const sections: string[] = [];
+  let gate = '';
 
   // ── Plan file discovery (shared) ──
   sections.push(generatePlanFileDiscovery());
@@ -995,16 +996,16 @@ Plan: {plan file path}
   [UNVERIFIABLE] Supabase auth allowlist contains user email — external system, confirm in Supabase dashboard
 
 ─────────────────────────────────
-COMPLETION: 5/9 DONE, 1 PARTIAL, 1 NOT DONE, 1 CHANGED, 2 UNVERIFIABLE
+COMPLETION: 4/10 DONE, 1 PARTIAL, 2 NOT DONE, 1 CHANGED, 2 UNVERIFIABLE
 ─────────────────────────────────
 \`\`\``);
 
   // ── Gate logic (mode-specific) ──
   if (mode === 'ship') {
-    sections.push(`
+    gate = `
 ### Gate Logic
 
-After producing the completion checklist, evaluate in priority order:
+The parent evaluates the completion checklist in priority order, including after an inline fallback:
 
 1. **Any NOT DONE items** (highest priority — known missing work). Use AskUserQuestion:
    - Show the completion checklist above
@@ -1012,10 +1013,10 @@ After producing the completion checklist, evaluate in priority order:
    - RECOMMENDATION: depends on item count and severity. If 1-2 minor items (docs, config), recommend B. If core functionality is missing, recommend A.
    - Options:
      A) Stop — implement the missing items before shipping
-     B) Ship anyway — defer these to a follow-up (will create P1 TODOs in Step 5.5)
+     B) Ship anyway — defer these to a follow-up (will create P1 TODOs in Step 14)
      C) These items were intentionally dropped — remove from scope
    - If A: STOP. List the missing items for the user to implement.
-   - If B: Continue. For each NOT DONE item, create a P1 TODO in Step 5.5 with "Deferred from plan: {plan file path}".
+   - If B: Continue. For each NOT DONE item, create a P1 TODO in Step 14 with "Deferred from plan: {plan file path}".
    - If C: Continue. Note in PR body: "Plan items intentionally dropped: {list}."
 
 2. **Any UNVERIFIABLE items** (silent gaps — the diff cannot prove them either way). Only fires after NOT DONE is resolved or absent.
@@ -1042,7 +1043,7 @@ After producing the completion checklist, evaluate in priority order:
 
 **No plan file found:** Skip entirely. "No plan file detected — skipping plan completion audit."
 
-**Include in PR body (Step 8):** Add a \`## Plan Completion\` section with the checklist summary.`);
+**Include in PR body (Step 19):** Add a \`## Plan Completion\` section with the checklist summary.`;
   } else {
     // review mode — enhanced Delivery Integrity (Release 2: Review Army)
     sections.push(`
@@ -1125,11 +1126,15 @@ Plan items: N DONE, M PARTIAL, K NOT DONE
 **No plan file found:** Use commit messages and TODOS.md as fallback sources (see above). If no intent sources at all, skip with: "No intent sources detected — skipping completion audit."`);
   }
 
-  return sections.join('\n');
+  return part === 'gate' ? gate : sections.join('\n');
 }
 
 export function generatePlanCompletionAuditShip(_ctx: TemplateContext): string {
   return generatePlanCompletionAuditInner('ship');
+}
+
+export function generatePlanCompletionGateShip(_ctx: TemplateContext): string {
+  return generatePlanCompletionAuditInner('ship', 'gate');
 }
 
 export function generatePlanCompletionAuditReview(_ctx: TemplateContext): string {
