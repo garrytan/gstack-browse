@@ -55,6 +55,11 @@ const POLARITY: Record<string, 'fail-closed' | 'fail-open'> = {
   // the engine binary the user consented to download: an executable arriving
   // on the machine unrecorded is worse than the install failing
   'design-detect-engine-download': 'fail-closed',
+  // memorable-recall: a Claude Code hook hands the user's prompt JSON to a
+  // third-party binary on every prompt. Skipping one recall costs nothing;
+  // an unrecorded hand-off of user content is the thing the ledger exists to
+  // prevent, so it fails closed ("no receipt, no send").
+  'memorable-recall': 'fail-closed',
   // fail-open: user-facing operations that must not die over an audit-log
   // hiccup; they warn on stderr and proceed.
   'design-openai': 'fail-open',
@@ -86,6 +91,10 @@ const MODULE_SINKS = [
   'lib/gbrain-supabase-provision.ts',
   // consent-gated engine download (install verb): receipt before the fetch, fail-closed
   'bin/gstack-design-detect.ts',
+  // The Memorable bridge hook: gstack-owned code that hands each prompt to a
+  // vendor CLI. hosts/ has no curl/fetch for the scanner to see, so the
+  // receipt wiring is pinned here explicitly.
+  'hosts/claude/hooks/memorable-user-prompt-hook.ts',
 ];
 
 /** Shell sinks: must source the shared lib; every network op receipted. */
@@ -333,6 +342,7 @@ describe('egress receipt wiring tripwire', () => {
       'design-detect-engine-download',
       'gbrain-mcp-verify',
       'gbrain-sync',
+      'memorable-recall',
       'memory-ingest',
       'supabase-provision',
       'telemetry-sync',
@@ -366,6 +376,15 @@ describe('egress receipt wiring tripwire', () => {
     expect(provision).toContain('fail-closed');
     expect(provision.indexOf('writeReceipt(')).toBeGreaterThan(0);
     expect(provision.indexOf('writeReceipt(')).toBeLessThan(provision.indexOf('ctx.fetchImpl('));
+    // memorable-recall (closed): the hook's receipt precedes the vendor spawn
+    // (marker-based: the policy lookup spawns git earlier, so plain
+    // `runExternal(` order would be the wrong thing to pin) and a receipt
+    // failure skips the vendor. The behavioural proof lives in
+    // test/memorable-user-prompt-hook.test.ts.
+    const memo = read('hosts/claude/hooks/memorable-user-prompt-hook.ts');
+    expect(memo).toContain('fail-closed');
+    expect(memo.indexOf('writeReceipt(')).toBeGreaterThan(0);
+    expect(memo.indexOf('writeReceipt(')).toBeLessThan(memo.indexOf('// VENDOR SPAWN'));
     // design (open): the wrapper catches receipt errors and proceeds.
     const rf = read('design/src/receipted-fetch.ts');
     expect(rf).toContain('fail-open');
@@ -373,7 +392,7 @@ describe('egress receipt wiring tripwire', () => {
   });
 
   test('NEW-SINK SCANNER: every outbound network op in the tree is wired or reasoned-exempt', () => {
-    const SWEEP = ['bin', 'lib', 'scripts', 'design/src', 'browse/src'];
+    const SWEEP = ['bin', 'lib', 'scripts', 'design/src', 'browse/src', 'hosts'];
     const offenders: string[] = [];
     for (const dirRel of SWEEP) {
       const dir = path.join(ROOT, dirRel);
