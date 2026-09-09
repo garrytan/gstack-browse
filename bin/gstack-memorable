@@ -102,7 +102,7 @@ _lock_release() {
   LOCK_HELD=0
 }
 _lock_acquire() {
-  mkdir -p "$STATE_DIR/locks" 2>/dev/null || { _err "cannot create $STATE_DIR/locks"; return 5; }
+  mkdir -p "$STATE_DIR/locks" 2>/dev/null || { _err "cannot create $STATE_DIR/locks (state directory not writable; nothing can be recorded there)"; return 5; }
   local tries=0 mtime now stale judged moved owner_pid
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     tries=$((tries + 1))
