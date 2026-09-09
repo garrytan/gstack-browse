@@ -963,6 +963,68 @@ describe('remove-source: identity-aware (tag OR table)', () => {
   });
 });
 
+describe('remove-source: identity removal holds for EVERY KNOWN_HOOKS source (regression)', () => {
+  // The semantics change applies to all six rows, but setup's --no-team path
+  // and uninstall lean on four sources this file never exercised behaviourally.
+  const seedAll = () => fs.writeFileSync(settingsFile, JSON.stringify({
+    hooks: {
+      Stop: [
+        { hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/timeline-stop-hook' }] },
+        { hooks: [{ type: 'command', command: '/x/bin/gstack-verify-gate' }] },
+        { hooks: [{ type: 'command', command: '/Users/me/my-stop-hook' }] },
+      ],
+      PostToolUse: [
+        { matcher: AUQ_MATCHER, hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/auq-error-fallback-hook' }] },
+        { matcher: AUQ_MATCHER, hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/question-log-hook' }] },
+      ],
+      SessionStart: [
+        { hooks: [{ type: 'command', command: '/x/bin/gstack-session-update' }] },
+        { hooks: [{ type: 'command', command: '/Users/me/my-session-hook' }] },
+      ],
+    },
+  }, null, 2));
+  const allCommands = () => {
+    const h = settings().hooks ?? {};
+    return Object.values(h).flatMap((entries: any) => entries.flatMap((e: any) => e.hooks.map((i: any) => i.command))).sort();
+  };
+
+  for (const [source, own] of [
+    ['gstack-timeline-stop', '/x/hosts/claude/hooks/timeline-stop-hook'],
+    ['verify-gate', '/x/bin/gstack-verify-gate'],
+    ['auq-error-fallback', '/x/hosts/claude/hooks/auq-error-fallback-hook'],
+    ['gstack-session-update', '/x/bin/gstack-session-update'],
+    ['plan-tune-cathedral', '/x/hosts/claude/hooks/question-log-hook'],
+  ] as const) {
+    test(`remove-source --source ${source} removes exactly its own UNTAGGED item and nothing else`, () => {
+      seedAll();
+      const before = allCommands();
+      const r = run(['remove-source', '--source', source]);
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toMatch(/removed 1 /);
+      expect(allCommands()).toEqual(before.filter((c) => c !== own));
+    });
+  }
+
+  test('a non-array hooks.<event> value is never touched (foreign shape), exit 0', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({ hooks: { UserPromptSubmit: { weird: true }, Stop: [{ hooks: [{ type: 'command', command: '/x/hosts/claude/hooks/timeline-stop-hook' }] }] } }, null, 2));
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.exitCode).toBe(0);
+    expect(r.stdout).toMatch(/removed 0 /);
+    expect(settings().hooks.UserPromptSubmit).toEqual({ weird: true });
+  });
+
+  test('a tagged entry holding only a command-less item, and a tagged multi-item entry with no table rows, are kept with their tags', () => {
+    fs.writeFileSync(settingsFile, JSON.stringify({ hooks: { UserPromptSubmit: [
+      { _gstack_source: 'gstack-memorable', hooks: [{ type: 'command' }] },
+      { _gstack_source: 'gstack-memorable', hooks: [{ type: 'command', command: '/a/foreign' }, { type: 'command', command: '/b/foreign' }] },
+    ] } }, null, 2));
+    const before = fs.readFileSync(settingsFile, 'utf-8');
+    const r = run(['remove-source', '--source', 'gstack-memorable']);
+    expect(r.stdout).toMatch(/removed 0 /);
+    expect(fs.readFileSync(settingsFile, 'utf-8')).toBe(before);
+  });
+});
+
 describe('list-items: read-only identity view', () => {
   const memo = '/stable/gstack/hosts/claude/hooks/memorable-user-prompt-hook';
   const foreign = '/Users/me/my-user-prompt-hook';
@@ -1003,6 +1065,17 @@ describe('list-items: read-only identity view', () => {
     expect(run(['list-items', '--event', 'Notification'])).toMatchObject({ exitCode: 0, stdout: '' });
     fs.rmSync(settingsFile);
     expect(run(['list-items', '--event', 'UserPromptSubmit'])).toMatchObject({ exitCode: 0, stdout: '' });
+  });
+
+  test('an unknown flag exits 1; --owned-by combined with --command-regex intersects (a regex never widens a selection)', () => {
+    seed();
+    expect(run(['list-items', '--event', 'UserPromptSubmit', '--bogus', 'x']).exitCode).toBe(1);
+    const both = run(['list-items', '--event', 'UserPromptSubmit', '--owned-by', 'gstack-memorable', '--command-regex', 'memorable-user-prompt-hook$']);
+    expect(both.stdout.trim().split('\n')).toEqual([JSON.stringify(memo)]);
+    const none = run(['list-items', '--event', 'UserPromptSubmit', '--owned-by', 'gstack-memorable', '--command-regex', 'no-such-thing']);
+    expect(none).toMatchObject({ exitCode: 0, stdout: '' });
+    const vendorOnly = run(['list-items', '--event', 'UserPromptSubmit', '--command-regex', 'memorable']);
+    expect(vendorOnly.stdout.trim().split('\n')).toEqual([JSON.stringify(vendor)]);   // regex alone still excludes owned items
   });
 
   test('exit codes mirror the mutating verbs: 1 usage, 3 unparseable, 4 unexpected shape', () => {

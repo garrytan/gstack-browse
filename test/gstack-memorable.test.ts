@@ -10,6 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'child_process';
+import { canRevokeWrites } from './helpers/fs-caps';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -167,11 +168,7 @@ describe('enable', () => {
     const ro = { GSTACK_HOME: roState, GSTACK_STATE_ROOT: roState, GSTACK_STATE_DIR: roState };
     const r = run(['enable'], ro);
     fs.chmodSync(roState, 0o755);
-    if (r.status === 0) {
-      // running as a user that ignores file modes (root in CI): the write succeeded, nothing to assert on rollback
-      expect(r.stdout).toContain('enabled');
-      return;
-    }
+    if (!canRevokeWrites()) { expect(r.status).toBe(0); return; } // modes not enforced here: the write succeeds
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('could not record consent');
     expect(fs.existsSync(settings) ? (readSettings().hooks ?? {}).UserPromptSubmit : undefined).toBeUndefined(); // fresh registration rolled back
@@ -297,6 +294,135 @@ describe('status (read-only)', () => {
     fs.rmSync(pinned);
     expect(run(['status'], base).stdout).toContain(`available (${onPath})`);
     expect(run(['status'], { ...base, GSTACK_MEMORABLE_BIN: path.join(home, 'missing') }).stdout).toContain('not found');
+  });
+});
+
+describe('enable/disable failure paths (coverage audit)', () => {
+
+  function mixedCanonical(version: string, settingsHookBody?: string) {
+    fs.rmSync(canonical);
+    fs.mkdirSync(path.join(canonical, 'hosts', 'claude', 'hooks'), { recursive: true });
+    fs.mkdirSync(path.join(canonical, 'bin'), { recursive: true });
+    fs.writeFileSync(path.join(canonical, 'bin', 'gstack-session-update'), '#!/bin/sh\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(canonical, HOOK_REL), '#!/bin/sh\n', { mode: 0o755 });
+    fs.writeFileSync(path.join(canonical, `${HOOK_REL}.ts`), '// twin\n');
+    if (settingsHookBody) fs.writeFileSync(path.join(canonical, 'bin', 'gstack-settings-hook'), settingsHookBody, { mode: 0o755 });
+    else { fs.copyFileSync(path.join(ROOT, 'bin', 'gstack-settings-hook'), path.join(canonical, 'bin', 'gstack-settings-hook')); fs.chmodSync(path.join(canonical, 'bin', 'gstack-settings-hook'), 0o755); }
+    fs.writeFileSync(path.join(canonical, 'VERSION'), version);
+  }
+
+  test('enable refuses on a VERSION mismatch alone (hook and twin present)', () => {
+    mixedCanonical('0.0.0.0\n');
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("is version '0.0.0.0'");
+    expect(fs.existsSync(settings)).toBe(false);
+  });
+
+  test('enable refuses when the stable hook manager does not know list-items', () => {
+    mixedCanonical(fs.readFileSync(path.join(ROOT, 'VERSION'), 'utf8'), '#!/bin/sh\necho "Unknown action: $1" >&2\nexit 1\n');
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('does not know list-items');
+    expect(fs.existsSync(settings)).toBe(false);
+  });
+
+  test('enable refuses when BOTH gstack and the vendor are registered; disable then removes only gstack\'s entry', () => {
+    writeSettings({ hooks: { UserPromptSubmit: [
+      { hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}`, timeout: 5 }] },
+      { hooks: [{ type: 'command', command: vendorOwn() }] },
+    ] } });
+    const before = fs.readFileSync(settings, 'utf8');
+    const r = run(['enable']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('already registers this hook itself');
+    expect(fs.readFileSync(settings, 'utf8')).toBe(before);
+    const d = run(['disable']);
+    expect(d.status).toBe(0);
+    expect(commands()).toEqual([vendorOwn()]);
+  });
+
+  test('enable passes the hook manager\'s lock give-up (exit 5) through and leaves the gate untouched', () => {
+    fs.mkdirSync(`${settings}.lock`, { recursive: true });
+    fs.writeFileSync(path.join(`${settings}.lock`, 'owner'), 'another-live-process');
+    // the hook manager's give-up defaults to 10 s; its test-only override keeps this fast
+    const r = run(['enable'], { GSTACK_SETTINGS_LOCK_TIMEOUT_MS: '500' });
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('settings hook update failed');
+    expect(gate()).toBe('off');
+    expect(fs.existsSync(settings)).toBe(false);
+  }, 30_000);
+
+  test('disable surfaces a hook-manager lock give-up as exit 5 after flipping the gate off', () => {
+    setGate('on');
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}` }] }] } });
+    fs.mkdirSync(`${settings}.lock`, { recursive: true });
+    fs.writeFileSync(path.join(`${settings}.lock`, 'owner'), 'another-live-process');
+    const r = run(['disable'], { GSTACK_SETTINGS_LOCK_TIMEOUT_MS: '500' });
+    expect(r.status).toBe(5);
+    expect(gate()).toBe('off');
+    expect(r.stdout).toContain('consent: memorable_recall=off');
+    expect(r.stderr).toContain('survived');
+  }, 30_000);
+
+  test('a FRESH bridge lock held by another process makes enable exit 5 after the wait, lock left in place', () => {
+    const lock = path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock');
+    fs.mkdirSync(lock, { recursive: true });
+    fs.writeFileSync(path.join(lock, 'ts'), String(Math.floor(Date.now() / 1000)));
+    fs.writeFileSync(path.join(lock, 'owner'), '999999');
+    const t0 = Date.now();
+    const r = run(['enable']);
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('another gstack-memorable is running');
+    expect(Date.now() - t0).toBeGreaterThan(4000);
+    expect(fs.existsSync(lock)).toBe(true);
+    expect(fs.existsSync(settings)).toBe(false);
+  }, 30_000);
+
+  test('consent-write failure with a PRE-EXISTING registration keeps the registration and restores the prior gate', () => {
+    if (!canRevokeWrites()) return; // chmod is advisory here (win32, root, DAC-override containers)
+    // state dir: gate already 'on' from an earlier enable, then made read-only
+    setGate('on');
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}`, timeout: 5 }] }] } });
+    fs.chmodSync(path.join(env.GSTACK_HOME, 'config.yaml'), 0o444);
+    fs.chmodSync(env.GSTACK_HOME, 0o555);
+    const r = run(['enable']);
+    fs.chmodSync(env.GSTACK_HOME, 0o755);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('could not record consent');
+    expect(commands()).toEqual([`${canonical}/${HOOK_REL}`]);   // pre-existing registration kept
+    expect(gate()).toBe('on');                                    // prior value, not an assumed off
+  });
+
+  test('disable reports a failed consent write, still removes the hook, exits 1', () => {
+    if (!canRevokeWrites()) return; // chmod is advisory here (win32, root, DAC-override containers)
+    setGate('on');
+    writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}` }] }] } });
+    fs.chmodSync(path.join(env.GSTACK_HOME, 'config.yaml'), 0o444);
+    fs.chmodSync(env.GSTACK_HOME, 0o555);
+    const r = run(['disable']);
+    fs.chmodSync(env.GSTACK_HOME, 0o755);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('consent: could not set');
+    expect(r.stdout).toContain('hook: removed');
+  });
+
+  test('usage: no verb exits 1 with usage on stderr; -h exits 0 with usage on stdout', () => {
+    const none = run([]);
+    expect(none.status).toBe(1);
+    expect(none.stderr).toContain('Usage: gstack-memorable');
+    const help = run(['-h']);
+    expect(help.status).toBe(0);
+    expect(help.stdout).toContain('Usage: gstack-memorable');
+  });
+
+  test('status names the Windows deferral and counts real receipts for the sink', () => {
+    expect(run(['status'], { GSTACK_MEMORABLE_TEST_UNAME: 'MINGW64_NT-10.0' }).stdout).toContain('platform: Windows is not supported');
+    for (let i = 0; i < 2; i++) {
+      const w = spawnSync('bun', [path.join(ROOT, 'bin', 'gstack-egress-receipt'), 'write', '--sink', 'memorable-recall', '--host', 'local:/x/memorable', '--class', 'c', '--no-payload', '--consent', 'memorable_recall=on'], { env, encoding: 'utf8', timeout: 20_000 });
+      expect(w.status).toBe(0);
+    }
+    expect(run(['status']).stdout).toContain('receipts: 2 for sink memorable-recall');
   });
 });
 

@@ -25,7 +25,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { listReceipts, sha256Hex, verifyLedger } from '../lib/egress-receipt';
 import {
-  budgetFor, capUtf8, pickAdditionalContext, renderContext, stringLeaves, vendorEnv,
+  budgetFor, capUtf8, pickAdditionalContext, renderContext, resolveVendor, stringLeaves, stripControl, vendorEnv,
   OUTPUT_CAP_BYTES, ENVELOPE_SOURCE,
 } from '../hosts/claude/hooks/memorable-user-prompt-hook.ts';
 import { runExternal } from '../hosts/claude/hooks/spawn-bin';
@@ -342,6 +342,57 @@ describe('input bounds and fail-closed receipt', () => {
   });
 });
 
+describe('input shapes and environment (coverage audit)', () => {
+  test('a non-object JSON payload ("just a string", 42) exits 0 with nothing spawned and nothing logged', () => {
+    gateOn();
+    for (const input of ['"just a string"', '42', 'null']) {
+      expect(runHook(input)).toEqual({ status: 0, stdout: '', stderr: '' });
+    }
+    expect(calls()).toBe('');
+    expect(errLog()).toBe('');
+  });
+
+  test('a cwd that no longer exists falls back to the process cwd and the vendor still runs', () => {
+    gateOn();
+    const gone = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-gone-'));
+    fs.rmSync(gone, { recursive: true, force: true });
+    const r = runHook(JSON.stringify({ prompt: 'x', cwd: gone }));
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('remembered');
+  });
+
+  test('a non-ASCII prompt is receipted by BYTE length, not string length', () => {
+    gateOn();
+    const prompt = JSON.stringify({ prompt: 'déployer la migration — 日本語' });
+    expect(Buffer.byteLength(prompt)).not.toBe(prompt.length);
+    runHook(prompt);
+    const rs = receipts();
+    expect(rs).toHaveLength(1);
+    expect(rs[0].bytes).toBe(Buffer.byteLength(prompt));
+    expect(rs[0].sha256).toBe(sha256Hex(Buffer.from(prompt)));
+    expect(Buffer.from(fs.readFileSync(path.join(home, 'stdin.bin')))).toEqual(Buffer.from(prompt));
+  });
+
+  test('stdin never closed: the hook gives up reading within its stdin cap, spawns nothing, exits 0', async () => {
+    gateOn();
+    const t0 = Date.now();
+    const child = Bun.spawn(['bash', HOOK], { stdin: 'pipe', env, stdout: 'pipe', stderr: 'pipe' });
+    child.stdin.write('{"prompt":"partial'); // never closed
+    const code = await child.exited;
+    expect(code).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(4000);
+    expect(calls()).toBe('');
+  }, 15_000);
+
+  test('the bash shim without bun on PATH exits 0 with empty stdout', () => {
+    gateOn();
+    const r = spawnSync('bash', [HOOK], { input: PROMPT, env: { ...env, PATH: '/usr/bin:/bin' }, timeout: 20_000 });
+    expect(r.status).toBe(0);
+    expect((r.stdout ?? Buffer.alloc(0)).toString()).toBe('');
+    expect(calls()).toBe('');
+  });
+});
+
 describe('pure helpers', () => {
   test('budgetFor never goes negative and honours the cap', () => {
     expect(budgetFor(1000, 1000)).toBe(4500);
@@ -366,6 +417,27 @@ describe('pure helpers', () => {
     expect(pickAdditionalContext(JSON.stringify({ decision: 'block' }))).toBeNull();
     expect(pickAdditionalContext('nope')).toBeNull();
   });
+  test('stripControl drops C0 controls and DEL but keeps tab and newline', () => {
+    const input = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(27) + '\tc\nd' + String.fromCharCode(127) + 'e';
+    expect(stripControl(input)).toBe('ab\tc\nde');
+  });
+  test('resolveVendor: explicit override wins, may be quoted, and an unresolvable or non-executable override is null (no fall-through)', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-resolve-'));
+    try {
+      const exe = path.join(dir, 'vendor'); fs.writeFileSync(exe, '#!/bin/sh\n', { mode: 0o755 });
+      const plain = path.join(dir, 'plain'); fs.writeFileSync(plain, '#!/bin/sh\n', { mode: 0o644 });
+      const homeDir = path.join(dir, 'home'); fs.mkdirSync(path.join(homeDir, '.memorable', 'bin'), { recursive: true });
+      const pinned = path.join(homeDir, '.memorable', 'bin', 'memorable'); fs.writeFileSync(pinned, '#!/bin/sh\n', { mode: 0o755 });
+      expect(resolveVendor({ GSTACK_MEMORABLE_BIN: exe, MEMORABLE_BIN: pinned }, homeDir)).toBe(exe);
+      expect(resolveVendor({ MEMORABLE_BIN: `"${exe}"` }, homeDir)).toBe(exe);
+      expect(resolveVendor({ GSTACK_MEMORABLE_BIN: path.join(dir, 'missing') }, homeDir)).toBeNull();
+      expect(resolveVendor({ GSTACK_MEMORABLE_BIN: plain }, homeDir)).toBeNull();
+      expect(resolveVendor({}, homeDir)).toBe(pinned);
+      expect(resolveVendor({ PATH: '/nonexistent' }, path.join(dir, 'nohome'))).toBeNull();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
   test('stringLeaves is bounded', () => {
     let deep: unknown = 'leaf';
     for (let i = 0; i < 100; i++) deep = { d: deep };
@@ -378,6 +450,17 @@ describe('runExternal (spawn-bin)', () => {
   test('win32 is refused without spawning (EPLATFORM)', async () => {
     const r = await runExternal('sh', ['-c', 'echo hi'], { timeoutMs: 1000, platform: 'win32' });
     expect(r.error).toBe('EPLATFORM');
+    expect(r.stdout.length).toBe(0);
+  });
+  test('a missing executable resolves with error ENOENT, status null, no timeout', async () => {
+    const r = await runExternal('/nonexistent/binary', [], { timeoutMs: 2000 });
+    expect(r.error).toBe('ENOENT');
+    expect(r.status).toBeNull();
+    expect(r.timedOut).toBe(false);
+  });
+  test('input undefined closes the child stdin immediately (cat sees EOF)', async () => {
+    const r = await runExternal('cat', [], { timeoutMs: 2000 });
+    expect(r.status).toBe(0);
     expect(r.stdout.length).toBe(0);
   });
   test('a fork-style child is contained by the group kill on timeout', async () => {

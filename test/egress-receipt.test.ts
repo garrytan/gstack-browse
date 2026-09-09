@@ -167,6 +167,20 @@ describe('egress receipt library', () => {
     expect(verifyLedger(home).ok).toBe(true);
   });
 
+  test('lockBudgetMs 0 on a held lock tries once and fails closed in well under 100 ms; writeOutcome rejects garbage too', () => {
+    const ledger = egressLedgerPath(home);
+    const { id } = writeReceipt({ home, sink: 's', host: 'h', payloadClass: 'p', consent: 'c' });
+    fs.mkdirSync(`${ledger}.lock`);
+    const t0 = Date.now();
+    expect(() => writeReceipt({ home, sink: 's', host: 'h', payloadClass: 'p', consent: 'c', lockBudgetMs: 0 })).toThrow(/locked/);
+    expect(Date.now() - t0).toBeLessThan(100);
+    fs.rmdirSync(`${ledger}.lock`);
+    const lines = fs.readFileSync(ledger, 'utf8').trim().split('\n').length;
+    expect(() => writeOutcome({ home, receipt: id, status: 'x', lockBudgetMs: -5 })).toThrow(/lockBudgetMs/);
+    expect(() => writeOutcome({ home, receipt: id, status: 'x', lockBudgetMs: Number.POSITIVE_INFINITY })).toThrow(/lockBudgetMs/);
+    expect(fs.readFileSync(ledger, 'utf8').trim().split('\n').length).toBe(lines); // nothing appended
+  });
+
   test('lockBudgetMs rejects garbage before touching the ledger', () => {
     expect(() => writeReceipt({ home, sink: 's', host: 'h', payloadClass: 'p', consent: 'c', lockBudgetMs: -1 })).toThrow(/lockBudgetMs/);
     expect(() => writeReceipt({ home, sink: 's', host: 'h', payloadClass: 'p', consent: 'c', lockBudgetMs: Number.NaN })).toThrow(/lockBudgetMs/);

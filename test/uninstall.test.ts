@@ -352,6 +352,36 @@ describe('the Memorable bridge hook is removed by name and the kept config is le
   }, 30000);
 });
 
+describe('the Memorable arm stays quiet when nothing of its is registered', () => {
+  test('no memorable entry -> no "Memorable UserPromptSubmit hook" in the summary, exit 0', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-uninstall-memo-none-'));
+    try {
+      const mockHome = path.join(tmp, 'home');
+      const installRoot = path.join(mockHome, '.claude', 'skills', 'gstack');
+      const installBin = path.join(installRoot, 'bin');
+      fs.mkdirSync(installBin, { recursive: true });
+      for (const b of ['gstack-uninstall', 'gstack-settings-hook', 'gstack-session-update', 'gstack-config']) {
+        const dst = path.join(installBin, b);
+        fs.copyFileSync(path.join(ROOT, 'bin', b), dst);
+        fs.chmodSync(dst, 0o755);
+      }
+      const settingsFile = path.join(mockHome, '.claude', 'settings.json');
+      fs.writeFileSync(settingsFile, JSON.stringify({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: '/Users/me/my-own-hook' }] }] } }, null, 2));
+      fs.mkdirSync(path.join(mockHome, '.gstack'), { recursive: true });
+      const result = spawnSync('bash', [path.join(installBin, 'gstack-uninstall'), '--force', '--keep-state'], {
+        stdio: 'pipe', timeout: 30_000, encoding: 'utf-8', cwd: tmp,
+        env: { ...process.env, HOME: mockHome, GSTACK_SETTINGS_FILE: settingsFile, GSTACK_STATE_ROOT: path.join(mockHome, '.gstack') },
+      });
+      expect(result.status).toBe(0);
+      expect(result.stdout).not.toContain('Memorable UserPromptSubmit hook');
+      const s = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
+      expect(s.hooks.UserPromptSubmit[0].hooks[0].command).toBe('/Users/me/my-own-hook');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }, 30000);
+});
+
 describe('hook cleanup under lock contention is loud, never silent (review-army)', () => {
   test('a held foreign lock during uninstall surfaces the give-up warning on stderr', () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-uninstall-lock-'));
