@@ -59,7 +59,9 @@ if [ ! -x "$CANONICAL_GSTACK_ROOT/bin/gstack-session-update" ] \
 fi
 HOOK_CMD_PATH="$CANONICAL_GSTACK_ROOT/$HOOK_REL"
 # Mutations go through the CANONICAL hook manager so the code that registers
-# is the code that will run; status falls back to this tree's copy for reads.
+# is the code that will run. Every verb falls back to this tree's copy when the
+# canonical one is missing (enable cannot get past compat_check then; disable
+# and status must still work against a half-removed install).
 SETTINGS_HOOK="$CANONICAL_GSTACK_ROOT/bin/gstack-settings-hook"
 [ -x "$SETTINGS_HOOK" ] || SETTINGS_HOOK="$SCRIPT_DIR/gstack-settings-hook"
 EGRESS_BIN="$CANONICAL_GSTACK_ROOT/bin/gstack-egress"
@@ -101,7 +103,7 @@ _lock_release() {
 }
 _lock_acquire() {
   mkdir -p "$STATE_DIR/locks" 2>/dev/null || { _err "cannot create $STATE_DIR/locks"; return 5; }
-  local tries=0 mtime now
+  local tries=0 mtime now stale
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     tries=$((tries + 1))
     # Staleness from the directory's own mtime (set atomically by the holder's
@@ -112,7 +114,13 @@ _lock_acquire() {
     mtime="$(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo "")"
     case "$mtime" in *[!0-9]*|"") mtime="" ;; esac
     now="$(date +%s)"
-    if [ -n "$mtime" ] && [ $((now - mtime)) -gt "$LOCK_STALE_S" ]; then rm -rf "$LOCK_DIR"; continue; fi
+    if [ -n "$mtime" ] && [ $((now - mtime)) -gt "$LOCK_STALE_S" ]; then
+      # Atomic rename: exactly one contender reclaims a stale lock; the loser
+      # loops and re-contends against the winner's fresh mkdir.
+      stale="$LOCK_DIR.stale.$$-$RANDOM"
+      if mv "$LOCK_DIR" "$stale" 2>/dev/null; then rm -rf "$stale" 2>/dev/null || true; fi
+      continue
+    fi
     if [ "$tries" -ge "$LOCK_TRIES" ]; then _err "another gstack-memorable is running (lock $LOCK_DIR); try again"; return 5; fi
     sleep "$LOCK_SLEEP"
   done
@@ -205,7 +213,7 @@ enable_bridge() {
   [ -x "$SETTINGS_HOOK" ] || { _err "missing hook manager: $SETTINGS_HOOK"; return 1; }
   [ -x "$GSTACK_CONFIG" ] || { _err "missing $GSTACK_CONFIG"; return 1; }
   if [ "$IS_WINDOWS" -eq 1 ]; then
-    _err "Windows is not supported by the Memorable bridge yet (no way to contain the vendor process); tracked in TODOS.md D21"
+    _err "Windows is not supported by the Memorable bridge yet (no way to contain the vendor process); tracked in TODOS.md: Windows support for the Memorable bridge (D21)"
     return 1
   fi
   vendor="$(resolve_memorable)" || { _err "Memorable CLI not found (checked $RESOLUTION_ORDER). Install it yourself: npm i -g memorable-cli. gstack never installs it."; return 1; }
@@ -337,7 +345,7 @@ status_bridge() {
   esac
   if [ "$gate" = "on" ] && [ "$REG_STATE" = "none" ]; then echo "mismatch: gate on, no hook registered (run: gstack-memorable enable)"; fi
   if [ "$gate" != "on" ] && { [ "$REG_STATE" = "gstack" ] || [ "$REG_STATE" = "both" ]; }; then echo "mismatch: hook registered but gate is '$gate' (hook is inert; run: gstack-memorable disable to remove it)"; fi
-  if [ "$IS_WINDOWS" -eq 1 ]; then echo "platform: Windows is not supported by this bridge yet (TODOS.md D21)"; fi
+  if [ "$IS_WINDOWS" -eq 1 ]; then echo "platform: Windows is not supported by this bridge yet (TODOS.md: Windows support for the Memorable bridge, D21)"; fi
   if [ -x "$EGRESS_BIN" ] && command -v bun >/dev/null 2>&1; then
     # Count the filtered array, not a formatting artefact of the pretty-printed JSON.
     n="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null | bun -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]");console.log(Array.isArray(a)?a.length:0)' 2>/dev/null)"
