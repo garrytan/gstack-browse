@@ -179,7 +179,11 @@ compat_check() {
     _err "the stable install at $CANONICAL_GSTACK_ROOT is version '${there:-unknown}' but this tree is '$here'; run ./setup so the registered hook is the code that will run"
     return 1
   fi
-  if "$SETTINGS_HOOK" list-items 2>&1 | grep -q "Unknown action"; then
+  # Captured, not piped: under pipefail the probe's own non-zero exit would
+  # mask a matching grep and let an old hook manager through.
+  local probe
+  probe="$("$SETTINGS_HOOK" list-items 2>&1)" || true
+  if printf '%s' "$probe" | grep -q "Unknown action"; then
     _err "the stable install's hook manager does not know list-items; run ./setup first"; return 1
   fi
   return 0
