@@ -10,7 +10,7 @@ Conventions:
 
 ## Skills
 
-- [/autoplan](autoplan/SKILL.md): Auto-review pipeline — reads the full CEO, design, eng, and DX review skills from disk and runs them sequentially with auto-decisions using 6 decision principles.
+- [/autoplan](autoplan/SKILL.md): Run full GStack product, design, engineering, DX review.
 - [/benchmark](benchmark/SKILL.md): Performance regression detection.
 - [/benchmark-models](benchmark-models/SKILL.md): Cross-model benchmark for gstack skills.
 - [/browse](browse/SKILL.md): Drive a real browser through Aside: open a page, read it, click through a flow, take screenshots, check console errors.
@@ -34,7 +34,7 @@ Conventions:
 - [/gstack-upgrade](gstack-upgrade/SKILL.md): Upgrade gstack to the latest version.
 - [/guard](guard/SKILL.md): Full safety mode: destructive command warnings + directory-scoped edits.
 - [/health](health/SKILL.md): Code quality dashboard.
-- [/investigate](investigate/SKILL.md): Systematic debugging with root cause investigation.
+- [/investigate](investigate/SKILL.md): Debug root causes with the full GStack runtime.
 - [/ios-clean](ios-clean/SKILL.md): Remove the DebugBridge SPM package and all #if DEBUG wiring from an iOS app.
 - [/ios-design-review](ios-design-review/SKILL.md): Visual design audit for iOS apps on real hardware.
 - [/ios-fix](ios-fix/SKILL.md): Autonomous iOS bug fixer.
