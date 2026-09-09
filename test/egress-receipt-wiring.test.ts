@@ -52,6 +52,9 @@ const POLARITY: Record<string, 'fail-closed' | 'fail-open'> = {
   'browse-tunnel (ngrok)': 'fail-closed',
   'gbrain-mcp-verify': 'fail-closed',
   'supabase-provision': 'fail-closed',
+  // the engine binary the user consented to download: an executable arriving
+  // on the machine unrecorded is worse than the install failing
+  'design-detect-engine-download': 'fail-closed',
   // fail-open: user-facing operations that must not die over an audit-log
   // hiccup; they warn on stderr and proceed.
   'design-openai': 'fail-open',
@@ -81,6 +84,8 @@ const MODULE_SINKS = [
   // supabase-provision engine (bin/gstack-gbrain-supabase-provision is a thin
   // bun-shebang entry over this module; the receipt lives at the api-call layer).
   'lib/gbrain-supabase-provision.ts',
+  // consent-gated engine download (install verb): receipt before the fetch, fail-closed
+  'bin/gstack-design-detect.ts',
 ];
 
 /** Shell sinks: must source the shared lib; every network op receipted. */
@@ -144,12 +149,14 @@ const SCANNER_EXEMPT: Record<string, string> = {
 };
 
 // Documented non-sink (not an exemption; nothing here matches the scanner):
-// bin/gstack-design-detect.ts spawns a third-party engine binary the USER
-// installed (impeccable) over local file paths under the repo root or the
-// design-report allow-list. URL targets are refused, so gstack never asks the
-// engine to touch the network; the engine's own network behavior is not audited
-// by gstack (NOTICE.md says so). This is a class the tripwire cannot see —
-// a spawned binary, not curl/fetch/git — recorded here so the posture is explicit.
+// bin/gstack-design-detect.ts `scan` spawns a third-party engine binary
+// (impeccable) over local file paths under the repo root or the design-report
+// allow-list. URL targets are refused, so gstack never asks the engine to touch
+// the network; the engine's own network behavior is not audited by gstack
+// (NOTICE.md says so). This is a class the tripwire cannot see — a spawned
+// binary, not curl/fetch/git — recorded here so the posture is explicit. The
+// same file's `install` verb IS a sink (the consented engine download) and is
+// registered in MODULE_SINKS above with fail-closed polarity.
 
 function isExempt(rel: string): string | undefined {
   for (const [key, reason] of Object.entries(SCANNER_EXEMPT)) {
@@ -323,6 +330,7 @@ describe('egress receipt wiring tripwire', () => {
     expect(closed.sort()).toEqual([
       'brain-sync',
       'browse-tunnel (ngrok)',
+      'design-detect-engine-download',
       'gbrain-mcp-verify',
       'gbrain-sync',
       'memory-ingest',

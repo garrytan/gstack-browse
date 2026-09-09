@@ -173,3 +173,24 @@ describe('design_detector (auto|off, rejecting validator)', () => {
     expect(get('design_detector').out).toBe('auto');
   });
 });
+
+describe('design_detector_install_prompted (true|false, rejecting validator)', () => {
+  const env = { ...process.env, GSTACK_STATE_ROOT: STATE };
+  test('defaults to false, rejects a typo with the file unchanged, round-trips true/false, and is enumerated', () => {
+    expect(get('design_detector_install_prompted')).toEqual({ out: 'false', code: 0 });
+    const file = path.join(STATE, 'config.yaml');
+    const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null;
+    const bad = spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector_install_prompted', 'yes'], { encoding: 'utf-8', timeout: 30_000, env });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toContain("design_detector_install_prompted 'yes' not recognized");
+    expect(fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null).toBe(before);
+    spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector_install_prompted', 'true'], { encoding: 'utf-8', timeout: 30_000, env });
+    expect(get('design_detector_install_prompted').out).toBe('true');
+    spawnSync('bash', [CONFIG_BIN, 'set', 'design_detector_install_prompted', 'false'], { encoding: 'utf-8', timeout: 30_000, env });
+    expect(get('design_detector_install_prompted').out).toBe('false');
+    for (const verb of ['list', 'defaults']) {
+      const r = spawnSync('bash', [CONFIG_BIN, verb], { encoding: 'utf-8', timeout: 30_000, env });
+      expect(r.stdout).toMatch(/design_detector_install_prompted:\s+false/);
+    }
+  });
+});

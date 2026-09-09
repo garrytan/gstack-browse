@@ -11,7 +11,8 @@
 //         ──► always:  IMPECCABLE_SKILL, IMPECCABLE_HOOK, IMPECCABLE_IGNORED_RULES, IMPECCABLE_IGNORED_FILES,
 //                      IMPECCABLE_IGNORED_VALUES
 //         ──► maybe:   IMPECCABLE_HOOK_OTHER, IMPECCABLE_CONFIG_UNREADABLE, IMPECCABLE_ENV_IGNORED,
-//                      IMPECCABLE_ENGINE_UNTESTED, DESIGN_DETECTOR_HINT
+//                      IMPECCABLE_ENGINE_UNTESTED, DESIGN_DETECTOR_HINT, DESIGN_DETECTOR_INSTALL_OFFER
+//   install ──► IMPECCABLE_INSTALLED: <path> ... | IMPECCABLE_INSTALL_REFUSED: <reason>  (then the probe lines)
 //   scan  ──► stdout:  one JSON document (--format gstack) or engine bytes (--format raw)
 //         ──► stderr:  DETECT_TOP block, DETECT_SUMMARY, DETECT_EXIT, DETECT_REFUSED / DETECT_NO_TARGETS /
 //                      DETECT_TIMEOUT / DETECT_PARSE_ERROR / DETECT_OUTPUT_TOO_LARGE
@@ -31,6 +32,12 @@ export const SENTINEL = {
   CONFIG_UNREADABLE: 'IMPECCABLE_CONFIG_UNREADABLE',
   ENV_IGNORED: 'IMPECCABLE_ENV_IGNORED',
   ENGINE_UNTESTED: 'IMPECCABLE_ENGINE_UNTESTED',
+  /** the probe found no engine and the user has not answered the install offer yet: the skill asks once */
+  INSTALL_OFFER: 'DESIGN_DETECTOR_INSTALL_OFFER',
+  /** `install` placed a checksum-verified engine under the user's home */
+  INSTALLED: 'IMPECCABLE_INSTALLED',
+  /** `install` did not write anything, reason after the colon */
+  INSTALL_REFUSED: 'IMPECCABLE_INSTALL_REFUSED',
   HINT: 'DESIGN_DETECTOR_HINT',
   DETECT_EXIT: 'DETECT_EXIT',
   DETECT_EXIT_CODE: 'DETECT_EXIT_CODE',
@@ -76,11 +83,42 @@ export const SELF_DESCRIBING_SENTINELS: readonly string[] = [
   SENTINEL.ENGINE_UNTESTED, SENTINEL.DETECT_EXIT, SENTINEL.DETECT_REFUSED, SENTINEL.DETECT_NO_TARGETS,
   SENTINEL.DETECT_TIMEOUT, SENTINEL.DETECT_PARSE_ERROR, SENTINEL.DETECT_OUTPUT_TOO_LARGE,
   SENTINEL.DESIGN_MD_TOKEN_REF_INVALID, SENTINEL.DESIGN_MD_WRITTEN, SENTINEL.DESIGN_MD_BACKUP, SENTINEL.DESIGN_MD_EDIT_REFUSED,
-  SENTINEL.PROBE_STEP, SENTINEL.ENGINE_STDERR, SENTINEL.DOM_DUMP_MISSING,
+  SENTINEL.PROBE_STEP, SENTINEL.ENGINE_STDERR, SENTINEL.DOM_DUMP_MISSING, SENTINEL.INSTALLED, SENTINEL.INSTALL_REFUSED,
 ];
 
 /** Engine versions the committed fixtures were captured from. */
 export const TESTED_ENGINE_VERSIONS: readonly string[] = ['0.1.3'];
+
+/** Where impeccable publishes its engine binaries (GitHub Releases of pbakaus/impeccable, tag engine-v<version>). */
+export const ENGINE_RELEASE_BASE = 'https://github.com/pbakaus/impeccable/releases/download';
+
+/** `${process.platform}-${process.arch}` → the release asset's platform suffix (`impeccable-<suffix>`, `.exe` on Windows). */
+export const ENGINE_ASSETS: Readonly<Record<string, string>> = {
+  'darwin-arm64': 'darwin-arm64',
+  'darwin-x64': 'darwin-x64',
+  'linux-x64': 'linux-x64',
+  'linux-arm64': 'linux-arm64',
+  'win32-x64': 'windows-x64',
+};
+
+/**
+ * Checksums gstack pins for the engine versions it has tested, per platform:
+ * the `install` verb refuses a download whose bytes do not hash to the pin.
+ * Captured 2026-09-09 from the release's own .sha256 sidecars
+ * (https://github.com/pbakaus/impeccable/releases/tag/engine-v0.1.3); the
+ * linux-x64 hash also matches the engine gstack's fixtures were captured with.
+ * A pin recorded in this repo defends against a swapped release asset, which a
+ * same-origin sidecar cannot; adding a version means re-capturing the fixtures.
+ */
+export const ENGINE_PINS: Readonly<Record<string, Readonly<Record<string, { sha256: string; bytes: number }>>>> = {
+  '0.1.3': {
+    'darwin-arm64': { sha256: '23821135d4c62f1428fd15ddb9e91d695402727f43b13a6eb3e9f31fc01b4072', bytes: 12677904 },
+    'darwin-x64': { sha256: 'a5bb0ae15d1bd8f61ebd2a6a21d39c2b357a211c39b4b95cc2a947cdb10a4db4', bytes: 14300496 },
+    'linux-x64': { sha256: 'afc7a424e0bd6c606b7be4c773c70e87284afbdb41d748eb9a34f8a4478e57da', bytes: 15991120 },
+    'linux-arm64': { sha256: '523c0a223ac0c1522489759a9f56dccb0b458b42d6a5c66e74e6fe2255af60ce', bytes: 13262480 },
+    'windows-x64': { sha256: '50846da00b48f7df5a82adc6c1ef1c82da0a890ac95e65cdd5da12aab2de6c1d', bytes: 14638984 },
+  },
+};
 
 /** Rules the engine reports but never counts (they never change its exit code). */
 export const ADVISORY_RULE_IDS: readonly string[] = ['em-dash-overuse'];
@@ -111,6 +149,9 @@ export const DETECT_LIMITS = {
   gitTimeoutMs: 30_000,
   /** whole-scan wall clock, as a multiple of the per-batch timeout: a huge target set stops, it never grinds for hours */
   totalTimeoutFactor: 5,
+  /** the engine download the user consented to: twice the largest pinned asset, and a hard wall clock */
+  engineDownloadBytes: 32 * 1024 * 1024,
+  engineDownloadTimeoutMs: 120_000,
   gitMaxBuffer: 64 * 1024 * 1024,
   field: { id: 64, engineVersion: 64, message: 120, snippet: 120, value: 200, file: 4096, diagnostic: 400, refusedTarget: 200, parseErrorPreview: 80, internalError: 300 },
 } as const;

@@ -11,8 +11,9 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { spawnSync } from 'child_process';
-import { SENTINEL, DETECT_LIMITS, UNTRUSTED_BEGIN, UNTRUSTED_END } from '../lib/design-detect-contract';
+import { createHash } from 'crypto';
+import { spawnSync, spawn } from 'child_process';
+import { SENTINEL, DETECT_LIMITS, UNTRUSTED_BEGIN, UNTRUSTED_END, ENGINE_ASSETS, ENGINE_PINS, TESTED_ENGINE_VERSIONS } from '../lib/design-detect-contract';
 import { installFakeImpeccable, DETECT_SAMPLE as SAMPLE } from './helpers/fake-impeccable';
 
 const ROOT = path.join(import.meta.dir, '..');
@@ -77,6 +78,33 @@ function run(args: string[], opts: RunOpts = {}) {
 }
 
 function lines(s: string) { return s.split('\n').filter(Boolean); }
+
+/**
+ * Same as run(), but asynchronous: a test that serves a loopback mirror with
+ * Bun.serve in THIS process must not block its own event loop with spawnSync,
+ * or the child's fetch waits forever for a server that can never answer.
+ */
+function runAsync(args: string[], opts: RunOpts = {}): Promise<{ code: number; out: string; err: string }> {
+  const env: Record<string, string> = {
+    PATH: [BUN_DIR, '/usr/bin', '/bin', '/usr/local/bin'].join(path.delimiter),
+    HOME: path.join(SANDBOX, 'fake-home'),
+    GSTACK_HOME,
+    IMPECCABLE_HOME,
+    IMPECCABLE_FAKE_OUTPUT: SAMPLE,
+  };
+  for (const [k, v] of Object.entries(opts.env ?? {})) {
+    if (v === undefined) delete env[k]; else env[k] = v;
+  }
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, ['--no-env-file', 'run', BIN, ...args], { cwd: opts.cwd ?? REPO, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '', err = '';
+    child.stdout.setEncoding('utf-8'); child.stderr.setEncoding('utf-8');
+    child.stdout.on('data', (d: string) => { out += d; });
+    child.stderr.on('data', (d: string) => { err += d; });
+    const timer = setTimeout(() => child.kill('SIGKILL'), 60_000);
+    child.on('close', (code) => { clearTimeout(timer); resolve({ code: code ?? -1, out, err }); });
+  });
+}
 
 describe('probe', () => {
   test('empty environment → NOT_AVAILABLE, skill/hook absent, no hint', () => {
@@ -1043,5 +1071,130 @@ describe('adversarial round: audit directories, config case, refused base with e
     expect(r.err).toContain(`${SENTINEL.DETECT_REFUSED}: no-such-ref-xyz`);
     expect(JSON.parse(r.out).targets).toBe(1);
     expect(r.code).toBe(1);
+  });
+});
+
+describe('install: the one download gstack makes, after consent', () => {
+  const PLATFORM = ENGINE_ASSETS[`${process.platform}-${process.arch}`];
+  const VERSION = TESTED_ENGINE_VERSIONS[TESTED_ENGINE_VERSIONS.length - 1];
+  const ASSET = PLATFORM ? `impeccable-${PLATFORM}${PLATFORM.startsWith('windows') ? '.exe' : ''}` : '';
+  const freshHome = () => fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-impeccable-home-'));
+  const mirror = (body: Uint8Array, hits: string[]) => Bun.serve({
+    port: 0, hostname: '127.0.0.1',
+    fetch(req) {
+      const u = new URL(req.url);
+      hits.push(u.pathname);
+      if (u.pathname === `/engine-v${VERSION}/${ASSET}`) return new Response(body);
+      return new Response('nope', { status: 404 });
+    },
+  });
+  const ledgerPath = () => path.join(GSTACK_HOME, 'security', 'egress.jsonl');
+  const ledger = () => (fs.existsSync(ledgerPath()) ? fs.readFileSync(ledgerPath(), 'utf-8') : '');
+
+  test('the probe offers the pinned engine for this machine once, and stays silent (no offer, no hint) after "never ask again"', () => {
+    const r = run(['probe']);
+    expect(lines(r.out)[0]).toBe(SENTINEL.NOT_AVAILABLE);
+    if (PLATFORM && ENGINE_PINS[VERSION]?.[PLATFORM]) {
+      expect(r.out).toContain(`${SENTINEL.INSTALL_OFFER}: version=${VERSION} platform=${PLATFORM} bytes=${ENGINE_PINS[VERSION][PLATFORM].bytes} dest=`);
+    } else {
+      expect(r.out).not.toContain(SENTINEL.INSTALL_OFFER);
+    }
+    fs.writeFileSync(path.join(GSTACK_HOME, 'config.yaml'), 'design_detector_install_prompted: true\n');
+    const home = freshHome();
+    try {
+      const quiet = run(['probe']);
+      expect(quiet.out).not.toContain(SENTINEL.INSTALL_OFFER);
+      // NOT_CACHED with a HOME-rooted launcher and no engine: the hint is gone too, or it would nag every run.
+      const scripts = path.join(home, '.claude', 'skills', 'impeccable', 'scripts');
+      fs.mkdirSync(scripts, { recursive: true });
+      fs.writeFileSync(path.join(scripts, 'impeccable'), '#!/bin/sh\necho would download\n');
+      fs.chmodSync(path.join(scripts, 'impeccable'), 0o755);
+      const nc = run(['probe'], { env: { HOME: home } });
+      expect(lines(nc.out)[0]).toBe(`${SENTINEL.NOT_CACHED}: ${path.join(scripts, 'impeccable')}`);
+      expect(nc.out).not.toContain(SENTINEL.HINT);
+      expect(nc.out).not.toContain(SENTINEL.INSTALL_OFFER);
+    } finally {
+      fs.rmSync(path.join(GSTACK_HOME, 'config.yaml'), { force: true });
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX || !PLATFORM)('downloads from a mirror, verifies the checksum, installs under IMPECCABLE_HOME, receipts the fetch first, and the probe finds it', async () => {
+    const body = fs.readFileSync(FAKE);
+    const hash = createHash('sha256').update(body).digest('hex');
+    const hits: string[] = [];
+    const server = mirror(body, hits);
+    const home = freshHome();
+    try {
+      const r = await runAsync(['install', '--base', `http://127.0.0.1:${server.port}`, '--sha256', hash], { env: { IMPECCABLE_HOME: home } });
+      const installed = path.join(home, 'bin', VERSION, 'impeccable');
+      expect(lines(r.out)[0]).toBe(`${SENTINEL.INSTALLED}: ${installed} version=${VERSION} sha256=${hash} bytes=${body.byteLength}`);
+      expect(r.code).toBe(0);
+      expect(fs.readFileSync(installed)).toEqual(body);
+      expect(fs.statSync(installed).mode & 0o111).not.toBe(0);
+      expect(hits).toEqual([`/engine-v${VERSION}/${ASSET}`]);
+      expect(r.out).toContain(`${SENTINEL.READY}: ${fs.realpathSync(installed)}`); // the fresh probe after install
+      const l = ledger();
+      expect(l).toContain('"sink":"design-detect-engine-download"');
+      expect(l).toContain(`"host":"127.0.0.1:${server.port}"`);
+      expect(l).toContain('"type":"outcome"');
+      expect(l.indexOf('"type":"egress"')).toBeLessThan(l.indexOf('"type":"outcome"'));
+      const again = await runAsync(['install', '--base', `http://127.0.0.1:${server.port}`, '--sha256', hash], { env: { IMPECCABLE_HOME: home } });
+      expect(lines(again.out)[0]).toContain('(already present, checksum verified)');
+      expect(hits).toHaveLength(1); // nothing fetched the second time
+    } finally {
+      server.stop(true);
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX || !PLATFORM)('a checksum mismatch, a 404, an unpinned version, a non-https base, and design_detector off each write nothing', async () => {
+    const body = fs.readFileSync(FAKE);
+    const hits: string[] = [];
+    const server = mirror(body, hits);
+    const home = freshHome();
+    const base = `http://127.0.0.1:${server.port}`;
+    try {
+      const bad = await runAsync(['install', '--base', base, '--sha256', '0'.repeat(64)], { env: { IMPECCABLE_HOME: home } });
+      expect(lines(bad.out)[0]).toMatch(new RegExp(`^${SENTINEL.INSTALL_REFUSED}: checksum mismatch: expected 0{64}, got [0-9a-f]{64}; nothing written`));
+      expect(bad.code).toBe(1);
+      expect(fs.existsSync(path.join(home, 'bin'))).toBe(false);
+      const missing = await runAsync(['install', '--base', base, '--version', '9.9.9', '--sha256', 'a'.repeat(64)], { env: { IMPECCABLE_HOME: home } });
+      expect(lines(missing.out)[0]).toContain(`${SENTINEL.INSTALL_REFUSED}: download failed: HTTP 404`);
+      const unpinned = await runAsync(['install', '--base', base, '--version', '9.9.9'], { env: { IMPECCABLE_HOME: home } });
+      expect(lines(unpinned.out)[0]).toContain(`${SENTINEL.INSTALL_REFUSED}: gstack pins no checksum for engine 9.9.9`);
+      expect(hits.filter(h => h.includes('9.9.9'))).toHaveLength(1); // only the --sha256 attempt reached the mirror
+      const plain = await runAsync(['install', '--base', 'http://example.com'], { env: { IMPECCABLE_HOME: home } });
+      expect(lines(plain.out)[0]).toContain(`${SENTINEL.INSTALL_REFUSED}: --base must be https`);
+      fs.writeFileSync(path.join(GSTACK_HOME, 'config.yaml'), 'design_detector: off\n');
+      try {
+        const off = await runAsync(['install', '--base', base, '--sha256', 'a'.repeat(64)], { env: { IMPECCABLE_HOME: home } });
+        expect(lines(off.out)[0]).toContain(`${SENTINEL.INSTALL_REFUSED}: design_detector is off`);
+      } finally {
+        fs.rmSync(path.join(GSTACK_HOME, 'config.yaml'), { force: true });
+      }
+      expect(fs.existsSync(path.join(home, 'bin'))).toBe(false);
+    } finally {
+      server.stop(true);
+      fs.rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test.skipIf(!POSIX || !PLATFORM)('IMPECCABLE_HOME inside the project is ignored: the engine lands under the real home, never in the repo', async () => {
+    const body = fs.readFileSync(FAKE);
+    const hash = createHash('sha256').update(body).digest('hex');
+    const server = mirror(body, []);
+    const fakeUserHome = freshHome();
+    try {
+      const inRepo = path.join(REPO, '.impeccable');
+      const r = await runAsync(['install', '--base', `http://127.0.0.1:${server.port}`, '--sha256', hash], { env: { IMPECCABLE_HOME: inRepo, HOME: fakeUserHome } });
+      expect(r.code).toBe(0);
+      expect(fs.existsSync(path.join(inRepo, 'bin'))).toBe(false);
+      expect(fs.existsSync(path.join(fakeUserHome, '.impeccable', 'bin', VERSION, 'impeccable'))).toBe(true);
+    } finally {
+      server.stop(true);
+      fs.rmSync(fakeUserHome, { recursive: true, force: true });
+      fs.rmSync(path.join(REPO, '.impeccable'), { recursive: true, force: true });
+    }
   });
 });

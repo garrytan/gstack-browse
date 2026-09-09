@@ -12,7 +12,7 @@ import { describe, test, expect } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { spawnSync } from 'child_process';
-import { SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS, DETECT_EXIT_ECHO, SELF_DESCRIBING_SENTINELS, UNTRUSTED_BEGIN, UNTRUSTED_END, neutralizeSentinels } from '../lib/design-detect-contract';
+import { SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS, DETECT_EXIT_ECHO, SELF_DESCRIBING_SENTINELS, UNTRUSTED_BEGIN, UNTRUSTED_END, neutralizeSentinels, ENGINE_PINS, ENGINE_ASSETS, ENGINE_RELEASE_BASE } from '../lib/design-detect-contract';
 import { catalogEntry } from '../lib/design-catalog';
 
 const ROOT = path.join(import.meta.dir, '..');
@@ -118,5 +118,25 @@ describe('every sentinel-shaped token the agent can read exists in the contract'
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('engine pins: every tested version is pinned for every platform impeccable ships', () => {
+  test('pins are complete and well-formed, and the release base is impeccable\'s own GitHub over https', () => {
+    expect(ENGINE_RELEASE_BASE).toBe('https://github.com/pbakaus/impeccable/releases/download');
+    const platforms = [...new Set(Object.values(ENGINE_ASSETS))].sort();
+    expect(platforms).toEqual(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
+    for (const v of TESTED_ENGINE_VERSIONS) {
+      const pins = ENGINE_PINS[v];
+      expect(pins, `no pins for tested engine ${v}`).toBeDefined();
+      expect(Object.keys(pins).sort()).toEqual(platforms);
+      for (const [platform, pin] of Object.entries(pins)) {
+        expect(pin.sha256, `${v} ${platform}`).toMatch(/^[0-9a-f]{64}$/);
+        expect(pin.bytes, `${v} ${platform}`).toBeGreaterThan(1_000_000);
+        expect(pin.bytes).toBeLessThan(DETECT_LIMITS.engineDownloadBytes);
+      }
+    }
+    // the fixture engine (test/fixtures/impeccable-captures.meta.json: engine 0.1.3, linux-x64) is the pinned one
+    expect(ENGINE_PINS['0.1.3']['linux-x64'].sha256).toBe('afc7a424e0bd6c606b7be4c773c70e87284afbdb41d748eb9a34f8a4478e57da');
   });
 });

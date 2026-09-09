@@ -5,12 +5,18 @@
  *   bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-detect.ts probe [--host <h>] [--verbose]
  *   bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-detect.ts scan [--format gstack|raw] [--changed <base>] [--host <h>] <paths...>
  *   bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-detect.ts rules
+ *   bun --no-env-file run ~/.claude/skills/gstack/bin/gstack-design-detect.ts install [--version <v>] [--sha256 <hex>] [--base <url>]
  *
- * Rule zero: gstack never installs, downloads, or executes anything that could
- * download. The probe touches the filesystem and the environment only: file
- * existence, a first-bytes sniff, JSON parsing. It never runs impeccable's
- * launcher (`scripts/impeccable`) or its npm shim, because both fall through to a
- * GitHub download when the engine is not cached.
+ * Rule zero: gstack never runs impeccable's installer, its launcher
+ * (`scripts/impeccable`), or its npm shim, because all three fall through to a
+ * GitHub download and the installer also writes hooks. The probe touches the
+ * filesystem and the environment only: file existence, a first-bytes sniff,
+ * JSON parsing. The one download gstack itself can make is `install`: the engine
+ * binary for a version gstack has tested, fetched only after the user said yes
+ * to the skill's one-time offer (DESIGN_DETECTOR_INSTALL_OFFER), verified
+ * against the checksum pinned in lib/design-detect-contract.ts, placed under
+ * ~/.impeccable/bin/<version>/ (never inside a project), and recorded in the
+ * egress ledger before the fetch (fail-closed). No skill, no hook, no launcher.
  *
  * Probe order (first hit wins; every step is a read):
  *
@@ -83,7 +89,9 @@ import {
   SENTINEL, TESTED_ENGINE_VERSIONS, ADVISORY_RULE_IDS, DETECT_LIMITS,
   UNTRUSTED_BEGIN, UNTRUSTED_END, neutralizeSentinels,
   type NormalizedFinding, type ScanResult, SCAN_UNTRUSTED_PATHS,
+  ENGINE_RELEASE_BASE, ENGINE_ASSETS, ENGINE_PINS,
 } from '../lib/design-detect-contract';
+import { writeReceipt, writeOutcome } from '../lib/egress-receipt';
 import { DESIGN_SLOP_CATALOG, entryForImpeccableId } from '../lib/design-catalog';
 import { isFrontendPath } from '../lib/frontend-scope';
 
@@ -119,22 +127,28 @@ function gitTopLevel(cwd: string): string | null {
   return top ? realpathOrNull(top) : null;
 }
 
-/** design_detector, read the way bin/gstack-config resolves it (same STATE_DIR precedence, same default). */
-function configDesignDetector(): 'auto' | 'off' {
+/** One flat key from config.yaml, read the way bin/gstack-config resolves it (same STATE_DIR precedence); '' when unset. */
+function configValue(key: string): string {
   const file = path.join(gstackStateDir(), 'config.yaml');
   try {
     const text = fs.readFileSync(file, 'utf-8');
     let value = '';
+    const re = new RegExp(`^${key}:\\s*(.*?)\\s*$`);
     for (const line of text.split('\n')) {
-      const m = line.match(/^design_detector:\s*(.*?)\s*$/);
+      const m = line.match(re);
       if (!m) continue;
       // flat YAML: drop a trailing comment and surrounding quotes
       value = m[1].replace(/\s+#.*$/, '').trim().replace(/^["'](.*)["']$/, '$1');
     }
-    return value.toLowerCase() === 'off' ? 'off' : 'auto'; // `Off` by hand must not silently re-enable a third-party binary
+    return value;
   } catch {
-    return 'auto';
+    return '';
   }
+}
+
+/** design_detector: `Off` by hand must not silently re-enable a third-party binary. */
+function configDesignDetector(): 'auto' | 'off' {
+  return configValue('design_detector').toLowerCase() === 'off' ? 'off' : 'auto';
 }
 
 // ── Probe ────────────────────────────────────────────────────────────────────
@@ -442,14 +456,153 @@ function probe(host: string, verbose = false): Probe {
     const how = p.launcher
       ? `run \`${p.launcher} detect --help\` once; it fetches the engine version pinned by your install`
       : repoLocalLauncher && !launcherOnPath
-        ? 'the skill is installed inside this repository, and gstack never runs a repository-local launcher; install it under your home directory (`npx impeccable install` outside the repo) if you want the engine here'
-        : 'run `npx impeccable detect --help` once; it fetches the engine';
-    p.notes.push(`${SENTINEL.HINT}: impeccable is installed but its engine is not cached; ${how} (gstack never downloads it). Silence this: \`gstack-config set design_detector off\`.`);
-    return p;
+        ? 'the skill is installed inside this repository, and gstack never runs a repository-local launcher; install it under your home directory (`npx impeccable install --scope global` outside the repo) if you want the engine here'
+        : 'run `npx impeccable install --scope global` yourself (the engine lands beside the skill under your home directory; `npx impeccable detect --help` alone caches it only for npx)';
+    p.notes.push(`${SENTINEL.HINT}: impeccable is installed but its engine is not cached; ${how}, or accept the install offer. Silence this: \`gstack-config set design_detector off\`.`);
+    return withInstallOffer(p);
   }
 
   p.sentinel = SENTINEL.NOT_AVAILABLE;
+  return withInstallOffer(p);
+}
+
+/** `${platform}-${arch}` → release asset suffix, or null when impeccable ships no engine for this machine. */
+function enginePlatform(): string | null {
+  return ENGINE_ASSETS[`${process.platform}-${process.arch}`] ?? null;
+}
+
+function enginePin(version: string, platform: string): { sha256: string; bytes: number } | null {
+  return ENGINE_PINS[version]?.[platform] ?? null;
+}
+
+/** ~/.impeccable (or a trusted IMPECCABLE_HOME): where `install` puts the engine and where the probe's cache step looks. */
+function engineCacheRoot(repoRoot: string, cwd: string): string {
+  return trustedEnvPath('IMPECCABLE_HOME', repoRoot, cwd, [], () => {}) ?? path.join(HOME, '.impeccable');
+}
+
+/**
+ * A probe that found no engine ends with the one-time install offer: the skill
+ * asks the user, and only a yes runs `install`. Once the user has answered
+ * "never ask again" (design_detector_install_prompted=true) the probe prints
+ * neither the offer nor the NOT_CACHED hint, or the hint would be the nag the
+ * docs promise does not exist. Machines impeccable ships no pinned engine for get
+ * no offer.
+ */
+function withInstallOffer(p: Probe): Probe {
+  if (configValue('design_detector_install_prompted').toLowerCase() === 'true') {
+    p.notes = p.notes.filter(n => !n.startsWith(`${SENTINEL.HINT}:`));
+    return p;
+  }
+  const platform = enginePlatform();
+  const version = TESTED_ENGINE_VERSIONS[TESTED_ENGINE_VERSIONS.length - 1];
+  const pin = platform ? enginePin(version, platform) : null;
+  if (!platform || !pin) return p;
+  const dest = path.join(engineCacheRoot(p.repoRoot, p.cwd), 'bin', version, WIN ? 'impeccable.exe' : 'impeccable');
+  p.notes.push(`${SENTINEL.INSTALL_OFFER}: version=${version} platform=${platform} bytes=${pin.bytes} dest=${dest}`);
   return p;
+}
+
+// ── Install (the one download gstack makes, after consent) ───────────────────
+
+interface InstallArgs { version?: string; sha256?: string; base?: string; host: string }
+
+function installRefused(reason: string): number {
+  process.stdout.write(`${SENTINEL.INSTALL_REFUSED}: ${reason}\n`);
+  analytics({ verb: 'install', sentinel: 'INSTALL_REFUSED', exit: 1 });
+  return 1;
+}
+
+function sha256File(file: string): string {
+  return createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+}
+
+/**
+ * Download the pinned engine for this machine into the user's cache. Runs only
+ * after the skill's AskUserQuestion got a yes (the prose never runs it otherwise).
+ * Fail-closed on the egress receipt, the checksum, and the size cap: on any
+ * refusal nothing is written. --sha256 accepts a checksum from the release's
+ * .sha256 sidecar for a version gstack has not pinned; --base allows a mirror
+ * (https, or http on loopback for tests).
+ */
+async function install(args: InstallArgs): Promise<number> {
+  if (configDesignDetector() === 'off') return installRefused('design_detector is off; `gstack-config set design_detector auto` first');
+  const platform = enginePlatform();
+  if (!platform) return installRefused(`impeccable ships no engine for ${process.platform}-${process.arch}`);
+  const version = (args.version ?? TESTED_ENGINE_VERSIONS[TESTED_ENGINE_VERSIONS.length - 1]).replace(/^v/, '');
+  if (!semverKey(version)) return installRefused(`"${version}" is not a version`);
+  const pin = enginePin(version, platform);
+  const expected = (args.sha256 ?? pin?.sha256 ?? '').toLowerCase();
+  if (!expected) return installRefused(`gstack pins no checksum for engine ${version} on ${platform}; pass --sha256 <hex> from the release's .sha256 sidecar to accept an unpinned download`);
+  if (!/^[0-9a-f]{64}$/.test(expected)) return installRefused('--sha256 must be 64 hex characters');
+  let baseUrl: URL;
+  try { baseUrl = new URL(args.base ?? ENGINE_RELEASE_BASE); } catch { return installRefused(`--base is not a URL: ${args.base}`); }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(baseUrl.hostname);
+  if (baseUrl.protocol !== 'https:' && !(baseUrl.protocol === 'http:' && loopback)) return installRefused('--base must be https (http only for a loopback mirror)');
+  const cwd = realpathOrNull(process.cwd()) ?? process.cwd();
+  const repoRoot = gitTopLevel(cwd) ?? cwd;
+  const destDir = path.join(engineCacheRoot(repoRoot, cwd), 'bin', version);
+  if (underProject(destDir, repoRoot, cwd)) return installRefused(`${destDir} lies inside the project; the engine lives under your home directory only`);
+  const dest = path.join(destDir, WIN ? 'impeccable.exe' : 'impeccable');
+  const asset = `impeccable-${platform}${platform.startsWith('windows') ? '.exe' : ''}`;
+  const url = `${baseUrl.toString().replace(/\/$/, '')}/engine-v${version}/${asset}`;
+  const cap = DETECT_LIMITS.engineDownloadBytes;
+
+  let present = false;
+  try { present = fs.existsSync(dest) && sha256File(dest) === expected; } catch { present = false; }
+  if (present) {
+    process.stdout.write(`${SENTINEL.INSTALLED}: ${dest} version=${version} sha256=${expected} (already present, checksum verified)\n`);
+    const p = probe(args.host);
+    process.stdout.write(probeLines(p).join('\n') + '\n');
+    analytics({ verb: 'install', sentinel: 'INSTALLED', engine: version, exit: 0 });
+    return 0;
+  }
+
+  // The receipt is written BEFORE the fetch and the install is fail-closed on it:
+  // an executable arriving on the machine unrecorded is worse than no install.
+  let receipt: string;
+  try {
+    receipt = writeReceipt({
+      sink: 'design-detect-engine-download', host: baseUrl.host, payloadClass: 'engine-binary-fetch', bytes: 0, sha256: null,
+      consent: `design_detector=auto design_detector_install_prompted=false; user accepted the install offer for impeccable engine ${version} (${platform}); checksum ${args.sha256 ? 'from --sha256' : 'pinned in gstack'}`,
+    }).id;
+  } catch (err) {
+    return installRefused(`egress receipt could not be written, nothing downloaded (${clip(stripControl(String((err as Error)?.message ?? err)), 200)})`);
+  }
+  const outcome = (status: string | number) => { try { writeOutcome({ receipt, status }); } catch { /* bookkeeping only */ } };
+  let res: Response;
+  try {
+    res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(DETECT_LIMITS.engineDownloadTimeoutMs) });
+  } catch (err) {
+    outcome('network-error');
+    return installRefused(`download failed: ${clip(stripControl(String((err as Error)?.message ?? err)), 200)}`);
+  }
+  if (!res.ok || !res.body) { outcome(res.status); return installRefused(`download failed: HTTP ${res.status} for ${url}`); }
+  const declared = Number(res.headers.get('content-length') ?? '0');
+  if (declared > cap) { outcome(`${res.status} oversize`); return installRefused(`asset declares ${declared} bytes, above the ${cap}-byte cap`); }
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  const reader = res.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > cap) { await reader.cancel(); outcome(`${res.status} oversize`); return installRefused(`asset exceeds the ${cap}-byte cap; nothing written`); }
+    chunks.push(value);
+  }
+  outcome(`${res.status} ${total}B`);
+  const buf = Buffer.concat(chunks);
+  const actual = createHash('sha256').update(buf).digest('hex');
+  if (actual !== expected) return installRefused(`checksum mismatch: expected ${expected}, got ${actual}; nothing written`);
+  fs.mkdirSync(destDir, { recursive: true, mode: 0o755 });
+  const tmp = `${dest}.tmp-${process.pid}`;
+  fs.writeFileSync(tmp, buf, { mode: 0o755 });
+  fs.chmodSync(tmp, 0o755);
+  fs.renameSync(tmp, dest);
+  process.stdout.write(`${SENTINEL.INSTALLED}: ${dest} version=${version} sha256=${actual} bytes=${total}\n`);
+  analytics({ verb: 'install', sentinel: 'INSTALLED', engine: version, exit: 0 });
+  const p = probe(args.host);
+  process.stdout.write(probeLines(p).join('\n') + '\n');
+  return 0;
 }
 
 /** Identity label for an engine with no version source: size + the first few MB hashed (a whole-binary read per probe is wasted work). */
@@ -797,12 +950,13 @@ function analytics(rec: Record<string, unknown>) {
 
 // ── CLI ──────────────────────────────────────────────────────────────────────
 
-function parse(argv: string[]): { verb: string; host: string; verbose: boolean; scan: ScanArgs } {
+function parse(argv: string[]): { verb: string; host: string; verbose: boolean; scan: ScanArgs; install: InstallArgs } {
   const verb = argv[0] ?? '';
   let host = 'claude';
   let verbose = false;
   let format: 'gstack' | 'raw' = 'gstack';
   let changed: string | undefined;
+  const install: InstallArgs = { host };
   const targets: string[] = [];
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
@@ -810,15 +964,19 @@ function parse(argv: string[]): { verb: string; host: string; verbose: boolean; 
     else if (a === '--verbose') verbose = true;
     else if (a === '--format') { const v = argv[++i]; format = v === 'raw' ? 'raw' : 'gstack'; }
     else if (a === '--changed') changed = argv[++i] ?? ''; // an empty base is refused in resolveTargets, never defaulted
+    else if (a === '--version') install.version = argv[++i] ?? '';
+    else if (a === '--sha256') install.sha256 = argv[++i] ?? '';
+    else if (a === '--base') install.base = argv[++i] ?? '';
     else if (a === '--') { targets.push(...argv.slice(i + 1)); break; }
     else if (a.startsWith('--')) process.stderr.write(`ignoring unknown flag ${a}\n`);
     else targets.push(a);
   }
-  return { verb, host, verbose, scan: { format, changed, targets, host } };
+  install.host = host;
+  return { verb, host, verbose, scan: { format, changed, targets, host }, install };
 }
 
-export function main(argv = process.argv.slice(2)): number {
-  const { verb, host, verbose, scan: scanArgs } = parse(argv);
+export async function main(argv = process.argv.slice(2)): Promise<number> {
+  const { verb, host, verbose, scan: scanArgs, install: installArgs } = parse(argv);
   switch (verb) {
     case 'probe': {
       const p = probe(host, verbose);
@@ -830,8 +988,10 @@ export function main(argv = process.argv.slice(2)): number {
       return scan(scanArgs);
     case 'rules':
       return rules();
+    case 'install':
+      return install(installArgs);
     default:
-      process.stderr.write('usage: gstack-design-detect.ts probe [--host <h>] [--verbose] | scan [--format gstack|raw] [--changed <base>] [--host <h>] <paths...> | rules\n');
+      process.stderr.write('usage: gstack-design-detect.ts probe [--host <h>] [--verbose] | scan [--format gstack|raw] [--changed <base>] [--host <h>] <paths...> | rules | install [--version <v>] [--sha256 <hex>] [--base <url>]\n');
       return 2;
   }
 }
@@ -839,12 +999,10 @@ export function main(argv = process.argv.slice(2)): number {
 if (import.meta.main) {
   // exitCode, not process.exit(): a pipe write over 64 KB (a big scan) is still
   // in flight when process.exit() runs and would be truncated mid-JSON.
-  try {
-    process.exitCode = main();
-  } catch (err) {
+  main().then((code) => { process.exitCode = code; }, (err) => {
     const e = err as Error;
     process.stderr.write(`${SENTINEL.INTERNAL_ERROR}: ${e?.name ?? 'Error'}: ${clip(stripControl(String(e?.message ?? e)), DETECT_LIMITS.field.internalError)}\n`);
     analytics({ verb: process.argv[2] ?? '', sentinel: 'INTERNAL_ERROR', exit: 3 });
     process.exitCode = 3;
-  }
+  });
 }
