@@ -65,9 +65,35 @@ describe('workflow judge excerpts', () => {
     expect(text).toContain('## Step 9:');
   });
 
+  test('plan review evidence and design approval rules precede their use', () => {
+    const eng = readWorkflowExcerpt('plan-eng-review/SKILL.md', '## Review Sections', '## CRITICAL RULE');
+    expect(eng.indexOf('## Confidence Calibration')).toBeLessThan(eng.indexOf('### 1. Architecture review'));
+    expect(eng).toContain('quote the motivating plan requirement');
+    expect(eng).toContain('including all Claude fallback modes');
+    expect(eng).toContain('no in-host substitute is defined here');
+    const design = readWorkflowExcerpt('plan-design-review/SKILL.md', '## Review Sections', '## CRITICAL RULE');
+    expect(design).toContain('wait for approval, then edit the plan and re-rate');
+    const pass4 = design.slice(design.indexOf('### Pass 4:'), design.indexOf('### Pass 5:'));
+    expect(pass4.indexOf('### Design Hard Rules')).toBeLessThan(pass4.indexOf('FIX TO 10:'));
+    expect(pass4).toContain('caps this pass below 8');
+  });
+
   test('fails closed for missing excerpt markers', () => {
     expect(() => readWorkflowExcerpt('ship/SKILL.md', '# missing', null)).toThrow('Start marker not found');
     expect(() => readWorkflowExcerpt('ship/SKILL.md', '# Ship:', '# missing')).toThrow('End marker not found');
+  });
+
+  test('deploy gates and navigation timing formulas are executable as documented', () => {
+    const land = readFileSync(join(import.meta.dir, '../land-and-deploy/SKILL.md.tmpl'), 'utf8');
+    expect(land).not.toContain('Skip Step 3, go to Step 4');
+    expect(land).toContain('continue to Step 3.4, then Step 3.5 before merging');
+    const benchmark = readFileSync(join(import.meta.dir, '../benchmark/SKILL.md.tmpl'), 'utf8');
+    const timings = { startTime: 0, domInteractive: 600, domComplete: 1200, loadEventEnd: 1400 };
+    for (const [label, expected] of [['DOM Interactive', 600], ['DOM Complete', 1200], ['Full Load', 1400]] as const) {
+      const formula = benchmark.match(new RegExp(`\\*\\*${label}\\*\\*: \x60([^\x60]+)\x60`))![1];
+      const actual = new Function(...Object.keys(timings), `return ${formula}`)(...Object.values(timings));
+      expect(actual).toBe(expected);
+    }
   });
 
   test('WIP squash example consumes the prepared todo and preserves file contents', () => {

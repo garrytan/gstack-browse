@@ -1421,7 +1421,7 @@ Tie everything to user goals and product objectives. Always suggest specific imp
 - ALWAYS preserve visited vs unvisited link distinction (visited links must have a different color)
 - NEVER float headings between paragraphs (heading must be visually closer to the section it introduces than to the preceding section)
 
-**AI Slop blacklist** (the 10 patterns that scream "AI-generated"):
+**AI Slop blacklist** (the 11 patterns that scream "AI-generated"):
 1. Purple/violet/indigo gradient backgrounds or blue-to-purple color schemes
 2. **The 3-column feature grid:** icon-in-colored-circle + bold title + 2-line description, repeated 3x symmetrically. THE most recognizable AI layout.
 3. Icons in colored circles as section decoration (SaaS starter template look)

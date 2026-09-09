@@ -839,7 +839,7 @@ ${litmusItems}
 - ALWAYS preserve visited vs unvisited link distinction (visited links must have a different color)
 - NEVER float headings between paragraphs (heading must be visually closer to the section it introduces than to the preceding section)
 
-**AI Slop blacklist** (the 10 patterns that scream "AI-generated"):
+**AI Slop blacklist** (the ${AI_SLOP_BLACKLIST.length} patterns that scream "AI-generated"):
 ${slopItems}
 
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.`;
