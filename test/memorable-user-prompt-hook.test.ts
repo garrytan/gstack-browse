@@ -584,8 +584,10 @@ describe('runExternal (spawn-bin)', () => {
     const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 21.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
     expect(survivors).toBe('');
   });
-  test('a child that exits before reading its input reports stdinError separately from error', async () => {
-    const r = await runExternal('sh', ['-c', 'echo answered; exit 0'], { timeoutMs: 3000, input: Buffer.alloc(300_000, 0x78) });
+  test('a child that closes its stdin without reading reports stdinError separately from error; the answer survives', async () => {
+    // the child closes its read end first and stays alive long enough for the write to hit it,
+    // so the EPIPE is deterministic (a child that merely exits fast races the write under load)
+    const r = await runExternal('sh', ['-c', 'exec 0<&-; echo answered; sleep 0.3; exit 0'], { timeoutMs: 5000, input: Buffer.alloc(1_000_000, 0x78) });
     expect(r.status).toBe(0);
     expect(r.error).toBeUndefined();
     expect(r.stdinError).toBe('EPIPE');
