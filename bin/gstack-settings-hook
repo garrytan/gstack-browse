@@ -886,7 +886,11 @@ case "$ACTION" in
           if (!cmd) continue;
           const row = gsOwnedRow(cmd, event, entry.matcher || "");
           if (ownedBy && (!row || row.source !== ownedBy)) continue;
-          if (re && (row || !re.test(cmd))) continue;   // the regex only ever sees items no table row owns
+          // Alone, the regex only ever sees items no table row owns (the
+          // vendor-own probe). Combined with --owned-by it narrows THAT set:
+          // filters intersect, a regex never widens a selection.
+          if (re && !ownedBy && row) continue;
+          if (re && !re.test(cmd)) continue;
           console.log(JSON.stringify(cmd));
         }
       }
