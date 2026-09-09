@@ -151,8 +151,10 @@ function requireString(value: unknown, name: string): string {
 }
 
 /**
- * mkdir spin lock, ~2.5s budget. Egress events are rare (minutes apart); the
- * lock only protects the read-last-line → append window.
+ * mkdir spin lock; the budget defaults to LEDGER_LOCK_BUDGET_MS (2.5 s) and
+ * callers on their own deadline pass less. Egress events are usually rare
+ * (minutes apart; the memorable hook is the per-prompt exception); the lock
+ * only protects the read-last-line → append window.
  *
  * Stale-lock reclaim: a crashed writer strands the lock dir. Once the spin
  * budget is exhausted, a lock dir whose mtime is >10s old is stale by

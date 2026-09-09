@@ -8,6 +8,10 @@
  *    is the correct conversion. (ENOENT before the bin ever ran.)
  * 2. `bin/gstack-*` are extensionless bash scripts. Windows has no shebang
  *    support, so they must be handed to bash explicitly.
+ *
+ * Also home to runExternal: the contained runner for EXTERNAL executables
+ * (third-party binaries a hook hands data to; see its doc comment). Unlike
+ * runBin it refuses win32, because its guarantee is process-group containment.
  */
 import * as fs from 'fs';
 import * as path from 'path';
