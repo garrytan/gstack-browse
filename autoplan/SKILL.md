@@ -2,7 +2,7 @@
 name: autoplan
 preamble-tier: 3
 version: 1.0.0
-description: Auto-review pipeline — reads the full CEO, design, eng, and DX review skills from disk and runs them sequentially with auto-decisions using 6 decision principles. (gstack)
+description: Run full GStack product, design, engineering, DX review.
 triggers:
   - run all reviews
   - automatic review pipeline
@@ -29,7 +29,7 @@ approval gate. One command, fully reviewed plan out.
 Use when asked to "auto review", "autoplan", "run all reviews", "review this plan
 automatically", or "make the decisions for me".
 Proactively suggest when the user has a plan file and wants to run the full review
-gauntlet without answering 15-30 intermediate questions.
+gauntlet without answering 15-30 intermediate questions. Part of GStack.
 
 Voice triggers (speech-to-text aliases): "auto plan", "automatic review".
 
