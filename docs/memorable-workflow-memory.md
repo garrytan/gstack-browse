@@ -27,7 +27,7 @@ with, and it is not available on Windows yet.
   never block a prompt or speak as gstack.
 - The vendor runs in an allowlisted environment (no API keys from your
   session) inside its own process group, and is killed with that group if it
-  overruns the budget.
+  overruns the budget or if Claude Code terminates the hook mid-flight.
 - Registration at the stable install, healing on every `./setup`, survival of
   `./setup --no-team`, removal by `gstack-uninstall`, and an off switch that
   works even after Claude Code has rewritten `settings.json`.
