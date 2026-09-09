@@ -7,12 +7,18 @@
  * its environment to $HOME/env.txt, then behaves per $HOME/mode:
  *   ok (default)      print $HOME/out.json
  *   sleep             sleep 10 (the hook must time out and group-kill it)
- *   fork-sleep        `sh -c 'sleep 30'` without exec (a fork-style shim; the
- *                     group kill must reach the grandchild)
+ *   fork-sleep        `sh -c 'sleep 30.<nonce>'` without exec (a fork-style shim;
+ *                     the group kill must reach the grandchild; the nonce keeps
+ *                     the orphan check from seeing another shard's sleeper)
  *   exit1             exit 1
  *   flood             2 MiB on stdout (maxBuffer path)
  *   stderr-noise      2 MiB on stderr, then out.json (stderr must be drained)
  *   exit-before-read  exit 0 without reading stdin (EPIPE path)
+ *   print-before-read print out.json and exit 0 without reading stdin (EPIPE
+ *                     must stay advisory: the answer is delivered)
+ *   echo-stderr       copy the prompt to stderr, exit 1 (the log must withhold it)
+ *   bg-then-exit      start a background sleeper holding the pipes, print
+ *                     out.json, exit 0 (must resolve on exit, not on close)
  *
  * Every spawn pins HOME, GSTACK_HOME, GSTACK_STATE_ROOT, GSTACK_STATE_DIR and
  * GSTACK_MEMORABLE_BIN into a fresh temp dir, so nothing reaches the real
@@ -25,8 +31,9 @@ import * as os from 'os';
 import * as path from 'path';
 import { listReceipts, sha256Hex, verifyLedger } from '../lib/egress-receipt';
 import {
-  budgetFor, capUtf8, pickAdditionalContext, renderContext, resolveVendor, stringLeaves, stripControl, vendorEnv,
-  OUTPUT_CAP_BYTES, ENVELOPE_SOURCE,
+  budgetFor, budgetMs, capUtf8, logHookError, pickAdditionalContext, renderContext, resolveVendor, safeStderrTail,
+  stringLeaves, stripControl, vendorEnv,
+  BUDGET_MS, LOG_RATE_LIMIT_MS, OUTPUT_CAP_BYTES, ENVELOPE_SOURCE,
 } from '../hosts/claude/hooks/memorable-user-prompt-hook.ts';
 import { runExternal } from '../hosts/claude/hooks/spawn-bin';
 import { TRACKER_ENVELOPE_BEGIN, TRACKER_ENVELOPE_END } from '../lib/tracker-guard';
@@ -41,10 +48,13 @@ MODE=$(cat "$HOME/mode" 2>/dev/null || echo ok)
 printf '%s\\n' "$*" >> "$HOME/calls.log"
 env | sort > "$HOME/env.txt"
 if [ "$MODE" = exit-before-read ]; then exit 0; fi
+if [ "$MODE" = print-before-read ]; then cat "$HOME/out.json"; exit 0; fi
 cat > "$HOME/stdin.bin"
 case "$MODE" in
   sleep) sleep 10 ;;
-  fork-sleep) sh -c 'sleep 30' ;;
+  fork-sleep) sh -c "sleep 30.\${MEMORABLE_TEST_NONCE:-0}" ;;
+  bg-then-exit) sh -c "sleep 20.\${MEMORABLE_TEST_NONCE:-0}" & cat "$HOME/out.json"; exit 0 ;;
+  echo-stderr) cat "$HOME/stdin.bin" >&2; exit 1 ;;
   exit1) echo "vendor said no" >&2; exit 1 ;;
   flood) head -c 2097152 /dev/zero | tr '\\0' a ;;
   stderr-noise) head -c 2097152 /dev/zero | tr '\\0' e >&2; cat "$HOME/out.json" ;;
@@ -74,6 +84,8 @@ beforeEach(() => {
     // canaries: the vendor must never see these
     ANTHROPIC_API_KEY: 'canary-anthropic',
     MEMORABLE_STORE_KEY: 'canary-memorable-passes',
+    // standard network knobs pass through (a vendor behind a corporate proxy must still reach its service)
+    HTTPS_PROXY: 'http://proxy.example:3128',
   };
 });
 afterEach(() => { fs.rmSync(home, { recursive: true, force: true }); });
@@ -146,6 +158,7 @@ describe('gate on: the mediated hand-off', () => {
     expect(vendorEnvText).not.toContain('GSTACK_HOME');
     expect(vendorEnvText).not.toContain('GSTACK_MEMORABLE_BIN');
     expect(vendorEnvText).toContain('MEMORABLE_STORE_KEY=canary-memorable-passes');
+    expect(vendorEnvText).toContain('HTTPS_PROXY=http://proxy.example:3128');
     expect(vendorEnvText).toMatch(/^PATH=/m);
     expect(vendorEnvText).toContain(`HOME=${home}`);
   });
@@ -258,18 +271,55 @@ describe('what comes back from the vendor', () => {
     expect(errLog()).toContain('vendor said no');
   });
 
-  test('a vendor that hangs is group-killed inside the budget: outcome timeout, wall under 6 s, no orphan', () => {
+  test('a vendor that hangs is group-killed inside the budget: outcome timeout, wall under 6 s, no orphan, logged even with empty stderr', () => {
     gateOn();
     fs.writeFileSync(path.join(home, 'mode'), 'fork-sleep');
+    const nonce = `${process.pid}${Date.now()}`;
     const t0 = Date.now();
-    const r = runHook(PROMPT);
+    const r = runHook(PROMPT, { MEMORABLE_TEST_NONCE: nonce });
     const wall = Date.now() - t0;
     expect(r.status).toBe(0);
     expect(r.stdout).toBe('');
     expect(wall).toBeLessThan(6000);
     expect(receipts().map((x) => String(x.status))).toEqual(['timeout']);
-    const survivors = spawnSync('sh', ['-c', "ps -eo args | grep '^sleep 30$' || true"], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 30.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
     expect(survivors).toBe('');
+    expect(errLog()).toContain('vendor timeout'); // a silently hanging vendor must show up in `status`
+  });
+
+  test('a vendor that exits 0 but leaves a background child holding its pipes: answer delivered on exit, straggler killed', () => {
+    gateOn();
+    fs.writeFileSync(path.join(home, 'mode'), 'bg-then-exit');
+    const nonce = `${process.pid}${Date.now()}`;
+    const t0 = Date.now();
+    const r = runHook(PROMPT, { MEMORABLE_TEST_NONCE: nonce });
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(r.stdout).toContain('remembered');
+    expect(receipts().map((x) => String(x.status))[0]).toMatch(/^exit:0 output-written/);
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 20.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    expect(survivors).toBe('');
+  });
+
+  test('a vendor that answers without reading a 300 KB prompt: a stdin EPIPE is advisory, the answer is delivered', () => {
+    gateOn();
+    fs.writeFileSync(path.join(home, 'mode'), 'print-before-read');
+    const r = runHook(JSON.stringify({ prompt: 'x'.repeat(300_000) }));
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('remembered');
+    // Whether the write actually hits EPIPE depends on pipe capacity and timing; when it does,
+    // the outcome carries ` stdin=EPIPE` after the delivered status (unit-tested in runExternal).
+    expect(String(receipts()[0].status)).toMatch(/^exit:0 output-written bytes=\d+ gstack_ms=\d+( stdin=EPIPE)?$/);
+  });
+
+  test('vendor stderr that echoes the prompt is withheld from hook-errors.log', () => {
+    gateOn();
+    fs.writeFileSync(path.join(home, 'mode'), 'echo-stderr');
+    const r = runHook(JSON.stringify({ prompt: 'mail jane.doe@northwind-traders.com about the CANARY-7f3a rollout' }));
+    expect(r.stdout).toBe('');
+    expect(errLog()).toContain('vendor exit:1');
+    expect(errLog()).toContain('stderr withheld');
+    expect(errLog()).not.toContain('jane.doe@northwind-traders.com');
+    expect(errLog()).not.toContain('CANARY-7f3a');
   });
 
   test('2 MiB on stdout hits maxBuffer: empty stdout, spawn-error outcome', () => {
@@ -417,9 +467,39 @@ describe('pure helpers', () => {
     expect(pickAdditionalContext(JSON.stringify({ decision: 'block' }))).toBeNull();
     expect(pickAdditionalContext('nope')).toBeNull();
   });
-  test('stripControl drops C0 controls and DEL but keeps tab and newline', () => {
-    const input = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(27) + '\tc\nd' + String.fromCharCode(127) + 'e';
-    expect(stripControl(input)).toBe('ab\tc\nde');
+  test('stripControl drops C0 controls, CR and DEL but keeps tab and newline', () => {
+    const input = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(27) + '\tc\nd' + String.fromCharCode(127) + 'e\rf\r\ng';
+    expect(stripControl(input)).toBe('ab\tc\ndef\ng');
+  });
+  test('safeStderrTail passes plain diagnostics and withholds a tail carrying a MEDIUM or HIGH shape', () => {
+    expect(safeStderrTail('  auth failed:\n  retry later ')).toBe('auth failed: retry later');
+    expect(safeStderrTail('')).toBe('');
+    expect(safeStderrTail('could not parse: mail jane.doe@northwind-traders.com')).toMatch(/^\[stderr withheld: \d+ redaction finding/);
+    expect(safeStderrTail('key AKIA1234567890ABCDEF rejected')).toMatch(/withheld/);
+  });
+  test('budgetMs honours the test-only override but never widens the budget', () => {
+    expect(budgetMs({})).toBe(BUDGET_MS);
+    expect(budgetMs({ GSTACK_MEMORABLE_TEST_BUDGET_MS: '400' })).toBe(400);
+    expect(budgetMs({ GSTACK_MEMORABLE_TEST_BUDGET_MS: '99999' })).toBe(BUDGET_MS);
+    expect(budgetMs({ GSTACK_MEMORABLE_TEST_BUDGET_MS: 'soon' })).toBe(BUDGET_MS);
+    expect(budgetMs({ GSTACK_MEMORABLE_TEST_BUDGET_MS: '-1' })).toBe(BUDGET_MS);
+  });
+  test('logHookError rate limit is per message and expires', () => {
+    const prev = process.env.GSTACK_STATE_ROOT;
+    process.env.GSTACK_STATE_ROOT = path.join(home, '.gstack');
+    try {
+      const t0 = 1_700_000_000_000;
+      const lines = () => errLog().split('\n').filter(Boolean);
+      logHookError('A', t0); logHookError('A', t0 + 1000);
+      expect(lines()).toHaveLength(1);
+      logHookError('B', t0 + 2000);
+      expect(lines()).toHaveLength(2);
+      logHookError('A', t0 + LOG_RATE_LIMIT_MS + 1);
+      expect(lines()).toHaveLength(3);
+      if (process.platform !== 'win32') expect(fs.statSync(path.join(home, '.gstack', 'hook-errors.log')).mode & 0o077).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.GSTACK_STATE_ROOT; else process.env.GSTACK_STATE_ROOT = prev;
+    }
   });
   test('resolveVendor: explicit override wins, may be quoted, and an unresolvable or non-executable override is null (no fall-through)', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-resolve-'));
@@ -464,10 +544,34 @@ describe('runExternal (spawn-bin)', () => {
     expect(r.stdout.length).toBe(0);
   });
   test('a fork-style child is contained by the group kill on timeout', async () => {
-    const r = await runExternal('sh', ['-c', "sh -c 'sleep 31'"], { timeoutMs: 300 });
+    const nonce = `${process.pid}${Date.now()}`;
+    const r = await runExternal('sh', ['-c', `sh -c 'sleep 31.${nonce}'`], { timeoutMs: 300 });
     expect(r.timedOut).toBe(true);
-    const survivors = spawnSync('sh', ['-c', "ps -eo args | grep '^sleep 31$' || true"], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 31.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
     expect(survivors).toBe('');
+  });
+  test('resolves on the direct child\'s exit even when a background grandchild holds the pipes; the straggler is killed', async () => {
+    const nonce = `${process.pid}${Date.now()}`;
+    const t0 = Date.now();
+    const r = await runExternal('sh', ['-c', `sleep 21.${nonce} & echo hi; exit 0`], { timeoutMs: 3000 });
+    expect(Date.now() - t0).toBeLessThan(1500);
+    expect(r.status).toBe(0);
+    expect(r.timedOut).toBe(false);
+    expect(r.stdout.toString()).toBe('hi\n');
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 21.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    expect(survivors).toBe('');
+  });
+  test('a child that exits before reading its input reports stdinError separately from error', async () => {
+    const r = await runExternal('sh', ['-c', 'echo answered; exit 0'], { timeoutMs: 3000, input: Buffer.alloc(300_000, 0x78) });
+    expect(r.status).toBe(0);
+    expect(r.error).toBeUndefined();
+    expect(r.stdinError).toBe('EPIPE');
+    expect(r.stdout.toString()).toBe('answered\n');
+  });
+  test('an unspawnable command resolves with an error code and null status', async () => {
+    const r = await runExternal('', [], { timeoutMs: 1000 });
+    expect(r.error).toBeDefined();
+    expect(r.status).toBeNull();
   });
 });
 
@@ -481,5 +585,43 @@ describe('static contract', () => {
     expect(src.indexOf('writeReceipt(')).toBeLessThan(src.indexOf('// VENDOR SPAWN'));
     expect(src).toContain('fail-closed');
     expect(fs.statSync(HOOK).mode & 0o111).toBeGreaterThan(0);
+  });
+});
+
+describe('deadline and policy failure paths (review coverage)', () => {
+  test('a shortened budget skips the vendor before the spawn: nothing spawned, no receipt, logged', () => {
+    gateOn();
+    const r = runHook(PROMPT, { GSTACK_MEMORABLE_TEST_BUDGET_MS: '499' });
+    expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
+    expect(calls()).toBe('');
+    expect(fs.existsSync(ledger())).toBe(false);
+    expect(errLog()).toContain('budget-exhausted');
+  });
+
+  test('an unreadable trust-policy store fails closed: nothing spawned, no receipt, logged', () => {
+    gateOn();
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-repo-'));
+    try {
+      const git = (args: string[]) => spawnSync('git', args, { cwd: repo, encoding: 'utf8', timeout: 10_000 });
+      git(['init', '-q']);
+      git(['remote', 'add', 'origin', 'https://github.com/example/some-repo.git']);
+      // a directory where the store file should be: hasRepoPolicyStore() is true, every read fails
+      fs.mkdirSync(path.join(home, '.gstack', 'gbrain-repo-policy.json'), { recursive: true });
+      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: repo }), {}, repo);
+      expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
+      expect(calls()).toBe('');
+      expect(fs.existsSync(ledger())).toBe(false);
+      expect(errLog()).toContain('trust policy store unreadable');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  test('a payload cwd that is a file falls back to the process cwd instead of failing the git spawn', () => {
+    gateOn();
+    const file = path.join(home, 'not-a-dir');
+    fs.writeFileSync(file, 'x');
+    const r = runHook(JSON.stringify({ prompt: 'hello', cwd: file }));
+    expect(r.stdout).toContain('remembered');
   });
 });

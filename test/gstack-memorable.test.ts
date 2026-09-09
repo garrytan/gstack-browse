@@ -436,14 +436,25 @@ describe('lifecycle lock and static pins', () => {
     expect(fs.existsSync(path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock'))).toBe(false);
   }, 30_000);
 
-  test('a stale lock (older than 30 s) is taken over, a fresh one is waited on', () => {
+  test('a stale lock (directory older than 30 s) is taken over', () => {
     const lock = path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock');
     fs.mkdirSync(lock, { recursive: true });
-    fs.writeFileSync(path.join(lock, 'ts'), String(Math.floor(Date.now() / 1000) - 120));
     fs.writeFileSync(path.join(lock, 'owner'), '999999');
+    const old = new Date(Date.now() - 120_000);
+    fs.utimesSync(lock, old, old); // staleness comes from the directory mtime that mkdir set
     expect(run(['enable']).status).toBe(0);
     expect(fs.existsSync(lock)).toBe(false);
   });
+
+  test('a fresh lock with no bookkeeping yet (the mkdir-to-owner gap) is waited on, never reclaimed', () => {
+    const lock = path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock');
+    fs.mkdirSync(lock, { recursive: true }); // no owner, no ts: a holder that just won mkdir
+    const t0 = Date.now();
+    const r = run(['disable']);
+    expect(r.status).toBe(5);
+    expect(Date.now() - t0).toBeGreaterThan(4000);
+    expect(fs.existsSync(lock)).toBe(true);
+  }, 30_000);
 
   test('source pins: canonical-only command, Windows refusal, no vendor invocation, explicit-status style', () => {
     const src = fs.readFileSync(BIN, 'utf8');
