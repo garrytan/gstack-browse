@@ -626,6 +626,41 @@ identity-based answer.
 
 **Effort:** S. **Priority:** P3. **Depends on:** none.
 
+### P3: one state-root rule for the bridge's four stores
+
+**What:** The hook, `bin/gstack-config` and `bin/gstack-memorable` resolve
+their root as `GSTACK_STATE_ROOT` > `GSTACK_HOME` > `GSTACK_STATE_DIR`; the
+egress ledger (`lib/egress-receipt.ts`) honors `GSTACK_HOME` >
+`GSTACK_STATE_DIR`; the trust-policy store (`lib/gbrain-repo-policy-client.ts`)
+only `GSTACK_HOME`; `bin/gstack-uninstall` deletes only
+`${GSTACK_STATE_DIR:-$HOME/.gstack}`. Extract one shared rule (a
+`lib/state-root.ts` plus its bash twin) and use it everywhere.
+
+**Why:** With `GSTACK_STATE_ROOT` set, the gate lives under one directory and
+the receipts under another; the tests pin all three variables to one temp dir,
+so the drift is invisible to them. Found by the /ship red team.
+
+**Context:** Uninstall already flips `memorable_recall` off unconditionally
+(through gstack-config's own resolution) so no config can say `on` after the
+hook is gone; the remaining drift is observability, not consent.
+
+**Effort:** S (human ~3 h / CC+gstack ~20 min). **Priority:** P3.
+**Depends on:** none.
+
+### P3: shared hook logging helper
+
+**What:** `stateRoot()` and the `hook-errors.log` appender now exist in five
+hooks (`question-log`, `question-preference`, `auq-error-fallback`,
+`timeline-stop`, `memorable-user-prompt`), with drifting env-var precedence.
+Extract `hosts/claude/hooks/hook-log.ts` (root resolution, 0600 append, the
+rate limiter the memorable hook added) and migrate the five.
+
+**Why:** One place to fix precedence and file modes; the memorable hook's
+rate limiter belongs to every hook that can fail on every prompt.
+
+**Effort:** S (human ~2 h / CC+gstack ~15 min). **Priority:** P3.
+**Depends on:** the state-root rule above.
+
 ## Aside integration follow-ups (filed via /plan-ceo-review + /plan-eng-review on the third-party-actions Aside plan)
 
 ### QA logged-in-evidence path via Aside (Phase 2)

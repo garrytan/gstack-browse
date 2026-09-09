@@ -68,6 +68,16 @@ allowlisted argument fields and a 200-character task line. Those are the
 vendor's claims. The bridge is tested against memorable-cli 0.5.18's hook
 contract; other versions are the vendor's compatibility claim.
 
+The binary's environment is an allowlist, not your session's: `PATH`, `HOME`,
+user and shell names, locale (`LANG`, `LC_*`), temp directories, the standard
+proxy and TLS variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`,
+`SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`), the `XDG_*`
+directories, and every `MEMORABLE*` variable. No `ANTHROPIC_API_KEY`, no
+`GSTACK_*`, no `CLAUDE_*` reaches it. Its stderr is kept out of
+`hook-errors.log` whenever the redaction engine finds a credential or PII
+shape in it, so a vendor that echoes its input on an error cannot copy your
+prompt into a log.
+
 The hook skips the hand-off entirely, with one rate-limited line in
 `~/.gstack/hook-errors.log`, when:
 
