@@ -116,12 +116,13 @@ _lock_acquire() {
     now="$(date +%s)"
     if [ -n "$mtime" ] && [ $((now - mtime)) -gt "$LOCK_STALE_S" ]; then
       # Atomic rename: exactly one contender reclaims a stale lock; the loser
-      # loops and re-contends against the winner's fresh mkdir.
+      # loops and re-contends against the winner's fresh mkdir. A rename that
+      # fails (locks dir not writable by this user) falls through to the
+      # give-up counter below instead of spinning.
       stale="$LOCK_DIR.stale.$$-$RANDOM"
-      if mv "$LOCK_DIR" "$stale" 2>/dev/null; then rm -rf "$stale" 2>/dev/null || true; fi
-      continue
+      if mv "$LOCK_DIR" "$stale" 2>/dev/null; then rm -rf "$stale" 2>/dev/null || true; continue; fi
     fi
-    if [ "$tries" -ge "$LOCK_TRIES" ]; then _err "another gstack-memorable is running (lock $LOCK_DIR); try again"; return 5; fi
+    if [ "$tries" -ge "$LOCK_TRIES" ]; then _err "another gstack-memorable is running (lock $LOCK_DIR; stale but not reclaimable if older than ${LOCK_STALE_S}s); try again"; return 5; fi
     sleep "$LOCK_SLEEP"
   done
   printf '%s\n' "$$" > "$LOCK_DIR/owner"
@@ -284,10 +285,15 @@ DONE
 disable_bridge() {
   local gate_rc=0 remove_rc=0 remove_out="" gate_after
   _lock_acquire || return $?
-  [ -x "$GSTACK_CONFIG" ] || { _err "missing $GSTACK_CONFIG"; return 1; }
   # Gate first: the hook reads it on every prompt, so consent is revoked
-  # immediately even if the registration removal below fails.
-  "$GSTACK_CONFIG" set "$CONFIG_KEY" off >/dev/null 2>&1 || gate_rc=$?
+  # immediately even if the registration removal below fails. A missing
+  # gstack-config (half-removed install) is reported, and the removal still
+  # runs: the hook fails closed without gstack-config, the entry must still go.
+  if [ -x "$GSTACK_CONFIG" ]; then
+    "$GSTACK_CONFIG" set "$CONFIG_KEY" off >/dev/null 2>&1 || gate_rc=$?
+  else
+    _err "missing $GSTACK_CONFIG"; gate_rc=1
+  fi
   if [ -x "$SETTINGS_HOOK" ]; then
     remove_out="$("$SETTINGS_HOOK" remove-source --source "$HOOK_SOURCE" 2>&1)" || remove_rc=$?
   else
@@ -351,6 +357,17 @@ status_bridge() {
     n="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null | bun -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]");console.log(Array.isArray(a)?a.length:0)' 2>/dev/null)"
     case "$n" in *[!0-9]*|"") n=0 ;; esac
     echo "receipts: $n for sink $SINK (gstack-egress list --sink $SINK)"
+    # Same resolution as lib/egress-receipt.ts resolveEgressHome: GSTACK_HOME, GSTACK_STATE_DIR, ~/.gstack.
+    local ledger size
+    ledger="${GSTACK_HOME:-${GSTACK_STATE_DIR:-$HOME/.gstack}}/security/egress.jsonl"
+    if [ -f "$ledger" ]; then
+      size="$(wc -c < "$ledger" | tr -d ' ')"
+      if [ "${size:-0}" -gt 26214400 ]; then
+        echo "ledger: $ledger ($((size / 1048576)) MiB; above the 25 MiB warning, rotation is a filed TODO: this sink appends two lines per prompt)"
+      else
+        echo "ledger: $ledger ($(( (size + 1023) / 1024 )) KiB; this sink appends two lines per prompt)"
+      fi
+    fi
   fi
   if [ -f "$STATE_DIR/hook-errors.log" ]; then
     n="$(grep -c 'memorable-user-prompt-hook' "$STATE_DIR/hook-errors.log" 2>/dev/null || true)"
