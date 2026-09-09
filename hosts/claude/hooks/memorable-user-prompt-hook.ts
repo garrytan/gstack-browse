@@ -10,8 +10,8 @@
  * and clean removal. This file is that mediation.
  *
  *   stdin JSON -> cap 1 MiB -> parse -> MEMORABLE=0? -> gate memorable_recall == on?
- *      -> win32? -> trust policy (deny / read-only veto, by session cwd)
- *      -> HIGH-tier secret scan (raw bytes AND decoded string leaves)
+ *      -> win32? -> trust policy (deny / read-only veto, by session cwd; fail-closed)
+ *      -> HIGH-tier secret scan (raw bytes AND decoded string leaves, each clock-bounded)
  *      -> resolve vendor -> budget >= 500 ms? -> gate re-check
  *      -> receipt (fail-closed: no receipt, no send)
  *      -> VENDOR SPAWN (own process group, allowlisted env, group-killed on timeout)
@@ -25,15 +25,19 @@
  *     vendor can never block a prompt or speak as gstack: only a string
  *     `hookSpecificOutput.additionalContext` is accepted from its output.
  *   - One deadline clock (BUDGET_MS) undercuts Claude Code's 5 s hook kill;
- *     every stage, the two ledger writes included, gets min(cap, remaining).
- *     A receipt with no outcome means the host killed us or the clock ran out
- *     (reported as `unknown`), never success.
+ *     every stage, the two ledger writes and the secret scans included, gets
+ *     min(cap, remaining). A receipt with no outcome means the host killed us
+ *     or the clock ran out (reported as `unknown`), never success.
  *   - Fail-closed on the receipt: if the ledger cannot be written, recall is
  *     skipped for that prompt. What the receipt attests is the bytes handed to
  *     a LOCAL binary running with the user's privileges (host `local:<path>`);
  *     what that binary sends is the vendor's claim.
  *   - The vendor sees an allowlisted environment (PATH, HOME, locale, TMP,
- *     MEMORABLE*), never Claude Code's full env (which can carry API keys).
+ *     the standard proxy/TLS/XDG variables, MEMORABLE*), never Claude Code's
+ *     full env (which can carry API keys).
+ *   - The vendor's stderr reaches hook-errors.log only when the redaction
+ *     engine finds nothing in it (a CLI that echoes its input on a parse
+ *     error would otherwise copy the prompt into the log).
  *   - Windows is refused here (no process groups to contain the vendor);
  *     bin/gstack-memorable enable refuses there too. TODOS.md D21.
  *
@@ -51,19 +55,37 @@ import { hasRepoPolicyStore, repoPolicyTier } from '../../../lib/gbrain-repo-pol
 export const BUDGET_MS = 4500;
 export const STDIN_CAP_BYTES = 1024 * 1024;
 export const OUTPUT_CAP_BYTES = 8192;
+/** Left on the clock for post-processing, the stdout write and one ledger append after the vendor. */
 export const RESERVE_MS = 300;
+/** Below this many ms left before the spawn, the vendor is not started at all. */
 export const MIN_SPAWN_MS = 500;
+/** Cap for each pre-spawn stage (stdin read, gate, policy, each secret scan); always min(cap, remaining). */
+export const STAGE_CAP_MS = 1000;
+/** Cap for the pre-spawn gate re-check. */
+export const RECHECK_CAP_MS = 500;
 /** Below this many ms left, the outcome append is skipped (the receipt stands, outcome reads as unknown). */
 export const OUTCOME_MIN_MS = 80;
+/** Kept back from the clock when an outcome append is given the rest of it. */
+export const OUTCOME_RESERVE_MS = 50;
 export const LOG_RATE_LIMIT_MS = 10 * 60 * 1000;
 export const ENVELOPE_SOURCE = 'memorable recall (third-party)';
 export const SINK = 'memorable-recall';
 export const CONSENT = 'memorable_recall=on';
+export const RESOLUTION_ORDER = 'GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH';
 const HOOK_NAME = 'memorable-user-prompt-hook';
+const GIT_MAX_BUFFER = 64 * 1024;
+const TRUNCATION_MARKER = `[truncated by gstack at ${OUTPUT_CAP_BYTES / 1024} KiB]`;
 
 /** Milliseconds left on a deadline that started at startMs. Pure; unit-tested. */
 export function budgetFor(startMs: number, nowMs: number, cap: number = BUDGET_MS): number {
   return Math.max(0, startMs + cap - nowMs);
+}
+
+/** The deadline: BUDGET_MS, or a test-only override that can only shorten it. */
+export function budgetMs(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.GSTACK_MEMORABLE_TEST_BUDGET_MS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, BUDGET_MS) : BUDGET_MS;
 }
 
 /** Truncate to maxBytes of UTF-8 without splitting a multibyte character. */
@@ -75,10 +97,12 @@ export function capUtf8(text: string, maxBytes: number): { text: string; truncat
   return { text: buf.subarray(0, end).toString('utf8'), truncated: true };
 }
 
-// C0 controls minus tab (9) and newline (10), plus DEL. Built from char codes
-// so the source file itself carries no control bytes.
+// C0 controls minus tab (9) and newline (10), plus DEL. Carriage return (13)
+// is stripped too: a CR can visually overwrite earlier text in a rendering of
+// the injected context while staying one line for the envelope. Built from
+// char codes so the source file itself carries no control bytes.
 const cc = (n: number): string => String.fromCharCode(n);
-const CONTROL_RE = new RegExp(`[${cc(0)}-${cc(8)}${cc(11)}${cc(12)}${cc(14)}-${cc(31)}${cc(127)}]`, 'g');
+const CONTROL_RE = new RegExp(`[${cc(0)}-${cc(8)}${cc(11)}-${cc(31)}${cc(127)}]`, 'g');
 
 /** Strip control characters except newline and tab (the envelope handles the rest). */
 export function stripControl(text: string): string {
@@ -99,7 +123,16 @@ export function stringLeaves(value: unknown, maxNodes = 10_000, maxDepth = 32): 
   return out;
 }
 
-const ENV_ALLOW = new Set(['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'TERM', 'TMPDIR', 'TEMP', 'TMP']);
+// Identity, locale and temp; the standard proxy, TLS and XDG knobs the vendor
+// needs to reach its own service through the user's proxy or private CA (it
+// already gets them from the user's shell); plus MEMORABLE* (its own knobs,
+// matched by prefix below). Never API keys, never GSTACK_* or CLAUDE_*.
+const ENV_ALLOW = new Set([
+  'PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'LANG', 'TERM', 'TMPDIR', 'TEMP', 'TMP',
+  'HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'no_proxy',
+  'SSL_CERT_FILE', 'SSL_CERT_DIR', 'NODE_EXTRA_CA_CERTS',
+  'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME',
+]);
 
 /** The vendor's environment: an allowlist, never Claude Code's full env. */
 export function vendorEnv(env: Record<string, string | undefined>): Record<string, string> {
@@ -123,8 +156,23 @@ export function pickAdditionalContext(raw: string): string | null {
 /** Cap + envelope: the text Claude will see. */
 export function renderContext(vendorText: string): string {
   const { text, truncated } = capUtf8(stripControl(vendorText), OUTPUT_CAP_BYTES);
-  const body = truncated ? `${text}\n[truncated by gstack at 8 KiB]` : text;
+  const body = truncated ? `${text}\n${TRUNCATION_MARKER}` : text;
   return wrapUntrustedTrackerContent(body, ENVELOPE_SOURCE);
+}
+
+/**
+ * The vendor's stderr tail as it may appear in hook-errors.log: control-stripped,
+ * whitespace-collapsed, last 300 chars, and WITHHELD when the redaction engine
+ * finds a HIGH or MEDIUM shape in it (a CLI that echoes its input on a parse
+ * error would otherwise copy prompt text into a log the pre-scan only cleared
+ * of HIGH-tier shapes).
+ */
+export function safeStderrTail(tail: string): string {
+  const t = stripControl(tail).replace(/\s+/g, ' ').trim().slice(-300);
+  if (!t) return '';
+  const r = scan(t, { repoVisibility: 'unknown' });
+  const n = r.counts.HIGH + r.counts.MEDIUM;
+  return r.oversize || n > 0 ? `[stderr withheld: ${n} redaction finding(s)]` : t;
 }
 
 function stripQuotes(v: string): string {
@@ -140,6 +188,10 @@ function executable(p: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isDirectory(p: string): boolean {
+  try { return fs.statSync(p).isDirectory(); } catch { return false; }
 }
 
 /**
@@ -168,7 +220,8 @@ function stateRoot(): string {
 /**
  * Best-effort, rate-limited: an identical message within LOG_RATE_LIMIT_MS is
  * not re-logged (a vendor removed after `enable` would otherwise append on
- * every prompt). The marker is per hook so hooks never contend.
+ * every prompt). The marker is per hook so hooks never contend. The log is
+ * created 0600: it can name the session's cwd and the vendor's diagnostics.
  */
 export function logHookError(msg: string, nowMs: number = Date.now()): void {
   try {
@@ -180,8 +233,8 @@ export function logHookError(msg: string, nowMs: number = Date.now()): void {
       const [prevDigest, prevTs] = fs.readFileSync(marker, 'utf8').trim().split(':');
       if (prevDigest === digest && nowMs - Number(prevTs) < LOG_RATE_LIMIT_MS) return;
     } catch { /* no marker yet */ }
-    fs.writeFileSync(marker, `${digest}:${nowMs}\n`);
-    fs.appendFileSync(path.join(root, 'hook-errors.log'), `${new Date(nowMs).toISOString()} ${HOOK_NAME}: ${msg}\n`);
+    fs.writeFileSync(marker, `${digest}:${nowMs}\n`, { mode: 0o600 });
+    fs.appendFileSync(path.join(root, 'hook-errors.log'), `${new Date(nowMs).toISOString()} ${HOOK_NAME}: ${msg}\n`, { mode: 0o600 });
   } catch {
     // best-effort; never block the session because logging failed
   }
@@ -219,15 +272,23 @@ function gateIsOn(timeoutMs: number): 'on' | 'off' | 'error' {
   return String(r.stdout ?? '').trim() === 'on' ? 'on' : 'off';
 }
 
-async function policyVeto(cwd: string, timeoutMs: number): Promise<'ok' | 'skip' | 'error'> {
+/**
+ * Trust-policy veto by the session's repo (keyed by its origin remote).
+ * Both halves fail CLOSED once a store exists: a git that could not run or
+ * answer in time, or a store that could not be read, is a failed read
+ * (`error`), never "no remote". Only a clean non-zero git exit (no remote,
+ * not a repo) means nothing can be set for this directory.
+ */
+async function policyVeto(cwd: string, timeoutMs: number, remaining: () => number): Promise<'ok' | 'skip' | 'error'> {
   if (!hasRepoPolicyStore()) return 'ok';
   const git = await runExternal('git', ['remote', 'get-url', 'origin'], {
-    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: 64 * 1024, env: process.env,
+    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: GIT_MAX_BUFFER, env: process.env,
   });
-  if (git.status !== 0) return 'ok'; // no remote: the policy (keyed by remote) has nothing set for this repo
+  if (git.timedOut || git.error) return 'error';
+  if (git.status !== 0) return 'ok';
   const url = git.stdout.toString('utf8').trim();
   if (!url) return 'ok';
-  const res = repoPolicyTier(url);
+  const res = repoPolicyTier(url, process.env, Math.max(1, Math.min(STAGE_CAP_MS, remaining())));
   if (res.error) return 'error';
   // `deny` and `read-only` are the tiers a user picks so a repo's content
   // never lands in a shared store; a third-party memory service is one.
@@ -240,33 +301,45 @@ function writeStdout(text: string): Promise<void> {
 
 export async function main(): Promise<void> {
   const start = Date.now();
-  const remaining = (): number => budgetFor(start, Date.now());
+  const cap = budgetMs();
+  const remaining = (): number => budgetFor(start, Date.now(), cap);
 
-  const stdin = await readStdin(STDIN_CAP_BYTES, Math.min(1000, remaining()));
+  const stdin = await readStdin(STDIN_CAP_BYTES, Math.min(STAGE_CAP_MS, remaining()));
   if (stdin.oversize) { logHookError('oversize: stdin exceeded 1 MiB, recall skipped'); return; }
   const raw = stdin.buf;
   if (raw.length === 0) return;
+  const rawText = raw.toString('utf8');
   let payload: unknown;
-  try { payload = JSON.parse(raw.toString('utf8')); } catch { logHookError('stdin was not JSON, recall skipped'); return; }
+  try { payload = JSON.parse(rawText); } catch {
+    logHookError(stdin.timedOut
+      ? 'stdin was not closed within the read budget (incomplete JSON), recall skipped'
+      : 'stdin was not JSON, recall skipped');
+    return;
+  }
   if (!payload || typeof payload !== 'object') return;
 
   if (process.env.MEMORABLE === '0') return; // the vendor's own kill switch
 
-  const gate = gateIsOn(Math.min(1000, remaining()));
+  const gate = gateIsOn(Math.min(STAGE_CAP_MS, remaining()));
   if (gate === 'error') { logHookError('gstack-config get memorable_recall failed, recall skipped (fail-closed)'); return; }
   if (gate !== 'on') return;
 
   if (process.platform === 'win32') { logHookError('Windows is not supported by this bridge yet (TODOS.md D21), recall skipped'); return; }
 
   const payloadCwd = (payload as { cwd?: unknown }).cwd;
-  const cwd = typeof payloadCwd === 'string' && fs.existsSync(payloadCwd) ? payloadCwd : process.cwd();
-  const veto = await policyVeto(cwd, Math.min(1000, remaining()));
+  const cwd = typeof payloadCwd === 'string' && isDirectory(payloadCwd) ? payloadCwd : process.cwd();
+  const veto = await policyVeto(cwd, Math.min(STAGE_CAP_MS, remaining()), remaining);
   if (veto === 'skip') { logHookError(`trust policy for ${cwd} is deny or read-only, recall skipped`); return; }
   if (veto === 'error') { logHookError('trust policy store unreadable, recall skipped (fail-closed)'); return; }
 
-  const rawText = raw.toString('utf8');
+  // HIGH-tier pre-scan over the raw text and the decoded string leaves (a JSON
+  // escape must not hide a key). The engine's cost grows with match density
+  // (a pasted log is dense in MEDIUM/LOW shapes), so each scan is admitted by
+  // the clock: a scan we cannot afford skips recall instead of letting the
+  // host kill us mid-scan.
   const leaves = stringLeaves(payload).join('\n');
   for (const text of [rawText, leaves]) {
+    if (remaining() < MIN_SPAWN_MS) { logHookError('budget-exhausted before the secret scan, recall skipped'); return; }
     const result = scan(text, { repoVisibility: 'unknown' });
     if (result.oversize || result.counts.HIGH > 0) {
       logHookError('refused:redaction-high: the prompt carries a HIGH-tier credential shape, nothing handed to the vendor');
@@ -275,10 +348,12 @@ export async function main(): Promise<void> {
   }
 
   const vendor = resolveVendor(process.env, os.homedir());
-  if (!vendor) { logHookError('memorable CLI not found (checked GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH), recall skipped'); return; }
+  if (!vendor) { logHookError(`memorable CLI not found (checked ${RESOLUTION_ORDER}), recall skipped`); return; }
 
   if (remaining() < MIN_SPAWN_MS) { logHookError('budget-exhausted before the vendor spawn, recall skipped'); return; }
-  if (gateIsOn(Math.min(500, remaining())) !== 'on') return; // a disable that landed while we worked wins
+  const again = gateIsOn(Math.min(RECHECK_CAP_MS, remaining()));
+  if (again === 'error') { logHookError('gstack-config get memorable_recall failed on the pre-spawn re-check, recall skipped (fail-closed)'); return; }
+  if (again !== 'on') return; // a disable that landed while we worked wins
 
   let receiptId: string;
   try {
@@ -301,7 +376,7 @@ export async function main(): Promise<void> {
   }
   if (remaining() < MIN_SPAWN_MS) {
     logHookError('budget-exhausted after the receipt, recall skipped');
-    try { writeOutcome({ receipt: receiptId, status: 'budget-exhausted', lockBudgetMs: Math.max(0, remaining() - 100) }); } catch { /* bookkeeping */ }
+    try { writeOutcome({ receipt: receiptId, status: 'budget-exhausted', lockBudgetMs: Math.max(0, remaining() - OUTCOME_RESERVE_MS) }); } catch { /* bookkeeping */ }
     return;
   }
 
@@ -316,6 +391,7 @@ export async function main(): Promise<void> {
   });
 
   let status: string;
+  let delivered = false;
   if (r.timedOut) status = 'timeout';
   else if (r.error) status = `spawn-error:${r.error}`;
   else if (r.status !== 0) status = `exit:${r.status} injected=no`;
@@ -326,16 +402,23 @@ export async function main(): Promise<void> {
       const rendered = renderContext(ctx);
       const out = JSON.stringify({ hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: rendered } });
       await writeStdout(out);
+      delivered = true;
       status = `exit:0 output-written bytes=${Buffer.byteLength(rendered, 'utf8')} gstack_ms=${gstackMs}`;
     }
   }
-  if (r.stderrTail && (r.timedOut || r.error || r.status !== 0)) {
-    logHookError(`vendor ${status}: ${r.stderrTail.replace(/\s+/g, ' ').slice(-300)}`);
+  // A vendor that exited before reading its stdin (EPIPE) is advisory when it
+  // still answered; the outcome records it, the answer is kept.
+  if (r.stdinError) status += ` stdin=${r.stdinError}`;
+  if (!delivered && (r.timedOut || r.error || r.status !== 0)) {
+    // Logged whether or not the vendor said anything: a silently hanging
+    // vendor taxes every prompt and must show up in `gstack-memorable status`.
+    const tail = safeStderrTail(r.stderrTail);
+    logHookError(`vendor ${status}${tail ? `: ${tail}` : ''}`);
   }
   // The vendor's timeout already left RESERVE_MS on the clock for exactly
   // this: the stdout write above and one bounded ledger append.
   if (remaining() > OUTCOME_MIN_MS) {
-    try { writeOutcome({ receipt: receiptId, status, lockBudgetMs: Math.max(0, remaining() - 50) }); } catch { /* the receipt is the invariant; the outcome is bookkeeping */ }
+    try { writeOutcome({ receipt: receiptId, status, lockBudgetMs: Math.max(0, remaining() - OUTCOME_RESERVE_MS) }); } catch { /* the receipt is the invariant; the outcome is bookkeeping */ }
   }
 }
 
