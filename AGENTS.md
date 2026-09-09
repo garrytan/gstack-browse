@@ -135,3 +135,119 @@ bun run skill:check      # health dashboard for all skills
 - Safety skills (careful, freeze, guard) use inline advisory prose — always confirm before destructive operations.
 - State paths resolve via `bin/gstack-paths` (sourced via `eval "$(...)"`). Honors `GSTACK_HOME`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PLANS_DIR`.
 - The `claude` CLI binary resolves via `browse/src/claude-bin.ts` (`Bun.which()` + `GSTACK_CLAUDE_BIN` override). Set `GSTACK_CLAUDE_BIN=wsl` plus `GSTACK_CLAUDE_BIN_ARGS='["claude"]'` to run Claude through WSL on Windows.
+
+<!-- Review sections installed by VAS-2757. Canonical text: claude-fleet-config
+     claude/review/agents-review-guidelines.md (VAS-2756 AC3) — edit there first, then
+     propagate; a per-repo divergence is a deliberate, documented decision, never drift. -->
+
+## Review guidelines
+
+These rules apply to every automated reviewer (Codex GitHub review, CodeRabbit) and to any agent
+asked to review a diff. A reviewer is read-only: it reports; it never edits, commits or pushes.
+
+### Severity rubric
+
+- **P0 — ship-stopper.** Data loss or corruption. A security defect: auth or authorisation bypass;
+  a Supabase table, view or function reachable without its intended RLS policy; a secret or token
+  in code, logs or the client bundle; injection or SSRF; PII sent to a third party the code did not
+  send it to before. A change that breaks the production build or deploy. A public API, schema or
+  contract broken with no migration path.
+- **P1 — must fix before merge.** A functional defect on the main path of this change. A crash or
+  unhandled rejection reachable in normal use. A swallowed error on a write path. A race or
+  double-write involving money or user data. A new table or column without its migration or
+  policy. A server-only value that reaches client code. A test that cannot fail.
+- **P2 — should fix, does not block.** An edge-case defect off the main path. A performance
+  regression with no user-visible impact. Changed behaviour with no test. Error handling
+  inconsistent with the surrounding code. A name that will cause a future defect.
+- **P3 — nit.** Style, formatting, wording, comments.
+
+Report P0 and P1 as inline review comments, each prefixed with its severity. Put P2 in the review
+summary only. Do not report P3.
+
+### What a finding must contain
+
+1. `path:line` of the defect.
+2. The concrete failure: which trigger or input, through which code path, violates which
+   invariant, with what impact. If you cannot write that sentence, it is not a finding.
+3. The smallest fix, expressed as a deletion or a correction of existing lines.
+
+### Never by addition
+
+Do not raise a finding whose only remedy is adding something: new validation, new handling, new
+tests, new docs, new comments, new abstractions, new configuration. Rate it P2, prefix it
+`scope:`, and let it become a ticket. Why: review-driven additions made reviewed files grow 2.7×
+in one lane and manufactured roughly half of all later findings.
+
+Exception: a defect the severity rubric above already classes P0 or P1 — a missing RLS policy, a
+new table or column without its migration or policy — keeps its rubric severity even though the
+remedy is an addition. This rule bounds remedies for findings below that bar; it never downgrades
+a rubric-defined blocker.
+
+### Scope
+
+- A finding must be resolvable inside this PR's diff, or in a file this diff breaks (a call site,
+  a contract, a consumer of a changed type). A cross-file defect caused by this diff is P1,
+  prefixed `cross-file:`, naming both locations.
+- A pre-existing defect this diff does not touch is P2, prefixed `pre-existing:`.
+- A thread already resolved with a `VAS-` ticket link is closed. Do not re-raise it.
+- If the newest commits carry a `Review-Fix-Head:` trailer, review those commits and what they
+  touch, not the whole PR again.
+
+### Diff-expansion triggers
+
+Inspect beyond the diff when the change touches auth, RLS, database schema, shared domain or API
+types, the privileged Supabase client, caching, tenant boundaries, external egress, or a shared
+helper used by multiple routes; follow caller, callee, schema, policy and tests only as required
+to prove or disprove a finding.
+
+### Do not report
+
+Style or formatting. Naming preferences. Anything phrased "consider", "might", "could".
+Speculative performance. Missing comments or docstrings. Alternative architectures. Anything CI
+already enforces.
+
+### Documentation and Markdown
+
+Only P0 and P1 apply: a command or code sample that will not run as written; a statement that
+contradicts the code; a secret or a production URL that should not be there. No findings on
+wording, tone, structure or length.
+
+<!-- GENERATED from review/triage.yml by claude/bin/gen-triage-views.py — do not hand-edit.
+     Copied into each repo's AGENTS.md review section by VAS-2757. -->
+
+### Artefact-class triage (generated)
+
+Review depth is set by the artefact-class triage table (claude-fleet-config
+`review/triage.yml`): an ordered matcher over touched paths, first match wins, deny
+checked first.
+
+- **Refuse — fail, do not review:** `**/.env`, `**/.env.*`, `**/*.pem`, `**/*.key` (except `**/*.example`), or private-key material in the diff.
+- **full** (cheap + CodeRabbit + Codex): `supabase/migrations/**`, `supabase/functions/**`, `.github/workflows/**`, `.github/actions/**`, `**/middleware.ts`, `**/route.ts`, `**/pages/api/**`, `lib/**`, `src/lib/**`, `**/*.d.ts`, `**/auth/**`, `**/next.config.*`, `**/stripe/**`, `**/checkout/**`, `**/webhooks/**`, `claude/hooks/**`, `claude/bin/**`, `claude/tests/**`.
+- **skim** (cheap voice only, one pass, annotations): `**/CLAUDE.md`, `**/AGENTS.md`, `**/content/config.ts`, `**/content.config.ts`, `**/components/**`, `**/__tests__/**`, `**/*.test.*`, `**/*.spec.*`, `tests/**`, `e2e/**`, `supabase/tests/**`, `**/package.json`, `**/tsconfig*.json`, `**/vitest.config.*`, `**/playwright.config.*`, `**/tailwind.config.*`, `**/postcss.config.*`, `**/eslint.config.*`, `**/.eslintrc*`, `**/.prettierrc*`, `**/astro.config.*`, `**/vercel.json`, `**/components.json`, `**/.env.example`, `**/*.example`, `supabase/seed.sql`.
+- **none** (deterministic suite only): `**/package-lock.json`, `**/pnpm-lock.yaml`, `**/yarn.lock`, `**/bun.lockb`, `**/*.lock`, `**/types.gen.ts`, `**/*.gen.ts`, `**/next-env.d.ts`, `.next/**`, `dist/**`, `build/**`, `out/**`, `.vercel/**`, `coverage/**`, `**/tsconfig.tsbuildinfo`, `public/**`, `**/*.png`, `**/*.jpg`, `**/*.jpeg`, `**/*.gif`, `**/*.svg`, `**/*.webp`, `**/*.ico`, `**/*.woff`, `**/*.woff2`, `**/*.mp4`, `**/*.pdf`, `src/content/**`, `docs/**`, `README*`, `**/README*`, `CHANGELOG*`, `**/CHANGELOG*`, `**/*.md`.
+- **Unmatched paths:** skim.
+- **Content triggers** (deterministic greps on the diff; they only ever escalate): `ROW LEVEL SECURITY` → full; `(CREATE|ALTER|DROP)[[:space:]]+POLICY` → full; `SECURITY DEFINER` → full; `DROP[[:space:]]+TABLE` → full; `\bTRUNCATE\b` → full; `service_role` → full; `dangerouslySetInnerHTML` → full; `'use server'` → full; `"(postinstall|preinstall|prepare)"[[:space:]]*:` → full.
+- **docs-as-contract** (claude-fleet-config, → full): A diff that touches a literal string referenced anywhere under claude/bin/** or claude/hooks/** is full. Doctrine text that a script enforces is a contract, and "**/*.md → none" would give it no review: the 8 Sep calibration showed the one real cross-file P1 of the month (cfc PR #193) was a doctrine change to the PASS|FAIL|PARTIAL verdict vocabulary that claude/skills/verify-ship/write-receipt.mjs enforces. Any enum or token vocabulary shared between doctrine and a script gets a parity test in claude/tests/ — claude/tests/triage-parity.test.sh carries the write-receipt verdict enum as the first case.
+- **Mixed PRs:** max over the touched paths' classes; content triggers may then raise it. Triggers never lower a class.
+- **Context filtering:** hunks whose path class is below the firing class are excluded from the reviewer's context.
+
+## Review fix-pass rules
+
+For the agent that fixes findings (Claude Code or opencode), attended or unattended.
+
+- Act only on unresolved P0/P1 threads bound to the current head commit. P2 and P3 are never fixed
+  in the fix pass; the harvest job tickets them.
+- One commit per landed review set. Fix by deletion or correction. Do not add files. The commit
+  may not grow the touched files by more than 10% (floor 20 lines). If a correct fix needs more
+  than that, do not fix: reply in the thread with `needs-scope` and stop.
+- Touch only files that carry an open P0/P1 thread, plus files those edits break.
+- Commit message `fix(review): <summary>` with trailers `Review-Fix-Head: <reviewed sha>` and one
+  `Addresses: <thread url>` per fixed finding. Never rewrite history on a lane branch.
+- Never run `@codex fix`. Never commit a reviewer's suggested patch verbatim in an unattended
+  lane. The reviewer must not become the author of what it reviews.
+- Re-review is a deliberate act. Unattended lanes get at most two automated `@codex review`
+  requests per PR; after that the PR is parked with a ticket and a human decides. Attended
+  sessions may request review of a **new candidate SHA** at any time — never a repeat pass on an
+  unchanged head.
+- If you disagree with a P0/P1, reply in the thread with evidence. Only a human resolves a P0/P1
+  thread as won't-fix.

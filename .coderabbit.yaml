@@ -1,0 +1,58 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# VAS-2757 — CodeRabbit configuration for the gstack fork (vaskockorovski/gstack).
+#
+# `request_changes_workflow: false` is the load-bearing line: with no config, CodeRabbit defaults
+# to CHANGES_REQUESTED (proven on claude-fleet-config #224/#225, 8 Sep 2026), which any
+# required-review rule turns into a hard merge gate — "P2 never blocks" violated by config.
+#
+# The path_filters and path_instructions marked GENERATED embed claude-fleet-config
+# review/generated/coderabbit-block.yaml, derived from review/triage.yml by
+# claude/bin/gen-triage-views.py. Repo-specific entries sit below the generated ones — merged
+# around the block, never replacing it.
+
+language: en-AU
+
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    base_branches: []
+
+  path_filters:
+    # GENERATED (claude-fleet-config review/generated/coderabbit-block.yaml).
+    - "!**/package-lock.json"
+    - "!**/pnpm-lock.yaml"
+    - "!**/yarn.lock"
+    - "!**/bun.lockb"
+    - "!**/*.lock"
+    - "!**/.env"
+    - "!**/.env.*"
+    - "!**/*.pem"
+    - "!**/*.key"
+
+  path_instructions:
+    # GENERATED (claude-fleet-config review/generated/coderabbit-block.yaml).
+    - path: "**/*.md"
+      instructions: >-
+        Only flag a command or code sample that would not run as written, a statement
+        that contradicts the code, or a secret or production URL. No findings on
+        wording, tone, structure or length.
+    - path: "**"
+      instructions: >-
+        Apply the '## Review guidelines' section of AGENTS.md: severity rubric,
+        never-by-addition, scope rule, and the do-not-report list. Inline comments for
+        P0/P1 only; P2 in the summary; no P3. Until that section lands (canonical text:
+        VAS-2756 AC3, copied per-repo in VAS-2757), apply this floor: a finding must
+        name a concrete failure; no style, naming, formatting or speculative findings.
+
+chat:
+  auto_reply: true
