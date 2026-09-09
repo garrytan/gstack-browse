@@ -168,9 +168,10 @@ gstack drives the Aside AI browser first. It is the user's real browser: real co
 ```bash
 _T=""; command -v gtimeout >/dev/null 2>&1 && _T="gtimeout 30"; [ -z "$_T" ] && command -v timeout >/dev/null 2>&1 && _T="timeout 30"
 [ -z "$_T" ] && command -v perl >/dev/null 2>&1 && _T="perl -e alarm(shift);exec(@ARGV) 30"
+_ASIDE_JS='console.log("ASIDE_READY " + pwd)'
 if [ "${GSTACK_SKIP_ASIDE:-}" = "1" ] || ! command -v aside >/dev/null 2>&1; then
   echo "NEEDS_ASIDE"
-elif $_T aside repl 'console.log("ASIDE_READY " + pwd)' 2>&1 | grep -q '^ASIDE_READY'; then
+elif eval "${_T:+$_T }aside repl \"\$_ASIDE_JS\"" 2>&1 | grep -q '^ASIDE_READY'; then
   echo "READY: aside $(aside --version 2>/dev/null)"
 else
   echo "ASIDE_NOT_RUNNING"
