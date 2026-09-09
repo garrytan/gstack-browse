@@ -14,6 +14,7 @@ import { Readable } from 'node:stream';
 import { getProjectEvalDir } from './eval-store';
 import { hermeticChildEnv, isHermeticEnabled } from './hermetic-env';
 import { killProcessGroup } from '../../scripts/test-strict-output';
+import { resolveEvalModel } from '../../lib/eval-model';
 
 const GSTACK_DEV_DIR = path.join(os.homedir(), '.gstack-dev');
 const HEARTBEAT_PATH = path.join(GSTACK_DEV_DIR, 'e2e-live.json'); // heartbeat stays global
@@ -136,7 +137,7 @@ export async function runSkillTest(options: {
   timeout?: number;
   testName?: string;
   runId?: string;
-  /** Model to use. Defaults to claude-sonnet-4-6 (overridable via EVALS_MODEL env). */
+  /** Model to use. Defaults to the frontier eval model (overridable via EVALS_MODEL env). */
   model?: string;
   /** Extra env vars merged into the spawned claude -p process. Useful for
    *  per-test GSTACK_HOME overrides so the test doesn't have to spell out
@@ -171,7 +172,7 @@ export async function runSkillTest(options: {
     process.env.CI ? Math.max(requestedGrace, STARTUP_GRACE_CI_FLOOR_MS) : requestedGrace,
     timeout,
   );
-  const model = options.model ?? process.env.EVALS_MODEL ?? 'claude-sonnet-4-6';
+  const model = options.model ?? process.env.EVALS_MODEL ?? resolveEvalModel('capture');
 
   const startTime = Date.now();
   const startedAt = new Date().toISOString();

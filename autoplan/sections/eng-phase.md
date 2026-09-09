@@ -20,7 +20,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   Design: <insert Design consensus table summary, or 'skipped, no UI scope'>
   DX: <insert DX consensus table summary, or 'skipped, no developer-facing scope'>
 
-  File: <plan_path>" -C "$_REPO_ROOT" -s read-only -c 'web_search="cached"' < /dev/null
+  File: <plan_path>" -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'web_search="cached"' < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
     _gstack_codex_log_event "codex_timeout" "600"

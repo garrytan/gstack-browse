@@ -44,6 +44,8 @@ matches a past learning, display:
 This makes the compounding visible. The user should see that gstack is getting
 smarter on their codebase over time.
 
+**Pass protocol (1-6):** Record the initial 0-10 score. Every `FIX TO 10` below is a proposal: ask about each issue, wait for approval, then edit the plan and re-rate that pass with the reason for the score change. A declined fix remains documented and lowers the final score. Never edit first and ask afterward. Pass 7 is the unscored decision register, not a seventh rating.
+
 ### Pass 1: Information Architecture
 Rate 0-10: Does the plan define what the user sees first, second, third?
 FIX TO 10: Add information hierarchy to the plan. Include ASCII diagram of screen/page structure and navigation flow. Apply "constraint worship" — if you can only show 3 things, which 3?
@@ -74,8 +76,6 @@ Apply time-horizon design: 5-sec visceral, 5-min behavioral, 5-year reflective.
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY.
 
 ### Pass 4: AI Slop Risk
-Rate 0-10: Does the plan describe specific, intentional UI — or generic patterns?
-FIX TO 10: Rewrite vague UI descriptions with specific alternatives.
 
 ### Design Hard Rules
 
@@ -175,6 +175,10 @@ Detector rule ids for the rest of the catalog (a `[rule-id]` in a finding is one
 Judgment tells with no detector rule: gradient cta button, stock-photo hero, cards as the default component, generic testimonial section, left-text right-image hero, generic cta labels, hero metric template, identical card grids, glassmorphism, hand-drawn svg illustration, modal by default, monospace as costume, content stand-ins, mode picked by category, unthemed browser surfaces, missing states.
 
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.
+
+**Pass 4 evaluation:** Rate 0-10: Does the plan describe specific, intentional UI, or generic patterns? Record each hard-rejection hit and litmus YES/NO with evidence. An unresolved hard rejection caps this pass below 8 (not design-complete); it does not automatically set the score to 0. Litmus answers support findings, not a separate numeric score.
+
+FIX TO 10: Rewrite vague UI descriptions with specific alternatives:
 - "Cards with icons" → what differentiates these from every SaaS template?
 - "Hero section" → what makes this hero feel like THIS product?
 - "Clean, modern UI" → meaningless. Replace with actual design decisions.
@@ -204,6 +208,7 @@ Surface ambiguities that will haunt implementation:
 ```
 If visual mockups were generated in Step 0.5, reference them as evidence when surfacing unresolved decisions. A mockup makes decisions concrete — e.g., "Your approved mockup shows a sidebar nav, but the plan doesn't specify mobile behavior. What happens to this sidebar on 375px?"
 Each decision = one AskUserQuestion with recommendation + WHY + alternatives. Edit the plan with each decision as it's made.
+**STOP.** Wait for each answer before editing or advancing. Record unanswered decisions as unresolved.
 
 ### Post-Pass: Update Mockups (if generated)
 
@@ -639,4 +644,3 @@ Use AskUserQuestion to present the next step. Include only applicable options:
 * One sentence max per option.
 * After each pass, pause and wait for feedback.
 * Rate before and after each pass for scannability.
-

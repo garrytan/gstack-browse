@@ -110,7 +110,7 @@ $(cat <<'SPEC_BODY_EOF'
 {spec body here}
 SPEC_BODY_EOF
 )
-<<<END_USER_SPEC>>>" -s read-only -c 'model_reasoning_effort="medium"' < /dev/null 2>"$TMPERR_GATE"
+<<<END_USER_SPEC>>>" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'model_reasoning_effort="medium"' < /dev/null 2>"$TMPERR_GATE"
 ```
 
 Use a 2-minute timeout. Read stderr from `$TMPERR_GATE` after.

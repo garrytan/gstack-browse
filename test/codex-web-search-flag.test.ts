@@ -11,10 +11,10 @@
  * (resolver, template, helper) or any rendered SKILL.md / section / golden.
  */
 import { describe, test, expect } from 'bun:test';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CODEX_WEB_SEARCH_FLAG } from '../scripts/resolvers/constants';
+import { CODEX_MODEL_CONFIG_FLAG, CODEX_REVIEW_MODEL_CONFIG_FLAG, CODEX_WEB_SEARCH_FLAG } from '../scripts/resolvers/constants';
 
 const ROOT = path.join(import.meta.dir, '..');
 const DEPRECATED = '--enable web_search_cached';
@@ -78,5 +78,45 @@ describe('deprecated codex web-search flag is gone (#2525)', () => {
     }
     const skeleton = fs.readFileSync(path.join(ROOT, 'autoplan', 'SKILL.md'), 'utf-8');
     expect(skeleton).not.toContain('{{CODEX_WEB_SEARCH_FLAG}}');
+  });
+});
+
+describe('codex frontier model flag is present', () => {
+  test('the model flag defaults to gpt-6-astra while allowing GSTACK_CODEX_MODEL', () => {
+    expect(CODEX_MODEL_CONFIG_FLAG).toBe('-c "model=\\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\\""');
+  });
+
+  test('native review overrides both model settings with the same selection', () => {
+    for (const override of ['', 'custom-codex']) {
+      const argv = execFileSync('bash', ['-c', `printf '%s\\n' ${CODEX_REVIEW_MODEL_CONFIG_FLAG}`], {
+        env: { ...process.env, GSTACK_CODEX_MODEL: override }, encoding: 'utf8', timeout: 5000,
+      }).trim().split('\n');
+      const expected = override || 'gpt-6-astra';
+      expect(argv).toEqual(['-c', `model="${expected}"`, '-c', `review_model="${expected}"`]);
+    }
+    for (const file of ['codex/sections/review-mode.md', 'review/sections/adversarial.md', 'ship/sections/adversarial.md']) {
+      const rendered = fs.readFileSync(path.join(ROOT, file), 'utf8');
+      const calls = rendered.split('\n').filter(line => line.includes('codex review --base') && line.includes('2>'));
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) expect(call).toContain(CODEX_REVIEW_MODEL_CONFIG_FLAG);
+    }
+  });
+
+  test('rendered codex mode sections resolve the model token at every invocation site', () => {
+    for (const file of ['review-mode.md', 'challenge-mode.md', 'consult-mode.md']) {
+      const rendered = fs.readFileSync(path.join(ROOT, 'codex', 'sections', file), 'utf-8');
+      const invocations = rendered.split('\n').filter(line => /codex (exec|review) /.test(line) && line.includes('2>'));
+      expect(invocations.length).toBeGreaterThan(0);
+      for (const line of invocations) expect(line, `${file} lost the model flag`).toContain(CODEX_MODEL_CONFIG_FLAG);
+      expect(rendered).not.toContain('{{CODEX_MODEL_CONFIG_FLAG}}');
+    }
+  });
+
+  test('rendered autoplan phase sections resolve the model token at every inline site', () => {
+    for (const file of ['ceo-phase.md', 'design-phase.md', 'eng-phase.md', 'dx-phase.md']) {
+      const rendered = fs.readFileSync(path.join(ROOT, 'autoplan', 'sections', file), 'utf-8');
+      expect(rendered, `${file} lost the model flag`).toContain(CODEX_MODEL_CONFIG_FLAG);
+      expect(rendered).not.toContain('{{CODEX_MODEL_CONFIG_FLAG}}');
+    }
   });
 });
