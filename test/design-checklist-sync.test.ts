@@ -87,6 +87,9 @@ describe('review/design-checklist.md is generated', () => {
   });
 });
 
+// gen-skill-docs prints repo-relative paths with the OS separator (Windows: `review\\design-checklist.md`).
+const fwd = (s: string) => s.replace(/\\/g, '/');
+
 describe('gen-skill-docs writes the checklist for the Claude host only', () => {
   test('--host claude --out-dir renders it under the out dir; --host codex --out-dir does not', () => {
     const out = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-checklist-'));
@@ -94,13 +97,13 @@ describe('gen-skill-docs writes the checklist for the Claude host only', () => {
       const before = fs.statSync(CHECKLIST).mtimeMs;
       const claude = runGen(['--host', 'claude', '--out-dir', out]);
       expect(claude.status).toBe(0);
-      expect(claude.stdout).toContain('GENERATED: review/design-checklist.md');
+      expect(fwd(claude.stdout)).toContain('GENERATED: review/design-checklist.md');
       expect(fs.readFileSync(path.join(out, 'review', 'design-checklist.md'), 'utf-8')).toBe(generateDesignChecklistMd());
 
       fs.rmSync(path.join(out, 'review'), { recursive: true, force: true });
       const codex = runGen(['--host', 'codex', '--out-dir', out]);
       expect(codex.status).toBe(0);
-      expect(codex.stdout).not.toContain('design-checklist.md');
+      expect(fwd(codex.stdout)).not.toContain('design-checklist.md');
       expect(fs.existsSync(path.join(out, 'review', 'design-checklist.md'))).toBe(false);
 
       // The tracked file was never touched by either --out-dir render.
@@ -115,17 +118,17 @@ describe('gen-skill-docs writes the checklist for the Claude host only', () => {
     try {
       const claude = runGen(['--host', 'claude', '--out-dir', out]);
       expect(claude.status).toBe(0);
-      expect(claude.stdout).toContain('GENERATED: lib/dom-dump.js');
+      expect(fwd(claude.stdout)).toContain('GENERATED: lib/dom-dump.js');
       const dump = fs.readFileSync(path.join(out, 'lib', 'dom-dump.js'), 'utf-8');
       expect(dump).toBe(fs.readFileSync(path.join(ROOT, 'lib', 'dom-dump.js'), 'utf-8'));
       const fresh = runGen(['--host', 'claude', '--out-dir', out, '--dry-run']);
-      expect(fresh.stdout).toContain('FRESH: lib/dom-dump.js');
-      expect(fresh.stdout).toContain('FRESH: review/design-checklist.md');
+      expect(fwd(fresh.stdout)).toContain('FRESH: lib/dom-dump.js');
+      expect(fwd(fresh.stdout)).toContain('FRESH: review/design-checklist.md');
       fs.appendFileSync(path.join(out, 'review', 'design-checklist.md'), '\nhand edit\n');
       fs.writeFileSync(path.join(out, 'lib', 'dom-dump.js'), '// tampered\n');
       const stale = runGen(['--host', 'claude', '--out-dir', out, '--dry-run']);
-      expect(stale.stdout).toContain('STALE: review/design-checklist.md');
-      expect(stale.stdout).toContain('STALE: lib/dom-dump.js');
+      expect(fwd(stale.stdout)).toContain('STALE: review/design-checklist.md');
+      expect(fwd(stale.stdout)).toContain('STALE: lib/dom-dump.js');
       expect(stale.status).not.toBe(0);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });
@@ -134,7 +137,7 @@ describe('gen-skill-docs writes the checklist for the Claude host only', () => {
 
   test('--dry-run reports the checklist FRESH', () => {
     const r = runGen(['--dry-run']);
-    expect(r.stdout).toContain('FRESH: review/design-checklist.md');
-    expect(r.stdout).not.toContain('STALE: review/design-checklist.md');
+    expect(fwd(r.stdout)).toContain('FRESH: review/design-checklist.md');
+    expect(fwd(r.stdout)).not.toContain('STALE: review/design-checklist.md');
   }, 240_000);
 });
