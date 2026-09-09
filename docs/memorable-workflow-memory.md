@@ -74,27 +74,34 @@ proxy and TLS variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`,
 `SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`), the `XDG_*`
 directories, and every `MEMORABLE*` variable. No `ANTHROPIC_API_KEY`, no
 `GSTACK_*`, no `CLAUDE_*` reaches it. Its stderr is kept out of
-`hook-errors.log` whenever the redaction engine finds a credential or PII
-shape in it, so a vendor that echoes its input on an error cannot copy your
-prompt into a log.
+`hook-errors.log` whenever the redaction engine finds a HIGH- or MEDIUM-tier
+shape in it (a credential, an email, a phone number), so a vendor that echoes
+its input on an error cannot copy your prompt into a log. The receipt's
+`payload_class` is the token `claude-user-prompt-json->local-vendor-cli`: the
+prompt JSON, handed to the local vendor executable; the network destination is
+unknown to gstack (Memorable states: its embed API, on a local recall miss).
 
-The hook skips the hand-off entirely, with one rate-limited line in
+The hook skips the hand-off silently (nothing was refused, so nothing is
+logged) when the gate is off or `MEMORABLE=0` is set.
+
+It refuses the hand-off, with one rate-limited line in
 `~/.gstack/hook-errors.log`, when:
 
-- the gate is off, `MEMORABLE=0` is set, or the vendor binary is missing;
+- the vendor binary is missing;
 - the prompt carries a HIGH-tier credential shape (checked on the raw bytes
   and on the decoded string values, so a JSON-escaped key does not slip by),
   or is larger than 1 MiB;
 - the repo's per-remote trust policy is `deny` or `read-only` (judged by the
   session's working directory, so a session that touches other repositories
-  is not covered);
-- the receipt cannot be written, or fewer than 500 ms remain of the hook's
-  4.5 s budget.
+  is not covered), or that policy could not be looked up at all (git could
+  not read the repository, the store is unreadable): the lookup fails closed;
+- the receipt cannot be written, or the hook's 4.5 s budget cannot afford the
+  next step (the secret scan of a very large prompt, or the vendor spawn).
 
 A receipt whose outcome is missing means the host killed the hook or the clock
 ran out. Read it as unknown, never as success. An outcome of `output-written`
-means gstack wrote enveloped context to Claude Code's stdin; whether Claude used
-it is not something a hook can know.
+means gstack wrote enveloped context on its stdout for Claude Code to inject;
+whether Claude used it is not something a hook can know.
 
 ## What gstack tests, and what is Memorable's claim
 

@@ -552,7 +552,7 @@ row shape.
 **Effort:** L (human ~1.5 weeks / CC+gstack ~4 h). **Priority:** P3.
 **Depends on:** a second third-party hook actually wanting in.
 
-### P2: Windows support for the Memorable bridge
+### P2: Windows support for the Memorable bridge (D21)
 
 **What:** `enable` refuses on Windows and the hook exits 0 there. Bring it up:
 descendant termination (`taskkill /T` or a job object) so a vendor process
@@ -596,7 +596,7 @@ the `--timeout 5` registration.
 
 **Effort:** S. **Priority:** P3. **Depends on:** the bridge in use.
 
-### P3: consolidate the vendor resolvers and extract the canonical-root helper
+### P3: consolidate the vendor resolvers and extract the canonical-root helper (D24)
 
 **What:** The vendor CLI is resolved twice (bash in `bin/gstack-memorable`, TS
 in the hook); the canonical-root and `IS_WINDOWS` logic is copied from
@@ -640,9 +640,10 @@ only `GSTACK_HOME`; `bin/gstack-uninstall` deletes only
 the receipts under another; the tests pin all three variables to one temp dir,
 so the drift is invisible to them. Found by the /ship red team.
 
-**Context:** Uninstall already flips `memorable_recall` off unconditionally
-(through gstack-config's own resolution) so no config can say `on` after the
-hook is gone; the remaining drift is observability, not consent.
+**Context:** Uninstall already flips `memorable_recall` off whenever it reads
+`on`, kept state or not (through gstack-config's own resolution), so no config
+can say `on` after the hook is gone; the remaining drift is observability, not
+consent.
 
 **Effort:** S (human ~3 h / CC+gstack ~20 min). **Priority:** P3.
 **Depends on:** none.
