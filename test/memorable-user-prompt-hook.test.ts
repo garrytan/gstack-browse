@@ -51,7 +51,7 @@ if [ "$MODE" = exit-before-read ]; then exit 0; fi
 if [ "$MODE" = print-before-read ]; then cat "$HOME/out.json"; exit 0; fi
 cat > "$HOME/stdin.bin"
 case "$MODE" in
-  sleep) sleep 10 ;;
+  sleep) sleep "10.\${MEMORABLE_TEST_NONCE:-0}" ;;
   fork-sleep) sh -c "sleep 30.\${MEMORABLE_TEST_NONCE:-0}" ;;
   bg-then-exit) sh -c "sleep 20.\${MEMORABLE_TEST_NONCE:-0}" & cat "$HOME/out.json"; exit 0 ;;
   echo-stderr) cat "$HOME/stdin.bin" >&2; exit 1 ;;
@@ -474,10 +474,17 @@ describe('pure helpers', () => {
     expect(firstJsonObject('{"unterminated": ')).toBeNull();
     expect(firstJsonObject('no braces here')).toBeNull();
     expect(firstJsonObject('{"s": "\\"}"}')).toEqual({ s: '"}' });
+    // a banner WITH braces or quotes before the answer, and a decoy object without hookSpecificOutput
+    expect(pickAdditionalContext(`loaded {3} memories\n${answer}`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext(`warn: "{" unexpected\n${answer}`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext(`{"progress": 1}\n${answer}`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext('{a {a {a {a')).toBeNull();
   });
-  test('stripControl drops C0 controls, CR and DEL but keeps tab and newline', () => {
+  test('stripControl drops C0 controls, CR, DEL and Unicode format characters but keeps tab, newline and ZWJ', () => {
     const input = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(27) + '\tc\nd' + String.fromCharCode(127) + 'e\rf\r\ng';
     expect(stripControl(input)).toBe('ab\tc\ndef\ng');
+    expect(stripControl('x\u202Ey\u200Bz\u00ADw')).toBe('xyzw'); // bidi override, ZWSP, soft hyphen
+    expect(stripControl('\u{1F468}\u200D\u{1F4BB}')).toBe('\u{1F468}\u200D\u{1F4BB}'); // ZWJ emoji sequence intact
   });
   test('safeStderrTail passes plain diagnostics and withholds a tail carrying a MEDIUM or HIGH shape', () => {
     expect(safeStderrTail('  auth failed:\n  retry later ')).toBe('auth failed: retry later');
@@ -508,6 +515,10 @@ describe('pure helpers', () => {
       logHookError('vendor timeout: at 12:00:01', t0 + LOG_RATE_LIMIT_MS + 2, 'vendor timeout');
       logHookError('vendor timeout: at 12:00:02', t0 + LOG_RATE_LIMIT_MS + 3, 'vendor timeout');
       expect(lines()).toHaveLength(4);
+      // two alternating failures within the window cost two lines, not one per prompt
+      const t1 = t0 + 2 * LOG_RATE_LIMIT_MS;
+      logHookError('X', t1); logHookError('Y', t1 + 1); logHookError('X', t1 + 2); logHookError('Y', t1 + 3);
+      expect(lines()).toHaveLength(6);
       if (process.platform !== 'win32') expect(fs.statSync(path.join(home, '.gstack', 'hook-errors.log')).mode & 0o077).toBe(0);
     } finally {
       if (prev === undefined) delete process.env.GSTACK_STATE_ROOT; else process.env.GSTACK_STATE_ROOT = prev;
@@ -644,12 +655,12 @@ describe('trust-policy lookup outcomes (review coverage, second pass)', () => {
     const set = spawnSync('bash', [POLICY, 'set', 'https://github.com/example/unrelated.git', 'deny'], { env, encoding: 'utf8', timeout: 20_000 });
     expect(set.status).toBe(0);
   }
-  test('store present, cwd is a plain directory (not a repo): recall proceeds', () => {
+  test('store present, cwd is a plain directory (not a repo): recall proceeds, even under a non-English locale', () => {
     gateOn();
     withStore();
     const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-plain-'));
     try {
-      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: plain }), {}, plain);
+      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: plain }), { LANG: 'de_DE.UTF-8', LANGUAGE: 'de_DE:de', LC_ALL: 'de_DE.UTF-8' }, plain);
       expect(r.stdout).toContain('remembered');
       expect(receipts()).toHaveLength(1);
     } finally {
@@ -684,4 +695,25 @@ describe('trust-policy lookup outcomes (review coverage, second pass)', () => {
       fs.rmSync(repo, { recursive: true, force: true });
     }
   });
+});
+
+describe('host termination mid-flight', () => {
+  test('SIGTERM to the shim while the vendor is running: the vendor group dies with it, exit 0, logged', async () => {
+    gateOn();
+    fs.writeFileSync(path.join(home, 'mode'), 'sleep');
+    const nonce = `${process.pid}${Date.now()}`;
+    const child = Bun.spawn(['bash', HOOK], { stdin: Buffer.from(PROMPT), env: { ...env, MEMORABLE_TEST_NONCE: nonce }, stdout: 'pipe', stderr: 'pipe' });
+    // wait until the fake vendor is up (its calls.log line), then terminate the shim the way a host would
+    for (let i = 0; i < 100 && !calls(); i++) await Bun.sleep(30);
+    expect(calls()).toBe('hook user-prompt\n');
+    await Bun.sleep(150);
+    child.kill('SIGTERM');
+    const code = await child.exited;
+    expect(code).toBe(0);
+    await Bun.sleep(200);
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 10.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    expect(survivors).toBe('');
+    expect(errLog()).toContain('terminated by SIGTERM');
+    expect(receipts()).toHaveLength(1); // the receipt stands; its outcome is missing (reads unknown)
+  }, 15_000);
 });

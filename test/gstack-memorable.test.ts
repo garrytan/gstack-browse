@@ -422,7 +422,9 @@ describe('enable/disable failure paths (coverage audit)', () => {
       const w = spawnSync('bun', [path.join(ROOT, 'bin', 'gstack-egress-receipt'), 'write', '--sink', 'memorable-recall', '--host', 'local:/x/memorable', '--class', 'c', '--no-payload', '--consent', 'memorable_recall=on'], { env, encoding: 'utf8', timeout: 20_000 });
       expect(w.status).toBe(0);
     }
-    expect(run(['status']).stdout).toContain('receipts: 2 for sink memorable-recall');
+    const st = run(['status']).stdout;
+    expect(st).toContain('receipts: 2 for sink memorable-recall');
+    expect(st).toMatch(/ledger: .*egress\.jsonl \(\d+ KiB; this sink appends two lines per prompt\)/);
   });
 });
 
@@ -445,6 +447,24 @@ describe('lifecycle lock and static pins', () => {
     expect(run(['enable']).status).toBe(0);
     expect(fs.existsSync(lock)).toBe(false);
   });
+
+  test('a stale lock that cannot be reclaimed (locks dir not writable) still reaches the 5 s give-up instead of spinning', () => {
+    if (!canRevokeWrites()) return; // chmod is advisory here
+    const locksDir = path.join(env.GSTACK_HOME, 'locks');
+    const lock = path.join(locksDir, 'memorable-bridge.lock');
+    fs.mkdirSync(lock, { recursive: true });
+    const old = new Date(Date.now() - 120_000);
+    fs.utimesSync(lock, old, old);
+    fs.chmodSync(locksDir, 0o555); // mv/rmdir of the stale lock now fails
+    const t0 = Date.now();
+    let r;
+    try { r = run(['disable']); } finally { fs.chmodSync(locksDir, 0o755); }
+    const wall = Date.now() - t0;
+    expect(r.status).toBe(5);
+    expect(r.stderr).toContain('another gstack-memorable is running');
+    expect(wall).toBeGreaterThan(4000);
+    expect(wall).toBeLessThan(12_000);
+  }, 30_000);
 
   test('a fresh lock with no bookkeeping yet (the mkdir-to-owner gap) is waited on, never reclaimed', () => {
     const lock = path.join(env.GSTACK_HOME, 'locks', 'memorable-bridge.lock');
