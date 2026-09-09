@@ -164,6 +164,7 @@ describe('enable', () => {
     const roState = path.join(home, 'ro-state');
     fs.mkdirSync(roState);
     fs.writeFileSync(path.join(roState, 'config.yaml'), 'telemetry: off\n', { mode: 0o444 });
+    fs.mkdirSync(path.join(roState, 'locks')); // the bridge lock must still be takeable: only the consent write may fail
     fs.chmodSync(roState, 0o555);
     const ro = { GSTACK_HOME: roState, GSTACK_STATE_ROOT: roState, GSTACK_STATE_DIR: roState };
     const r = run(['enable'], ro);
@@ -384,6 +385,7 @@ describe('enable/disable failure paths (coverage audit)', () => {
     // state dir: gate already 'on' from an earlier enable, then made read-only
     setGate('on');
     writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}`, timeout: 5 }] }] } });
+    fs.mkdirSync(path.join(env.GSTACK_HOME, 'locks'), { recursive: true }); // lock stays takeable; only the consent write fails
     fs.chmodSync(path.join(env.GSTACK_HOME, 'config.yaml'), 0o444);
     fs.chmodSync(env.GSTACK_HOME, 0o555);
     const r = run(['enable']);
@@ -398,6 +400,7 @@ describe('enable/disable failure paths (coverage audit)', () => {
     if (!canRevokeWrites()) return; // chmod is advisory here (win32, root, DAC-override containers)
     setGate('on');
     writeSettings({ hooks: { UserPromptSubmit: [{ hooks: [{ type: 'command', command: `${canonical}/${HOOK_REL}` }] }] } });
+    fs.mkdirSync(path.join(env.GSTACK_HOME, 'locks'), { recursive: true }); // lock stays takeable; only the consent write fails
     fs.chmodSync(path.join(env.GSTACK_HOME, 'config.yaml'), 0o444);
     fs.chmodSync(env.GSTACK_HOME, 0o555);
     const r = run(['disable']);

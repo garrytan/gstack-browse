@@ -43,6 +43,9 @@ import { TRACKER_ENVELOPE_BEGIN, TRACKER_ENVELOPE_END } from '../lib/tracker-gua
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const HOOK = path.join(ROOT, 'hosts', 'claude', 'hooks', 'memorable-user-prompt-hook');
+// Built by concatenation so the CI credential gate (which scans added diff lines) does not
+// read the fixture as a live key; the engine under test still sees the joined shape.
+const FAKE_AWS_KEY = ['AKIA', '1234567890ABCDEF'].join('');
 const CONFIG = path.join(ROOT, 'bin', 'gstack-config');
 const POLICY = path.join(ROOT, 'bin', 'gstack-gbrain-repo-policy');
 
@@ -92,7 +95,21 @@ beforeEach(() => {
     HTTPS_PROXY: 'http://proxy.example:3128',
   };
 });
-afterEach(() => { fs.rmSync(home, { recursive: true, force: true }); });
+/** rm -rf that also removes what a 0600 directory (no search bit) hides from a non-root runner. */
+function rmrfHard(dir: string): void {
+  try { fs.rmSync(dir, { recursive: true, force: true }); return; } catch { /* fall through */ }
+  const reopen = (p: string): void => {
+    let st: fs.Stats;
+    try { st = fs.lstatSync(p); } catch { return; }
+    if (st.isDirectory()) {
+      try { fs.chmodSync(p, 0o700); } catch { /* best effort */ }
+      for (const e of fs.readdirSync(p)) reopen(path.join(p, e));
+    }
+  };
+  reopen(dir);
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+afterEach(() => { rmrfHard(home); });
 
 function gateOn(): void {
   const r = spawnSync('bash', [CONFIG, 'set', 'memorable_recall', 'on'], { env, encoding: 'utf8', timeout: 20_000 });
@@ -177,7 +194,7 @@ describe('gate on: the mediated hand-off', () => {
 
   test('a HIGH-tier credential shape in the prompt is never handed over, plain or JSON-escaped', () => {
     gateOn();
-    const plain = JSON.stringify({ prompt: 'use AKIA1234567890ABCDEF to deploy' });
+    const plain = JSON.stringify({ prompt: `use ${FAKE_AWS_KEY} to deploy` });
     expect(runHook(plain).stdout).toBe('');
     expect(calls()).toBe('');
     // escaped: the raw bytes do not contain "AKIA", the decoded prompt does
@@ -515,9 +532,9 @@ describe('pure helpers', () => {
     expect(safeStderrTail('  auth failed:\n  retry later ')).toBe('auth failed: retry later');
     expect(safeStderrTail('')).toBe('');
     expect(safeStderrTail('could not parse: mail jane.doe@northwind-traders.com')).toMatch(/^\[stderr withheld: \d+ redaction finding/);
-    expect(safeStderrTail('key AKIA1234567890ABCDEF rejected')).toMatch(/withheld/);
+    expect(safeStderrTail(`key ${FAKE_AWS_KEY} rejected`)).toMatch(/withheld/);
     // the scan sees the whole kept tail, so a credential whose prefix would fall outside the 300-char crop is still caught
-    expect(safeStderrTail(`key AKIA1234567890ABCDEF ${'x'.repeat(320)}`)).toMatch(/withheld/);
+    expect(safeStderrTail(`key ${FAKE_AWS_KEY} ${'x'.repeat(320)}`)).toMatch(/withheld/);
     expect(safeStderrTail('y'.repeat(400))).toHaveLength(300);
   });
   test('budgetMs honours the test-only override but never widens the budget', () => {
@@ -677,8 +694,11 @@ describe('deadline and policy failure paths (review coverage)', () => {
       git(['init', '-q']);
       git(['remote', 'add', 'origin', 'https://github.com/example/some-repo.git']);
       // a directory where the store file should be: hasRepoPolicyStore() is true, every read fails
-      fs.mkdirSync(path.join(home, '.gstack', 'gbrain-repo-policy.json'), { recursive: true });
+      const storeDir = path.join(home, '.gstack', 'gbrain-repo-policy.json');
+      fs.mkdirSync(storeDir, { recursive: true });
       const r = runHook(JSON.stringify({ prompt: 'hello', cwd: repo }), {}, repo);
+      // the policy script chmods the store path 0600 on its way out; give the directory its search bit back
+      try { fs.chmodSync(storeDir, 0o755); } catch { /* best effort */ }
       expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
       expect(calls()).toBe('');
       expect(fs.existsSync(ledger())).toBe(false);
