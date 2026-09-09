@@ -26,8 +26,11 @@ with, and it is not available on Windows yet.
 - A trust envelope and an 8 KiB cap on whatever comes back, and the vendor can
   never block a prompt or speak as gstack.
 - The vendor runs in an allowlisted environment (no API keys from your
-  session) inside its own process group, and is killed with that group if it
-  overruns the budget or if Claude Code terminates the hook mid-flight.
+  session) inside its own process group, and that whole group is killed when
+  the hook finishes, times out, or is terminated by Claude Code mid-flight.
+  A process the vendor deliberately detaches into its own session (`setsid`)
+  is outside that group and outside this guarantee; that is a choice visible
+  in the vendor's own behaviour, not something gstack can prevent.
 - Registration at the stable install, healing on every `./setup`, survival of
   `./setup --no-team`, removal by `gstack-uninstall`, and an off switch that
   works even after Claude Code has rewritten `settings.json`.
