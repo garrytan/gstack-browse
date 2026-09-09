@@ -1428,23 +1428,21 @@ fi
 
 If the user passed `--xhigh`, use `"xhigh"` instead of `"high"`.
 
-> ⚠ **CUTOVER BRIDGE — VAS-2751, effective 8 Sep 2026.** Until the doctrine rewrite
-> (VAS-2756) lands, the `/codex` rung on every lane is exactly ONE read-only pass per
-> candidate SHA, run via codex-plugin-cc `/codex:review --base main` on a committed
-> state, or a recorded skip if the plugin is unavailable. A fix is a new commit and
-> does not earn an automatic re-review. P2/P3 findings become Linear tickets, never
-> rounds. The rounds-until-no-P1-and-no-P2 rule, the no-taper rule and the
-> no-numeric-cap prohibition below are SUSPENDED. A same-family subagent is still
-> never a substitute. Frontier review runs at the PR (CodeRabbit + Codex GitHub
-> review) per VAS-2751.
+> ⚠ **THE REVIEW LOOP IS RETIRED — VAS-2751/VAS-2756, 8 Sep 2026.** The fleet's review
+> doctrine is the FINITE ENVELOPE, stated once in fleet `claude/CLAUDE.md`
+> § *Verification doctrine*: exactly ONE read-only pass per candidate SHA
+> (codex-plugin-cc `/codex:review --base origin/main` after a fetch, on a committed
+> state); a P0/P1 fails the leg until fixed in a new commit, waived by a human, or
+> escalated; P2/P3 findings become Linear tickets, never rounds; a fix is a new
+> commit and never earns an automatic re-review; a same-family subagent is never a
+> substitute. The loop, auto and loop-then-gate paths below are mechanically OFF
+> (VAS-2755's config switches) and are retired text awaiting deletion with the fork
+> (VAS-2759) — do not follow them, whatever they say about rounds or stop
+> conditions.
 
-**Loop path (user typed `/codex review --loop`):** route through the outside-voice
-adapter at the `loop` phase, so the iterative fix-verify rounds run on whichever
-backend `outside_voice_loop` names. This exists because the review loop and the
-final gate have very different economics: the loop runs many rounds against an
-evolving artefact, while the gate reviews a converged one. **The stop condition is
-unchanged — no P1 and no P2.** This is a price change, not a rigour change, and it
-is not a licence to stop early.
+**Loop path (user typed `/codex review --loop`):** RETIRED — see the envelope note
+above. The historical mechanics below describe routing that VAS-2755 switched off;
+they are kept only until VAS-2759 deletes them with the fork.
 
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
