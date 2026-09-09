@@ -43,6 +43,7 @@ HOOK_SOURCE="gstack-memorable"
 CONFIG_KEY="memorable_recall"
 SINK="memorable-recall"
 HOOK_REL="hosts/claude/hooks/memorable-user-prompt-hook"
+RESOLUTION_ORDER="GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH"
 # JavaScript RegExp (applied by gstack-settings-hook list-items to items no
 # KNOWN_HOOKS row owns). Matches the vendor installer's own registration,
 # verified against memorable-cli 0.5.18: "<HOME>/.memorable/bin/memorable" hook user-prompt
@@ -81,7 +82,7 @@ Usage: gstack-memorable <enable|disable|status>
            tag or no tag), verify both. Never runs \`memorable disable\`.
   status   Read-only: vendor CLI, gate, registration, receipts, recent errors.
 
-Vendor CLI resolution: GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH.
+Vendor CLI resolution: $RESOLUTION_ORDER.
 USAGE
 }
 
@@ -89,6 +90,9 @@ _err() { printf 'gstack-memorable: %s\n' "$*" >&2; }
 
 # ─── lock: one lifecycle transition at a time ────────────────────────────
 LOCK_DIR="$STATE_DIR/locks/memorable-bridge.lock"
+LOCK_STALE_S=30     # a holder older than this is a crashed writer
+LOCK_TRIES=50       # x LOCK_SLEEP = the 5 s give-up
+LOCK_SLEEP=0.1
 LOCK_HELD=0
 _lock_release() {
   [ "$LOCK_HELD" -eq 1 ] || return 0
@@ -97,17 +101,22 @@ _lock_release() {
 }
 _lock_acquire() {
   mkdir -p "$STATE_DIR/locks" 2>/dev/null || { _err "cannot create $STATE_DIR/locks"; return 5; }
-  local tries=0 owner_ts now
+  local tries=0 mtime now
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     tries=$((tries + 1))
-    owner_ts="$(cat "$LOCK_DIR/ts" 2>/dev/null || echo 0)"
+    # Staleness from the directory's own mtime (set atomically by the holder's
+    # mkdir), never from a file written after it: a contender that looks in
+    # the gap between mkdir and bookkeeping must wait, not reclaim. GNU stat
+    # first, BSD stat second, garbage -> no takeover (same idiom as
+    # bin/gstack-settings-hook).
+    mtime="$(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo "")"
+    case "$mtime" in *[!0-9]*|"") mtime="" ;; esac
     now="$(date +%s)"
-    if [ $((now - owner_ts)) -gt 30 ]; then rm -rf "$LOCK_DIR"; continue; fi   # stale (30 s): a crashed writer
-    if [ "$tries" -ge 50 ]; then _err "another gstack-memorable is running (lock $LOCK_DIR); try again"; return 5; fi
-    sleep 0.1
+    if [ -n "$mtime" ] && [ $((now - mtime)) -gt "$LOCK_STALE_S" ]; then rm -rf "$LOCK_DIR"; continue; fi
+    if [ "$tries" -ge "$LOCK_TRIES" ]; then _err "another gstack-memorable is running (lock $LOCK_DIR); try again"; return 5; fi
+    sleep "$LOCK_SLEEP"
   done
   printf '%s\n' "$$" > "$LOCK_DIR/owner"
-  date +%s > "$LOCK_DIR/ts"
   LOCK_HELD=1
   trap _lock_release EXIT
 }
@@ -199,7 +208,7 @@ enable_bridge() {
     _err "Windows is not supported by the Memorable bridge yet (no way to contain the vendor process); tracked in TODOS.md D21"
     return 1
   fi
-  vendor="$(resolve_memorable)" || { _err "Memorable CLI not found (checked GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH). Install it yourself: npm i -g memorable-cli. gstack never installs it."; return 1; }
+  vendor="$(resolve_memorable)" || { _err "Memorable CLI not found (checked $RESOLUTION_ORDER). Install it yourself: npm i -g memorable-cli. gstack never installs it."; return 1; }
   compat_check || return 1
 
   prior_gate="$(gate_value)"
@@ -223,8 +232,8 @@ REFUSE
 
   ensure_out="$("$SETTINGS_HOOK" ensure-event --event UserPromptSubmit --command "$HOOK_CMD_PATH" --source "$HOOK_SOURCE" --timeout 5 2>&1)"; ensure_rc=$?
   if [ "$ensure_rc" -ne 0 ]; then
-    _err "warning: settings hook update failed: $(printf '%s\n' "$ensure_out" | head -1): run $SETTINGS_HOOK manually"
-    return "$ensure_rc"   # nothing changed: the gate is still '$prior_gate'
+    _err "settings hook update failed: $(printf '%s\n' "$ensure_out" | head -1): run $SETTINGS_HOOK manually (nothing changed; the gate is still '$prior_gate')"
+    return "$ensure_rc"
   fi
   case "$ensure_out" in
     *unchanged*)  verb="unchanged" ;;
@@ -239,7 +248,7 @@ REFUSE
       "$SETTINGS_HOOK" remove-source --source "$HOOK_SOURCE" >/dev/null 2>&1 || true
     fi
     case "$prior_gate" in on|off) "$GSTACK_CONFIG" set "$CONFIG_KEY" "$prior_gate" >/dev/null 2>&1 || true ;; esac
-    _err "could not record consent (gstack-config set $CONFIG_KEY on failed); hook registration restored to its prior state, gate is '$prior_gate'"
+    _err "could not record consent (gstack-config set $CONFIG_KEY on failed); a registration made by this run was removed, a pre-existing one was kept; gate is '$prior_gate'"
     return 1
   fi
 
@@ -287,7 +296,8 @@ disable_bridge() {
   fi
   case "$REG_STATE" in
     none|vendor)
-      if [ "$remove_rc" -eq 0 ]; then echo "hook: removed (${remove_out##*OK: })"; else _err "hook: removal reported exit $remove_rc but no gstack entry remains"; fi ;;
+      if [ "$remove_rc" -eq 0 ]; then echo "hook: removed (${remove_out##*OK: })"
+      else echo "hook: no gstack entry remains (the hook manager exited $remove_rc: $(printf '%s\n' "$remove_out" | head -1))"; fi ;;
     gstack|both)
       _err "hook: a gstack-owned entry survived in $SETTINGS_FILE:"; printf '%s\n' "$REG_GSTACK" | sed 's/^/  /' >&2; ok=1 ;;
     *) _err "hook: cannot verify removal: $(_reg_problem_text)"; ok=$(_reg_exit_code) ;;
@@ -311,7 +321,7 @@ status_bridge() {
   if vendor="$(resolve_memorable)"; then
     echo "Memorable CLI: available ($vendor); tested against the memorable-cli 0.5.18 hook contract"
   else
-    echo "Memorable CLI: not found (checked GSTACK_MEMORABLE_BIN, MEMORABLE_BIN, ~/.memorable/bin/memorable, PATH)"
+    echo "Memorable CLI: not found (checked $RESOLUTION_ORDER)"
   fi
   gate="$(gate_value)"
   echo "memorable_recall: $gate"
@@ -329,8 +339,10 @@ status_bridge() {
   if [ "$gate" != "on" ] && { [ "$REG_STATE" = "gstack" ] || [ "$REG_STATE" = "both" ]; }; then echo "mismatch: hook registered but gate is '$gate' (hook is inert; run: gstack-memorable disable to remove it)"; fi
   if [ "$IS_WINDOWS" -eq 1 ]; then echo "platform: Windows is not supported by this bridge yet (TODOS.md D21)"; fi
   if [ -x "$EGRESS_BIN" ] && command -v bun >/dev/null 2>&1; then
-    n="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null | grep -c '"sink": *"'"$SINK"'"' || true)"
-    echo "receipts: ${n:-0} for sink $SINK (gstack-egress list --sink $SINK)"
+    # Count the filtered array, not a formatting artefact of the pretty-printed JSON.
+    n="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null | bun -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]");console.log(Array.isArray(a)?a.length:0)' 2>/dev/null)"
+    case "$n" in *[!0-9]*|"") n=0 ;; esac
+    echo "receipts: $n for sink $SINK (gstack-egress list --sink $SINK)"
   fi
   if [ -f "$STATE_DIR/hook-errors.log" ]; then
     n="$(grep -c 'memorable-user-prompt-hook' "$STATE_DIR/hook-errors.log" 2>/dev/null || true)"
