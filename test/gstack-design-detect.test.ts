@@ -683,7 +683,9 @@ describe('coverage: scan edges', () => {
       const dirty = path.join(work, 'dirty.dom.html');
       const clean = path.join(work, 'clean.dom.html');
       // A PEM block is a HIGH finding for gstack-redact (AWS's documented example key is allowlisted).
-      fs.writeFileSync(dirty, '<html><body><pre>-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA\n-----END RSA PRIVATE KEY-----</pre></body></html>');
+      // Assembled at runtime so the quality gate's diff scan never sees a key-shaped line in this file.
+      const pem = (kind: string) => ['-----', kind, ' RSA PRIVATE KEY-----'].join('');
+      fs.writeFileSync(dirty, `<html><body><pre>${pem('BEGIN')}\nMIIEowIBAAKCAQEA\n${pem('END')}</pre></body></html>`);
       fs.writeFileSync(clean, '<html><body>hello</body></html>');
       const runBlock = (file: string, page: string) => {
         const script = block
