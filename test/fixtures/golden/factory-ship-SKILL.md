@@ -2268,12 +2268,19 @@ cd "$_REPO_ROOT"
 # unwrapped fallback), added in #1056 but never wired into this call site.
 source $GSTACK_ROOT/bin/gstack-codex-probe 2>/dev/null || true
 _gstack_codex_timeout_wrapper 540 codex review --base <base> -c 'model_reasoning_effort="high"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR"
+_CODEX_EXIT=$?
 ```
 
 **No prompt argument.** `--base` is what scopes the review, and the positional `[PROMPT]` is mutually exclusive with it — passing both fails at argv parsing. Do NOT "fix" that error by dropping `--base` and keeping the prompt: a prompt-only `codex review` silently falls back to the **uncommitted working-tree** scope (`git status --short; git diff`), so it reviews the wrong changes and reports "no changes" on a clean tree. Prompt text describing the diff range does not change what the CLI feeds the reviewer. Unlike the adversarial pass above, which uses `codex exec` and really does run the git command it's told to, this path gets a pre-computed diff from the CLI — which is also why it needs no filesystem boundary.
 
 Set the Bash tool's `timeout` parameter to `600000` (10 minutes). It sits ABOVE the 540s wrapper deliberately, so the wrapper fires first and a stall surfaces as a diagnosable exit 124 instead of a harness kill that returns nothing. The wrapper resolves `gtimeout`, then `timeout`, then runs unwrapped, so it is safe on a macOS without coreutils. Present output under `CODEX SAYS (code review):` header.
-Check for `[P1]` markers: found → `GATE: FAIL`, not found → `GATE: PASS`.
+Gate — **first match wins**:
+1. `_CODEX_EXIT` is non-zero (including 124) → `GATE: FAIL` (fail-closed: the review did not complete, so there is no verified result). A wrapper timeout, expired auth, a bad flag, or a model-entitlement 400 all land here instead of masquerading as a clean pass.
+2. The captured output is empty or whitespace-only → `GATE: FAIL` (fail-closed: nothing was reviewed).
+3. `[P1]` markers found → `GATE: FAIL`.
+4. Otherwise → `GATE: PASS`.
+
+A run that hits rule 1 or 2 is **missing coverage, not a pass.** The adversarial pass above already treats its own exit 124 that way; this path did not, so a review the wrapper terminated produced no `[P1]` and read as clean.
 
 If GATE is FAIL, use AskUserQuestion:
 ```
@@ -2299,7 +2306,7 @@ After all passes complete, persist:
 ```bash
 $GSTACK_ROOT/bin/gstack-review-log '{"skill":"adversarial-review","timestamp":"'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"'","status":"STATUS","source":"SOURCE","tier":"always","gate":"GATE","commit":"'"$(git rev-parse --short HEAD)"'"}'
 ```
-Substitute: STATUS = "clean" if no findings across ALL passes, "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
+Substitute: STATUS = "clean" only if every pass COMPLETED and none found issues (a pass that hit GATE: FAIL rule 1 or 2 is never "clean" — it is missing coverage), "issues_found" if any pass found issues. SOURCE = "both" if Codex ran, "claude" if only Claude subagent ran. GATE = the Codex structured review gate result ("pass"/"fail"), "skipped" if diff < 200, or "informational" if Codex was unavailable. If all passes failed, do NOT persist.
 
 ---
 
