@@ -103,7 +103,7 @@ _lock_release() {
 }
 _lock_acquire() {
   mkdir -p "$STATE_DIR/locks" 2>/dev/null || { _err "cannot create $STATE_DIR/locks"; return 5; }
-  local tries=0 mtime now stale
+  local tries=0 mtime now stale judged moved owner_pid
   while ! mkdir "$LOCK_DIR" 2>/dev/null; do
     tries=$((tries + 1))
     # Staleness from the directory's own mtime (set atomically by the holder's
@@ -114,13 +114,30 @@ _lock_acquire() {
     mtime="$(stat -c %Y "$LOCK_DIR" 2>/dev/null || stat -f %m "$LOCK_DIR" 2>/dev/null || echo "")"
     case "$mtime" in *[!0-9]*|"") mtime="" ;; esac
     now="$(date +%s)"
+    # A holder whose recorded pid is still alive is slow, not crashed: wait.
+    owner_pid="$(cat "$LOCK_DIR/owner" 2>/dev/null || echo "")"
+    case "$owner_pid" in *[!0-9]*|"") owner_pid="" ;; esac
+    if [ -n "$owner_pid" ] && kill -0 "$owner_pid" 2>/dev/null; then mtime=""; fi
     if [ -n "$mtime" ] && [ $((now - mtime)) -gt "$LOCK_STALE_S" ]; then
       # Atomic rename: exactly one contender reclaims a stale lock; the loser
-      # loops and re-contends against the winner's fresh mkdir. A rename that
-      # fails (locks dir not writable by this user) falls through to the
-      # give-up counter below instead of spinning.
+      # loops and re-contends against the winner's fresh mkdir. The inode
+      # check closes the gap between judging and renaming: a contender that
+      # judged the OLD directory stale must not carry off the FRESH one a
+      # faster contender just created in its place. A rename that fails
+      # (locks dir not writable by this user) falls through to the give-up
+      # counter below instead of spinning.
+      judged="$(stat -c %i "$LOCK_DIR" 2>/dev/null || stat -f %i "$LOCK_DIR" 2>/dev/null || echo "")"
       stale="$LOCK_DIR.stale.$$-$RANDOM"
-      if mv "$LOCK_DIR" "$stale" 2>/dev/null; then rm -rf "$stale" 2>/dev/null || true; continue; fi
+      if mv "$LOCK_DIR" "$stale" 2>/dev/null; then
+        moved="$(stat -c %i "$stale" 2>/dev/null || stat -f %i "$stale" 2>/dev/null || echo "")"
+        if [ -n "$judged" ] && [ "$moved" = "$judged" ]; then
+          rm -rf "$stale" 2>/dev/null || true
+        else
+          # Not the directory we judged: a fresh holder's lock. Put it back.
+          mv "$stale" "$LOCK_DIR" 2>/dev/null || _err "lock bookkeeping: could not restore a fresh lock moved aside at $stale"
+        fi
+        continue
+      fi
     fi
     if [ "$tries" -ge "$LOCK_TRIES" ]; then _err "another gstack-memorable is running (lock $LOCK_DIR; stale but not reclaimable if older than ${LOCK_STALE_S}s); try again"; return 5; fi
     sleep "$LOCK_SLEEP"
@@ -353,9 +370,15 @@ status_bridge() {
   if [ "$gate" != "on" ] && { [ "$REG_STATE" = "gstack" ] || [ "$REG_STATE" = "both" ]; }; then echo "mismatch: hook registered but gate is '$gate' (hook is inert; run: gstack-memorable disable to remove it)"; fi
   if [ "$IS_WINDOWS" -eq 1 ]; then echo "platform: Windows is not supported by this bridge yet (TODOS.md: Windows support for the Memorable bridge, D21)"; fi
   if [ -x "$EGRESS_BIN" ] && command -v bun >/dev/null 2>&1; then
-    # Count the filtered array, not a formatting artefact of the pretty-printed JSON.
-    n="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null | bun -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]");console.log(Array.isArray(a)?a.length:0)' 2>/dev/null)"
-    case "$n" in *[!0-9]*|"") n=0 ;; esac
+    # Count the filtered array, not a formatting artefact of the pretty-printed
+    # JSON; a failed query is reported as unknown, never as an empty history.
+    local egress_json
+    if egress_json="$("$EGRESS_BIN" list --sink "$SINK" --json 2>/dev/null)"; then
+      n="$(printf '%s' "$egress_json" | bun -e 'const a=JSON.parse(require("fs").readFileSync(0,"utf8")||"[]");console.log(Array.isArray(a)?a.length:0)' 2>/dev/null)"
+      case "$n" in *[!0-9]*|"") n="unknown (could not parse gstack-egress output)" ;; esac
+    else
+      n="unknown (gstack-egress list failed; run it yourself)"
+    fi
     echo "receipts: $n for sink $SINK (gstack-egress list --sink $SINK)"
     # Same resolution as lib/egress-receipt.ts resolveEgressHome: GSTACK_HOME, GSTACK_STATE_DIR, ~/.gstack.
     local ledger size
