@@ -1,0 +1,18 @@
+**For HOLD SCOPE** — run this:
+1. Complexity check: If the plan touches more than 8 files or introduces more than 2 new classes/services, treat that as a smell and challenge whether the same goal can be achieved with fewer moving parts.
+2. What is the minimum set of changes that achieves the stated goal? Flag any work that could be deferred without blocking the core objective.
+
+### 0E. Temporal Interrogation (EXPANSION, SELECTIVE EXPANSION, and HOLD modes)
+Think ahead to implementation: What decisions will need to be made during implementation that should be resolved NOW in the plan?
+```
+  HOUR 1 (foundations):     What does the implementer need to know?
+  HOUR 2-3 (core logic):   What ambiguities will they hit?
+  HOUR 4-5 (integration):  What will surprise them?
+  HOUR 6+ (polish/tests):  What will they wish they'd planned for?
+```
+NOTE: These represent human-team implementation hours. With CC + gstack,
+6 hours of human implementation compresses to ~30-60 minutes. The decisions
+are identical — the implementation speed is 10-20x faster. Always present
+both scales when discussing effort.
+
+Surface these as questions for the user NOW, not as "figure it out later."

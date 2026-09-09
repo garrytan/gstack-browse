@@ -1,0 +1,124 @@
+## Stats
+
+Cathedral T13 surfaces: host-aware breakdown (claude hook vs codex import
+vs agent-enriched), marked vs hash-only, auto-decided count, and dream
+cycle cost-to-date.
+
+```bash
+~/.claude/skills/gstack/bin/gstack-question-preference --stats
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"
+_LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
+if [ -f "$_LOG" ]; then
+  bun -e "
+    const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);
+    const events = [];
+    for (const l of lines) { try { events.push(JSON.parse(l)); } catch {} }
+    const total = events.length;
+    const bySource = {};
+    let marked = 0;
+    for (const e of events) {
+      const src = e.source || 'agent';
+      bySource[src] = (bySource[src] || 0) + 1;
+      if (e.question_id && !e.question_id.startsWith('hook-')) marked++;
+    }
+    console.log('TOTAL_LOGGED: ' + total);
+    console.log('MARKED: ' + marked + ' (' + (total ? Math.round(100*marked/total) : 0) + '%)');
+    for (const s of Object.keys(bySource).sort()) {
+      console.log('SOURCE_' + s.toUpperCase().replace(/-/g,'_') + ': ' + bySource[s]);
+    }
+  "
+else
+  echo 'TOTAL_LOGGED: 0'
+fi
+~/.claude/skills/gstack/bin/gstack-developer-profile --profile | bun -e "
+  const p = JSON.parse(await Bun.stdin.text());
+  const d = p.inferred?.diversity || {};
+  console.log('SKILLS_COVERED: ' + (d.skills_covered ?? 0));
+  console.log('QUESTIONS_COVERED: ' + (d.question_ids_covered ?? 0));
+  console.log('DAYS_SPAN: ' + (d.days_span ?? 0));
+  console.log('CALIBRATED: ' + (p.inferred?.sample_size >= 20 && d.skills_covered >= 3 && d.question_ids_covered >= 8 && d.days_span >= 7));
+"
+echo '---DISTILL---'
+~/.claude/skills/gstack/bin/gstack-distill-free-text --status
+```
+
+Present as a compact summary with plain-English calibration status ("5 more
+events across 2 more skills and you'll be calibrated" or "you're calibrated").
+Surface the source breakdown so the user can see capture is real (Codex
+correction — without source columns, the cathedral's "before:0 / after:>0"
+claim is invisible).
+
+---
+
+## Recent auto-decisions
+
+Show the last 10 questions where the PreToolUse hook auto-decided (source=
+`auto-decided` in the log). Lets the user spot-check enforcement and flip
+any that misfired via `always-ask`.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"
+_LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
+[ ! -f "$_LOG" ] && echo 'NO_LOG' || bun -e "
+  const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);
+  const auto = [];
+  for (const l of lines) {
+    try { const e = JSON.parse(l); if (e.source === 'auto-decided') auto.push(e); } catch {}
+  }
+  const recent = auto.slice(-10).reverse();
+  if (!recent.length) { console.log('(no auto-decisions yet)'); process.exit(0); }
+  for (const r of recent) {
+    console.log(r.ts + '  ' + r.question_id + ' → ' + r.user_choice);
+    console.log('     ' + (r.question_summary || ''));
+  }
+"
+```
+
+If any look wrong, offer: "Want to flip `<question_id>` to `always-ask`?"
+Run `gstack-question-preference --write '{"question_id":"<id>","preference":
+"always-ask","source":"plan-tune"}'` after Y.
+
+---
+
+## Audit unmarked questions
+
+Top N hash-only question_ids by frequency. These are AUQ fires the cathedral
+hook captured but cannot enforce against (no `<gstack-qid:foo>` marker in
+the skill template — D18 progressive markers). Surfacing them drives marker
+adoption: high-traffic unmarked questions are the next candidates to retrofit.
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"
+_LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
+[ ! -f "$_LOG" ] && echo 'NO_LOG' || bun -e "
+  const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);
+  const counts = {};
+  const summaries = {};
+  for (const l of lines) {
+    try {
+      const e = JSON.parse(l);
+      if (e.question_id && e.question_id.startsWith('hook-')) {
+        counts[e.question_id] = (counts[e.question_id] || 0) + 1;
+        summaries[e.question_id] = e.question_summary || '';
+      }
+    } catch {}
+  }
+  const rows = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 10);
+  if (!rows.length) { console.log('(no unmarked questions — coverage is 100%)'); process.exit(0); }
+  for (const [id, n] of rows) {
+    console.log(n + 'x  ' + id);
+    console.log('     ' + summaries[id]);
+  }
+"
+```
+
+For each row, suggest where the marker should land (look up the skill from
+the summary's wording, e.g. "Bundle this fix..." likely lives in
+`ship/SKILL.md.tmpl`). Don't write markers without user approval — adding
+markers changes which AUQ fires can be auto-decided, which is a substrate
+expansion.
+
+---

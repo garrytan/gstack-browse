@@ -1,0 +1,32 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "document-generate",
+  "version": 1,
+  "note": "ICM progressive loading: scope, research, partitioning, quality, safety, and release stay eager; only selected Diataxis writing playbooks load after the partition plan is known.",
+  "sections": [
+    {
+      "id": "reference-docs",
+      "file": "reference-docs.md",
+      "title": "Reference documentation writing playbook",
+      "trigger": "the Step 2 Diataxis partition plan includes Reference for at least one target entity"
+    },
+    {
+      "id": "explanation-docs",
+      "file": "explanation-docs.md",
+      "title": "Explanation documentation writing playbook",
+      "trigger": "the Step 2 Diataxis partition plan includes Explanation for at least one target entity"
+    },
+    {
+      "id": "how-to-docs",
+      "file": "how-to-docs.md",
+      "title": "How-to documentation writing playbook",
+      "trigger": "the Step 2 Diataxis partition plan includes How-to for at least one target entity"
+    },
+    {
+      "id": "tutorial-docs",
+      "file": "tutorial-docs.md",
+      "title": "Tutorial documentation writing playbook",
+      "trigger": "the Step 2 Diataxis partition plan includes Tutorial for at least one target entity"
+    }
+  ]
+}

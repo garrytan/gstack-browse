@@ -2,13 +2,13 @@
   "$schema": "https://gstack.dev/schemas/section-manifest.json",
   "skill": "ship",
   "version": 1,
-  "note": "PASSIVE registry (v2 plan T9 / CM2). Fields are IDs, file paths, human titles, and human-readable trigger text ONLY. The skeleton's decision-tree prose is the ONLY place that decides WHEN to read a section; required-reads live in the E2E fixtures. No machine predicate here \u2014 see docs/designs/v2_PLAN.md:663.",
+  "note": "ICM progressive loading: core ship verification and release flow stays eager/phase-loaded; conditional setup and uncommon branches load only when their runtime predicate fires.",
   "sections": [
     {
       "id": "apple-release",
       "file": "apple-release.md",
       "title": "Apple App Store / TestFlight release adapter",
-      "trigger": "the ship target is an Apple platform app (.xcodeproj, .xcworkspace, or an app-product Swift package) \u2014 read BEFORE Step 1's branch gate and any preflight; store distribution never routes through the branch/PR ceremony"
+      "trigger": "the ship target is an Apple platform app (.xcodeproj, .xcworkspace, or an app-product Swift package) — read BEFORE Step 1's branch gate and any preflight; store distribution never routes through the branch/PR ceremony"
     },
     {
       "id": "tests",
@@ -57,6 +57,30 @@
       "file": "pr-body.md",
       "title": "Documentation sync + PR/MR creation",
       "trigger": "dispatching the /document-release subagent to sync docs (Step 18) and then creating or updating the PR/MR (Step 19)"
+    },
+    {
+      "id": "distribution-pipeline",
+      "file": "distribution-pipeline.md",
+      "title": "Standalone artifact distribution-pipeline check and missing-pipeline decision",
+      "trigger": "Step 2 detects a new standalone distributable artifact"
+    },
+    {
+      "id": "wip-squash",
+      "file": "wip-squash.md",
+      "title": "Continuous-checkpoint WIP commit squash strategy and anti-footgun rules",
+      "trigger": "Step 15 detects WIP commits while CHECKPOINT_MODE is continuous"
+    },
+    {
+      "id": "prepush-credential-setup",
+      "file": "prepush-credential-setup.md",
+      "title": "Credential pre-push hook installation, custom hooks-path handling, and one-time consent",
+      "trigger": "Step 17 detects that credential-hook setup or consent handling is needed"
+    },
+    {
+      "id": "plan-tune-nudge",
+      "file": "plan-tune-nudge.md",
+      "title": "First-successful-ship Plan Tune discoverability nudge",
+      "trigger": "Step 21 finds no nudge marker and question tuning is disabled"
     }
   ]
 }

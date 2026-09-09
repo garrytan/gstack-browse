@@ -1,0 +1,39 @@
+## Step 4: Write Explanation Documentation
+
+Explanation docs answer "why does this work this way?" They are the design rationale.
+
+**Explanation doc template:**
+
+```markdown
+# [Concept / Design Decision]
+
+[Opening paragraph: the problem this design solves, stated in terms a smart reader
+who hasn't seen the code would understand.]
+
+## The problem
+
+[Concrete description of what goes wrong without this design. Real failure modes,
+not abstract risks.]
+
+## The approach
+
+[How the design solves the problem. Include diagrams (ASCII or Mermaid) for
+architectural concepts.]
+
+## Trade-offs
+
+[What was given up. Every design decision trades something — name it explicitly.]
+
+## Alternatives considered
+
+[If discoverable from code comments, ADRs, or git history: what was tried or
+rejected and why.]
+```
+
+**Rules for explanation docs:**
+- Lead with the problem, not the solution.
+- Use ASCII diagrams for architecture. They're grep-able, diff-friendly, and render everywhere.
+- Name trade-offs explicitly. "We chose X over Y because Z" is the gold standard.
+- Do not repeat reference material — link to it.
+
+---

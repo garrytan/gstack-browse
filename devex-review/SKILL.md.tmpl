@@ -47,8 +47,6 @@ Not reading about the experience. TESTING it.
 Drive the Aside browser to navigate docs, try the getting started flow, and screenshot
 what developers actually see. One `aside repl` script per flow, each re-opening from the URL. Use bash to try CLI commands. Measure, don't guess.
 
-{{DX_FRAMEWORK}}
-
 ## Scope Declaration
 
 Aside can test web-accessible surfaces: docs pages, API playgrounds, web dashboards,
@@ -61,6 +59,8 @@ never type passwords), offline behavior, build times, IDE integration.
 
 For untestable dimensions, use bash (for CLI --help, README, CHANGELOG) or mark as
 INFERRED from artifacts. Never guess. State your evidence source for every score.
+
+{{SECTION_INDEX:devex-review}}
 
 ## Step 0: Target Discovery
 
@@ -81,137 +81,9 @@ eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 
 If prior scores exist, display them. These are your baseline for the boomerang comparison.
 
-## Step 1: Getting Started Audit
+## Steps 1-8: Live DX Audit
 
-Open the docs/landing page with the Aside read script from the cookbook (console errors,
-snapshot, screenshot, text). Copy the screenshot out of the printed ASIDE_DIR and Read it.
-
-```
-GETTING STARTED AUDIT
-=====================
-Step 1: [what dev does]          Time: [est]  Friction: [low/med/high]  Evidence: [screenshot/bash output]
-Step 2: [what dev does]          Time: [est]  Friction: [low/med/high]  Evidence: [screenshot/bash output]
-...
-TOTAL: [N steps, M minutes]
-```
-
-Score 0-10. Load "## Pass 1" from dx-hall-of-fame.md for calibration.
-
-## Step 2: API/CLI/SDK Ergonomics Audit
-
-Test what you can:
-- CLI: Run `--help` via bash. Evaluate output quality, flag design, discoverability.
-- API playground: Open it in Aside if one exists. Screenshot.
-- Naming: Check consistency across the API surface.
-
-Score 0-10. Load "## Pass 2" from dx-hall-of-fame.md for calibration.
-
-## Step 3: Error Message Audit
-
-Trigger common error scenarios:
-- Aside: Open a 404 URL, submit an invalid form (on a non-LOCAL target that is a mutating
-  action — one AskUserQuestion per run first, per the browser rules), open a protected URL
-- CLI: Run with missing args, invalid flags, bad input
-
-Screenshot each error. Score against the Elm/Rust/Stripe three-tier model.
-
-Score 0-10. Load "## Pass 3" from dx-hall-of-fame.md for calibration.
-
-## Step 4: Documentation Audit
-
-Navigate the docs structure in Aside (search is `pg.fill(<search selector>, <query>)`,
-then `pg.locator(<search selector>).press("Enter")` — or `pg.getByRole("searchbox").press("Enter")`,
-or a click — then `snapshot`):
-- Check search functionality (try 3 common queries)
-- Verify code examples are copy-paste-complete
-- Check language switcher behavior
-- Check information architecture (can you find what you need in <2 min?)
-
-Screenshot key findings. Score 0-10. Load "## Pass 4" from dx-hall-of-fame.md.
-
-## Step 5: Upgrade Path Audit
-
-Read via bash:
-- CHANGELOG quality (clear? user-facing? migration notes?)
-- Migration guides (exist? step-by-step?)
-- Deprecation warnings in code (grep for deprecated/obsolete)
-
-Score 0-10. Evidence: INFERRED from files. Load "## Pass 5" from dx-hall-of-fame.md.
-
-## Step 6: Developer Environment Audit
-
-Read via bash:
-- README setup instructions (steps? prerequisites? platform coverage?)
-- CI/CD configuration (exists? documented?)
-- TypeScript types (if applicable)
-- Test utilities / fixtures
-
-Score 0-10. Evidence: INFERRED from files. Load "## Pass 6" from dx-hall-of-fame.md.
-
-## Step 7: Community & Ecosystem Audit
-
-Check the community links the docs point to. Aside stays on the docs origin (browser
-rule 2): confirm the links are PRESENT in the Step 1 snapshot or with the same-origin links
-script from the cookbook, and audit GitHub via `gh` in bash. Do not open Discord, Stack
-Overflow, or any other third-party site — mark those INFERRED (link present, not followed):
-- Community links (GitHub Discussions, Discord, Stack Overflow)
-- GitHub issues (response time, templates, labels)
-- Contributing guide
-
-Score 0-10. Evidence: TESTED for the docs page and GitHub, INFERRED otherwise.
-
-## Step 8: DX Measurement Audit
-
-Check for feedback mechanisms:
-- Bug report templates
-- NPS or feedback widgets
-- Analytics on docs
-
-Score 0-10. Evidence: INFERRED from files/pages.
-
-## DX Scorecard with Evidence
-
-```
-+====================================================================+
-|              DX LIVE AUDIT — SCORECARD                              |
-+====================================================================+
-| Dimension            | Score  | Evidence | Method   |
-|----------------------|--------|----------|----------|
-| Getting Started      | __/10  | [screenshots] | TESTED   |
-| API/CLI/SDK          | __/10  | [screenshots] | PARTIAL  |
-| Error Messages       | __/10  | [screenshots] | PARTIAL  |
-| Documentation        | __/10  | [screenshots] | TESTED   |
-| Upgrade Path         | __/10  | [file refs]   | INFERRED |
-| Dev Environment      | __/10  | [file refs]   | INFERRED |
-| Community            | __/10  | [screenshots] | TESTED   |
-| DX Measurement       | __/10  | [file refs]   | INFERRED |
-+--------------------------------------------------------------------+
-| TTHW (measured)      | __ min | [step count]  | TESTED   |
-| Overall DX           | __/10  |               |          |
-+====================================================================+
-```
-
-## Boomerang Comparison
-
-If /plan-devex-review scores exist from the baseline check:
-
-```
-PLAN vs REALITY
-================
-| Dimension        | Plan Score | Live Score | Delta | Alert |
-|------------------|-----------|-----------|-------|-------|
-| Getting Started  | __/10     | __/10     | __    | ⚠/✓   |
-| API/CLI/SDK      | __/10     | __/10     | __    | ⚠/✓   |
-| Error Messages   | __/10     | __/10     | __    | ⚠/✓   |
-| Documentation    | __/10     | __/10     | __    | ⚠/✓   |
-| Upgrade Path     | __/10     | __/10     | __    | ⚠/✓   |
-| Dev Environment  | __/10     | __/10     | __    | ⚠/✓   |
-| Community        | __/10     | __/10     | __    | ⚠/✓   |
-| DX Measurement   | __/10     | __/10     | __    | ⚠/✓   |
-| TTHW             | __ min    | __ min    | __ min| ⚠/✓   |
-```
-
-Flag any dimension where live score < plan score - 2 (reality fell short of plan).
+{{SECTION:audit-playbook}}
 
 ## Review Log
 

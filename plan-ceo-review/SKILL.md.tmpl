@@ -285,110 +285,6 @@ Present these approach options via AskUserQuestion using the preamble's AskUserQ
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. Do NOT proceed to Step 0D or 0F until the user responds to 0C-bis. A "clearly winning approach" is still an approach decision and still needs explicit user approval before it lands in the plan.
 **Reminder: Do NOT make any code changes. Review only.**
 
-### 0D-prelude. Expansion Framing (shared by EXPANSION and SELECTIVE EXPANSION)
-
-Every expansion proposal you generate in SCOPE EXPANSION or SELECTIVE EXPANSION mode follows this framing pattern:
-
-FLAT (avoid): "Add real-time notifications. Users would see workflow results faster — latency drops from ~30s polling to <500ms push. Effort: ~1 hour CC."
-
-EXPANSIVE (aim for): "Imagine the moment a workflow finishes — the user sees the result instantly, no tab-switching, no polling, no 'did it actually work?' anxiety. Real-time feedback turns a tool they check into a tool that talks to them. Concrete shape: WebSocket channel + optimistic UI + desktop notification fallback. Effort: human ~2 days / CC ~1 hour. Makes the product feel 10x more alive."
-
-Both are outcome-framed. Only one makes the user feel the cathedral. Lead with the felt experience, close with concrete effort and impact.
-
-**For SELECTIVE EXPANSION:** neutral recommendation posture ≠ flat prose. Present vivid options, then let the user decide. Do not over-sell — "Makes the product feel 10x more alive" is vivid; "This would 10x your revenue" is over-sell. Evocative, not promotional.
-
-### 0D. Mode-Specific Analysis
-**For SCOPE EXPANSION** — run all three, then the opt-in ceremony:
-1. 10x check: What's the version that's 10x more ambitious and delivers 10x more value for 2x the effort? Describe it concretely.
-2. Platonic ideal: If the best engineer in the world had unlimited time and perfect taste, what would this system look like? What would the user feel when using it? Start from experience, not architecture.
-3. Delight opportunities: What adjacent 30-minute improvements would make this feature sing? Things where a user would think "oh nice, they thought of that." List at least 5.
-4. **Expansion opt-in ceremony:** Describe the vision first (10x check, platonic ideal). Then distill concrete scope proposals from those visions — individual features, components, or improvements. Present each proposal as its own AskUserQuestion. Recommend enthusiastically — explain why it's worth doing. But the user decides. Options: **A)** Add to this plan's scope **B)** Defer to TODOS.md **C)** Skip. Accepted items become plan scope for all remaining review sections. Rejected items go to "NOT in scope."
-
-**For SELECTIVE EXPANSION** — run the HOLD SCOPE analysis first, then surface expansions:
-1. Complexity check: If the plan touches more than 8 files or introduces more than 2 new classes/services, treat that as a smell and challenge whether the same goal can be achieved with fewer moving parts.
-2. What is the minimum set of changes that achieves the stated goal? Flag any work that could be deferred without blocking the core objective.
-3. Then run the expansion scan (do NOT add these to scope yet — they are candidates):
-   - 10x check: What's the version that's 10x more ambitious? Describe it concretely.
-   - Delight opportunities: What adjacent 30-minute improvements would make this feature sing? List at least 5.
-   - Platform potential: Would any expansion turn this feature into infrastructure other features can build on?
-4. **Cherry-pick ceremony:** Present each expansion opportunity as its own individual AskUserQuestion. Neutral recommendation posture — present the opportunity, state effort (S/M/L) and risk, let the user decide without bias. Options: **A)** Add to this plan's scope **B)** Defer to TODOS.md **C)** Skip. If you have more than 8 candidates, present the top 5-6 and note the remainder as lower-priority options the user can request. Accepted items become plan scope for all remaining review sections. Rejected items go to "NOT in scope."
-
-**For HOLD SCOPE** — run this:
-1. Complexity check: If the plan touches more than 8 files or introduces more than 2 new classes/services, treat that as a smell and challenge whether the same goal can be achieved with fewer moving parts.
-2. What is the minimum set of changes that achieves the stated goal? Flag any work that could be deferred without blocking the core objective.
-
-**For SCOPE REDUCTION** — run this:
-1. Ruthless cut: What is the absolute minimum that ships value to a user? Everything else is deferred. No exceptions.
-2. What can be a follow-up PR? Separate "must ship together" from "nice to ship together."
-
-### 0D-POST. Persist CEO Plan (EXPANSION and SELECTIVE EXPANSION only)
-
-After the opt-in/cherry-pick ceremony, write the plan to disk so the vision and decisions survive beyond this conversation. Only run this step for EXPANSION and SELECTIVE EXPANSION modes.
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p ~/.gstack/projects/$SLUG/ceo-plans
-```
-
-Before writing, check for existing CEO plans in the ceo-plans/ directory. If any are >30 days old or their branch has been merged/deleted, offer to archive them:
-
-```bash
-mkdir -p ~/.gstack/projects/$SLUG/ceo-plans/archive
-# For each stale plan: mv ~/.gstack/projects/$SLUG/ceo-plans/{old-plan}.md ~/.gstack/projects/$SLUG/ceo-plans/archive/
-```
-
-Write to `~/.gstack/projects/$SLUG/ceo-plans/{date}-{feature-slug}.md` using this format:
-
-```markdown
----
-status: ACTIVE
----
-# CEO Plan: {Feature Name}
-Generated by /plan-ceo-review on {date}
-Branch: {branch} | Mode: {EXPANSION / SELECTIVE EXPANSION}
-Repo: {owner/repo}
-
-## Vision
-
-### 10x Check
-{10x vision description}
-
-### Platonic Ideal
-{platonic ideal description — EXPANSION mode only}
-
-## Scope Decisions
-
-| # | Proposal | Effort | Decision | Reasoning |
-|---|----------|--------|----------|-----------|
-| 1 | {proposal} | S/M/L | ACCEPTED / DEFERRED / SKIPPED | {why} |
-
-## Accepted Scope (added to this plan)
-- {bullet list of what's now in scope}
-
-## Deferred to TODOS.md
-- {items with context}
-```
-
-Derive the feature slug from the plan being reviewed (e.g., "user-dashboard", "auth-refactor"). Use the date in YYYY-MM-DD format.
-
-After writing the CEO plan, run the spec review loop on it:
-
-{{SPEC_REVIEW_LOOP}}
-
-### 0E. Temporal Interrogation (EXPANSION, SELECTIVE EXPANSION, and HOLD modes)
-Think ahead to implementation: What decisions will need to be made during implementation that should be resolved NOW in the plan?
-```
-  HOUR 1 (foundations):     What does the implementer need to know?
-  HOUR 2-3 (core logic):   What ambiguities will they hit?
-  HOUR 4-5 (integration):  What will surprise them?
-  HOUR 6+ (polish/tests):  What will they wish they'd planned for?
-```
-NOTE: These represent human-team implementation hours. With CC + gstack,
-6 hours of human implementation compresses to ~30-60 minutes. The decisions
-are identical — the implementation speed is 10-20x faster. Always present
-both scales when discussing effort.
-
-Surface these as questions for the user NOW, not as "figure it out later."
-
 ### 0F. Mode Selection
 In every mode, you are 100% in control. No scope is added without your explicit approval.
 
@@ -415,6 +311,28 @@ Present these mode options via AskUserQuestion using the preamble's AskUserQuest
 
 **STOP.** AskUserQuestion once per issue. Do NOT batch. Recommend + WHY. If this section turned up zero findings, state "No issues, moving on" and proceed. If the section has findings, you MUST call AskUserQuestion as a tool_use — a finding with an "obvious fix" is still a finding and still needs user approval before any change lands in the plan. Do NOT proceed until the user responds.
 **Reminder: Do NOT make any code changes. Review only.**
+
+## Mode-specific analysis
+
+Mode selection is now settled. Load exactly one posture section and execute it in full. Do not preload the other three postures.
+
+### SCOPE EXPANSION
+
+{{SECTION:scope-expansion}}
+
+### SELECTIVE EXPANSION
+
+{{SECTION:selective-expansion}}
+
+### HOLD SCOPE
+
+{{SECTION:hold-scope}}
+
+### SCOPE REDUCTION
+
+{{SECTION:scope-reduction}}
+
+---
 
 {{SECTION:review-sections}}
 

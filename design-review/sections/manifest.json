@@ -1,0 +1,14 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "design-review",
+  "version": 1,
+  "note": "PASSIVE registry. The skeleton decides when to load each section. Keep target resolution, clean-tree safety, setup, triage, fix safety, commit discipline, regression handling, and final verification always loaded.",
+  "sections": [
+    {
+      "id": "baseline-methodology",
+      "file": "baseline-methodology.md",
+      "title": "Design audit doctrine and Phases 1-6 methodology",
+      "trigger": "running the baseline design audit after Setup is complete — UX principles, the Phase 1-6 design methodology, scoring guidance, and design hard rules"
+    }
+  ]
+}

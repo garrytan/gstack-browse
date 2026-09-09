@@ -1,0 +1,86 @@
+## Dream cycle review
+
+**When this fires.** Step 0's dream-cycle gate: `distillation-proposals.json`
+has at least one proposal with `applied_at` missing. Or the user explicitly
+invokes via `/plan-tune distill` / `dream`.
+
+**Flow:**
+
+1. Show the proposals:
+   ```bash
+   ~/.claude/skills/gstack/bin/gstack-distill-apply --list
+   ```
+
+2. For each unapplied proposal, present it as a numbered item and use
+   AskUserQuestion (one per call, per skill convention). Show:
+   - Kind (`preference` / `declared-nudge` / `memory-nugget`)
+   - Confidence + rationale
+   - The source quotes verbatim (proves user-origin)
+   - What applying does (which file/key/dim changes)
+
+3. **On accept** (Y): apply via the bin. The skill also publishes the
+   nugget to gbrain when configured.
+
+   For `memory-nugget`:
+   ```bash
+   # If gbrain is configured, mirror via MCP first.
+   # (Pseudo — actual gbrain call happens at the agent layer via
+   # mcp__gbrain__put_page; the bin records the published flag.)
+   ~/.claude/skills/gstack/bin/gstack-distill-apply --proposal N --gbrain-published true|false
+   ```
+
+   For `preference`:
+   ```bash
+   ~/.claude/skills/gstack/bin/gstack-distill-apply --proposal N
+   ```
+
+   For `declared-nudge`:
+   ```bash
+   # Same bin; updates developer-profile.json declared dim with the
+   # clamped delta.
+   ~/.claude/skills/gstack/bin/gstack-distill-apply --proposal N
+   ```
+
+4. **On decline**: skip without marking. User can re-decide later (the
+   proposal stays in the file). To dismiss permanently, manually clear:
+   `gstack-distill-apply --proposal N --dismiss` (not implemented in T11;
+   for now, regenerate via next distill run with corrected free-text).
+
+5. **gbrain integration.** When `mcp__gbrain__*` tools are available in
+   this session:
+   - On `memory-nugget` apply: `mcp__gbrain__put_page` with the nugget +
+     `mcp__gbrain__extract_facts` + `mcp__gbrain__add_tag` per the cathedral
+     plan D9 routing. Then pass `--gbrain-published true` to the bin so
+     the proposals file records the mirror.
+   - When gbrain isn't configured (no MCP tools), the bin's local file
+     write is the durable source-of-truth and the PreToolUse hook reads it
+     via Layer 8 memory injection.
+
+---
+
+## Dream cycle distill (manual trigger)
+
+**When this fires.** The user invokes `/plan-tune distill` / `dream` /
+`distill` / `dream cycle`. Auto-triggered version lives in Step 0 gate #3.
+
+**Flow:**
+
+1. Run distill:
+   ```bash
+   ~/.claude/skills/gstack/bin/gstack-distill-free-text
+   ```
+
+2. If `RATE_CAPPED`: tell the user "You've hit today's 3 distills/day cap.
+   Run again tomorrow, or `/plan-tune stats` for run history."
+3. If `NO_FREE_TEXT`: tell the user "No free-text answers since the last
+   distill. Keep using gstack — `Other` responses on AskUserQuestion feed
+   this loop."
+4. If success: print the proposals count + estimated cost, then route into
+   `Dream cycle review` above for the user to approve each.
+
+For background mode (e.g., the user wants to keep working):
+```bash
+~/.claude/skills/gstack/bin/gstack-distill-free-text --background
+```
+
+---

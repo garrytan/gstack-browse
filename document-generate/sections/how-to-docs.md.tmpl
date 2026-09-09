@@ -1,0 +1,45 @@
+## Step 5: Write How-To Guides
+
+How-tos are task-oriented. They assume the reader knows the basics and wants to accomplish
+something specific.
+
+**How-to doc template:**
+
+```markdown
+# How to [accomplish specific task]
+
+[One sentence: what you'll accomplish and the end result.]
+
+## Prerequisites
+
+[What the reader needs before starting. Be specific — versions, installed tools,
+config state.]
+
+## Steps
+
+1. [Action verb] [specific instruction]
+
+   ```bash
+   [exact command]
+   ```
+
+   [Expected output or result, if non-obvious.]
+
+2. [Next step...]
+
+## Verification
+
+[How to confirm it worked. A command, a URL to visit, a test to run.]
+
+## Troubleshooting
+
+[Common failure modes and their fixes. Pull from tests and error handling code.]
+```
+
+**Rules for how-to docs:**
+- Title starts with "How to" — no exceptions. This is the reader's entry point.
+- Every step must be actionable. No "consider whether..." — instead "Run X" or "Add Y to Z".
+- Include verification. The reader should never wonder "did it work?"
+- Troubleshooting section is mandatory if the task can fail.
+
+---

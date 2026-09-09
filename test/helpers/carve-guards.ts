@@ -108,85 +108,79 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
       'adversarial.md',
       'changelog.md',
       'pr-body.md',
+      'distribution-pipeline.md',
+      'wip-squash.md',
+      'prepush-credential-setup.md',
+      'plan-tune-nudge.md',
     ],
     requiredReads: ['review-army.md', 'changelog.md'],
     scenario:
-      'This is a FRESH version-changing ship: the branch has a real code change, VERSION still equals the base version (needs a bump), and CHANGELOG.md needs a new entry. Follow the skill flow for a version-changing ship: run the pre-landing review and prepare the CHANGELOG entry. Produce the ship plan / review report. Do NOT actually commit, push, or open a PR.',
+      'This is a FRESH version-changing ship with no standalone artifact, no WIP commits, an already-installed credential hook, and an existing plan-tune nudge marker. Run the normal ship verification path through pre-landing review and CHANGELOG preparation. Do not load the four conditional sections. Do NOT actually commit, push, or open a PR.',
     staticInvariants: {
-      // The PR-title-version invariant MUST stay always-loaded: the v1.54.0.0
-      // carve stranded it in pr-body.md and PRs started landing with bare titles
-      // (CI backstop: test/pr-title-sync-workflow-safety.test.ts).
-      // Same carve also stranded the Step 18 /document-release dispatch out of
-      // sight — the skeleton never named it and the handoff "got lost" (#2666
-      // follow-up). Three NON-OVERLAPPING anchors pin the restored visibility,
-      // one per touchpoint (no anchor is a substring of another, so each is
-      // independently enforced — a subsumed anchor adds zero enforcement):
-      //   gerund form  → manifest trigger (renders 2x: section index + STOP)
-      //   imperative   → Step 17 handoff line
-      //   3rd person   → hoisted doc-sync invariant
-      // Matching is case-sensitive String.includes — "dispatching the" does NOT
-      // contain "dispatch the" — so update anchors in lockstep with any
-      // touchpoint rewording.
       mustStayInSkeleton: [
         'v$NEW_VERSION',
         'gstack-pr-title-rewrite',
         'dispatching the /document-release subagent to sync docs',
         'dispatch the /document-release subagent to sync docs',
         'dispatches the /document-release subagent',
+        '## Step 2: Distribution Pipeline Check',
+        '### Step 15.0: WIP Commit Squash',
+        'Credential pre-push guard (#1946) — detect before the push',
+        '## Step 21: Plan-tune discoverability nudge',
       ],
-      // ...while the full create/update procedure stays carved into pr-body.md
-      // (out of the skeleton, present in the union). Asserts BOTH PR paths
-      // survive: the create path and the idempotent update path. The Step 18
-      // dispatch imperative stays carved too — pasting that literal into the
-      // skeleton (correctly) fails this guard; the skeleton speaks of "the
-      // /document-release subagent", never the carved imperative.
       mustMoveToSection: [
         'gh pr create --base',
         'gh pr edit --title',
         'Dispatch /document-release as a subagent',
+        "This PR adds a new binary/tool but there's no CI/CD pipeline",
+        'Non-destructive squash strategy',
+        'gstack can install a per-repo git pre-push hook',
+        'gstack can learn from your AskUserQuestion answers',
       ],
-      // ship is operational (multi-STOP, not a plan review); no single post-STOP gate.
       gateAfterStop: undefined,
     },
     behavioral: 'external',
     externalTest: 'test/skill-e2e-ship-section-loading.test.ts',
-    maxSkeletonBytes: 79_300, // + v2.0 {{ASIDE_RESEARCH}} (Aside first, WebSearch fallback); measured 78_275
-    minUnionBytes: 181_000, // token-reduction Phases 1-2 (v1.69.x branch); measured union 201,464
+    maxSkeletonBytes: 79_300,
+    minUnionBytes: 181_000,
     mustContain: ['VERSION', 'CHANGELOG', 'review', 'merge', 'PR'],
-    // v1.58.5.0: pre-push-guard install (#2077) stacks on the shared first-run-guidance preamble.
-    // Fork port wave 2: multi-ecosystem test-detection evidence (Django/JVM
-    // markers, test-file census — e3259078 port) + the #1079 gh pr edit REST
-    // fallback grew the union to 1.090x; the third-party web-actions
-    // contract (consent-gated browser drive for API-key registration etc.)
-    // adds ~2.3KB inline judgment, measured 1.103x. The Apple release
-    // adapter (14.8KB carved section, 21 live releases of judgment — the
-    // wave's headline capability) grows the union to 1.195x. Deliberate:
-    // the section is on-demand (loads only for Apple store targets), so
-    // per-invocation cost for non-iOS ships is one manifest line.
-    maxSizeRatio: 1.22,
+    maxSizeRatio: 1.24,
   },
   'plan-ceo-review': {
     skill: 'plan-ceo-review',
-    expectedSections: ['review-sections.md'],
-    requiredReads: ['review-sections.md'],
+    expectedSections: ['scope-expansion.md', 'selective-expansion.md', 'hold-scope.md', 'scope-reduction.md', 'review-sections.md'],
+    requiredReads: ['hold-scope.md', 'review-sections.md'],
     scenario:
-      'Review the plan in PLAN.md. Hold the current scope (HOLD SCOPE mode) — do not challenge or expand scope. Run the full CEO review and produce the review report.',
+      'Review the plan in PLAN.md in HOLD SCOPE mode. Treat the implementation approach as already approved. Run the mode chooser, load only hold-scope, then run the full 11-section deep review and produce the review report. Do not load expansion or reduction posture sections.',
     staticInvariants: {
-      mustStayInSkeleton: ['## Step 0: Nuclear Scope Challenge'],
-      mustMoveToSection: ['### Section 1: Architecture Review', '## Mode Quick Reference'],
+      mustStayInSkeleton: [
+        '## Step 0: Nuclear Scope Challenge + Mode Selection',
+        '### 0A. Premise Challenge',
+        '### 0B. Existing Code Leverage',
+        '### 0C. Dream State Mapping',
+        '### 0C-bis. Implementation Alternatives (MANDATORY)',
+        '### 0F. Mode Selection',
+        'Critical rule: In ALL modes, the user is 100% in control',
+      ],
+      mustPrecedeStop: ['### 0A. Premise Challenge', '### 0C-bis. Implementation Alternatives (MANDATORY)', '### 0F. Mode Selection'],
+      mustMoveToSection: [
+        '### 0D-prelude. Expansion Framing',
+        '**For SCOPE EXPANSION**',
+        '**For SELECTIVE EXPANSION**',
+        '**For HOLD SCOPE**',
+        '**For SCOPE REDUCTION**',
+        '### 0D-POST. Persist CEO Plan',
+        '### 0E. Temporal Interrogation',
+        '### Section 1: Architecture Review',
+      ],
       gateAfterStop: 'EXIT PLAN MODE GATE',
     },
     behavioral: 'external',
     externalTest: 'test/skill-e2e-plan-ceo-review-section-loading.test.ts',
-    // v1.65 merge: provisional larger-of-both-waves budget; re-measured below.
-        // Fork port wave 2 (#703): the repo-doc-preference block in the design
-    // check grew every plan-review skeleton ~0.7KB. Measured values noted.
-    maxSkeletonBytes: 79_000, // + v2.0 {{ASIDE_RESEARCH}} (Aside first, WebSearch fallback); measured 77_657
-    minUnionBytes: 123_600, // token-reduction Phases 1-2 (v1.69.x branch): preamble bash -> bin/gstack-skill-start, onboarding -> gated emission; measured union 137,346
+    maxSkeletonBytes: 79_000,
+    minUnionBytes: 123_600,
     mustContain: ['SCOPE EXPANSION', 'SELECTIVE EXPANSION', 'HOLD SCOPE', 'SCOPE REDUCTION'],
-    // Default-on Codex outside-voice (codexPreflight block + CODEX_MODE branch
-    // prose replacing the smaller opt-in question) lands this ~5.2% over baseline.
-    maxSizeRatio: 1.08,
+    maxSizeRatio: 1.12,
   },
   'plan-eng-review': {
     skill: 'plan-eng-review',
@@ -576,6 +570,167 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
     mustContain: ['PGLite', 'Supabase', 'claude mcp add', 'read_secret_to_env', 'pooler'],
     maxSizeRatio: 1.07, // measured 1.051 vs the branch monolith: index + stubs + 4 STOP pointers
   },
+  // ── Ace-Pi ICM Codex wave 2 ─────────────────────────────────────────────
+  'plan-tune': {
+    skill: 'plan-tune',
+    expectedSections: ['onboarding.md', 'profile-preferences.md', 'analytics.md', 'dream-cycle.md'],
+    requiredReads: ['profile-preferences.md'],
+    scenario:
+      'Run /plan-tune for the plain-English request "show my profile" in SIMULATION. Treat question tuning as enabled, the setup gate as already satisfied, no pending dream-cycle proposals, and a populated declared profile. Do not execute bash or mutate files. Route from Step 0, read only the profile-preferences section, then describe the profile presentation and calibration behavior. Do NOT use AskUserQuestion.',
+    staticInvariants: {
+      mustStayInSkeleton: [
+        '## Step 0: Detect what the user wants',
+        'Consent gate',
+        'Setup gate',
+        'Dream-cycle gate',
+        'question_tuning false',
+        'question_tuning true',
+        '## Important Rules',
+        'One-way doors override never-ask',
+      ],
+      mustPrecedeStop: ['## Step 0: Detect what the user wants'],
+      mustMoveToSection: [
+        '## Consent + opt-in',
+        '## 5-Q setup',
+        '## Inspect profile',
+        '## Stats',
+        '## Dream cycle review',
+      ],
+      gateAfterStop: undefined,
+    },
+    behavioral: 'prompt',
+    maxSkeletonBytes: 42_000,
+    minUnionBytes: 55_000,
+    mustContain: ['question tuning', 'developer profile', 'never-ask', 'Dream cycle', 'Plain English everywhere'],
+  },
+  'design-review': {
+    skill: 'design-review',
+    expectedSections: ['baseline-methodology.md'],
+    requiredReads: ['baseline-methodology.md'],
+    scenario:
+      'Walk /design-review in SIMULATION — do not launch a browser, run bash, edit source, or commit. Treat setup as complete: clean working tree, target http://localhost:3000, DESIGN.md present, Standard depth, designer unavailable. Read the pointed baseline section before the audit, then produce the Phase 1-6 audit plan and scoring criteria. Stop before Phase 7. Do NOT use AskUserQuestion.',
+    staticInvariants: {
+      mustStayInSkeleton: [
+        '## Setup',
+        'Check for clean working tree',
+        '## Phases 1-6: Design Audit Baseline',
+        '## Phase 7: Triage',
+        '## Phase 8: Fix Loop',
+        '## Phase 9: Final Design Audit',
+        '## Phase 10: Report',
+        '## Additional Rules (design-review specific)',
+        'One commit per fix',
+      ],
+      mustPrecedeStop: ['## Setup', 'Check for clean working tree'],
+      mustMoveToSection: [
+        "Don't make me think",
+        '## Health Score Rubric',
+        'Never refuse to use the browser',
+      ],
+      gateAfterStop: undefined,
+    },
+    behavioral: 'prompt',
+    maxSkeletonBytes: 90_000,
+    minUnionBytes: 85_000,
+    mustContain: ['design', 'fix', 'screenshot', 'AI slop', 'One commit per fix'],
+  },
+
+  // ── Token-reduction Phase 4 wave 3 (v1.69.x branch) ──────────────────────
+  'document-generate': {
+    skill: 'document-generate',
+    expectedSections: ['reference-docs.md', 'explanation-docs.md', 'how-to-docs.md', 'tutorial-docs.md'],
+    requiredReads: ['reference-docs.md', 'explanation-docs.md'],
+    scenario:
+      'Walk /document-generate in SIMULATION for an internal scheduler module. Treat scope as already confirmed and research as complete: the module has a public TypeScript API plus two non-obvious design decisions, but no end-user workflow. Partition it into Reference + Explanation only. Do not write files, commit, push, browse, or use AskUserQuestion. Read only the selected writing playbooks, then produce the documentation plan and a concise outline of the two documents.',
+    staticInvariants: {
+      mustStayInSkeleton: [
+        '## Step 0: Scope & Intent',
+        '## Step 1: Codebase Archaeology (Research Phase)',
+        '## Step 2: Diataxis Partitioning',
+        '## Step 7: Cross-Document Linking & Discoverability',
+        '## Step 8: Quality Self-Review',
+        '## Step 9: Commit & Output',
+        'Redaction scan before commit',
+        '## Important Rules',
+      ],
+      mustPrecedeStop: ['## Step 0: Scope & Intent', '## Step 1: Codebase Archaeology (Research Phase)', '## Step 2: Diataxis Partitioning'],
+      mustMoveToSection: [
+        '## Step 3: Write Reference Documentation First',
+        '## Step 4: Write Explanation Documentation',
+        '## Step 5: Write How-To Guides',
+        '## Step 6: Write Tutorials',
+        'Reference doc template:',
+        'Tutorial doc template:',
+      ],
+      gateAfterStop: undefined,
+    },
+    behavioral: 'prompt',
+    maxSkeletonBytes: 43_500,
+    minUnionBytes: 47_000,
+    mustContain: ['Diataxis', 'Reference', 'Explanation', 'How-to', 'Tutorial', 'Research before writing'],
+    maxSizeRatio: 1.08,
+  },
+  'pair-agent': {
+    skill: 'pair-agent',
+    expectedSections: ['remote-pairing.md', 'remote-reference.md'],
+    requiredReads: ['remote-pairing.md'],
+    scenario:
+      'Walk /pair-agent in SIMULATION for pairing Hermes on a different machine. Treat the browser daemon as running and the user as choosing to keep it, pair-agent consent as already on, and ngrok as installed and authenticated. Do not execute commands or expose real credentials. Read the remote pairing section, then state the command and instruction-block handling you would perform. Do not load the remote reference section unless needed.',
+    staticInvariants: {
+      mustStayInSkeleton: [
+        '## Step 1: Check prerequisites',
+        '## Step 2: Ask what they want',
+        '## Step 3: Local or remote?',
+        'Live-daemon consent (one-way door)',
+        '### If same machine (option A):',
+        '## Step 5: Verify connection',
+      ],
+      mustPrecedeStop: ['## Step 2: Ask what they want', '## Step 3: Local or remote?', 'Live-daemon consent (one-way door)'],
+      mustMoveToSection: [
+        'Consent gate (once per machine)',
+        'NGROK_INSTALLED',
+        'CRITICAL: You MUST output the full instruction block',
+        '## What the remote agent can do',
+        '## Troubleshooting',
+        '## Revoking access',
+      ],
+      gateAfterStop: undefined,
+    },
+    behavioral: 'prompt',
+    maxSkeletonBytes: 39_000,
+    minUnionBytes: 43_000,
+    mustContain: ['pair-agent', 'ngrok', '--restrict', '--control', 'tunnel revoke', 'setup key'],
+    maxSizeRatio: 1.08,
+  },
+  'qa-only': {
+    skill: 'qa-only',
+    expectedSections: ['methodology.md'],
+    requiredReads: ['methodology.md'],
+    scenario:
+      'Walk /qa-only in SIMULATION — do not launch a browser or execute bash. Treat the target as http://localhost:3000, mode as diff-aware on a feature branch, and no richer test plan as available. Read the pointed methodology section before the test pass, then produce the report-only QA plan and health-score rubric. Do not fix or suggest fixes. Do NOT use AskUserQuestion.',
+    staticInvariants: {
+      mustStayInSkeleton: [
+        '## Setup',
+        '## Test Plan Context',
+        '## QA Test Pass',
+        '## Output',
+        '## Additional Rules (qa-only specific)',
+        'Never fix bugs',
+      ],
+      mustPrecedeStop: ['## Setup', '## Test Plan Context'],
+      mustMoveToSection: [
+        '## Health Score Rubric',
+        'Diff-aware',
+        'Never refuse to use the browser',
+      ],
+      gateAfterStop: undefined,
+    },
+    behavioral: 'prompt',
+    maxSkeletonBytes: 65_000,
+    minUnionBytes: 60_000,
+    mustContain: ['report', 'health score', 'screenshots', 'NEVER fix anything', 'Never fix bugs'],
+    maxSizeRatio: 1.12,
+  },
   // ── Token-reduction Phase 4 wave 3 (v1.69.x branch) ──────────────────────
   qa: {
     skill: 'qa',
@@ -635,20 +790,37 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
   },
   retro: {
     skill: 'retro',
-    expectedSections: ['report-format.md'],
-    requiredReads: ['report-format.md'],
+    expectedSections: ['repo-retro.md', 'global-retro.md', 'compare-retro.md', 'report-format.md'],
+    requiredReads: ['repo-retro.md', 'report-format.md'],
     scenario:
-      'Run the repo-scoped weekly retrospective for the last 7 days on this repo. There is no origin remote — proceed with the local branch per the guard disclosure rules. The gstack-retro-metrics script is not installed, so follow the degraded path (compute the metrics manually with git). Skip any AskUserQuestion calls — this is non-interactive. Produce the full narrative retrospective report.',
+      'Run the repo-scoped weekly retrospective for the last 7 days on this repo. There is no origin remote — proceed with the local branch per the guard disclosure rules. The gstack-retro-metrics script is not installed, so follow the degraded path (compute the metrics manually with git). Skip any AskUserQuestion calls — this is non-interactive. Route to the repo-retro section, then read report-format only when Step 14 starts. Produce the full narrative retrospective report.',
     staticInvariants: {
-      mustStayInSkeleton: ['gstack-retro-metrics', '### Step 2: Compute Metrics', '### Step 13: Save Retro History'],
-      mustPrecedeStop: ['### Step 2: Compute Metrics'],
-      mustMoveToSection: ['## Engineering Retro: [date range]', '### Team Breakdown', 'Plan Completion This Period'],
+      mustStayInSkeleton: [
+        '## Instructions',
+        'Midnight-aligned windows',
+        'Argument validation',
+        'If the first argument is ',
+        '## Mode dispatch',
+        '## Tone',
+        '## Important Rules',
+      ],
+      mustPrecedeStop: ['## Instructions', 'Midnight-aligned windows', 'Argument validation', '## Mode dispatch'],
+      mustMoveToSection: [
+        '### Step 0.5: Freshness pre-flight (fetch)',
+        '### Step 2: Compute Metrics',
+        '### Step 13: Save Retro History',
+        '## Global Retrospective Mode',
+        '### Global Step 7: Aggregate and generate narrative',
+        '## Compare Mode',
+        '## Engineering Retro: [date range]',
+      ],
       gateAfterStop: undefined,
     },
     behavioral: 'prompt',
-    maxSkeletonBytes: 73_450, // + v1.78 AUQ spawned-trigger objectivity (explicit declaration + interactive fence); measured 73_059
-    minUnionBytes: 66_000, // measured union 73,496
-    mustContain: ['retrospective', '45-minute gap', 'Ship of the week', 'Praise'],
+    maxSkeletonBytes: 43_000,
+    minUnionBytes: 70_000,
+    mustContain: ['retrospective', '45-minute gap', 'Ship of the week', 'Praise', 'global', 'compare'],
+    maxSizeRatio: 1.10,
   },
 
   // ── Token-reduction Phase 4 wave 4 (v1.69.x branch): design doctrine carve ──

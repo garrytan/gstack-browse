@@ -1,5 +1,5 @@
 /**
- * Section resolvers (v2 plan T9, Claude-first carve).
+ * Section resolvers (v2 plan T9, progressive carve).
  *
  * A carved skill keeps its prose-heavy steps in `<skill>/sections/<id>.md`, read
  * on demand. The SAME template ships to every host, so these resolvers make the
@@ -7,14 +7,16 @@
  *
  *  - On CLAUDE: {{SECTION:id}} emits a STOP-Read pointer to the generated section
  *    file (the skeleton), and the section .md is generated + installed separately.
- *  - On every OTHER host: {{SECTION:id}} INLINES the section template's content,
- *    so external hosts keep the full monolith ship skill (no section files, no
- *    host-portable-path problem). Inlined content keeps its own {{RESOLVER}}
- *    tokens, which the generator's multi-pass resolve expands.
+ *  - On CODEX: {{SECTION:id}} emits a STOP-cat pointer to the generated Codex
+ *    section file. Setup installs generated Codex skill directories with their
+ *    runtime assets, so the section is available globally and in-repo.
+ *  - On every OTHER host: {{SECTION:id}} INLINES the section template's content.
+ *    Inlined content keeps its own {{RESOLVER}} tokens, which the generator's
+ *    multi-pass resolve expands.
  *
  * {{SECTION_INDEX:skill}} renders the situation→section table from the PASSIVE
- * manifest on Claude (empty on other hosts — they have no sections). The manifest
- * is the single source of id/file/title/trigger text (CM2; v2_PLAN.md:663).
+ * manifest on progressive hosts (empty on inline hosts). The manifest is the
+ * single source of id/file/title/trigger text (CM2; v2_PLAN.md:663).
  */
 
 import * as fs from 'fs';
@@ -48,8 +50,16 @@ function findSection(skill: string, id: string): SectionEntry {
   return entry;
 }
 
+function isProgressiveSectionHost(ctx: TemplateContext): boolean {
+  return ctx.host === 'claude' || ctx.host === 'codex';
+}
+
+function codexSkillDir(skillName: string): string {
+  return skillName.startsWith('gstack-') ? skillName : `gstack-${skillName}`;
+}
+
 /**
- * {{SECTION:id}} — pointer on Claude, inline on other hosts.
+ * {{SECTION:id}} — pointer on progressive hosts, inline on other hosts.
  * Claude path uses the stable gstack-root install (`{skillRoot}/{skill}/sections/`),
  * which always exists, instead of a naked relative path (Codex outside-voice #7).
  */
@@ -66,18 +76,29 @@ export const SECTION: ResolverFn = (ctx: TemplateContext, args?: string[]): stri
     ].join('\n');
   }
 
-  // Non-Claude hosts inline the section template content (monolith preserved).
-  // Inner {{RESOLVER}} tokens are expanded by the generator's multi-pass resolve.
-  const tmplPath = path.join(ROOT, ctx.skillName, 'sections', `${entry.file}.tmpl`);
-  return fs.readFileSync(tmplPath, 'utf-8').trimEnd();
+  if (ctx.host === 'codex') {
+  const externalName = codexSkillDir(ctx.skillName);
+  const globalPath = `$HOME/.codex/skills/${externalName}/sections/${entry.file}`;
+  const localPath = `.agents/skills/${externalName}/sections/${entry.file}`;
+  return [
+    `> **STOP.** Before ${entry.trigger}, load the canonical section for this phase.`,
+    `> Run \`cat "${globalPath}"\`. If that file is missing, run \`cat "${localPath}"\`.`,
+    `> Execute the loaded section in full. Do not work from memory — it is the source of truth for this step.`,
+  ].join('\n');
+}
+
+// Remaining hosts inline the section template content (monolith preserved).
+// Inner {{RESOLVER}} tokens are expanded by the generator's multi-pass resolve.
+const tmplPath = path.join(ROOT, ctx.skillName, 'sections', `${entry.file}.tmpl`);
+return fs.readFileSync(tmplPath, 'utf-8').trimEnd();
 };
 
 /**
  * {{SECTION_INDEX:skill}} — situation→section table from the passive manifest.
- * Claude only; other hosts inline everything so an index would be noise.
+ * Progressive hosts only; inline hosts already carry the full section payload.
  */
 export const SECTION_INDEX: ResolverFn = (ctx: TemplateContext, args?: string[]): string => {
-  if (ctx.host !== 'claude') return '';
+  if (!isProgressiveSectionHost(ctx)) return '';
   const skill = args?.[0] ?? ctx.skillName;
   const manifest = loadManifest(skill);
   const lines: string[] = [

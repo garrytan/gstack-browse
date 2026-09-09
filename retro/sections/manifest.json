@@ -2,8 +2,26 @@
   "$schema": "https://gstack.dev/schemas/section-manifest.json",
   "skill": "retro",
   "version": 1,
-  "note": "PASSIVE registry (v2 plan T9 / CM2). id/file/title/trigger text ONLY. The skeleton's decision-tree prose decides WHEN to read. No machine predicate here.",
+  "note": "ICM progressive loading: argument parsing and mode dispatch stay eager; repo, global, and compare workflows load only after mode resolution. Narrative format remains a late repo-retro read.",
   "sections": [
+    {
+      "id": "repo-retro",
+      "file": "repo-retro.md",
+      "title": "Repository-scoped retrospective metrics, analysis, history, and narrative handoff",
+      "trigger": "the parsed mode is the default repository retrospective rather than global or compare"
+    },
+    {
+      "id": "global-retro",
+      "file": "global-retro.md",
+      "title": "Cross-project global retrospective discovery, aggregation, narrative, history, and snapshot flow",
+      "trigger": "the first argument is global"
+    },
+    {
+      "id": "compare-retro",
+      "file": "compare-retro.md",
+      "title": "Current-window versus prior-window comparison flow",
+      "trigger": "the first argument is compare"
+    },
     {
       "id": "report-format",
       "file": "report-format.md",

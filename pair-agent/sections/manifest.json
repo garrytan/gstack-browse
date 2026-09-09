@@ -1,0 +1,20 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "pair-agent",
+  "version": 1,
+  "note": "ICM progressive loading: local-vs-remote routing and destructive daemon consent stay eager; remote tunnel setup and reference guidance load only when relevant.",
+  "sections": [
+    {
+      "id": "remote-pairing",
+      "file": "remote-pairing.md",
+      "title": "Remote pairing, ngrok consent, authentication, and instruction-block flow",
+      "trigger": "Step 3 resolves to a different-machine remote agent"
+    },
+    {
+      "id": "remote-reference",
+      "file": "remote-reference.md",
+      "title": "Remote permissions, troubleshooting, platform notes, and revocation",
+      "trigger": "the user asks about paired-agent capabilities, restrictions, troubleshooting, platform-specific behavior, or revoking access"
+    }
+  ]
+}

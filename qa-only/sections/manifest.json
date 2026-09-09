@@ -1,0 +1,14 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "qa-only",
+  "version": 1,
+  "note": "ICM progressive loading: setup, report-only safety, and output contract stay eager; the full QA methodology loads when testing begins.",
+  "sections": [
+    {
+      "id": "methodology",
+      "file": "methodology.md",
+      "title": "Core QA methodology, modes, phases, browser workflow, and health scoring",
+      "trigger": "starting the actual QA test pass after Setup and test-plan context are resolved"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+## Step 3: Write Reference Documentation First
+
+Reference docs are the foundation. They are factual, complete, and derived directly from code.
+Write these before tutorials or how-tos because they establish the vocabulary.
+
+**Reference doc template:**
+
+```markdown
+# [Entity Name]
+
+[One paragraph: what it is, what it does, when you'd use it.]
+
+## API / Interface
+
+[Complete listing of public surface: functions, commands, config options, parameters.
+Include types, defaults, and constraints. Pull directly from code — do not paraphrase
+loosely.]
+
+## Options / Configuration
+
+[If applicable: every option with its type, default, and effect.]
+
+## Examples
+
+[2-3 concrete examples showing actual usage. Prefer real command output or code that
+would actually compile/run.]
+
+## Related
+
+[Links to other reference docs, how-tos, or explanations that provide context.]
+```
+
+**Rules for reference docs:**
+- Accuracy over elegance. Every claim must be traceable to code.
+- Include types, defaults, and constraints. "Accepts a string" is insufficient — "Accepts a
+  string (max 256 chars, must match `^[a-z-]+$`)" is reference-grade.
+- Show real examples that would actually work if copy-pasted.
+- Do not explain *why* — that belongs in explanation docs.
+
+---

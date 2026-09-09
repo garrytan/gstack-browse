@@ -1,0 +1,149 @@
+## Consent + opt-in
+
+**When this fires.** Step 0's consent gate: `question_tuning` is `false` AND
+`~/.gstack/.question-tuning-prompted` is missing. The user has never been
+asked.
+
+**Privacy note.** gstack defaults `question_tuning` to `false` for every user.
+There is no auto-flip for any cohort. The consent prompt is the only path to
+enabling, and the answer is honored with a marker file so the user is never
+re-asked. Contributors are not auto-enrolled (see
+`docs/designs/PLAN_TUNING_V1.md` §"Decisions log" for the privacy posture
+rationale). If the user is a contributor (`gstack_contributor: true`), the
+prompt can mention it as additional context, but the decision is still
+explicit.
+
+**Flow:**
+
+1. Detect contributor state (for prompt framing only, not for auto-action):
+   ```bash
+   _QT=$(~/.claude/skills/gstack/bin/gstack-config get question_tuning 2>/dev/null || echo "false")
+   _CONTRIB=$(~/.claude/skills/gstack/bin/gstack-config get gstack_contributor 2>/dev/null || echo "false")
+   echo "QUESTION_TUNING: $_QT"
+   echo "CONTRIBUTOR: $_CONTRIB"
+   ```
+
+2. AskUserQuestion (use the contributor-specific framing only if `_CONTRIB=true`,
+   otherwise use the general framing):
+
+   **General framing:**
+   > Question tuning is off. gstack can learn which of its prompts you find
+   > valuable vs noisy — so over time, gstack stops asking questions you've
+   > already answered the same way. It takes about 2 minutes to set up your
+   > initial profile. v1 is observational: gstack tracks your preferences
+   > and shows you a profile, but doesn't silently change skill behavior yet.
+   > Logs stay local (`~/.gstack/projects/<slug>/question-log.jsonl`).
+   >
+   > RECOMMENDATION: Enable and set up your profile. Completeness: A=9/10.
+   >
+   > A) Enable + set up (recommended, ~2 min)
+   > B) Enable but skip setup (I'll fill it in later)
+   > C) Cancel — I'm not ready
+
+   **Contributor framing (only if `_CONTRIB=true`):**
+   > You're a gstack contributor. Question tuning isn't on by default for
+   > anyone, but contributors are the cohort whose data most helps v2 work
+   > (skills adapting to your steering style). Enabling logs every
+   > AskUserQuestion outcome locally to
+   > `~/.gstack/projects/<slug>/question-log.jsonl` — nothing leaves your
+   > machine. v1 is observational only.
+   >
+   > RECOMMENDATION: Enable and set up your profile. Completeness: A=9/10.
+   >
+   > A) Enable + set up (recommended for contributors, ~2 min)
+   > B) Enable but skip setup (I'll fill it in later)
+   > C) Cancel — I'm not ready
+
+3. ALWAYS touch the marker, regardless of choice:
+   ```bash
+   touch ~/.gstack/.question-tuning-prompted
+   ```
+
+4. If A or B: enable:
+   ```bash
+   ~/.claude/skills/gstack/bin/gstack-config set question_tuning true
+   ```
+
+5. If C: do nothing else. Tell the user: "Question tuning stays off. Re-enable
+   any time with `/plan-tune enable` or `gstack-config set question_tuning true`."
+
+## 5-Q setup (post-consent, or via Setup gate)
+
+**When this fires.** Two paths:
+- Right after the consent prompt above accepts option A.
+- Standalone via Step 0's setup gate: `question_tuning` is already `true`
+  (user opted in via gstack-config or earlier `/plan-tune enable`) AND
+  `declared` is empty AND `~/.gstack/.declared-setup-prompted` is missing.
+  This catches users who set `question_tuning: true` directly without
+  running the wizard.
+
+**Flow:**
+
+1. Ask FIVE one-per-dimension declaration questions via individual
+   AskUserQuestion calls (one at a time). Use plain English, no jargon:
+
+   **Q1 — scope_appetite:** "When you're planning a feature, do you lean toward
+   shipping the smallest useful version fast, or building the complete, edge-
+   case-covered version?"
+   Options: A) Ship small, iterate (low scope_appetite ≈ 0.25) /
+   B) Balanced / C) Boil the ocean — ship the complete version (high ≈ 0.85)
+
+   **Q2 — risk_tolerance:** "Would you rather move fast and fix bugs later, or
+   check things carefully before acting?"
+   Options: A) Check carefully (low ≈ 0.25) / B) Balanced / C) Move fast (high ≈ 0.85)
+
+   **Q3 — detail_preference:** "Do you want terse, 'just do it' answers or
+   verbose explanations with tradeoffs and reasoning?"
+   Options: A) Terse, just do it (low ≈ 0.25) / B) Balanced /
+   C) Verbose with reasoning (high ≈ 0.85)
+
+   **Q4 — autonomy:** "Do you want to be consulted on every significant
+   decision, or delegate and let the agent pick for you?"
+   Options: A) Consult me (low ≈ 0.25) / B) Balanced /
+   C) Delegate, trust the agent (high ≈ 0.85)
+
+   **Q5 — architecture_care:** "When there's a tradeoff between 'ship now'
+   and 'get the design right', which side do you usually fall on?"
+   Options: A) Ship now (low ≈ 0.25) / B) Balanced /
+   C) Get the design right (high ≈ 0.85)
+
+   After each answer, map A/B/C to the numeric value and save the declared
+   dimension. Write each declaration directly into
+   `~/.gstack/developer-profile.json` under `declared.{dimension}`:
+
+   ```bash
+   # Ensure profile exists
+   ~/.claude/skills/gstack/bin/gstack-developer-profile --read >/dev/null
+   # Update declared dimensions atomically
+   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"
+   _PROFILE="$GSTACK_STATE_ROOT/developer-profile.json"
+   bun -e "
+     const fs = require('fs');
+     const p = JSON.parse(fs.readFileSync('$_PROFILE','utf-8'));
+     p.declared = p.declared || {};
+     p.declared.scope_appetite = <Q1_VALUE>;
+     p.declared.risk_tolerance = <Q2_VALUE>;
+     p.declared.detail_preference = <Q3_VALUE>;
+     p.declared.autonomy = <Q4_VALUE>;
+     p.declared.architecture_care = <Q5_VALUE>;
+     p.declared_at = new Date().toISOString();
+     const tmp = '$_PROFILE.tmp';
+     fs.writeFileSync(tmp, JSON.stringify(p, null, 2));
+     fs.renameSync(tmp, '$_PROFILE');
+   "
+   ```
+
+2. Touch the marker so the Setup gate doesn't re-fire:
+   ```bash
+   touch ~/.gstack/.declared-setup-prompted
+   ```
+   Touch it even if the user bails out partway — they were asked; they chose
+   not to complete. The Setup gate respects that. They can rerun the 5-Q
+   anytime with `/plan-tune setup` (Step 0 power-user shortcut).
+
+3. Tell the user: "Profile set. Question tuning is on. Use `/plan-tune`
+   again any time to inspect, adjust, or turn it off."
+
+4. Show the profile inline as a confirmation by loading the `profile-preferences` section and running `Inspect profile`.
+
+---

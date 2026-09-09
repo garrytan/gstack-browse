@@ -1,0 +1,54 @@
+## Step 6: Write Tutorials
+
+Tutorials are learning-oriented. They take a newcomer from zero to a working example.
+These are the hardest to write well and the most valuable.
+
+**Tutorial doc template:**
+
+```markdown
+# [Tutorial title — describes what you'll build/learn]
+
+[Opening paragraph: what you'll build, why it's useful, and what you'll understand
+by the end. Keep it concrete — "You'll build a working X that does Y" not
+"This tutorial covers X".]
+
+## What you'll need
+
+[Prerequisites: tools, versions, prior knowledge. Link to installation guides.]
+
+## Step 1: [Set up the foundation]
+
+[Start from a clean state. Show every command. Explain what each does on first
+encounter — but briefly, not a lecture.]
+
+```bash
+[exact command]
+```
+
+[Brief explanation of what just happened.]
+
+## Step 2: [Build the first working piece]
+
+[Get to a working, visible result as fast as possible. The reader should see
+something happen within the first 3 steps.]
+
+...
+
+## Step N: [Final step]
+
+## What you built
+
+[Recap: what the reader now has and what it can do. Link to reference docs
+for deeper exploration. Suggest next steps.]
+```
+
+**Rules for tutorials:**
+- **Time to first result < 3 steps.** If the reader hasn't seen something work by step 3,
+  the tutorial is too slow.
+- Every step must produce a visible change or output. No "now configure X" without showing
+  what changes.
+- Use the exact commands the reader will type. No "run the appropriate command" abstractions.
+- Error paths: if a step commonly fails, show the error and the fix inline.
+- End with "What you built" — connect the tutorial back to the real use case.
+
+---

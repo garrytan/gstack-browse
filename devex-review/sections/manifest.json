@@ -1,0 +1,14 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "devex-review",
+  "version": 1,
+  "note": "PASSIVE registry. The skill skeleton decides when to load this section; the manifest only names the deferred payload and its trigger.",
+  "sections": [
+    {
+      "id": "audit-playbook",
+      "file": "audit-playbook.md",
+      "title": "DX audit playbook — doctrine, passes, scorecard, and boomerang comparison",
+      "trigger": "starting the live DX audit after target discovery and prior-plan baseline resolution"
+    }
+  ]
+}

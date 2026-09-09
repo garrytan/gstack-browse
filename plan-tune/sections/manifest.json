@@ -1,0 +1,32 @@
+{
+  "$schema": "https://gstack.dev/schemas/section-manifest.json",
+  "skill": "plan-tune",
+  "version": 1,
+  "note": "ICM progressive loading: Step 0 routing stays eager; mutually exclusive Plan Tune flows load only after intent is resolved.",
+  "sections": [
+    {
+      "id": "onboarding",
+      "file": "onboarding.md",
+      "title": "Consent and initial 5-question setup",
+      "trigger": "the consent gate or setup gate fires, or the user explicitly asks to run setup"
+    },
+    {
+      "id": "profile-preferences",
+      "file": "profile-preferences.md",
+      "title": "Profile inspection, question log, preferences, declared-profile edits, and gap view",
+      "trigger": "the routed intent is profile, vibe, question review, preference tuning, declared-profile editing, or gap inspection"
+    },
+    {
+      "id": "analytics",
+      "file": "analytics.md",
+      "title": "Question-tuning stats, recent auto-decisions, and unmarked-question audit",
+      "trigger": "the routed intent is stats, recent auto-decisions, or audit"
+    },
+    {
+      "id": "dream-cycle",
+      "file": "dream-cycle.md",
+      "title": "Dream-cycle proposal review and free-text distillation",
+      "trigger": "the dream-cycle gate fires or the user asks to distill or review dream-cycle proposals"
+    }
+  ]
+}

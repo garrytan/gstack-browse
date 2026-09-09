@@ -117,29 +117,11 @@ Continue to Step 2 — do NOT block or ask. Ship runs its own review in Step 9.
 
 ## Step 2: Distribution Pipeline Check
 
-If the diff introduces a new standalone artifact (CLI binary, library package, tool) — not a web
-service with existing deployment — verify that a distribution pipeline exists.
+Inspect the diff for a newly introduced standalone distributable artifact such as a CLI binary, library package, or tool. Web services with an existing deployment path do not count.
 
-1. Check if the diff adds a new `cmd/` directory, `main.go`, or `bin/` entry point:
-   ```bash
-   git diff origin/<base> --name-only | grep -E '(cmd/.*/main\.go|bin/|Cargo\.toml|setup\.py|package\.json)' | head -5
-   ```
+If a new standalone artifact is present, load and execute the distribution-pipeline section. Otherwise skip directly to Step 3.
 
-2. If new artifact detected, check for a release workflow:
-   ```bash
-   ls .github/workflows/ 2>/dev/null | grep -iE 'release|publish|dist'
-   grep -qE 'release|publish|deploy' .gitlab-ci.yml 2>/dev/null && echo "GITLAB_CI_RELEASE"
-   ```
-
-3. **If no release pipeline exists and a new artifact was added:** Use AskUserQuestion:
-   - "This PR adds a new binary/tool but there's no CI/CD pipeline to build and publish it.
-     Users won't be able to download the artifact after merge."
-   - A) Add a release workflow now (CI/CD release pipeline — GitHub Actions or GitLab CI depending on platform)
-   - B) Defer — add to TODOS.md
-   - C) Not needed — this is internal/web-only, existing deployment covers it
-
-4. **If release pipeline exists:** Continue silently.
-5. **If no new artifact detected:** Skip silently.
+{{SECTION:distribution-pipeline}}
 
 ---
 
@@ -270,68 +252,16 @@ Save this summary — it goes into the PR body in Step 19.
 
 ### Step 15.0: WIP Commit Squash (continuous checkpoint mode only)
 
-If `CHECKPOINT_MODE` is `"continuous"`, the branch likely contains `WIP:` commits
-from auto-checkpointing. These must be squashed INTO the corresponding logical
-commits before the bisectable-grouping logic in Step 15.1 runs. Non-WIP commits
-on the branch (earlier landed work) must be preserved.
+Only applies when `CHECKPOINT_MODE` is `continuous`. Detect WIP commits first:
 
-**Detection:**
 ```bash
 WIP_COUNT=$(git log <base>..HEAD --oneline --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
 echo "WIP_COMMITS: $WIP_COUNT"
 ```
 
-If `WIP_COUNT` is 0: skip this sub-step entirely.
+If `WIP_COUNT` is 0, skip this sub-step. If it is greater than 0, load the WIP-squash section before changing history.
 
-If `WIP_COUNT` > 0, collect the WIP context first so it survives the squash:
-
-```bash
-# Export [gstack-context] blocks from all WIP commits on this branch.
-# This file becomes input to the CHANGELOG entry and may inform PR body context.
-mkdir -p "$(git rev-parse --show-toplevel)/.gstack"
-git log <base>..HEAD --grep="^WIP:" --format="%H%n%B%n---END---" > \
-  "$(git rev-parse --show-toplevel)/.gstack/wip-context-before-squash.md" 2>/dev/null || true
-```
-
-**Non-destructive squash strategy:**
-
-`git reset --soft <merge-base>` WOULD uncommit everything including non-WIP commits.
-DO NOT DO THAT. Instead, use `git rebase` scoped to filter WIP commits only.
-
-Option 1 (preferred, if there are non-WIP commits mixed in):
-```bash
-# Interactive rebase with automated WIP squashing.
-# Mark every WIP commit as 'fixup' (drop its message, fold changes into prior commit).
-git rebase -i $(git merge-base HEAD origin/<base>) \
-  --exec 'true' \
-  -X ours 2>/dev/null || {
-    echo "Rebase conflict. Aborting: git rebase --abort"
-    git rebase --abort
-    echo "STATUS: BLOCKED — manual WIP squash required"
-    exit 1
-  }
-```
-
-Option 2 (simpler, if the branch is ALL WIP commits so far — no landed work):
-```bash
-# Branch contains only WIP commits. Reset-soft is safe here because there's
-# nothing non-WIP to preserve. Verify first.
-NON_WIP=$(git log <base>..HEAD --oneline --invert-grep --grep="^WIP:" 2>/dev/null | wc -l | tr -d ' ')
-if [ "$NON_WIP" -eq 0 ]; then
-  git reset --soft $(git merge-base HEAD origin/<base>)
-  echo "WIP-only branch, reset-soft to merge base. Step 15.1 will create clean commits."
-fi
-```
-
-Decide at runtime which option applies. If unsure, prefer stopping and asking the
-user via AskUserQuestion rather than destroying non-WIP commits.
-
-**Anti-footgun rules:**
-- NEVER blind `git reset --soft` if there are non-WIP commits. Codex flagged this
-  as destructive — it would uncommit real landed work and turn the push step into
-  a non-fast-forward push for anyone who already pushed.
-- Only proceed to Step 15.1 after WIP commits are successfully squashed/absorbed
-  or the branch has been verified to contain only WIP work.
+{{SECTION:wip-squash}}
 
 ### Step 15.1: Bisectable Commits
 
@@ -419,68 +349,24 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 ## Step 17: Push
 
-**Credential pre-push guard (#1946) — run before the push:**
+**Credential pre-push guard (#1946) — detect before the push:**
+
+Run the lightweight state check below before deciding whether setup detail is needed:
 
 ```bash
 _REDACT_PREPUSH=$(~/.claude/skills/gstack/bin/gstack-config get redact_prepush_hook 2>/dev/null || echo "false")
 _HOOK_PATH=$(git rev-parse --git-path hooks/pre-push 2>/dev/null || echo "")
 _HOOK_INSTALLED="no"
 [ -n "$_HOOK_PATH" ] && [ -f "$_HOOK_PATH" ] && grep -q "gstack-redact" "$_HOOK_PATH" 2>/dev/null && _HOOK_INSTALLED="yes"
-# Custom hooks dirs (core.hooksPath — e.g. husky's COMMITTED .husky/) must
-# never get a silent install: the chaining installer would rename the team's
-# committed hook and write a machine-local wrapper into the working tree.
-_HOOKS_DIR=$(git rev-parse --git-path hooks 2>/dev/null || echo "")
-_GIT_DIR=$(git rev-parse --absolute-git-dir 2>/dev/null || echo "")
-# Linked worktrees: --absolute-git-dir is .git/worktrees/<name> but hooks
-# resolve to the COMMON .git/hooks, so match against the common dir too or
-# every Conductor worktree false-negatives as a "custom hooks path". The
-# /nonexistent fallback keeps the case pattern from collapsing to "/*"
-# (match-everything) when resolution fails.
-_GIT_COMMON=$(cd "$(git rev-parse --git-common-dir 2>/dev/null || echo /nonexistent)" 2>/dev/null && pwd || echo /nonexistent)
-_HOOKS_IN_GIT_DIR="no"
-case "$_HOOKS_DIR" in
-  "$_GIT_DIR"/*|"$_GIT_COMMON"/*|hooks|.git/hooks) _HOOKS_IN_GIT_DIR="yes" ;;
-esac
 _PREPUSH_PROMPTED=$([ -f "${GSTACK_HOME:-$HOME/.gstack}/.redact-prepush-prompted" ] && echo "yes" || echo "no")
 echo "REDACT_PREPUSH: $_REDACT_PREPUSH"
 echo "HOOK_INSTALLED: $_HOOK_INSTALLED"
-echo "HOOKS_IN_GIT_DIR: $_HOOKS_IN_GIT_DIR"
 echo "PREPUSH_PROMPTED: $_PREPUSH_PROMPTED"
 ```
 
-Branch on the echoed values:
+If the hook is already installed, continue to the idempotency check. If setup, installation, custom-hooks-path handling, or the one-time consent prompt is needed, load and execute the pre-push credential section.
 
-1. **`REDACT_PREPUSH: true` and `HOOK_INSTALLED: no` and `HOOKS_IN_GIT_DIR: yes`** —
-   consent already given; install silently (no question) and continue:
-   ```bash
-   ~/.claude/skills/gstack/bin/gstack-redact install-prepush-hook
-   ```
-   If `HOOKS_IN_GIT_DIR: no` (husky or another committed hooks dir), do NOT
-   install silently — print one line: "redact pre-push guard not installed:
-   this repo uses a custom core.hooksPath; run
-   `gstack-redact install-prepush-hook` manually if you want it chained."
-2. **`REDACT_PREPUSH` not true AND `PREPUSH_PROMPTED: no`** — one-time
-   offer (fires once EVER, machine-wide). AskUserQuestion:
-
-   > gstack can install a per-repo git pre-push hook that blocks pushes
-   > containing credentials (API keys, tokens, private keys). It's a
-   > guardrail, not enforcement — `GSTACK_REDACT_PREPUSH=skip` bypasses it.
-   > Install it for repos you ship from?
-
-   Options:
-   - A) Yes — install the credential guard (recommended)
-   - B) No — never ask again
-
-   If A: run `~/.claude/skills/gstack/bin/gstack-config set redact_prepush_hook true`
-   then `~/.claude/skills/gstack/bin/gstack-redact install-prepush-hook`.
-   If B: run `~/.claude/skills/gstack/bin/gstack-config set redact_prepush_hook false`.
-   ALWAYS (after either answer, but NOT if the question itself failed to
-   render — a failed AskUserQuestion must re-offer next time):
-   ```bash
-   touch "${GSTACK_HOME:-$HOME/.gstack}/.redact-prepush-prompted"
-   ```
-3. **Anything else** (declined earlier, or already installed) — continue
-   without comment.
+{{SECTION:prepush-credential-setup}}
 
 **Idempotency check:** Check if the branch is already pushed and up to date.
 
@@ -539,24 +425,17 @@ This step is automatic — never skip it, never ask for confirmation.
 
 ## Step 21: Plan-tune discoverability nudge (first-successful-ship only)
 
-Plan-tune cathedral T15. After a successful ship, surface /plan-tune once
-per machine. Single line, non-blocking, marker-gated so it never re-fires.
+Check eligibility without loading the nudge body:
 
 ```bash
 _NUDGE_MARKER="$HOME/.gstack/.plan-tune-nudge-shown"
 _QT=$(~/.claude/skills/gstack/bin/gstack-config get question_tuning 2>/dev/null || echo "false")
-if [ ! -f "$_NUDGE_MARKER" ] && [ "$_QT" = "false" ]; then
-  echo ""
-  echo "gstack can learn from your AskUserQuestion answers. Run /plan-tune to opt in"
-  echo "— it captures which prompts you find valuable vs noisy and (with hooks installed)"
-  echo "auto-decides your never-ask preferences."
-  touch "$_NUDGE_MARKER"
-fi
+[ ! -f "$_NUDGE_MARKER" ] && [ "$_QT" = "false" ] && echo "PLAN_TUNE_NUDGE: eligible" || echo "PLAN_TUNE_NUDGE: skip"
 ```
 
-If the marker exists, OR question_tuning is already on, the nudge is a
-no-op. The marker guarantees at-most-once per machine. To re-enable:
-`rm ~/.gstack/.plan-tune-nudge-shown` before next ship.
+Only when eligible, load and execute the nudge section. Otherwise continue to the section self-check.
+
+{{SECTION:plan-tune-nudge}}
 
 ---
 
