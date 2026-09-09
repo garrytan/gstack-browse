@@ -40,6 +40,9 @@
  *     engine finds no HIGH- or MEDIUM-tier shape in it (a CLI that echoes its
  *     input on a parse error would otherwise copy the prompt into the log).
  *     The log is chmod 0600 on every append (sibling hooks share the file).
+ *   - If the host terminates the hook mid-flight (SIGTERM/SIGINT/SIGHUP,
+ *     forwarded by the bash shim), the vendor's process group is killed on
+ *     the way out; the receipt then stands with outcome `unknown`.
  *   - Windows is refused here (no process groups to contain the vendor);
  *     bin/gstack-memorable enable refuses there too. TODOS.md: Windows support (D21).
  *
@@ -49,7 +52,9 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { runBin, runExternal } from './spawn-bin';
-import { sha256Hex, writeOutcome, writeReceipt } from '../../../lib/egress-receipt';
+import {
+  LEDGER_WARN_BYTES, egressLedgerPath, ledgerSizeWarning, resolveEgressHome, sha256Hex, writeOutcome, writeReceipt,
+} from '../../../lib/egress-receipt';
 import { wrapUntrustedTrackerContent } from '../../../lib/tracker-guard';
 import { scan } from '../../../lib/redact-engine';
 import { hasRepoPolicyStore, repoPolicyTier } from '../../../lib/gbrain-repo-policy-client';
@@ -79,6 +84,10 @@ export const PAYLOAD_CLASS = 'claude-user-prompt-json->local-vendor-cli';
 const HOOK_NAME = 'memorable-user-prompt-hook';
 /** Per-KiB allowance added to the scan admission check: ~1.5x the measured worst case of scan(). */
 const SCAN_MS_PER_KIB = 1;
+/** Distinct rate-limit keys remembered at once (the marker file is rewritten on every log line). */
+const RATE_LIMIT_KEYS = 32;
+/** Candidate objects tried by the tolerant stdout parser before giving up (bounds a hostile brace soup). */
+const JSON_CANDIDATES = 64;
 const GIT_MAX_BUFFER = 64 * 1024;
 const TRUNCATION_MARKER = `[truncated by gstack at ${OUTPUT_CAP_BYTES / 1024} KiB]`;
 
@@ -109,10 +118,15 @@ export function capUtf8(text: string, maxBytes: number): { text: string; truncat
 // char codes so the source file itself carries no control bytes.
 const cc = (n: number): string => String.fromCharCode(n);
 const CONTROL_RE = new RegExp(`[${cc(0)}-${cc(8)}${cc(11)}-${cc(31)}${cc(127)}]`, 'g');
+// Unicode format characters (bidi overrides, zero-width spaces, soft hyphens)
+// hide text from a reader while the model still sees it; the envelope detects
+// them but emits the original, so this sink strips them at egress. The
+// zero-width joiner stays: emoji sequences need it.
+const FORMAT_RE = /(?!\u200D)\p{Cf}/gu;
 
-/** Strip control characters except newline and tab (the envelope handles the rest). */
+/** Strip control and format characters except newline, tab and ZWJ (the envelope handles the rest). */
 export function stripControl(text: string): string {
-  return text.replace(CONTROL_RE, '');
+  return text.replace(CONTROL_RE, '').replace(FORMAT_RE, '');
 }
 
 /** Every string leaf of a parsed JSON value, bounded so a hostile payload cannot monopolize the clock. */
@@ -150,15 +164,8 @@ export function vendorEnv(env: Record<string, string | undefined>): Record<strin
   return out;
 }
 
-/**
- * The first complete top-level JSON object in `raw`, or null. A vendor whose
- * background helper logs a line to the inherited stdout after the answer
- * (or a banner before it) must not cost the user the answer.
- */
-export function firstJsonObject(raw: string): unknown {
-  try { return JSON.parse(raw); } catch { /* fall through to the scan */ }
-  const start = raw.indexOf('{');
-  if (start < 0) return null;
+/** Index of the `}` closing the object that opens at `start`, or -1 when it never closes. */
+function balancedObjectEnd(raw: string, start: number): number {
   let depth = 0;
   let inString = false;
   let escaped = false;
@@ -172,22 +179,46 @@ export function firstJsonObject(raw: string): unknown {
     }
     if (ch === '"') inString = true;
     else if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) {
-        try { return JSON.parse(raw.slice(start, i + 1)); } catch { return null; }
-      }
-    }
+    else if (ch === '}' && --depth === 0) return i;
   }
+  return -1;
+}
+
+/**
+ * Every complete top-level JSON object in `raw`, in order (at most
+ * JSON_CANDIDATES attempts). A vendor whose background helper logs a line to
+ * the inherited stdout after the answer, or prints a banner before it (even
+ * one with braces in it), must not cost the user the answer. Whole-input JSON
+ * is the normal case and is yielded alone.
+ */
+export function* jsonObjects(raw: string): Generator<unknown> {
+  try { yield JSON.parse(raw); return; } catch { /* fall through to the scan */ }
+  let start = raw.indexOf('{');
+  for (let tries = 0; start >= 0 && tries < JSON_CANDIDATES; tries++) {
+    const end = balancedObjectEnd(raw, start);
+    if (end < 0) return; // nothing complete remains
+    let parsed: unknown;
+    let ok = false;
+    try { parsed = JSON.parse(raw.slice(start, end + 1)); ok = true; } catch { /* a brace in prose */ }
+    if (ok) { yield parsed; start = raw.indexOf('{', end + 1); }
+    else start = raw.indexOf('{', start + 1);
+  }
+}
+
+/** The first complete top-level JSON object in `raw`, or null. */
+export function firstJsonObject(raw: string): unknown {
+  for (const obj of jsonObjects(raw)) return obj;
   return null;
 }
 
 /** Only a string hookSpecificOutput.additionalContext survives; decision/continue/systemMessage are dropped. */
 export function pickAdditionalContext(raw: string): string | null {
-  const parsed = firstJsonObject(raw);
-  const hso = (parsed as { hookSpecificOutput?: { additionalContext?: unknown } } | null)?.hookSpecificOutput;
-  const ctx = hso?.additionalContext;
-  return typeof ctx === 'string' && ctx.length > 0 ? ctx : null;
+  for (const parsed of jsonObjects(raw)) {
+    const hso = (parsed as { hookSpecificOutput?: { additionalContext?: unknown } } | null)?.hookSpecificOutput;
+    const ctx = hso?.additionalContext;
+    if (typeof ctx === 'string' && ctx.length > 0) return ctx;
+  }
+  return null;
 }
 
 /** Cap + envelope: the text Claude will see. */
@@ -258,9 +289,11 @@ function stateRoot(): string {
  * Best-effort, rate-limited: a message with the same `key` (default: the
  * message itself) within LOG_RATE_LIMIT_MS is not re-logged, so a vendor that
  * fails on every prompt with a different timestamp in its stderr still costs
- * one line per ten minutes. The marker is per hook so hooks never contend.
- * The log is chmod 0600 on every append: sibling hooks create the same file
- * without a mode, and it can name the session's cwd and vendor diagnostics.
+ * one line per ten minutes, and two alternating failures cost two. The marker
+ * (up to RATE_LIMIT_KEYS live `digest:ts` lines) is per hook so hooks never
+ * contend. The log is chmod 0600 on every append: sibling hooks create the
+ * same file without a mode, and it can name the session's cwd and vendor
+ * diagnostics.
  */
 export function logHookError(msg: string, nowMs: number = Date.now(), key: string = msg): void {
   try {
@@ -268,11 +301,17 @@ export function logHookError(msg: string, nowMs: number = Date.now(), key: strin
     fs.mkdirSync(root, { recursive: true });
     const marker = path.join(root, `hook-errors.${HOOK_NAME}.last`);
     const digest = sha256Hex(key).slice(0, 16);
+    const live: string[] = [];
     try {
-      const [prevDigest, prevTs] = fs.readFileSync(marker, 'utf8').trim().split(':');
-      if (prevDigest === digest && nowMs - Number(prevTs) < LOG_RATE_LIMIT_MS) return;
+      for (const line of fs.readFileSync(marker, 'utf8').split('\n')) {
+        const [d, ts] = line.trim().split(':');
+        if (!d || !ts || nowMs - Number(ts) >= LOG_RATE_LIMIT_MS) continue;
+        if (d === digest) return;
+        live.push(line.trim());
+      }
     } catch { /* no marker yet */ }
-    fs.writeFileSync(marker, `${digest}:${nowMs}\n`, { mode: 0o600 });
+    live.push(`${digest}:${nowMs}`);
+    fs.writeFileSync(marker, `${live.slice(-RATE_LIMIT_KEYS).join('\n')}\n`, { mode: 0o600 });
     const log = path.join(root, 'hook-errors.log');
     fs.appendFileSync(log, `${new Date(nowMs).toISOString()} ${HOOK_NAME}: ${msg}\n`, { mode: 0o600 });
     if (process.platform !== 'win32') { try { fs.chmodSync(log, 0o600); } catch { /* not ours to tighten */ } }
@@ -313,10 +352,16 @@ function gateIsOn(timeoutMs: number): 'on' | 'off' | 'error' {
   return String(r.stdout ?? '').trim() === 'on' ? 'on' : 'off';
 }
 
-/** git exit 2 = no such remote; exit 128 + this text = not inside a repository. Anything else non-zero is a failed read. */
+/**
+ * git exit 2 = no such remote; exit 128 whose message STARTS with this text
+ * (git is run with LC_ALL=C so the text is English) = not inside a repository.
+ * Anchored, never a substring test: other exit-128 messages echo the
+ * repository path, which a directory name could make carry the phrase.
+ */
 const GIT_NO_REMOTE = 2;
 const GIT_FATAL = 128;
-const NOT_A_REPO_RE = /not a git repository/i;
+const NOT_A_REPO_RE = /^fatal: not a git repository\b/;
+const GIT_ENV = { ...process.env, LC_ALL: 'C', LANGUAGE: '', LC_MESSAGES: 'C' };
 
 /**
  * Trust-policy veto by the session's repo (keyed by its origin remote).
@@ -330,11 +375,11 @@ const NOT_A_REPO_RE = /not a git repository/i;
 async function policyVeto(cwd: string, timeoutMs: number, remaining: () => number): Promise<'ok' | 'skip' | 'error'> {
   if (!hasRepoPolicyStore()) return 'ok';
   const git = await runExternal('git', ['remote', 'get-url', 'origin'], {
-    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: GIT_MAX_BUFFER, env: process.env,
+    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: GIT_MAX_BUFFER, env: GIT_ENV,
   });
   if (git.timedOut || git.error) return 'error';
   if (git.status === GIT_NO_REMOTE) return 'ok';
-  if (git.status === GIT_FATAL && NOT_A_REPO_RE.test(git.stderrTail)) return 'ok';
+  if (git.status === GIT_FATAL && NOT_A_REPO_RE.test(git.stderrTail.trim())) return 'ok';
   if (git.status !== 0) return 'error';
   const url = git.stdout.toString('utf8').trim();
   if (!url) return 'ok';
@@ -347,6 +392,18 @@ async function policyVeto(cwd: string, timeoutMs: number, remaining: () => numbe
 
 function writeStdout(text: string): Promise<void> {
   return new Promise((resolve) => { process.stdout.write(text, () => resolve()); });
+}
+
+/** Kills the in-flight vendor group; set for the duration of the vendor spawn, read by the signal handlers. */
+let killInflight: (() => void) | null = null;
+
+/** Best-effort: the ledger's size warning goes to stderr, which the host discards for an exit-0 hook; log it where `status` looks. */
+function noteLedgerSize(): void {
+  try {
+    const ledger = egressLedgerPath(resolveEgressHome());
+    const size = fs.statSync(ledger).size;
+    if (size > LEDGER_WARN_BYTES) logHookError(ledgerSizeWarning(ledger, size).replace(/\s+/g, ' ').trim(), Date.now(), 'ledger-size');
+  } catch { /* no ledger yet */ }
 }
 
 export async function main(): Promise<void> {
@@ -418,6 +475,7 @@ export async function main(): Promise<void> {
       lockBudgetMs: Math.max(0, remaining() - RESERVE_MS),
     });
     receiptId = id;
+    noteLedgerSize();
   } catch (err) {
     // fail-closed: no receipt, no send
     const why = err instanceof Error ? err.message : String(err);
@@ -439,7 +497,9 @@ export async function main(): Promise<void> {
     maxBuffer: 1024 * 1024,
     env: vendorEnv(process.env),
     cwd,
+    onSpawn: (kill) => { killInflight = kill; },
   });
+  killInflight = null;
 
   let status: string;
   let delivered = false;
@@ -474,6 +534,15 @@ export async function main(): Promise<void> {
 }
 
 if (import.meta.main) {
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) {
+    process.on(sig, () => {
+      // The host is ending us (its 5 s hook kill, or a session teardown): the
+      // vendor must not outlive the hook that spawned it.
+      if (killInflight) { killInflight(); killInflight = null; }
+      logHookError(`terminated by ${sig} mid-flight; the vendor process group was killed, the receipt (if any) reads unknown`, Date.now(), 'terminated');
+      process.exit(0);
+    });
+  }
   main()
     .catch((err) => logHookError(`unexpected: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`))
     .finally(() => { process.exitCode = 0; });

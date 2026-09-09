@@ -48,8 +48,8 @@ export function runBin(name: string, args: string[], opts: SpawnSyncOptions) {
 
 /** Kept tail of the child's stderr, for the caller's error log. */
 const STDERR_TAIL_BYTES = 500;
-/** After a group kill, how long to wait for 'close' before resolving anyway. */
-const KILL_GRACE_MS = 250;
+/** After a group kill, how long to wait for 'exit'/'close' before resolving anyway (kept under the callers' post-spawn reserve). */
+const KILL_GRACE_MS = 100;
 /** After the direct child exits, how long to keep draining stdout before resolving. */
 const EXIT_DRAIN_MS = 150;
 
@@ -63,6 +63,8 @@ export interface RunExternalOptions {
   /** the child's COMPLETE environment (callers allowlist; never pass process.env for a third-party binary) */
   env?: Record<string, string | undefined>;
   cwd?: string;
+  /** called once the child is running with a function that SIGKILLs its whole process group (for a caller's signal handler) */
+  onSpawn?: (killGroup: () => void) => void;
   /** test seam: override process.platform */
   platform?: NodeJS.Platform;
 }
@@ -151,10 +153,11 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
       timedOut = true;
       error = error ?? 'ETIMEDOUT';
       killGroup();
-      // If 'close' never arrives (a grandchild holding the pipes open past the
+      // If 'exit' never arrives (a grandchild holding the pipes open past the
       // kill), resolve anyway: the caller's own deadline is what matters.
       graceTimer = setTimeout(() => finish(null, 'SIGKILL'), KILL_GRACE_MS);
     }, Math.max(1, opts.timeoutMs));
+    opts.onSpawn?.(killGroup);
     child.on('error', (e) => { error = (e as NodeJS.ErrnoException)?.code ?? 'ESPAWN'; finish(null, null); });
     child.stdout?.on('data', (d: Buffer) => {
       if (done) return;
@@ -165,6 +168,9 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
     child.stderr?.on('data', (d: Buffer) => { stderrTail = (stderrTail + d.toString('utf8')).slice(-STDERR_TAIL_BYTES); });
     child.on('exit', (code, signal) => {
       if (done) return;
+      // A killed child (timeout, ENOBUFS) has nothing worth draining: resolve
+      // now so the caller keeps its post-spawn reserve.
+      if (timedOut || error) { finish(code, signal); return; }
       // stdio may still be open (a background grandchild inherited the pipes):
       // drain what the child itself wrote, then resolve with its real exit and
       // kill whatever is still holding the group.
