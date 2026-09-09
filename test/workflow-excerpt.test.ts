@@ -83,6 +83,25 @@ describe('workflow judge excerpts', () => {
     expect(() => readWorkflowExcerpt('ship/SKILL.md', '# Ship:', '# missing')).toThrow('End marker not found');
   });
 
+  test('retro judge includes compare semantics and unambiguous report inputs', () => {
+    const text = readWorkflowExcerpt('retro/SKILL.md', '## Instructions', '## Tone');
+    expect(text).toContain('## Compare Mode');
+    expect(text).toContain('does not require saved history');
+    expect(text).toContain('one second before the current start');
+    expect(text).toContain('PRs referenced');
+    expect(text).toContain('prs_merged: null');
+    expect(text).toContain('not newly added test cases');
+    expect(text).toContain('`streak_days` is the live **team** streak');
+    expect(text).toContain('draft the tweetable summary using the format in Step 14, then save');
+    expect(text).toContain('### Shipping Streaks');
+    expect(text).toContain('### Shortcut Debt');
+    expect(text.indexOf('## Capture Learnings')).toBeGreaterThan(text.indexOf('### Step 14:'));
+    expect(text).not.toContain('$(date');
+    expect(text.match(/today="<today>"/g)).toHaveLength(2);
+    const judge = readFileSync(join(import.meta.dir, 'skill-llm-eval.test.ts'), 'utf8');
+    expect(judge).toMatch(/skillPath: 'retro\/SKILL.md',[\s\S]*?endMarker: '## Tone'/);
+  });
+
   test('deploy gates and navigation timing formulas are executable as documented', () => {
     const land = readFileSync(join(import.meta.dir, '../land-and-deploy/SKILL.md.tmpl'), 'utf8');
     expect(land).not.toContain('Skip Step 3, go to Step 4');

@@ -11,6 +11,7 @@
 - Frontier judges have enough output budget for thinking and JSON. Workflow evals read generated sections in execution order, without duplicated content.
 - Ship and plan reviews keep approval gates with the parent agent, preserve readiness checks, and use project-native test commands. QA scoring and monitoring rules are explicit; Aside drive options wait for a successful readiness probe.
 - Benchmark timing uses the navigation entry's actual fields. Deploy setup collects missing configuration, and failed vendored upgrades restore their backup instead of deleting it.
+- Retro reports distinguish verified merges from PR references, use the session date for snapshots, and define report ordering. The quality eval includes compare-mode instructions instead of cutting them off.
 
 ## [1.81.0.0] - 2026-09-06
 

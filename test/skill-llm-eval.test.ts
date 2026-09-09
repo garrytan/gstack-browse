@@ -785,7 +785,7 @@ describeIfSelected('Other skill evals', [
       suite: 'Other skill evals',
       skillPath: 'retro/SKILL.md',
       startMarker: '## Instructions',
-      endMarker: '## Compare Mode',
+      endMarker: '## Tone',
       judgeContext: 'an engineering retrospective data gathering and analysis workflow',
       judgeGoal: 'how to gather git metrics (commit history, test counts, work patterns), analyze them, produce a structured retro report with praise, growth areas, and trend tracking',
     });
