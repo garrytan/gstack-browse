@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.82.1.0] - 2026-09-09
+
+### Changed
+- Codex reviews, consultations, and evals now default to GPT-6 Astra. Choose another model with `GSTACK_CODEX_MODEL` or an explicit model in your request; the readiness probe checks that same selection.
+- Claude outside voices and eval capture/judging now default to Fable 5.1. Outside voices accept `GSTACK_CLAUDE_MODEL`; evals retain their explicit and environment model overrides. Warmup and distillation keep their cheaper defaults.
+
+### Fixed
+- Native Codex reviews honor the selected model even when the CLI has a separate review-model pin. Claude judges parse text after thinking blocks, and arm judgments omit the temperature setting Fable does not support.
+
 ## [1.81.0.0] - 2026-09-06
 
 **Aside is the browser gstack drives first. Every browsing skill, the PDF and diagram renderer, and web research go through it.**
