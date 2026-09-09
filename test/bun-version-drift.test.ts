@@ -73,4 +73,21 @@ describe('bun version pins', () => {
     expect(versions, `bun version drift across CI surfaces:\n${detail}`).toHaveLength(1);
     expect(versions[0]).toMatch(/^\d+\.\d+\.\d+$/);
   });
+
+  // engines.bun is a RANGE, so it cannot join the all-equal assertion above —
+  // but a floor below the CI pin lets a contributor run an older bun whose
+  // failures read as repo bugs. Observed: on bun 1.2.20 the suite's
+  // `Bun.YAML.parse` calls (Bun.YAML landed in 1.2.21) threw
+  // "undefined is not an object", and the resulting red was diagnosed twice as
+  // a repo defect before anyone compared toolchains.
+  test('package.json engines.bun floor matches the CI pin', () => {
+    const ciVersion = [...new Set(collectPins().map((p) => p.version))][0];
+    const pkg = JSON.parse(
+      fs.readFileSync(path.join(ROOT, 'package.json'), 'utf-8'));
+    const floor = String(pkg.engines?.bun ?? '<missing engines.bun>');
+    expect(
+      floor,
+      `engines.bun must state the CI bun as its floor (CI pins ${ciVersion})`,
+    ).toBe(`>=${ciVersion}`);
+  });
 });
