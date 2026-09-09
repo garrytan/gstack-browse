@@ -45,6 +45,23 @@ describe('workflow judge excerpts', () => {
     expect(text).not.toContain('AUTO-GENERATED');
   });
 
+  test('ship publishes existing PRs only after shared body composition and scan', () => {
+    const text = readWorkflowExcerpt('ship/SKILL.md', '# Ship:', '## Important Rules');
+    const publish = text.slice(text.indexOf('## Step 19:'), text.indexOf('## Step 20:'));
+    const compose = publish.indexOf('PR_BODY_FILE=$(mktemp)');
+    const scan = publish.indexOf('gstack-redact --from-file "$PR_BODY_FILE"');
+    const edit = publish.indexOf('gh pr edit --body-file');
+    expect(compose).toBeGreaterThan(0);
+    expect(scan).toBeGreaterThan(compose);
+    expect(edit).toBeGreaterThan(scan);
+    expect(publish.indexOf('Print the existing URL')).toBeGreaterThan(edit);
+    expect(text).not.toContain('Phase 8e.5');
+    expect(text).toContain('never create an empty commit');
+    const review = text.slice(text.indexOf('## Step 9:'), text.indexOf('## Step 10:'));
+    expect(review.indexOf('## Confidence Calibration')).toBeLessThan(review.indexOf('1. Read'));
+    expect(review).toContain('only continue to Step 10 after item 9');
+  });
+
   test('ship approval gates stay outside the subagent prompts', () => {
     const text = readWorkflowExcerpt('ship/SKILL.md', '# Ship:', '## Important Rules');
     for (const [step, next, gate] of [[7, 8, '**7. Coverage gate:**'], [8, 9, '### Gate Logic']] as const) {

@@ -55,7 +55,7 @@ Map the markers to the command you will OFFER — never to one you run on a gues
 
 **If ANY existing-test evidence appears** (a config file, a declared test script or make target, a nonzero `TESTFILES:` count, or `TESTS:rust in-source`): the project has tests. **Do NOT bootstrap.** Print "Existing tests detected: {the evidence}." Then get the command the same way Step 5 does — CLAUDE.md/TESTING.md if documented, otherwise AskUserQuestion offering the candidates from the table above plus "Other", and persist the answer to CLAUDE.md's `## Testing` section so it is never asked again. When the ecosystem ships a runner (Django, Go, Rust, Elixir, Maven/Gradle), that runner is the candidate — never install a second framework beside a working one.
 Read 2-3 existing test files to learn conventions (naming, imports, assertion style, setup patterns).
-Store conventions as prose context for use in Phase 8e.5 or Step 7. **Skip the rest of bootstrap.**
+Store conventions as prose context for use in Step 7. **Skip the rest of bootstrap.**
 
 Absent config files and absent `tests/` directories are NOT evidence of "no tests": Django keeps tests in `<app>/tests.py`, Go in `*_test.go` beside the source, Rust in `#[test]` blocks inside `src/`. A green `python manage.py test` with no `pytest.ini` is a tested project, not a bootstrap candidate.
 

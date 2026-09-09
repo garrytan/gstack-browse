@@ -705,9 +705,8 @@ git fetch origin <base> && git merge origin/<base> --no-edit
 
 ## Step 12: Version bump (auto-decide)
 
-The deterministic version-state logic is the tested **`gstack-version-bump`** CLI
-(classify / write / repair). The bump-LEVEL decision and queue-collision handling
-stay agent judgment; the slot pick stays `gstack-next-version`.
+Use **`gstack-version-bump`** for classify/write/repair and `gstack-next-version`
+for slot selection. Bump level and queue collisions remain agent decisions.
 
 1. **Classify state** — pure reader, never writes:
    ```bash
@@ -721,7 +720,7 @@ stay agent judgment; the slot pick stays `gstack-next-version`.
 
 2. **Decide the bump level** from the diff (agent judgment):
    - **MICRO**: <50 lines, trivial tweaks/config. **PATCH**: 50+ lines, no feature signals.
-   - **MINOR**: **ASK** if any feature signal (new route/page, migration, new module), OR 500+ lines. **MAJOR**: **ASK** — milestones or breaking changes only.
+   - **MINOR**: AskUserQuestion for any feature signal (new route/page, migration, new module), OR 500+ lines. **MAJOR**: AskUserQuestion for milestones or breaking changes. Offer the recommended level with rationale, a smaller level, or cancel; wait for the answer.
    Save as `BUMP_LEVEL`. The level is the user-intended bump; queue-aware placement may advance the slot without changing the level.
 
 3. **Queue-aware pick** (workspace-aware ship):
@@ -735,20 +734,22 @@ stay agent judgment; the slot pick stays `gstack-next-version`.
    ```bash
    bun run ~/.claude/skills/gstack/bin/gstack-version-bump write --version "$NEW_VERSION" --regen-digest
    ```
-   The CLI validates the version pattern (4-digit `MAJOR.MINOR.PATCH.MICRO`; 3-digit for repos whose pinned version source uses plain semver) and writes VERSION, the manifest, and the manifest's npm lockfiles (`package-lock.json` / `npm-shrinkwrap.json`) when they already exist — never created. `--regen-digest` additionally reruns the repo's own `scripts/gen-agents-digest.ts` when BOTH that script and a committed `agents-digest/gstack-AGENTS.md` exist (the gstack repo — its digest embeds VERSION and is freshness-gated). Be clear about the trust envelope: in a repo that carries those two files this EXECUTES repo code; /ship accepts that deliberately because Step 5 already ran the same repo's test suite with the same privileges. Check the write output: `agentsDigest: false` means the regen failed — run `bun scripts/gen-agents-digest.ts` and stage the digest with the bump before continuing, or the freshness check stays red. The manifest is resolved as `--package-json-path` → `.gstack/package-json-path` → `./package.json`, so a repo whose only Node package lives in a subdirectory (`web/`, `app/`) is covered by a one-line pin instead of silently getting a VERSION-only bump. npm rejects 4-component versions, so the manifest and lockfiles carry the npm-valid 3-digit translation (`1.67.0.0` → `1.67.0`); VERSION stays the 4-digit source of truth and classify judges drift against the translated form. On a half-write it exits 3 — re-run, and classify will report DRIFT_STALE_PKG for `repair` to fix.
+   The CLI validates 4-digit `MAJOR.MINOR.PATCH.MICRO` (or 3-digit pinned semver), then writes VERSION, the manifest, and existing `package-lock.json` / `npm-shrinkwrap.json` files; it never creates lockfiles. Manifest resolution: `--package-json-path` → `.gstack/package-json-path` → `./package.json` (supports subdirectory packages). npm manifests/locks use the 3-digit translation (`1.67.0.0` → `1.67.0`); VERSION remains authoritative. Exit 3 means a half-write: reclassify and use `repair` for DRIFT_STALE_PKG.
 
-5. **Record the release decision** (durable cross-session memory). The bump level is a real decision the next session should not re-derive blind:
+   `--regen-digest` executes repo code with the same privileges as Step 5: `scripts/gen-agents-digest.ts`, only when it and committed `agents-digest/gstack-AGENTS.md` both exist. Check `agentsDigest`: if false, run `bun scripts/gen-agents-digest.ts` and stage the digest with the bump before continuing. Its VERSION stamp is freshness-gated.
+
+5. **Record the release decision** (skip if ALREADY_BUMPED):
    ```bash
    ~/.claude/skills/gstack/bin/gstack-decision-log '{"decision":"Ship NEW_VERSION (BUMP_LEVEL)","rationale":"WHY","scope":"repo","source":"skill","confidence":9}' 2>/dev/null || true
    ```
-   Substitute `NEW_VERSION`, `BUMP_LEVEL`, and a one-line `WHY` (the signal that set the level: diff scale, a new feature, a breaking change). Best-effort and non-interactive; never blocks the ship. Skip on the ALREADY_BUMPED path (the decision was logged on the run that did the bump).
+   Substitute `NEW_VERSION`, `BUMP_LEVEL`, and one-line `WHY` (scope or breaking-change signal). Best-effort, non-interactive, non-blocking.
 
 > **STOP.** Before writing the CHANGELOG entry (Step 13), Read `~/.claude/skills/gstack/ship/sections/changelog.md` and execute it
 > in full. Do not work from memory — that section is the source of truth for this step.
 
 ## Step 14: TODOS.md (auto-update)
 
-Cross-reference the project's TODOS.md against the changes being shipped. Mark completed items automatically; prompt only if the file is missing or disorganized.
+Match TODOS.md to this diff. Mark completed items automatically; ask if missing or disorganized.
 
 Read `.claude/skills/review/TODOS-format.md` for the canonical format reference.
 
@@ -775,16 +776,11 @@ Read TODOS.md and verify it follows the recommended structure:
 
 **3. Detect completed TODOs:**
 
-This step is fully automatic — no user interaction.
-
-Use the diff and commit history already gathered in earlier steps:
+Automatically use the previously gathered diff and history:
 - `git diff <base>...HEAD` (full diff against the base branch)
 - `git log <base>..HEAD --oneline` (all commits being shipped)
 
-For each TODO item, check if the changes in this PR complete it by:
-- Matching commit messages against the TODO title and description
-- Checking if files referenced in the TODO appear in the diff
-- Checking if the TODO's described work matches the functional changes
+Match each TODO's title, files, and described behavior against commits and the diff.
 
 **Be conservative:** Only mark a TODO as completed if there is clear evidence in the diff. If uncertain, leave it alone.
 
@@ -795,7 +791,7 @@ For each TODO item, check if the changes in this PR complete it by:
 - Or: `TODOS.md: No completed items detected. M items remaining.`
 - Or: `TODOS.md: Created.` / `TODOS.md: Reorganized.`
 
-**6. Defensive:** If TODOS.md cannot be written (permission error, disk full), warn the user and continue. Never stop the ship workflow for a TODOS failure.
+**6. If TODOS.md cannot be written:** warn and continue; a TODO write failure never blocks shipping.
 
 Save this summary — it goes into the PR body in Step 19.
 
@@ -882,7 +878,7 @@ user via AskUserQuestion rather than destroying non-WIP commits.
 
 ### Step 15.1: Bisectable Commits
 
-**Goal:** Create small, logical commits that work well with `git bisect` and help LLMs understand what changed.
+Create small, logical commits for `git bisect`. If all changes are already committed, skip to Step 16; never create an empty commit.
 
 1. Analyze the diff and group changes into logical commits. Each commit should represent **one coherent change** — not one file, but one logical unit.
 
@@ -953,11 +949,7 @@ Before pushing, re-verify if code changed at any point after Step 5:
 
 2. **Build verification:** If the project has a build step, run it. Paste output.
 
-3. **Rationalization prevention:**
-   - "Should work now" → RUN IT.
-   - "I'm confident" → Confidence is not evidence.
-   - "I already tested earlier" → Code changed since then. Test again.
-   - "It's a trivial change" → Trivial changes break production.
+3. Confidence, earlier results on different code, and "trivial change" are not verification. Run the checks.
 
 **If tests fail here:** STOP. Do not push. Fix the issue and return to Step 5.
 
@@ -974,16 +966,11 @@ _REDACT_PREPUSH=$(~/.claude/skills/gstack/bin/gstack-config get redact_prepush_h
 _HOOK_PATH=$(git rev-parse --git-path hooks/pre-push 2>/dev/null || echo "")
 _HOOK_INSTALLED="no"
 [ -n "$_HOOK_PATH" ] && [ -f "$_HOOK_PATH" ] && grep -q "gstack-redact" "$_HOOK_PATH" 2>/dev/null && _HOOK_INSTALLED="yes"
-# Custom hooks dirs (core.hooksPath — e.g. husky's COMMITTED .husky/) must
-# never get a silent install: the chaining installer would rename the team's
-# committed hook and write a machine-local wrapper into the working tree.
+# Never silently install into custom core.hooksPath (e.g. committed .husky/).
 _HOOKS_DIR=$(git rev-parse --git-path hooks 2>/dev/null || echo "")
 _GIT_DIR=$(git rev-parse --absolute-git-dir 2>/dev/null || echo "")
-# Linked worktrees: --absolute-git-dir is .git/worktrees/<name> but hooks
-# resolve to the COMMON .git/hooks, so match against the common dir too or
-# every Conductor worktree false-negatives as a "custom hooks path". The
-# /nonexistent fallback keeps the case pattern from collapsing to "/*"
-# (match-everything) when resolution fails.
+# Worktree hooks live under the common git dir. /nonexistent prevents a
+# failed lookup from producing a match-all /* pattern.
 _GIT_COMMON=$(cd "$(git rev-parse --git-common-dir 2>/dev/null || echo /nonexistent)" 2>/dev/null && pwd || echo /nonexistent)
 _HOOKS_IN_GIT_DIR="no"
 case "$_HOOKS_DIR" in
