@@ -65,6 +65,18 @@ describe('workflow judge excerpts', () => {
     expect(text).toContain('## Step 9:');
   });
 
+  test('documentation review precedes publication and keeps changelog protection', () => {
+    const text = readWorkflowExcerpt('document-release/SKILL.md', '# Document Release:', '## Important Rules');
+    expect(text).toContain('DOC_DIFF_BASE=$(git merge-base origin/<base> HEAD 2>/dev/null || git merge-base <base> HEAD) || exit 1');
+    expect(text.indexOf('## Codex Documentation Review')).toBeLessThan(text.indexOf('## Step 9:'));
+    expect(text).toContain('no in-host substitute is defined here');
+    expect(text).toContain('all Claude fallback modes');
+    expect(text).toContain('Step 9 then commits and pushes those edits');
+    expect(text).toContain('Entries scoring <2 need attention, not replacement');
+    expect(text).not.toContain('Flag and rewrite');
+    expect(text).toContain('if VERSION is absent, use the completion date only');
+  });
+
   test('plan review evidence and design approval rules precede their use', () => {
     const eng = readWorkflowExcerpt('plan-eng-review/SKILL.md', '## Review Sections', '## CRITICAL RULE');
     expect(eng.indexOf('## Confidence Calibration')).toBeLessThan(eng.indexOf('### 1. Architecture review'));

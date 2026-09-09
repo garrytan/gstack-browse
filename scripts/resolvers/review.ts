@@ -768,14 +768,16 @@ not an opt-in. The user turns it off only by asking explicitly
 
 **Spawned-session skip** (per the spawned-dispatch contract at the top of this skill): in a
 spawned session, skip this entire section — the dispatching workflow owns its own review
-passes, and the apply gate below needs a human. Note the skip in your completion report (the
-Step 9 doc health summary you already produced) and finish the workflow.
+passes, and the apply gate below needs a human. Note the skip in the upcoming Step 9 doc
+health summary and continue to Step 9.
 
 **Preflight — decide whether and how the doc review runs:**
 
 ${codexPreflight({ disabledBehavior: 'skip-all' })}
 
-When the mode is \`ready\`, \`not_installed\`, or \`not_authed\`, print one line so the off-switch
+On \`disabled\` or \`under_codex\`, skip this section and continue to Step 9; no in-host substitute is defined here. Record the skip in the final summary, not as a completed review-log entry.
+
+For every other mode, print one line so the off-switch
 stays discoverable: "Running the Codex doc review automatically (standard step). Disable: \`gstack-config set codex_reviews disabled\`."
 
 **Determine the release diff range (D3 — reuse the method, do not invent one).**
@@ -783,21 +785,21 @@ Recompute the SAME range document-release used in its pre-flight / diff analysis
 documented merge-base method:
 
 \`\`\`bash
-DOC_DIFF_BASE=$(git merge-base origin/<base> HEAD 2>/dev/null || echo "<base>")
+DOC_DIFF_BASE=$(git merge-base origin/<base> HEAD 2>/dev/null || git merge-base <base> HEAD) || exit 1
 echo "DOC_DIFF_BASE: $DOC_DIFF_BASE"
 \`\`\`
 
 Do NOT rely on an in-memory variable from an earlier step — shell vars do not survive across
 blocks. Recompute it here.
 
-**Construct the doc-review prompt** (for \`ready\`, \`not_installed\`, and \`not_authed\` — skip only on \`disabled\`).
+**Construct the doc-review prompt** for \`ready\` and all Claude fallback modes, including \`broken_install\` and \`model_unusable\`. Replace \`<diff-base>\` with the printed SHA before dispatch; the reviewer cannot inherit shell variables.
 Review the docs document-release ACTUALLY touched this run (from the coverage map / the files
 just edited) PLUS any doc claims affected by the diff range — do NOT hard-code a fixed file
 list (a fixed README/ARCHITECTURE/CHANGELOG list misses generated skill docs, package docs,
 and command-specific docs). **Always start with the filesystem boundary instruction:**
 
 "${CODEX_BOUNDARY}You are reviewing documentation changes against the code that shipped on this
-branch. Run \\\`git diff \\$DOC_DIFF_BASE...HEAD\\\` to see what changed, then read the updated docs
+branch. Run \\\`git diff <diff-base> HEAD\\\` to see what shipped, then read the updated working-tree docs
 (the files this release touched, plus any docs whose claims the diff affects). Find: doc
 claims that no longer match the code, new public surface (commands, flags, config keys,
 endpoints) that shipped but is undocumented, stale examples / paths / counts / version
@@ -811,21 +813,24 @@ THE DOCS AND DIFF: <list the touched doc paths>"
 TMPERR_DOC=$(mktemp /tmp/codex-docreview-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="high"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null 2>"$TMPERR_DOC"
+CODEX_EXIT=$?
+echo "DOC_STDERR: $TMPERR_DOC"
+exit "$CODEX_EXIT"
 \`\`\`
 
-Use a 5-minute timeout (\`timeout: 300000\`). After the command completes, read stderr:
+Use a 5-minute timeout (\`timeout: 300000\`). Capture the printed stderr path and substitute it literally for \`<doc-stderr>\` in subsequent calls:
 \`\`\`bash
-cat "$TMPERR_DOC"
+cat "<doc-stderr>"
 \`\`\`
 
 Present the full output verbatim under \`CODEX SAYS (documentation review):\`.
 
 ${codexErrorHandling('documentation review')}
 
-**If \`CODEX_MODE: not_installed\` or \`not_authed\` (or Codex errored at runtime):**
+**If \`CODEX_MODE: not_installed\`, \`not_authed\`, \`broken_install\`, or \`model_unusable\` (or Codex errored at runtime):**
 
 Dispatch via the Agent tool with the same prompt, passing \`run_in_background: false\` (subagents default to background since ${CC_BACKGROUND_DEFAULT_SINCE}). Bound it at a 5-minute timeout; if it never completes, treat the review as unavailable and continue.
-Present findings under \`DOCUMENTATION REVIEW (Claude subagent):\`. If it fails: "Doc review unavailable. Continuing."
+Present findings under \`DOCUMENTATION REVIEW (Claude subagent):\`. If it fails: "Doc review unavailable. Continuing to Step 9." Skip the apply gate and review log in that case; unavailable is not a clean review.
 
 **Apply decision (T3B — informational, never auto-edit, but findings don't evaporate).**
 If there are zero findings, say "Docs match what shipped — no gaps." and continue. Otherwise
@@ -842,7 +847,7 @@ Options:
 - C) Decide per-finding
 
 On A or per-finding approvals, make the approved edits yourself (the tool never silently
-rewrites docs). On B, note the gaps in the output so they're visible.
+rewrites docs), respecting the skill's CHANGELOG and VERSION restrictions. Step 9 then commits and pushes those edits along with the other doc updates; do not end the workflow here. On B, note the gaps in the output so they're visible.
 
 **Persist the result:**
 \`\`\`bash
@@ -850,7 +855,7 @@ rewrites docs). On B, note the gaps in the output so they're visible.
 \`\`\`
 Substitute: STATUS = "clean" if no gaps, "issues_found" if gaps exist. SOURCE = "codex" if Codex ran, "claude" if the subagent ran.
 
-**Cleanup:** Run \`rm -f "$TMPERR_DOC"\` after processing (if Codex was used).
+**Cleanup:** Run \`rm -f "<doc-stderr>"\` after processing (if Codex was used), then continue to Step 9.
 
 ---`;
 }
