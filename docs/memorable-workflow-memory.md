@@ -143,11 +143,23 @@ whatever it stored are untouched: `memorable disable` stops capture,
 The entry also comes out with `gstack-uninstall` (named in its summary) and
 survives `./setup --no-team`, which only tears down team-mode hooks.
 
+## If you run gbrain
+
+Memorable can keep its procedures in your own gbrain database instead of its
+local store (`memorable init gbrain`, per its docs). That changes where the
+vendor stores things; it does not change anything about this bridge, which
+only ever hands prompts to the local `memorable` binary. gstack's `/setup-gbrain`
+and `/sync-gbrain` are unrelated to it.
+
 ## Troubleshooting
 
 - **The hook never fires.** `gstack-memorable status` should show the gate
   `on` and "registered by gstack". If it shows a mismatch line, follow it.
-  If everything looks right, restart Claude Code once.
+  If everything looks right, restart Claude Code once. One known race: Claude
+  Code rewrites `settings.json` on its own schedule, and a rewrite that lands
+  during `enable` can drop the entry after gstack printed `registered`; the
+  hook manager is convergent, not exclusive, so `enable` again (it reports
+  `unchanged` or `registered`) and check `status`.
 - **Nothing is ever recalled.** The hand-offs are happening if
   `gstack-egress list --sink memorable-recall` shows receipts with
   `output-written` or `injected=no` outcomes. `injected=no` means the vendor
