@@ -19,6 +19,9 @@
  *   echo-stderr       copy the prompt to stderr, exit 1 (the log must withhold it)
  *   bg-then-exit      start a background sleeper holding the pipes, print
  *                     out.json, exit 0 (must resolve on exit, not on close)
+ *   bg-detached-exit  start a background sleeper with its stdio redirected,
+ *                     print out.json, exit 0 (close fires; the sleeper must
+ *                     still die with the group)
  *
  * Every spawn pins HOME, GSTACK_HOME, GSTACK_STATE_ROOT, GSTACK_STATE_DIR and
  * GSTACK_MEMORABLE_BIN into a fresh temp dir, so nothing reaches the real
@@ -31,8 +34,8 @@ import * as os from 'os';
 import * as path from 'path';
 import { listReceipts, sha256Hex, verifyLedger } from '../lib/egress-receipt';
 import {
-  budgetFor, budgetMs, capUtf8, firstJsonObject, logHookError, pickAdditionalContext, renderContext, resolveVendor, safeStderrTail,
-  stringLeaves, stripControl, vendorEnv,
+  budgetFor, budgetMs, capUtf8, firstJsonObject, gitEnv, logHookError, pickAdditionalContext, renderContext, resolveVendor, safeStderrTail,
+  stringLeaves, stringLeavesBounded, stripControl, vendorEnv,
   BUDGET_MS, LOG_RATE_LIMIT_MS, OUTPUT_CAP_BYTES, ENVELOPE_SOURCE,
 } from '../hosts/claude/hooks/memorable-user-prompt-hook.ts';
 import { runExternal } from '../hosts/claude/hooks/spawn-bin';
@@ -54,6 +57,7 @@ case "$MODE" in
   sleep) sleep "10.\${MEMORABLE_TEST_NONCE:-0}" ;;
   fork-sleep) sh -c "sleep 30.\${MEMORABLE_TEST_NONCE:-0}" ;;
   bg-then-exit) sh -c "sleep 20.\${MEMORABLE_TEST_NONCE:-0}" & cat "$HOME/out.json"; exit 0 ;;
+  bg-detached-exit) sh -c "sleep 22.\${MEMORABLE_TEST_NONCE:-0}" </dev/null >/dev/null 2>&1 & cat "$HOME/out.json"; exit 0 ;;
   echo-stderr) cat "$HOME/stdin.bin" >&2; exit 1 ;;
   exit1) echo "vendor said no" >&2; exit 1 ;;
   flood) head -c 2097152 /dev/zero | tr '\\0' a ;;
@@ -298,6 +302,26 @@ describe('what comes back from the vendor', () => {
     expect(survivors).toBe('');
   });
 
+  test('a vendor that forks a helper with redirected stdio and exits cleanly: answer delivered, helper killed with the group', () => {
+    gateOn();
+    fs.writeFileSync(path.join(home, 'mode'), 'bg-detached-exit');
+    const nonce = `${process.pid}${Date.now()}`;
+    const r = runHook(PROMPT, { MEMORABLE_TEST_NONCE: nonce });
+    expect(r.stdout).toContain('remembered');
+    const survivors = spawnSync('sh', ['-c', `ps -eo args | grep '^sleep 22.${nonce}$' || true`], { encoding: 'utf8', timeout: 10_000 }).stdout.trim();
+    expect(survivors).toBe('');
+  });
+
+  test('a prompt JSON too wide to walk is refused as unscanned, never handed over as clean', () => {
+    gateOn();
+    const wide = JSON.stringify({ prompt: 'hello', pad: Array.from({ length: 12_000 }, (_, i) => i) });
+    const r = runHook(wide);
+    expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
+    expect(calls()).toBe('');
+    expect(fs.existsSync(ledger())).toBe(false);
+    expect(errLog()).toContain('refused:payload-too-complex');
+  });
+
   test('a vendor that answers without reading a 300 KB prompt: a stdin EPIPE is advisory, the answer is delivered', () => {
     gateOn();
     fs.writeFileSync(path.join(home, 'mode'), 'print-before-read');
@@ -478,6 +502,7 @@ describe('pure helpers', () => {
     expect(pickAdditionalContext(`loaded {3} memories\n${answer}`)).toBe('kept {"}"} braces in strings');
     expect(pickAdditionalContext(`warn: "{" unexpected\n${answer}`)).toBe('kept {"}"} braces in strings');
     expect(pickAdditionalContext(`{"progress": 1}\n${answer}`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext(`Loading cache {pending\n${answer}`)).toBe('kept {"}"} braces in strings'); // an unmatched brace before the answer
     expect(pickAdditionalContext('{a {a {a {a')).toBeNull();
   });
   test('stripControl drops C0 controls, CR, DEL and Unicode format characters but keeps tab, newline and ZWJ', () => {
@@ -491,6 +516,9 @@ describe('pure helpers', () => {
     expect(safeStderrTail('')).toBe('');
     expect(safeStderrTail('could not parse: mail jane.doe@northwind-traders.com')).toMatch(/^\[stderr withheld: \d+ redaction finding/);
     expect(safeStderrTail('key AKIA1234567890ABCDEF rejected')).toMatch(/withheld/);
+    // the scan sees the whole kept tail, so a credential whose prefix would fall outside the 300-char crop is still caught
+    expect(safeStderrTail(`key AKIA1234567890ABCDEF ${'x'.repeat(320)}`)).toMatch(/withheld/);
+    expect(safeStderrTail('y'.repeat(400))).toHaveLength(300);
   });
   test('budgetMs honours the test-only override but never widens the budget', () => {
     expect(budgetMs({})).toBe(BUDGET_MS);
@@ -526,6 +554,12 @@ describe('pure helpers', () => {
   });
   test('resolveVendor: explicit override wins, may be quoted, and an unresolvable or non-executable override is null (no fall-through)', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-resolve-'));
+    // parity with bash's ${GSTACK_MEMORABLE_BIN:-${MEMORABLE_BIN:-}}: an EMPTY first override defers to the second
+    {
+      const exe = path.join(dir, 'via-second'); fs.writeFileSync(exe, '#!/bin/sh\n', { mode: 0o755 });
+      expect(resolveVendor({ GSTACK_MEMORABLE_BIN: '', MEMORABLE_BIN: exe }, dir)).toBe(exe);
+      expect(resolveVendor({ GSTACK_MEMORABLE_BIN: '   ', MEMORABLE_BIN: exe }, dir)).toBe(exe);
+    }
     try {
       const exe = path.join(dir, 'vendor'); fs.writeFileSync(exe, '#!/bin/sh\n', { mode: 0o755 });
       const plain = path.join(dir, 'plain'); fs.writeFileSync(plain, '#!/bin/sh\n', { mode: 0o644 });
@@ -541,11 +575,20 @@ describe('pure helpers', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
-  test('stringLeaves is bounded', () => {
+  test('stringLeaves is bounded and reports exhaustion', () => {
     let deep: unknown = 'leaf';
     for (let i = 0; i < 100; i++) deep = { d: deep };
-    expect(stringLeaves(deep)).toEqual([]); // beyond maxDepth
-    expect(stringLeaves({ a: 'x', b: ['y', { c: 'z' }], n: 1 })).toEqual(['x', 'y', 'z']);
+    const deepWalk = stringLeavesBounded(deep);
+    expect(deepWalk.exhausted).toBe(true); // beyond maxDepth: the leaf is never reached
+    expect(deepWalk.leaves.every((k) => k === 'd')).toBe(true); // only the keys above the cut
+    expect(stringLeaves(deep)).not.toContain('leaf');
+    expect(stringLeavesBounded({ a: 'x', b: ['y', { c: 'z' }], n: 1 })).toEqual({ leaves: ['a', 'x', 'b', 'y', 'c', 'z', 'n'], exhausted: false });
+    expect(stringLeavesBounded(Array.from({ length: 20_000 }, () => 1)).exhausted).toBe(true);
+    expect(stringLeaves({ 'AKIA-in-a-key': 1 })).toEqual(['AKIA-in-a-key']); // keys are forwarded bytes too
+  });
+  test('gitEnv drops every inherited GIT_* selector and forces English messages', () => {
+    const e = gitEnv({ PATH: '/bin', GIT_DIR: '/elsewhere/.git', GIT_WORK_TREE: '/elsewhere', GIT_CONFIG_COUNT: '1', HOME: '/h' });
+    expect(e).toEqual({ PATH: '/bin', HOME: '/h', LC_ALL: 'C', LANGUAGE: '', LC_MESSAGES: 'C' });
   });
 });
 
@@ -681,6 +724,26 @@ describe('trust-policy lookup outcomes (review coverage, second pass)', () => {
       fs.rmSync(repo, { recursive: true, force: true });
     }
   });
+  test('an inherited GIT_DIR pointing at an allowed repo does not bypass the deny on the session repo', () => {
+    gateOn();
+    const denied = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-denied-'));
+    const allowed = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-allowed-'));
+    try {
+      for (const [dir, url] of [[denied, 'https://github.com/example/denied.git'], [allowed, 'https://github.com/example/allowed.git']] as const) {
+        spawnSync('git', ['init', '-q'], { cwd: dir, timeout: 10_000 });
+        spawnSync('git', ['remote', 'add', 'origin', url], { cwd: dir, timeout: 10_000 });
+      }
+      expect(spawnSync('bash', [POLICY, 'set', 'https://github.com/example/denied.git', 'deny'], { env, encoding: 'utf8', timeout: 20_000 }).status).toBe(0);
+      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: denied }), { GIT_DIR: path.join(allowed, '.git'), GIT_WORK_TREE: allowed }, denied);
+      expect(r.stdout).toBe('');
+      expect(calls()).toBe('');
+      expect(errLog()).toContain('deny or read-only');
+    } finally {
+      fs.rmSync(denied, { recursive: true, force: true });
+      fs.rmSync(allowed, { recursive: true, force: true });
+    }
+  });
+
   test('store present, repository git cannot read (corrupt .git/config): fails closed, nothing spawned', () => {
     gateOn();
     withStore();

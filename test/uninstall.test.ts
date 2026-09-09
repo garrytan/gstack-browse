@@ -465,6 +465,35 @@ describe('the consent key never outlives the hook, even when the config lives ou
       expect(result.status).toBe(0);
       expect(fs.existsSync(path.join(mockHome, '.gstack'))).toBe(false); // the default state dir went
       expect(fs.readFileSync(path.join(otherRoot, 'config.yaml'), 'utf-8')).toMatch(/memorable_recall: off/); // the real config did not keep consent
+      expect(result.stdout).toContain('memorable_recall consent (set off)');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the consent flip does not depend on the hook manager being present', () => {
+  test('gstack-settings-hook missing from the install: memorable_recall still goes off', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-uninstall-memo-nohook-'));
+    try {
+      const mockHome = path.join(tmp, 'home');
+      const installRoot = path.join(mockHome, '.claude', 'skills', 'gstack');
+      const installBin = path.join(installRoot, 'bin');
+      fs.mkdirSync(installBin, { recursive: true });
+      for (const b of ['gstack-uninstall', 'gstack-config']) { // no settings hook, no session-update
+        const dst = path.join(installBin, b);
+        fs.copyFileSync(path.join(ROOT, 'bin', b), dst);
+        fs.chmodSync(dst, 0o755);
+      }
+      const stateRoot = path.join(mockHome, '.gstack');
+      fs.mkdirSync(stateRoot, { recursive: true });
+      const env = { ...process.env, HOME: mockHome, GSTACK_STATE_ROOT: stateRoot };
+      expect(spawnSync('bash', [path.join(installBin, 'gstack-config'), 'set', 'memorable_recall', 'on'], { env, timeout: 20_000 }).status).toBe(0);
+      const result = spawnSync('bash', [path.join(installBin, 'gstack-uninstall'), '--force', '--keep-state'], {
+        stdio: 'pipe', timeout: 30_000, encoding: 'utf-8', cwd: tmp, env,
+      });
+      expect(result.status).toBe(0);
+      expect(fs.readFileSync(path.join(stateRoot, 'config.yaml'), 'utf-8')).toMatch(/memorable_recall: off/);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }
