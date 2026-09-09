@@ -31,7 +31,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { listReceipts, sha256Hex, verifyLedger } from '../lib/egress-receipt';
 import {
-  budgetFor, budgetMs, capUtf8, logHookError, pickAdditionalContext, renderContext, resolveVendor, safeStderrTail,
+  budgetFor, budgetMs, capUtf8, firstJsonObject, logHookError, pickAdditionalContext, renderContext, resolveVendor, safeStderrTail,
   stringLeaves, stripControl, vendorEnv,
   BUDGET_MS, LOG_RATE_LIMIT_MS, OUTPUT_CAP_BYTES, ENVELOPE_SOURCE,
 } from '../hosts/claude/hooks/memorable-user-prompt-hook.ts';
@@ -210,11 +210,9 @@ describe('gate on: the mediated hand-off', () => {
     }
   });
 
-  test('a disable that lands mid-flight wins: the gate is re-checked right before the spawn', () => {
-    // Simulate with a config that reads `on` for the first check and `off` for the second:
-    // impossible to interleave deterministically from outside, so drive the pure ordering
-    // through the config store itself — flip the key off right before the hook runs but after
-    // a warm run proved the on-path works. The observable contract is "off wins": no spawn.
+  test('gate flipped off between two runs: the second run spawns nothing (the mid-flight re-check itself cannot be interleaved from outside)', () => {
+    // The pre-spawn re-check reads the same store; a deterministic mid-flight flip would need a
+    // seam inside main(). This pins the observable contract only: once off, no spawn.
     gateOn();
     expect(runHook(PROMPT).stdout).toContain('remembered');
     spawnSync('bash', [CONFIG, 'set', 'memorable_recall', 'off'], { env, encoding: 'utf8', timeout: 20_000 });
@@ -467,6 +465,16 @@ describe('pure helpers', () => {
     expect(pickAdditionalContext(JSON.stringify({ decision: 'block' }))).toBeNull();
     expect(pickAdditionalContext('nope')).toBeNull();
   });
+  test('pickAdditionalContext keeps the answer when a background helper appends a line to stdout, or a banner precedes it', () => {
+    const answer = JSON.stringify({ hookSpecificOutput: { additionalContext: 'kept {"}"} braces in strings' } });
+    expect(pickAdditionalContext(`${answer}\nhelper: flushed 3 events\n`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext(`memorable v0.5.18\n${answer}`)).toBe('kept {"}"} braces in strings');
+    expect(pickAdditionalContext(`{\n  "hookSpecificOutput": {\n    "additionalContext": "pretty"\n  }\n}\n`)).toBe('pretty');
+    expect(firstJsonObject('{"a": {"b": 1}} trailing')).toEqual({ a: { b: 1 } });
+    expect(firstJsonObject('{"unterminated": ')).toBeNull();
+    expect(firstJsonObject('no braces here')).toBeNull();
+    expect(firstJsonObject('{"s": "\\"}"}')).toEqual({ s: '"}' });
+  });
   test('stripControl drops C0 controls, CR and DEL but keeps tab and newline', () => {
     const input = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(27) + '\tc\nd' + String.fromCharCode(127) + 'e\rf\r\ng';
     expect(stripControl(input)).toBe('ab\tc\ndef\ng');
@@ -496,6 +504,10 @@ describe('pure helpers', () => {
       expect(lines()).toHaveLength(2);
       logHookError('A', t0 + LOG_RATE_LIMIT_MS + 1);
       expect(lines()).toHaveLength(3);
+      // a caller-supplied key rate-limits messages whose text varies (a vendor's timestamped stderr)
+      logHookError('vendor timeout: at 12:00:01', t0 + LOG_RATE_LIMIT_MS + 2, 'vendor timeout');
+      logHookError('vendor timeout: at 12:00:02', t0 + LOG_RATE_LIMIT_MS + 3, 'vendor timeout');
+      expect(lines()).toHaveLength(4);
       if (process.platform !== 'win32') expect(fs.statSync(path.join(home, '.gstack', 'hook-errors.log')).mode & 0o077).toBe(0);
     } finally {
       if (prev === undefined) delete process.env.GSTACK_STATE_ROOT; else process.env.GSTACK_STATE_ROOT = prev;
@@ -611,7 +623,7 @@ describe('deadline and policy failure paths (review coverage)', () => {
       expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
       expect(calls()).toBe('');
       expect(fs.existsSync(ledger())).toBe(false);
-      expect(errLog()).toContain('trust policy store unreadable');
+      expect(errLog()).toContain('trust policy lookup failed');
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
@@ -623,5 +635,53 @@ describe('deadline and policy failure paths (review coverage)', () => {
     fs.writeFileSync(file, 'x');
     const r = runHook(JSON.stringify({ prompt: 'hello', cwd: file }));
     expect(r.stdout).toContain('remembered');
+  });
+});
+
+describe('trust-policy lookup outcomes (review coverage, second pass)', () => {
+  function withStore(): void {
+    // any policy for any url creates the store; the cwd under test has a different or no remote
+    const set = spawnSync('bash', [POLICY, 'set', 'https://github.com/example/unrelated.git', 'deny'], { env, encoding: 'utf8', timeout: 20_000 });
+    expect(set.status).toBe(0);
+  }
+  test('store present, cwd is a plain directory (not a repo): recall proceeds', () => {
+    gateOn();
+    withStore();
+    const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-plain-'));
+    try {
+      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: plain }), {}, plain);
+      expect(r.stdout).toContain('remembered');
+      expect(receipts()).toHaveLength(1);
+    } finally {
+      fs.rmSync(plain, { recursive: true, force: true });
+    }
+  });
+  test('store present, repo with an origin but no policy for it: recall proceeds', () => {
+    gateOn();
+    withStore();
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-repo-'));
+    try {
+      spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 10_000 });
+      spawnSync('git', ['remote', 'add', 'origin', 'https://github.com/example/other.git'], { cwd: repo, timeout: 10_000 });
+      expect(runHook(JSON.stringify({ prompt: 'hello', cwd: repo }), {}, repo).stdout).toContain('remembered');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+  test('store present, repository git cannot read (corrupt .git/config): fails closed, nothing spawned', () => {
+    gateOn();
+    withStore();
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-memo-repo-'));
+    try {
+      spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 10_000 });
+      fs.writeFileSync(path.join(repo, '.git', 'config'), '[core\nbroken = ');
+      const r = runHook(JSON.stringify({ prompt: 'hello', cwd: repo }), {}, repo);
+      expect(r).toEqual({ status: 0, stdout: '', stderr: '' });
+      expect(calls()).toBe('');
+      expect(fs.existsSync(ledger())).toBe(false);
+      expect(errLog()).toContain('trust policy lookup failed');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
   });
 });
