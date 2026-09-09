@@ -1047,6 +1047,19 @@ This is my **second opinion mode**.
 
 When `/review` catches bugs from Claude's perspective, `/codex` brings a completely different AI — OpenAI's Codex CLI — to review the same diff. Different training, different blind spots, different strengths. The overlap tells you what's definitely real. The unique findings from each are where you find the bugs neither would catch alone.
 
+gstack-owned Codex calls default to `gpt-6-astra`, including resumed consult
+sessions. Set `GSTACK_CODEX_MODEL=<model>` to change the default, or name a
+model in your request to override it for that invocation. Generated commands
+pass the selection through `-c model=...`, overriding the CLI's configured model.
+Native review also sets `-c review_model=...` to that selection, overriding any
+separate review-model pin.
+
+On Codex hosts, the Claude outside-voice skill is `gstack-claude`. Its review,
+challenge, and consult calls, including resumed sessions, use
+`--model "${GSTACK_CLAUDE_MODEL:-claude-fable-5-1}"`; a model named in your
+request takes precedence. Both defaults are known frontier pins maintained
+in gstack releases, with no automatic model discovery.
+
 ### Three modes
 
 **Review** — run `codex review` against the current diff. Codex reads every changed file, classifies findings by severity (P1 critical, P2 high, P3 medium), and returns a PASS/FAIL verdict. Any P1 finding = FAIL. The review is fully independent — Codex doesn't see Claude's review.

@@ -31,7 +31,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   3. API/CLI design: are names guessable? Are defaults sensible? Is it consistent?
   4. Docs: can a dev find what they need in under 2 minutes? Are examples copy-paste-complete?
   5. Upgrade path: can devs upgrade without fear? Migration guides? Deprecation warnings?
-  Be adversarial. Think like a developer who is evaluating this against 3 competitors." -C "$_REPO_ROOT" -s read-only -c 'web_search="cached"' < /dev/null
+  Be adversarial. Think like a developer who is evaluating this against 3 competitors." -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'web_search="cached"' < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
     _gstack_codex_log_event "codex_timeout" "600"

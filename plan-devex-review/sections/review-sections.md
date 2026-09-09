@@ -289,7 +289,7 @@ Branch on the echoed `CODEX_MODE`:
 - **`under_codex`** — this session is already running INSIDE a Codex host, so spawning codex again is the same model reviewing itself at multiplied token cost (#2519). Print exactly one line: "[running under Codex — nested codex passes skipped; set GSTACK_FORCE_CODEX_REVIEW=1 to force]" and skip the codex invocations below; run the section's free in-host pass instead if it defines one.
 - **`not_authed`** — installed but no credentials. Print: "Codex installed but not authenticated — falling back to a Claude subagent (same model family, not an outside model). Run `codex login` or set `$CODEX_API_KEY`." Fall back to the Claude subagent path.
 - **`broken_install`** — the CLI is on PATH but cannot execute (spawn ENOENT, non-executable binary, missing vendor payload). Print: "Codex is installed but its binary cannot run — Codex passes skipped. Reinstall: `npm install -g @openai/codex`." Relay the probe's HINT lines and fall back to the Claude subagent path. This state exists because a missing binary used to land in the model probe's fail-open bucket and report `ready`, so every Codex pass was skipped silently (#2742).
-- **`model_unusable`** — authed but the account cannot use its configured model (#2477: HTTP 400 on every call, usually a stale `model =` pin in `~/.codex/config.toml`). Relay the probe's HINT lines, tell the user the one-line fix (update the pin; `[notice.model_migrations]` names the replacement), and fall back to the Claude subagent path. The ~10s round trip is cached for 1h; timeouts fail open to `ready`.
+- **`model_unusable`** — authed but the account cannot use gstack's selected Codex model (#2477: HTTP 400 on every call). Relay the probe's HINT lines, tell the user the one-line fix (set `GSTACK_CODEX_MODEL=<supported-model>` or pass an explicit `-c model=...` override), and fall back to the Claude subagent path. The ~10s round trip is cached for 1h; timeouts fail open to `ready`.
 - **`ready`** — run the Codex pass below.
 
 When the mode is `ready`, `not_installed`, or `not_authed`, print one line so the off-switch
@@ -321,7 +321,7 @@ THE PLAN:
 ```bash
 TMPERR_PV=$(mktemp /tmp/codex-planreview-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_PV"
+codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'model_reasoning_effort="high"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_PV"
 ```
 
 Use a 5-minute timeout (`timeout: 300000`). After the command completes, read stderr:

@@ -18,7 +18,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   Design: <insert Design consensus table summary, or 'skipped, no UI scope'>
   DX: <insert DX consensus table summary, or 'skipped, no developer-facing scope'>
 
-  File: <plan_path>" -C "$_REPO_ROOT" -s read-only {{CODEX_WEB_SEARCH_FLAG}} < /dev/null
+  File: <plan_path>" -C "$_REPO_ROOT" -s read-only {{CODEX_MODEL_CONFIG_FLAG}} {{CODEX_WEB_SEARCH_FLAG}} < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
     _gstack_codex_log_event "codex_timeout" "600"

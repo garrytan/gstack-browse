@@ -460,6 +460,15 @@ describe('golden-file regression', () => {
     fs.rmSync(GOLDEN_OUT, { recursive: true, force: true });
   });
 
+  test('every Claude outside-voice invocation selects the overridable frontier model', () => {
+    const rendered = fs.readFileSync(path.join(GOLDEN_OUT, '.agents/skills/gstack-claude/SKILL.md'), 'utf8');
+    const calls = rendered.split('\n').filter(line => line.includes('"$CLAUDE_BIN" -p'));
+    expect(calls).toHaveLength(4);
+    for (const call of calls) {
+      expect(call).toContain('--model "${GSTACK_CLAUDE_MODEL:-claude-fable-5-1}"');
+    }
+  });
+
   test('Claude ship skill matches golden baseline', () => {
     // Deliberately reads the TRACKED ship/SKILL.md (a read, not a write):
     // the claude golden pins the committed render. Freshness of the tracked
@@ -487,7 +496,7 @@ describe('golden-file regression', () => {
 // ─── Individual host config correctness ─────────────────────
 
 describe('host config correctness', () => {
-  test('Codex defaults to generic GPT while all existing hosts retain Claude', () => {
+  test('Codex host renders with generic GPT overlay while existing hosts retain Claude overlay', () => {
     expect(codex.defaultModel).toBe('gpt');
     for (const host of ALL_HOST_CONFIGS.filter(h => h.name !== 'codex')) {
       expect(host.defaultModel).toBe('claude');

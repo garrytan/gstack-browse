@@ -22,7 +22,7 @@ import { generateTestFailureTriage } from './preamble';
 import { generateDesignMethodology, generateDesignHardRules, generateDesignOutsideVoices, generateDesignReviewLite, generateDesignSketch, generateDesignSetup, generateDesignMockup, generateDesignShotgunLoop, generateTasteProfile, generateUXPrinciples } from './design';
 import { generateTestBootstrap, generateTestCoverageAuditPlan, generateTestCoverageAuditShip } from './testing';
 import { generateReviewDashboard, generatePlanFileReviewReport, generateExitPlanModeGate, generateAntiShortcutClause, generateSpecReviewLoop, generateBenefitsFrom, generateCodexSecondOpinion, generateAdversarialStep, generateCodexPlanReview, generateCodexDocReview, generatePlanCompletionAuditShip, generatePlanCompletionAuditReview, generatePlanVerificationExec, generateScopeDrift, generateCrossReviewDedup } from './review';
-import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateQAMethodology, generateCoAuthorTrailer, generateChangelogWorkflow, generateCodexWebSearchFlag, generateSetupCommand } from './utility';
+import { generateSlugEval, generateSlugSetup, generateBaseBranchDetect, generateDeployBootstrap, generateQAMethodology, generateCoAuthorTrailer, generateChangelogWorkflow, generateCodexWebSearchFlag, generateCodexModelConfigFlag, generateCodexReviewModelConfigFlag, generateClaudeModelFlag, generateSetupCommand } from './utility';
 import { generateLearningsSearch, generateLearningsLog } from './learnings';
 import { generateConfidenceCalibration } from './confidence';
 import { generateInvokeSkill } from './composition';
@@ -42,6 +42,9 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   SLUG_EVAL: generateSlugEval,
   SLUG_SETUP: generateSlugSetup,
   CODEX_WEB_SEARCH_FLAG: generateCodexWebSearchFlag,
+  CODEX_MODEL_CONFIG_FLAG: generateCodexModelConfigFlag,
+  CODEX_REVIEW_MODEL_CONFIG_FLAG: generateCodexReviewModelConfigFlag,
+  CLAUDE_MODEL_FLAG: generateClaudeModelFlag,
   REDACT_INVOCATION_BLOCK: generateRedactInvocationBlock,
   THIRD_PARTY_ACTIONS: generateThirdPartyActions,
   DESIGN_DOC_DISCOVERY: generateDesignDocDiscovery,

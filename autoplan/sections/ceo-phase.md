@@ -32,7 +32,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   What alternatives were dismissed too quickly? What competitive or market risks are
   unaddressed? What scope decisions will look foolish in 6 months? Be adversarial.
   No compliments. Just the strategic blind spots.
-  File: <plan_path>" -C "$_REPO_ROOT" -s read-only -c 'web_search="cached"' < /dev/null
+  File: <plan_path>" -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'web_search="cached"' < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
     _gstack_codex_log_event "codex_timeout" "600"

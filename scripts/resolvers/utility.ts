@@ -1,5 +1,6 @@
 import type { TemplateContext } from './types';
-import { CODEX_WEB_SEARCH_FLAG } from './constants';
+import { CODEX_MODEL_CONFIG_FLAG, CODEX_REVIEW_MODEL_CONFIG_FLAG, CODEX_WEB_SEARCH_FLAG } from './constants';
+import { CLAUDE_FRONTIER_EVAL_MODEL } from '../../lib/eval-model';
 
 /**
  * {{CODEX_WEB_SEARCH_FLAG}} — the non-deprecated codex web-search flag
@@ -8,6 +9,23 @@ import { CODEX_WEB_SEARCH_FLAG } from './constants';
  */
 export function generateCodexWebSearchFlag(_ctx: TemplateContext): string {
   return CODEX_WEB_SEARCH_FLAG;
+}
+
+/**
+ * {{CODEX_MODEL_CONFIG_FLAG}} — the default frontier Codex model override.
+ * Users can override it with GSTACK_CODEX_MODEL, or replace it with a
+ * request-specific `-c model="..."` when the skill input names a model.
+ */
+export function generateCodexModelConfigFlag(_ctx: TemplateContext): string {
+  return CODEX_MODEL_CONFIG_FLAG;
+}
+
+export function generateCodexReviewModelConfigFlag(_ctx: TemplateContext): string {
+  return CODEX_REVIEW_MODEL_CONFIG_FLAG;
+}
+
+export function generateClaudeModelFlag(_ctx: TemplateContext): string {
+  return `--model "\${GSTACK_CLAUDE_MODEL:-${CLAUDE_FRONTIER_EVAL_MODEL}}"`;
 }
 
 export function generateSlugEval(ctx: TemplateContext): string {

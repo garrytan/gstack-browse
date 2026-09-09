@@ -27,7 +27,7 @@ Override: every AskUserQuestion → auto-decide using the 6 principles.
   accessibility requirements (keyboard nav, contrast, touch targets) specified or
   aspirational? Does the plan describe specific UI decisions or generic patterns?
   What design decisions will haunt the implementer if left ambiguous?
-  Be opinionated. No hedging." -C "$_REPO_ROOT" -s read-only -c 'web_search="cached"' < /dev/null
+  Be opinionated. No hedging." -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'web_search="cached"' < /dev/null
   _CODEX_EXIT=$?
   if [ "$_CODEX_EXIT" = "124" ]; then
     _gstack_codex_log_event "codex_timeout" "600"

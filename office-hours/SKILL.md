@@ -813,7 +813,7 @@ Then add the context block and mode-appropriate instructions:
 ```bash
 TMPERR_OH=$(mktemp /tmp/codex-oh-err-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-codex exec "$(cat "$CODEX_PROMPT_FILE")" -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="high"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_OH"
+codex exec "$(cat "$CODEX_PROMPT_FILE")" -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'model_reasoning_effort="high"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_OH"
 ```
 
 Use a 5-minute timeout (`timeout: 300000`). After the command completes, read stderr:
@@ -1072,7 +1072,7 @@ If user chooses A, launch both voices simultaneously:
 ```bash
 TMPERR_SKETCH=$(mktemp /tmp/codex-sketch-XXXXXXXX)
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
-codex exec "For this product approach, provide: a visual thesis (one sentence — mood, material, energy), a content plan (hero → support → detail → CTA), and 2 interaction ideas that change page feel. Apply beautiful defaults: composition-first, brand-first, cardless, poster not document. Be opinionated." -C "$_REPO_ROOT" -s read-only -c 'model_reasoning_effort="medium"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_SKETCH"
+codex exec "For this product approach, provide: a visual thesis (one sentence — mood, material, energy), a content plan (hero → support → detail → CTA), and 2 interaction ideas that change page feel. Apply beautiful defaults: composition-first, brand-first, cardless, poster not document. Be opinionated." -C "$_REPO_ROOT" -s read-only -c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\"" -c 'model_reasoning_effort="medium"' -c 'web_search="cached"' < /dev/null 2>"$TMPERR_SKETCH"
 ```
 Use a 5-minute timeout (`timeout: 300000`). After completion: `cat "$TMPERR_SKETCH" && rm -f "$TMPERR_SKETCH"`
 
@@ -1133,7 +1133,7 @@ selection in Phase 6 Beat 3.5.
 
 ## Section self-check (before you finish)
 
-Confirm you Read every section the Section index named as applying to this run, and executed it in full. The conversation phase is section-backed too — if you ran the diagnostic or brainstorm from memory without Reading `sections/phase-2a-startup-diagnostic.md` (startup mode) or `sections/phase-2b-builder-brainstorm.md` (builder mode), the questions lost their teeth. The design doc and the handoff are the deliverables — if you produced them from memory without Reading `sections/design-and-handoff.md`, stop and Read it now.
+Confirm you Read every section the Section index named as applying to this run, and executed it. The conversation phase is section-backed too — if you ran the diagnostic or brainstorm from memory without Reading `sections/phase-2a-startup-diagnostic.md` (startup mode) or `sections/phase-2b-builder-brainstorm.md` (builder mode), the questions lost their teeth. If you produced the design doc or handoff from memory without Reading `sections/design-and-handoff.md`, stop and Read it now.
 
 ---
 
