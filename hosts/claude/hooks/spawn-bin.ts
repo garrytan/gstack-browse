@@ -96,6 +96,14 @@ export interface RunExternalResult {
  *     only on 'close': a child that exits 0 but leaves a background process
  *     holding its pipes gets its output delivered and the straggler group-
  *     killed, instead of being reported as a timeout with its answer dropped.
+ *   - NOTHING in the group outlives the call: the group is killed on every
+ *     resolve, including a clean 'close' (a helper the child forked with its
+ *     stdio redirected would otherwise run on unsupervised). A child that
+ *     must leave a daemon behind has to setsid it; that is the child's
+ *     explicit choice, visible in its own code, not an accident of ours.
+ *   - a child that has already exited when the deadline fires keeps its
+ *     result: the deadline then ends the drain, it does not rewrite a
+ *     completed exit as a timeout.
  *   - stderr is drained continuously (an undrained pipe blocks a noisy child
  *     before it writes stdout) and only its tail is kept, never forwarded.
  *   - stdin gets an error listener, so a child that exits before reading a
@@ -132,6 +140,7 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
     let stdinError: string | undefined;
     let timedOut = false;
     let done = false;
+    let exited: { code: number | null; signal: NodeJS.Signals | null } | null = null;
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
     let drainTimer: ReturnType<typeof setTimeout> | undefined;
     const killGroup = (): void => {
@@ -144,12 +153,16 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
       clearTimeout(timer);
       if (graceTimer) clearTimeout(graceTimer);
       if (drainTimer) clearTimeout(drainTimer);
-      // A straggler holding our pipes must not pin this process either.
+      // Nothing in the group outlives the call; a straggler holding our pipes
+      // must not pin this process either.
+      killGroup();
       for (const s of [child.stdout, child.stderr, child.stdin]) { try { s?.destroy(); } catch { /* closed */ } }
       try { child.unref(); } catch { /* fine */ }
       resolve({ status, signal, stdout: Buffer.concat(chunks), stderrTail, ...(stdinError ? { stdinError } : {}), error, timedOut });
     };
     const timer = setTimeout(() => {
+      // The child already answered and exited; the deadline only ends the drain.
+      if (exited) { finish(exited.code, exited.signal); return; }
       timedOut = true;
       error = error ?? 'ETIMEDOUT';
       killGroup();
@@ -167,6 +180,7 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
     });
     child.stderr?.on('data', (d: Buffer) => { stderrTail = (stderrTail + d.toString('utf8')).slice(-STDERR_TAIL_BYTES); });
     child.on('exit', (code, signal) => {
+      exited = { code, signal };
       if (done) return;
       // A killed child (timeout, ENOBUFS) has nothing worth draining: resolve
       // now so the caller keeps its post-spawn reserve.

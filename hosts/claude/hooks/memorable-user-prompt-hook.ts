@@ -129,18 +129,32 @@ export function stripControl(text: string): string {
   return text.replace(CONTROL_RE, '').replace(FORMAT_RE, '');
 }
 
-/** Every string leaf of a parsed JSON value, bounded so a hostile payload cannot monopolize the clock. */
-export function stringLeaves(value: unknown, maxNodes = 10_000, maxDepth = 32): string[] {
-  const out: string[] = [];
+/**
+ * Every string leaf of a parsed JSON value, bounded so a hostile payload
+ * cannot monopolize the clock. `exhausted` is true when the bound cut the
+ * walk short: the caller must then treat the payload as unscanned (and refuse
+ * the hand-off), never as clean.
+ */
+export function stringLeavesBounded(value: unknown, maxNodes = 10_000, maxDepth = 32): { leaves: string[]; exhausted: boolean } {
+  const leaves: string[] = [];
   let nodes = 0;
+  let exhausted = false;
   const walk = (v: unknown, depth: number): void => {
-    if (nodes++ > maxNodes || depth > maxDepth) return;
-    if (typeof v === 'string') { out.push(v); return; }
+    if (nodes++ > maxNodes || depth > maxDepth) { exhausted = true; return; }
+    if (typeof v === 'string') { leaves.push(v); return; }
     if (Array.isArray(v)) { for (const item of v) walk(item, depth + 1); return; }
-    if (v && typeof v === 'object') { for (const item of Object.values(v as Record<string, unknown>)) walk(item, depth + 1); }
+    if (v && typeof v === 'object') {
+      // keys are forwarded bytes too; a credential can sit in one
+      for (const [k, item] of Object.entries(v as Record<string, unknown>)) { leaves.push(k); walk(item, depth + 1); }
+    }
   };
   walk(value, 0);
-  return out;
+  return { leaves, exhausted };
+}
+
+/** The leaves alone (see stringLeavesBounded). */
+export function stringLeaves(value: unknown, maxNodes = 10_000, maxDepth = 32): string[] {
+  return stringLeavesBounded(value, maxNodes, maxDepth).leaves;
 }
 
 // Identity, locale and temp; the standard proxy, TLS and XDG knobs the vendor
@@ -196,10 +210,11 @@ export function* jsonObjects(raw: string): Generator<unknown> {
   let start = raw.indexOf('{');
   for (let tries = 0; start >= 0 && tries < JSON_CANDIDATES; tries++) {
     const end = balancedObjectEnd(raw, start);
-    if (end < 0) return; // nothing complete remains
     let parsed: unknown;
     let ok = false;
-    try { parsed = JSON.parse(raw.slice(start, end + 1)); ok = true; } catch { /* a brace in prose */ }
+    // An unbalanced candidate (a lone brace in a banner) is skipped like an
+    // unparsable one: the complete object after it must still be found.
+    if (end >= 0) { try { parsed = JSON.parse(raw.slice(start, end + 1)); ok = true; } catch { /* a brace in prose */ } }
     if (ok) { yield parsed; start = raw.indexOf('{', end + 1); }
     else start = raw.indexOf('{', start + 1);
   }
@@ -236,11 +251,13 @@ export function renderContext(vendorText: string): string {
  * of HIGH-tier shapes).
  */
 export function safeStderrTail(tail: string): string {
-  const t = stripControl(tail).replace(/\s+/g, ' ').trim().slice(-300);
-  if (!t) return '';
-  const r = scan(t, { repoVisibility: 'unknown' });
+  // Scan everything runExternal kept, THEN crop for the log: cropping first
+  // could cut a credential's identifying prefix off and log its secret half.
+  const whole = stripControl(tail).replace(/\s+/g, ' ').trim();
+  if (!whole) return '';
+  const r = scan(whole, { repoVisibility: 'unknown' });
   const n = r.counts.HIGH + r.counts.MEDIUM;
-  return r.oversize || n > 0 ? `[stderr withheld: ${n} redaction finding(s)]` : t;
+  return r.oversize || n > 0 ? `[stderr withheld: ${n} redaction finding(s)]` : whole.slice(-300);
 }
 
 function stripQuotes(v: string): string {
@@ -268,8 +285,10 @@ function isDirectory(p: string): boolean {
  * fall-through to something else (lib/claude-bin.ts contract).
  */
 export function resolveVendor(env: Record<string, string | undefined>, homeDir: string): string | null {
-  const override = env.GSTACK_MEMORABLE_BIN ?? env.MEMORABLE_BIN;
-  if (override && override.trim()) {
+  // Empty means unset, exactly as bash's ${GSTACK_MEMORABLE_BIN:-${MEMORABLE_BIN:-}} reads it
+  // in bin/gstack-memorable: the binary enable checked is the binary the hook runs.
+  const override = (env.GSTACK_MEMORABLE_BIN ?? '').trim() || (env.MEMORABLE_BIN ?? '').trim();
+  if (override) {
     const o = stripQuotes(override);
     const resolved = path.isAbsolute(o) ? o : (Bun.which(o) ?? null);
     return resolved && executable(resolved) ? resolved : null;
@@ -361,7 +380,26 @@ function gateIsOn(timeoutMs: number): 'on' | 'off' | 'error' {
 const GIT_NO_REMOTE = 2;
 const GIT_FATAL = 128;
 const NOT_A_REPO_RE = /^fatal: not a git repository\b/;
-const GIT_ENV = { ...process.env, LC_ALL: 'C', LANGUAGE: '', LC_MESSAGES: 'C' };
+
+/** Kills the in-flight detached child (git for the policy lookup, then the vendor); read by the signal handlers. */
+let killInflight: (() => void) | null = null;
+
+/**
+ * git's environment for the policy lookup: English messages, and NO inherited
+ * GIT_* repository selectors (GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR,
+ * GIT_CONFIG_*, ...): cwd does not override them, so an inherited GIT_DIR
+ * would make the veto inspect a different repository than the one the
+ * session works in. Exported for tests.
+ */
+export function gitEnv(env: Record<string, string | undefined>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) {
+    if (v == null || k.startsWith('GIT_')) continue;
+    out[k] = v;
+  }
+  out.LC_ALL = 'C'; out.LANGUAGE = ''; out.LC_MESSAGES = 'C';
+  return out;
+}
 
 /**
  * Trust-policy veto by the session's repo (keyed by its origin remote).
@@ -375,8 +413,10 @@ const GIT_ENV = { ...process.env, LC_ALL: 'C', LANGUAGE: '', LC_MESSAGES: 'C' };
 async function policyVeto(cwd: string, timeoutMs: number, remaining: () => number): Promise<'ok' | 'skip' | 'error'> {
   if (!hasRepoPolicyStore()) return 'ok';
   const git = await runExternal('git', ['remote', 'get-url', 'origin'], {
-    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: GIT_MAX_BUFFER, env: GIT_ENV,
+    cwd, timeoutMs: Math.max(1, timeoutMs), maxBuffer: GIT_MAX_BUFFER, env: gitEnv(process.env),
+    onSpawn: (kill) => { killInflight = kill; }, // a host cancellation must not leak this git either
   });
+  killInflight = null;
   if (git.timedOut || git.error) return 'error';
   if (git.status === GIT_NO_REMOTE) return 'ok';
   if (git.status === GIT_FATAL && NOT_A_REPO_RE.test(git.stderrTail.trim())) return 'ok';
@@ -394,8 +434,6 @@ function writeStdout(text: string): Promise<void> {
   return new Promise((resolve) => { process.stdout.write(text, () => resolve()); });
 }
 
-/** Kills the in-flight vendor group; set for the duration of the vendor spawn, read by the signal handlers. */
-let killInflight: (() => void) | null = null;
 
 /** Best-effort: the ledger's size warning goes to stderr, which the host discards for an exit-0 hook; log it where `status` looks. */
 function noteLedgerSize(): void {
@@ -444,7 +482,13 @@ export async function main(): Promise<void> {
   // its cost is roughly linear in bytes, so each scan is admitted by the clock
   // with a size-derived allowance: a scan we cannot afford skips recall
   // instead of letting the host kill us mid-scan.
-  const leaves = stringLeaves(payload).join('\n');
+  const walked = stringLeavesBounded(payload);
+  if (walked.exhausted) {
+    // A payload too deep or too wide to walk is unscanned, not clean.
+    logHookError('refused:payload-too-complex: the prompt JSON exceeded the scan walk bounds, nothing handed to the vendor');
+    return;
+  }
+  const leaves = walked.leaves.join('\n');
   for (const text of [rawText, leaves]) {
     const allowance = MIN_SPAWN_MS + Math.ceil(Buffer.byteLength(text, 'utf8') / 1024) * SCAN_MS_PER_KIB;
     if (remaining() < allowance) { logHookError('budget-exhausted before the secret scan, recall skipped'); return; }
