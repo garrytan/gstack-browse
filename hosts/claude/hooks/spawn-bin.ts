@@ -42,6 +42,13 @@ export function runBin(name: string, args: string[], opts: SpawnSyncOptions) {
     : spawnSync(bin, args, opts);
 }
 
+/** Kept tail of the child's stderr, for the caller's error log. */
+const STDERR_TAIL_BYTES = 500;
+/** After a group kill, how long to wait for 'close' before resolving anyway. */
+const KILL_GRACE_MS = 250;
+/** After the direct child exits, how long to keep draining stdout before resolving. */
+const EXIT_DRAIN_MS = 150;
+
 export interface RunExternalOptions {
   /** bytes written to the child's stdin, then stdin is closed */
   input?: Buffer | string;
@@ -60,10 +67,16 @@ export interface RunExternalResult {
   status: number | null;
   signal: NodeJS.Signals | null;
   stdout: Buffer;
-  /** last 500 bytes of stderr, for the error log — never forwarded */
+  /** last STDERR_TAIL_BYTES of stderr, for the error log — never forwarded */
   stderrTail: string;
   /** 'EPLATFORM' (win32 unsupported), 'ENOBUFS', 'ETIMEDOUT', or a spawn errno */
   error?: string;
+  /**
+   * errno from writing the child's stdin (EPIPE when it exits before reading
+   * a large input). Advisory and separate from `error`: a child that exited 0
+   * with output still answered.
+   */
+  stdinError?: string;
   timedOut: boolean;
 }
 
@@ -73,10 +86,14 @@ export interface RunExternalResult {
  *   - `detached: true` makes the child a process-group leader, so a timeout
  *     kills the whole group (`process.kill(-pid)`) — a fork-style vendor shim
  *     cannot outlive the reported timeout the way a bare child kill allows.
+ *   - resolves when the DIRECT child exits (after a short stdout drain), not
+ *     only on 'close': a child that exits 0 but leaves a background process
+ *     holding its pipes gets its output delivered and the straggler group-
+ *     killed, instead of being reported as a timeout with its answer dropped.
  *   - stderr is drained continuously (an undrained pipe blocks a noisy child
  *     before it writes stdout) and only its tail is kept, never forwarded.
  *   - stdin gets an error listener, so a child that exits before reading a
- *     large input surfaces EPIPE as a result, not an unhandled event.
+ *     large input surfaces EPIPE as `stdinError`, not an unhandled event.
  *   - stdout is capped; the cap kills the group and reports ENOBUFS.
  *   - win32 is refused ('EPLATFORM'): there are no process groups to kill, so
  *     the containment guarantee cannot be given (Windows support for the
@@ -106,9 +123,11 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
     let total = 0;
     let stderrTail = '';
     let error: string | undefined;
+    let stdinError: string | undefined;
     let timedOut = false;
     let done = false;
     let graceTimer: ReturnType<typeof setTimeout> | undefined;
+    let drainTimer: ReturnType<typeof setTimeout> | undefined;
     const killGroup = (): void => {
       try { if (child.pid) process.kill(-child.pid, 'SIGKILL'); } catch { /* group already gone */ }
       try { child.kill('SIGKILL'); } catch { /* already gone */ }
@@ -118,7 +137,11 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
       done = true;
       clearTimeout(timer);
       if (graceTimer) clearTimeout(graceTimer);
-      resolve({ status, signal, stdout: Buffer.concat(chunks), stderrTail, error, timedOut });
+      if (drainTimer) clearTimeout(drainTimer);
+      // A straggler holding our pipes must not pin this process either.
+      for (const s of [child.stdout, child.stderr, child.stdin]) { try { s?.destroy(); } catch { /* closed */ } }
+      try { child.unref(); } catch { /* fine */ }
+      resolve({ status, signal, stdout: Buffer.concat(chunks), stderrTail, ...(stdinError ? { stdinError } : {}), error, timedOut });
     };
     const timer = setTimeout(() => {
       timedOut = true;
@@ -126,7 +149,7 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
       killGroup();
       // If 'close' never arrives (a grandchild holding the pipes open past the
       // kill), resolve anyway: the caller's own deadline is what matters.
-      graceTimer = setTimeout(() => finish(null, 'SIGKILL'), 250);
+      graceTimer = setTimeout(() => finish(null, 'SIGKILL'), KILL_GRACE_MS);
     }, Math.max(1, opts.timeoutMs));
     child.on('error', (e) => { error = (e as NodeJS.ErrnoException)?.code ?? 'ESPAWN'; finish(null, null); });
     child.stdout?.on('data', (d: Buffer) => {
@@ -135,10 +158,17 @@ export function runExternal(exe: string, args: string[], opts: RunExternalOption
       if (total > maxBuffer) { error = 'ENOBUFS'; killGroup(); return; }
       chunks.push(d);
     });
-    child.stderr?.on('data', (d: Buffer) => { stderrTail = (stderrTail + d.toString('utf8')).slice(-500); });
+    child.stderr?.on('data', (d: Buffer) => { stderrTail = (stderrTail + d.toString('utf8')).slice(-STDERR_TAIL_BYTES); });
+    child.on('exit', (code, signal) => {
+      if (done) return;
+      // stdio may still be open (a background grandchild inherited the pipes):
+      // drain what the child itself wrote, then resolve with its real exit and
+      // kill whatever is still holding the group.
+      drainTimer = setTimeout(() => { killGroup(); finish(code, signal); }, EXIT_DRAIN_MS);
+    });
     child.on('close', (code, signal) => finish(code, signal));
     if (child.stdin) {
-      child.stdin.on('error', (e) => { error = error ?? ((e as NodeJS.ErrnoException)?.code ?? 'EPIPE'); });
+      child.stdin.on('error', (e) => { stdinError = stdinError ?? ((e as NodeJS.ErrnoException)?.code ?? 'EPIPE'); });
       if (opts.input !== undefined) child.stdin.end(opts.input); else child.stdin.end();
     }
   });
